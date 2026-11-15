@@ -232,7 +232,11 @@ mod tests {
         for (anchor, point) in expected {
             assert_eq!(anchor.point(r), point, "{anchor:?}");
             // Centred on the point with no offset.
-            assert_eq!(decoration(anchor).rect(r), Some(Rect::from_pos_and_size(point - Vec2::new(10.0, 5.0), Vec2::new(20.0, 10.0))), "{anchor:?}");
+            assert_eq!(
+                decoration(anchor).rect(r),
+                Some(Rect::from_pos_and_size(point - Vec2::new(10.0, 5.0), Vec2::new(20.0, 10.0))),
+                "{anchor:?}"
+            );
         }
     }
 
@@ -240,7 +244,8 @@ mod tests {
     fn offset_moves_the_centre_from_the_anchor() {
         let r = rect(0.0, 0.0, 200.0, 40.0);
         // A crest 30 × 24 whose centre is 8 points above the top edge's middle.
-        let crest = UiPanelDecoration::new(TextureHandle::White, Vec2::new(30.0, 24.0), UiDecorationAnchor::TopCenter).with_offset(Vec2::new(0.0, -8.0));
+        let crest = UiPanelDecoration::new(TextureHandle::White, Vec2::new(30.0, 24.0), UiDecorationAnchor::TopCenter)
+            .with_offset(Vec2::new(0.0, -8.0));
         assert_eq!(crest.rect(r), Some(rect(85.0, -20.0, 115.0, 4.0)));
 
         // A corner block pulled out to the bottom right.
@@ -281,7 +286,10 @@ mod tests {
         assert_eq!(UiDecoratedPanel::from(panel()).overhang(r), [0.0; 4]);
 
         let decorated = UiDecoratedPanel::new(panel())
-            .with_decoration(UiPanelDecoration::new(TextureHandle::White, Vec2::new(30.0, 24.0), UiDecorationAnchor::TopCenter).with_offset(Vec2::new(0.0, -8.0)))
+            .with_decoration(
+                UiPanelDecoration::new(TextureHandle::White, Vec2::new(30.0, 24.0), UiDecorationAnchor::TopCenter)
+                    .with_offset(Vec2::new(0.0, -8.0)),
+            )
             .with_decoration(decoration(UiDecorationAnchor::BottomLeft))
             .with_decoration(decoration(UiDecorationAnchor::RightCenter).with_min_panel_size(Vec2::new(1000.0, 0.0)));
         // The crest reaches 20 above, the bottom left block 10 left and 5 below; the hidden one

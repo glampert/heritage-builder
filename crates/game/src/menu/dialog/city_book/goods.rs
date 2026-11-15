@@ -56,7 +56,9 @@ impl CityPage for Goods {
         let buildings_key = "book.storage.buildings";
         let storage_lines: Vec<(String, String, StorageRow)> = storage
             .into_iter()
-            .map(|(name, row)| (name, ui::text::format_count(UiTextCategory::City, buildings_key, i64::from(row.buildings), &[]), row))
+            .map(|(name, row)| {
+                (name, ui::text::format_count(UiTextCategory::City, buildings_key, i64::from(row.buildings), &[]), row)
+            })
             .collect();
 
         let canvas = body_canvas(page, BODY.x, BODY.y, "goods", value, move |p: &Paint| {

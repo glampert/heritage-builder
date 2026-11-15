@@ -50,7 +50,8 @@ fn index_of(id: &str) -> usize {
 
 fn provider<'a>(profile: &'a Profile, campaign: &str, active: Option<ActiveMission>) -> ConfigWorldMapProvider<'a> {
     let (campaigns, maps) = configs();
-    ConfigWorldMapProvider::new(campaigns, maps, index_of(campaign), profile, active).expect("the campaign should have a world map")
+    ConfigWorldMapProvider::new(campaigns, maps, index_of(campaign), profile, active)
+        .expect("the campaign should have a world map")
 }
 
 fn city_ids(provider: &impl WorldMapProvider) -> Vec<String> {
@@ -69,14 +70,19 @@ fn test_world_maps_load_and_resolve() {
     assert_eq!(maps.validate(campaigns), Vec::<String>::new());
 
     for (index, campaign) in campaigns.campaigns.iter().enumerate() {
-        let map = maps.for_campaign(campaigns, index).unwrap_or_else(|| panic!("campaign '{}' should have a world map", campaign.id));
+        let map = maps
+            .for_campaign(campaigns, index)
+            .unwrap_or_else(|| panic!("campaign '{}' should have a world map", campaign.id));
         assert_eq!(map.extent, [1000.0, 672.0], "the generator's map space");
         // The realm's own cities, and a capital among them.
         let own: Vec<_> = map.cities.iter().filter(|city| city.owner == campaign.realm.to_string()).collect();
         assert!(!own.is_empty(), "campaign '{}' shows its realm's cities", campaign.id);
         // Every mission founds a city on the map.
         for (mission_index, mission) in campaign.missions.iter().enumerate() {
-            let city = mission.city.as_ref().unwrap_or_else(|| panic!("campaign '{}', mission {mission_index} should found a city", campaign.id));
+            let city = mission
+                .city
+                .as_ref()
+                .unwrap_or_else(|| panic!("campaign '{}', mission {mission_index} should found a city", campaign.id));
             assert!(map.contains(city.position));
         }
     }
@@ -101,11 +107,17 @@ fn test_text_keys_exist() {
             keys.extend(mission.story_keys().map(|key| (UiTextCategory::Story, key.to_string())));
             keys.extend(mission.city.iter().map(|city| (UiTextCategory::Realm, city.name.clone())));
             keys.extend(mission.choices.iter().map(|choice| (UiTextCategory::Realm, choice.name.clone())));
-            keys.extend(mission.choices.iter().filter_map(|choice| choice.phrase.clone().map(|key| (UiTextCategory::Realm, key))));
+            keys.extend(
+                mission.choices.iter().filter_map(|choice| choice.phrase.clone().map(|key| (UiTextCategory::Realm, key))),
+            );
             keys.extend(mission.choice_text.iter().map(|key| (UiTextCategory::Menu, key.clone())));
         }
     }
-    let missing: Vec<String> = keys.iter().filter(|(category, key)| text::peek(*category, key, None).1.is_none()).map(|(category, key)| format!("{category} '{key}'")).collect();
+    let missing: Vec<String> = keys
+        .iter()
+        .filter(|(category, key)| text::peek(*category, key, None).1.is_none())
+        .map(|(category, key)| format!("{category} '{key}'"))
+        .collect();
     assert!(missing.is_empty(), "en.json lacks: {missing:?}");
 }
 
@@ -118,7 +130,11 @@ fn test_hidden_campaigns_stay_out_of_the_menus() {
     let first_hidden = configs.campaigns.iter().position(|campaign| campaign.hidden).unwrap();
     assert!(configs.campaigns[first_hidden..].iter().all(|campaign| campaign.hidden), "hidden campaigns go last");
     // One per realm, each on its realm's map, so every realm's choice box can be shown.
-    for (id, realm) in [(TEST_CAMPAIGN, Realm::DaiLong), ("test_choices_kambara", Realm::Kambara), ("test_choices_tampadesa", Realm::Tampadesa)] {
+    for (id, realm) in [
+        (TEST_CAMPAIGN, Realm::DaiLong),
+        ("test_choices_kambara", Realm::Kambara),
+        ("test_choices_tampadesa", Realm::Tampadesa),
+    ] {
         let campaign = &configs.campaigns[index_of(id)];
         assert!(campaign.hidden && campaign.realm == realm, "{id}");
         assert!(campaign.missions.iter().any(|mission| !mission.choices.is_empty()), "{id} offers a choice");
@@ -277,11 +293,13 @@ fn test_next_mission_choice() {
     assert!(provider(&profile, TEST_CAMPAIGN, None).next_mission_choice().is_none(), "mission 1 has no choice");
 
     let playing_first = ActiveMission { campaign_id: index, mission_index: 0, completed: false };
-    let choice = provider(&profile, TEST_CAMPAIGN, Some(playing_first)).next_mission_choice().expect("the choice point follows");
+    let choice =
+        provider(&profile, TEST_CAMPAIGN, Some(playing_first)).next_mission_choice().expect("the choice point follows");
     assert_eq!(choice.mission_index, 1);
     assert_eq!(choice.title, "Next: Test: The Southern Shore");
     assert_eq!(choice.subtitle, "Choose Hội Thủy or Vân Cảng");
-    let sites: Vec<(ChoiceSite, &str, [f32; 2], usize)> = choice.sites.iter().map(|site| (site.site, site.name.as_str(), site.position, site.mission_index)).collect();
+    let sites: Vec<(ChoiceSite, &str, [f32; 2], usize)> =
+        choice.sites.iter().map(|site| (site.site, site.name.as_str(), site.position, site.mission_index)).collect();
     assert_eq!(sites, [(ChoiceSite::A, "Hội Thủy", [756.0, 316.0], 1), (ChoiceSite::B, "Vân Cảng", [854.0, 294.0], 2)]);
 
     assert!(!choice.open, "closed until the mission being played is finished");
@@ -294,10 +312,14 @@ fn test_next_mission_choice() {
     assert!(choice.open, "open with no game being played");
     // Over another game (a custom game, another campaign's mission) the choice stays closed:
     // starting its mission would end that game.
-    let over_other = provider(&profile, TEST_CAMPAIGN, None).with_other_game(true).next_mission_choice().expect("still shown");
+    let over_other =
+        provider(&profile, TEST_CAMPAIGN, None).with_other_game(true).next_mission_choice().expect("still shown");
     assert!(!over_other.open);
     let other_campaign = ActiveMission { campaign_id: index_of("dragon_legacy"), mission_index: 0, completed: true };
-    let over_other = provider(&profile, TEST_CAMPAIGN, Some(other_campaign)).with_other_game(true).next_mission_choice().expect("still shown");
+    let over_other = provider(&profile, TEST_CAMPAIGN, Some(other_campaign))
+        .with_other_game(true)
+        .next_mission_choice()
+        .expect("still shown");
     assert!(!over_other.open, "another campaign's finished mission doesn't open it");
 
     // Playing site B's mission: nothing comes after it.
@@ -312,7 +334,9 @@ fn test_next_mission_choice() {
     // Replaying mission 1 once all is finished: the step straight after it is the choice point
     // again, as campaign::advance_to_next_mission would go to.
     let replaying_first = ActiveMission { campaign_id: index, mission_index: 0, completed: true };
-    let choice = provider(&profile, TEST_CAMPAIGN, Some(replaying_first)).next_mission_choice().expect("the step after the one played");
+    let choice = provider(&profile, TEST_CAMPAIGN, Some(replaying_first))
+        .next_mission_choice()
+        .expect("the step after the one played");
     assert_eq!(choice.mission_index, 1);
 
     // Campaign I's missions have no choices yet.
@@ -326,7 +350,10 @@ fn test_next_mission_without_a_choice() {
     let index = index_of("dragon_legacy");
     let profile = Profile::new();
     let playing = ActiveMission { campaign_id: index, mission_index: 0, completed: false };
-    assert!(provider(&profile, "dragon_legacy", Some(playing)).next_mission().is_none(), "not before the mission is finished");
+    assert!(
+        provider(&profile, "dragon_legacy", Some(playing)).next_mission().is_none(),
+        "not before the mission is finished"
+    );
 
     let finished = ActiveMission { campaign_id: index, mission_index: 0, completed: true };
     let next = provider(&profile, "dragon_legacy", Some(finished)).next_mission().expect("the next mission");
@@ -359,13 +386,29 @@ fn test_validation_finds_errors() {
     )
     .expect("the test map should parse");
     let errors = map.validate(&[]);
-    for expected in ["choice box", "given twice", "owner 'nobody'", "off the map", "relations 9", "route 'nowhere'", "trades from 'b'", "1 points", "joins 'missing'", "is the player's"] {
+    for expected in [
+        "choice box",
+        "given twice",
+        "owner 'nobody'",
+        "off the map",
+        "relations 9",
+        "route 'nowhere'",
+        "trades from 'b'",
+        "1 points",
+        "joins 'missing'",
+        "is the player's",
+    ] {
         assert!(errors.iter().any(|error| error.contains(expected)), "expected an error about {expected}: {errors:?}");
     }
     assert_eq!(errors.len(), 10, "{errors:?}");
 
     // Unknown fields are refused.
-    assert!(serde_json::from_str::<WorldMapDef>(r#"{"extent": [1, 1], "compass": [0, 0], "choice_box": [0, 0], "cities": [], "town": 1}"#).is_err());
+    assert!(
+        serde_json::from_str::<WorldMapDef>(
+            r#"{"extent": [1, 1], "compass": [0, 0], "choice_box": [0, 0], "cities": [], "town": 1}"#
+        )
+        .is_err()
+    );
 
     // A campaign's choices: a choice point needs sites A and B naming missions after it.
     let mut configs: CampaignConfigs = serde_json::from_str(
@@ -416,7 +459,11 @@ fn test_base_art_maps_the_world_files() {
     for (index, campaign) in campaigns.campaigns.iter().enumerate() {
         let map = maps.for_campaign(campaigns, index).unwrap();
         let art = art(campaign.realm);
-        assert!(!art.base.is_empty() && !art.frame.is_empty() && !art.backdrop.is_empty(), "{}: the skin names the art", campaign.id);
+        assert!(
+            !art.base.is_empty() && !art.frame.is_empty() && !art.backdrop.is_empty(),
+            "{}: the skin names the art",
+            campaign.id
+        );
         assert_eq!(art.extent, map.extent, "{}: the base covers the world file's extent", campaign.id);
     }
 

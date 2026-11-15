@@ -1,8 +1,7 @@
-use serde::{Deserialize, Serialize};
-
 #[cfg(feature = "desktop")]
 use std::time;
 
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "web")]
 use web_time as time;
 
@@ -10,7 +9,7 @@ use web_time as time;
 // Type Aliases
 // ----------------------------------------------
 
-pub type Instant  = time::Instant;
+pub type Instant = time::Instant;
 pub type Duration = time::Duration;
 
 pub type Seconds = f32;

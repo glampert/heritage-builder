@@ -115,8 +115,8 @@ impl LaunchOptions {
             cli::fail("Use either --map or --load-save, not both.");
         }
 
-        let script =
-            cli::path_value("script").map(|path| ScriptOptions { path, continue_on_error: command_line.has("script-continue-on-error") });
+        let script = cli::path_value("script")
+            .map(|path| ScriptOptions { path, continue_on_error: command_line.has("script-continue-on-error") });
 
         if script.is_none() && command_line.has("script-continue-on-error") {
             cli::fail("--script-continue-on-error needs --script.");

@@ -214,11 +214,11 @@ impl SoundGlobalSettings {
     #[inline]
     fn master_volume(&self, kind: SoundKind) -> f32 {
         let volume = match kind {
-            SoundKind::Sfx             => self.sfx_master_volume,
-            SoundKind::Ambience        => self.ambience_master_volume,
+            SoundKind::Sfx => self.sfx_master_volume,
+            SoundKind::Ambience => self.ambience_master_volume,
             SoundKind::SpatialAmbience => self.spatial_master_volume,
-            SoundKind::Music           => self.music_master_volume,
-            SoundKind::Narration       => self.narration_master_volume,
+            SoundKind::Music => self.music_master_volume,
+            SoundKind::Narration => self.narration_master_volume,
         };
         volume * self.master_volume
     }
@@ -226,22 +226,22 @@ impl SoundGlobalSettings {
     #[inline]
     fn fade_in_secs(&self, kind: SoundKind) -> Seconds {
         match kind {
-            SoundKind::Sfx             => self.sfx_fade_in_secs,
-            SoundKind::Ambience        => self.ambience_fade_in_secs,
+            SoundKind::Sfx => self.sfx_fade_in_secs,
+            SoundKind::Ambience => self.ambience_fade_in_secs,
             SoundKind::SpatialAmbience => self.spatial_fade_in_secs,
-            SoundKind::Music           => self.music_fade_in_secs,
-            SoundKind::Narration       => self.narration_fade_in_secs,
+            SoundKind::Music => self.music_fade_in_secs,
+            SoundKind::Narration => self.narration_fade_in_secs,
         }
     }
 
     #[inline]
     fn fade_out_secs(&self, kind: SoundKind) -> Seconds {
         match kind {
-            SoundKind::Sfx             => self.sfx_fade_out_secs,
-            SoundKind::Ambience        => self.ambience_fade_out_secs,
+            SoundKind::Sfx => self.sfx_fade_out_secs,
+            SoundKind::Ambience => self.ambience_fade_out_secs,
             SoundKind::SpatialAmbience => self.spatial_fade_out_secs,
-            SoundKind::Music           => self.music_fade_out_secs,
-            SoundKind::Narration       => self.narration_fade_out_secs,
+            SoundKind::Music => self.music_fade_out_secs,
+            SoundKind::Narration => self.narration_fade_out_secs,
         }
     }
 }
@@ -498,7 +498,6 @@ impl SoundSystem {
 
         false
     }
-
 }
 
 // ----------------------------------------------

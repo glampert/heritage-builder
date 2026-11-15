@@ -1,14 +1,16 @@
-use common::{mem::SingleThreadStatic, coords::Cell};
+use common::{coords::Cell, mem::SingleThreadStatic};
 use game::{
-    unit::config::UnitConfigKey,
     sim::{
-        SimCmds, SimCmdQueue,
+        SimCmdQueue,
+        SimCmds,
         commands::{self, SpawnQueryResult, SpawnReadyResult},
     },
     tile::{
-        TileMapLayerKind, placement::TilePlacementErrReason,
-        sets::{TileSets, TERRAIN_LAND_CATEGORY, OBJECTS_BUILDINGS_CATEGORY, OBJECTS_VEGETATION_CATEGORY},
+        TileMapLayerKind,
+        placement::TilePlacementErrReason,
+        sets::{OBJECTS_BUILDINGS_CATEGORY, OBJECTS_VEGETATION_CATEGORY, TERRAIN_LAND_CATEGORY, TileSets},
     },
+    unit::config::UnitConfigKey,
 };
 
 mod test_utils;
@@ -36,37 +38,26 @@ fn test_sim_cmd_queue_spawning() {
     // Push spawn commands:
     let mut tile_promise = cmds.spawn_tile_with_tile_def_promise(
         Cell::new(0, 0),
-        TileSets::get().find_tile_def_by_name(
-            TileMapLayerKind::Terrain,
-            TERRAIN_LAND_CATEGORY.string,
-            "grass",
-        ).unwrap(),
+        TileSets::get().find_tile_def_by_name(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.string, "grass").unwrap(),
         commands::no_tile_callback(),
     );
 
     let mut building_promise = cmds.spawn_building_with_tile_def_promise(
         Cell::new(1, 1),
-        TileSets::get().find_tile_def_by_name(
-            TileMapLayerKind::Objects,
-            OBJECTS_BUILDINGS_CATEGORY.string,
-            "small_well",
-        ).unwrap(),
+        TileSets::get()
+            .find_tile_def_by_name(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.string, "small_well")
+            .unwrap(),
         commands::no_object_callback(),
     );
 
-    let mut unit_promise = cmds.spawn_unit_with_config_promise(
-        Cell::new(2, 2),
-        UnitConfigKey::Peasant,
-        commands::no_object_callback(),
-    );
+    let mut unit_promise =
+        cmds.spawn_unit_with_config_promise(Cell::new(2, 2), UnitConfigKey::Peasant, commands::no_object_callback());
 
     let mut prop_promise = cmds.spawn_prop_with_tile_def_promise(
         Cell::new(3, 3),
-        TileSets::get().find_tile_def_by_name(
-            TileMapLayerKind::Objects,
-            OBJECTS_VEGETATION_CATEGORY.string,
-            "tree",
-        ).unwrap(),
+        TileSets::get()
+            .find_tile_def_by_name(TileMapLayerKind::Objects, OBJECTS_VEGETATION_CATEGORY.string, "tree")
+            .unwrap(),
         commands::no_object_callback(),
     );
 
@@ -203,24 +194,18 @@ fn test_sim_cmd_queue_spawning_with_callbacks() {
         prop_spawned: bool,
         invalid_cell_spawn_failed: bool,
     }
-    static SPAWN_RESULTS: SingleThreadStatic<SpawnResults> = SingleThreadStatic::new(
-        SpawnResults {
-            tile_spawned: false,
-            building_spawned: false,
-            unit_spawned: false,
-            prop_spawned: false,
-            invalid_cell_spawn_failed: false,
-        }
-    );
+    static SPAWN_RESULTS: SingleThreadStatic<SpawnResults> = SingleThreadStatic::new(SpawnResults {
+        tile_spawned: false,
+        building_spawned: false,
+        unit_spawned: false,
+        prop_spawned: false,
+        invalid_cell_spawn_failed: false,
+    });
 
     // Push spawn commands:
     cmds.spawn_tile_with_tile_def_cb(
         Cell::new(0, 0),
-        TileSets::get().find_tile_def_by_name(
-            TileMapLayerKind::Terrain,
-            TERRAIN_LAND_CATEGORY.string,
-            "grass",
-        ).unwrap(),
+        TileSets::get().find_tile_def_by_name(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.string, "grass").unwrap(),
         |_context, result| {
             assert!(result.is_ok());
             SPAWN_RESULTS.as_mut().tile_spawned = true;
@@ -229,33 +214,25 @@ fn test_sim_cmd_queue_spawning_with_callbacks() {
 
     cmds.spawn_building_with_tile_def_cb(
         Cell::new(1, 1),
-        TileSets::get().find_tile_def_by_name(
-            TileMapLayerKind::Objects,
-            OBJECTS_BUILDINGS_CATEGORY.string,
-            "small_well",
-        ).unwrap(),
+        TileSets::get()
+            .find_tile_def_by_name(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.string, "small_well")
+            .unwrap(),
         |_context, result| {
             assert!(result.is_ok());
             SPAWN_RESULTS.as_mut().building_spawned = true;
         },
     );
 
-    cmds.spawn_unit_with_config_cb(
-        Cell::new(2, 2),
-        UnitConfigKey::Peasant,
-        |_context, result| {
-            assert!(result.is_ok());
-            SPAWN_RESULTS.as_mut().unit_spawned = true;
-        },
-    );
+    cmds.spawn_unit_with_config_cb(Cell::new(2, 2), UnitConfigKey::Peasant, |_context, result| {
+        assert!(result.is_ok());
+        SPAWN_RESULTS.as_mut().unit_spawned = true;
+    });
 
     cmds.spawn_prop_with_tile_def_cb(
         Cell::new(3, 3),
-        TileSets::get().find_tile_def_by_name(
-            TileMapLayerKind::Objects,
-            OBJECTS_VEGETATION_CATEGORY.string,
-            "tree",
-        ).unwrap(),
+        TileSets::get()
+            .find_tile_def_by_name(TileMapLayerKind::Objects, OBJECTS_VEGETATION_CATEGORY.string, "tree")
+            .unwrap(),
         |_context, result| {
             assert!(result.is_ok());
             SPAWN_RESULTS.as_mut().prop_spawned = true;

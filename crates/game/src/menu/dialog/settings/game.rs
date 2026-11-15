@@ -11,7 +11,10 @@ const AUTOSAVE_MINUTES: [u32; 6] = [1, 2, 5, 10, 15, 30];
 const GAME_SPEEDS: [u32; 5] = [1, 2, 3, 5, 10];
 
 fn autosave_interval_items() -> Vec<String> {
-    AUTOSAVE_MINUTES.iter().map(|&minutes| ui::text::format_count(UiTextCategory::Menu, "settings.autosave_every", i64::from(minutes), &[])).collect()
+    AUTOSAVE_MINUTES
+        .iter()
+        .map(|&minutes| ui::text::format_count(UiTextCategory::Menu, "settings.autosave_every", i64::from(minutes), &[]))
+        .collect()
 }
 
 fn game_speed_items() -> Vec<String> {
@@ -41,13 +44,8 @@ fn language_items() -> Vec<String> {
 
 pub(super) fn settings() -> Vec<SettingDef> {
     let tab = SettingsTab::Game;
-    let toggle = |label: UiString, read: fn(&GameConfigs) -> SettingValue, write: fn(&mut GameConfigs, SettingValue)| SettingDef {
-        tab,
-        label,
-        control: SettingControl::Toggle,
-        restart: false,
-        read,
-        write,
+    let toggle = |label: UiString, read: fn(&GameConfigs) -> SettingValue, write: fn(&mut GameConfigs, SettingValue)| {
+        SettingDef { tab, label, control: SettingControl::Toggle, restart: false, read, write }
     };
 
     vec![
@@ -76,7 +74,9 @@ pub(super) fn settings() -> Vec<SettingDef> {
             label: UiString::key(UiTextCategory::Menu, "settings.default_speed"),
             control: SettingControl::Dropdown { items: game_speed_items() },
             restart: false,
-            read: |configs| SettingValue::Choice(nearest_choice(&GAME_SPEEDS, configs.sim.default_speed.round().max(0.0) as u32)),
+            read: |configs| {
+                SettingValue::Choice(nearest_choice(&GAME_SPEEDS, configs.sim.default_speed.round().max(0.0) as u32))
+            },
             write: |configs, value| {
                 configs.sim.default_speed = GAME_SPEEDS.get(value.as_choice()).copied().unwrap_or(GAME_SPEEDS[0]) as f32;
             },
@@ -122,7 +122,11 @@ pub(super) fn settings() -> Vec<SettingDef> {
             label: UiString::key(UiTextCategory::Menu, "settings.language"),
             control: SettingControl::Dropdown { items: language_items() },
             restart: false,
-            read: |configs| SettingValue::Choice(languages().iter().position(|language| *language == configs.engine.language).unwrap_or(0)),
+            read: |configs| {
+                SettingValue::Choice(
+                    languages().iter().position(|language| *language == configs.engine.language).unwrap_or(0),
+                )
+            },
             write: |configs, value| {
                 if let Some(language) = languages().get(value.as_choice()) {
                     configs.engine.language = language.to_string();

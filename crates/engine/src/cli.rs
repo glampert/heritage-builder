@@ -415,7 +415,8 @@ pub fn one_shot_screenshot() -> Option<OneShotScreenshotOptions> {
         return None;
     };
 
-    let path = path_value("screenshot-out").unwrap_or_else(|| fail("--screenshot-after-frames needs --screenshot-out PATH."));
+    let path =
+        path_value("screenshot-out").unwrap_or_else(|| fail("--screenshot-after-frames needs --screenshot-out PATH."));
 
     Some(OneShotScreenshotOptions { after_frames, path, include_ui: !command_line.has("screenshot-no-ui") })
 }

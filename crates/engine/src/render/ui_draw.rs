@@ -65,12 +65,7 @@ impl UiClipRect {
             return None; // Also rejects NaNs.
         }
 
-        Some(Self {
-            x: min_x as u32,
-            y: min_y as u32,
-            width: (max_x - min_x) as u32,
-            height: (max_y - min_y) as u32,
-        })
+        Some(Self { x: min_x as u32, y: min_y as u32, width: (max_x - min_x) as u32, height: (max_y - min_y) as u32 })
     }
 }
 

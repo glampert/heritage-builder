@@ -1,8 +1,7 @@
-use serde::{Deserialize, Serialize};
-use strum::Display;
-
 use common::{coords::Cell, time::Seconds};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+use strum::Display;
 
 use super::anim::{UnitAnimSetKey, UnitAnimSets};
 use crate::{
@@ -51,10 +50,10 @@ impl UnitDirection {
 
 #[inline]
 pub fn same_axis(a: UnitDirection, b: UnitDirection) -> bool {
-    (a.is_north() && b.is_north()) ||
-    (a.is_south() && b.is_south()) ||
-    (a.is_east()  && b.is_east())  ||
-    (a.is_west()  && b.is_west())
+    (a.is_north() && b.is_north())
+        || (a.is_south() && b.is_south())
+        || (a.is_east() && b.is_east())
+        || (a.is_west() && b.is_west())
 }
 
 #[inline]
@@ -64,18 +63,10 @@ pub fn direction_between(a: Cell, b: Cell) -> UnitDirection {
 
     if dx.abs() > dy.abs() {
         // Move horizontally in grid space
-        if dx > 0 {
-            UnitDirection::NE
-        } else {
-            UnitDirection::SW
-        }
+        if dx > 0 { UnitDirection::NE } else { UnitDirection::SW }
     } else if dy != 0 {
         // Move vertically in grid space
-        if dy > 0 {
-            UnitDirection::NW
-        } else {
-            UnitDirection::SE
-        }
+        if dy > 0 { UnitDirection::NW } else { UnitDirection::SE }
     } else {
         UnitDirection::Idle
     }
@@ -85,10 +76,10 @@ pub fn direction_between(a: Cell, b: Cell) -> UnitDirection {
 pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
     match direction {
         UnitDirection::Idle => UnitAnimSets::IDLE,
-        UnitDirection::NE   => UnitAnimSets::WALK_NE,
-        UnitDirection::NW   => UnitAnimSets::WALK_NW,
-        UnitDirection::SE   => UnitAnimSets::WALK_SE,
-        UnitDirection::SW   => UnitAnimSets::WALK_SW,
+        UnitDirection::NE => UnitAnimSets::WALK_NE,
+        UnitDirection::NW => UnitAnimSets::WALK_NW,
+        UnitDirection::SE => UnitAnimSets::WALK_SE,
+        UnitDirection::SW => UnitAnimSets::WALK_SW,
     }
 }
 
@@ -96,10 +87,10 @@ pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
 pub fn idle_anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
     match direction {
         UnitDirection::Idle => UnitAnimSets::IDLE,
-        UnitDirection::NE   => UnitAnimSets::IDLE_NE,
-        UnitDirection::NW   => UnitAnimSets::IDLE_NW,
-        UnitDirection::SE   => UnitAnimSets::IDLE_SE,
-        UnitDirection::SW   => UnitAnimSets::IDLE_SW,
+        UnitDirection::NE => UnitAnimSets::IDLE_NE,
+        UnitDirection::NW => UnitAnimSets::IDLE_NW,
+        UnitDirection::SE => UnitAnimSets::IDLE_SE,
+        UnitDirection::SW => UnitAnimSets::IDLE_SW,
     }
 }
 

@@ -15,21 +15,21 @@ use crate::pathfind::NodeKind as PathNodeKind;
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Display, TryFromPrimitive, Serialize, Deserialize)]
 pub enum UnitConfigKey {
     #[default]
-    Peasant      = hash::fnv1a_from_str("peasant"),
-    Runner       = hash::fnv1a_from_str("runner"),
-    Settler      = hash::fnv1a_from_str("settler"),
-    Vendor       = hash::fnv1a_from_str("vendor"),
+    Peasant = hash::fnv1a_from_str("peasant"),
+    Runner = hash::fnv1a_from_str("runner"),
+    Settler = hash::fnv1a_from_str("settler"),
+    Vendor = hash::fnv1a_from_str("vendor"),
     TaxCollector = hash::fnv1a_from_str("tax_collector"),
     WaterCarrier = hash::fnv1a_from_str("water_carrier"),
-    Guard        = hash::fnv1a_from_str("guard"),
-    FireWatcher  = hash::fnv1a_from_str("fire_watcher"),
-    Teacher      = hash::fnv1a_from_str("teacher"),
-    Actor        = hash::fnv1a_from_str("actor"),
-    Monk         = hash::fnv1a_from_str("monk"),
-    Medic        = hash::fnv1a_from_str("medic"),
-    Dog          = hash::fnv1a_from_str("dog"),
-    Bird         = hash::fnv1a_from_str("bird"),
-    Buffalo      = hash::fnv1a_from_str("buffalo"),
+    Guard = hash::fnv1a_from_str("guard"),
+    FireWatcher = hash::fnv1a_from_str("fire_watcher"),
+    Teacher = hash::fnv1a_from_str("teacher"),
+    Actor = hash::fnv1a_from_str("actor"),
+    Monk = hash::fnv1a_from_str("monk"),
+    Medic = hash::fnv1a_from_str("medic"),
+    Dog = hash::fnv1a_from_str("dog"),
+    Bird = hash::fnv1a_from_str("bird"),
+    Buffalo = hash::fnv1a_from_str("buffalo"),
 }
 
 // ----------------------------------------------

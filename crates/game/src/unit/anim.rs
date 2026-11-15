@@ -1,7 +1,6 @@
-use serde::{Deserialize, Serialize};
-
 use common::hash::{self, PreHashedKeyMap, StrHashPair, StringHash};
 use engine::log;
+use serde::{Deserialize, Serialize};
 
 use crate::tile::{Tile, sets::TileDef};
 
@@ -21,7 +20,7 @@ pub struct UnitAnimSets {
 }
 
 impl UnitAnimSets {
-    pub const IDLE:    UnitAnimSetKey = UnitAnimSetKey::from_str("idle"); // Generic idle anim.
+    pub const IDLE: UnitAnimSetKey = UnitAnimSetKey::from_str("idle"); // Generic idle anim.
     pub const IDLE_NE: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_ne");
     pub const IDLE_NW: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_nw");
     pub const IDLE_SE: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_se");

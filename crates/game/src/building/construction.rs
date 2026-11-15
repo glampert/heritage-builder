@@ -4,10 +4,9 @@
 use std::fmt;
 
 use arrayvec::ArrayVec;
+use common::{mem::SingleThreadStatic, time::Seconds};
 use serde::{Deserialize, Deserializer, Serialize, de};
 use strum::{Display, EnumString};
-
-use common::{mem::SingleThreadStatic, time::Seconds};
 
 use crate::{
     cheats,
@@ -82,10 +81,11 @@ impl<'de> Deserialize<'de> for ConstructionMaterials {
 
         let mut items = ArrayVec::<StockItem, MAX_CONSTRUCTION_MATERIALS>::new();
         for (name, count) in entries.0 {
-            let kind = ResourceKind::from_name(&name).ok_or_else(|| de::Error::custom(format!("Unknown resource '{name}'.")))?;
-            items.try_push(StockItem { kind, count }).map_err(|_| {
-                de::Error::custom(format!("At most {MAX_CONSTRUCTION_MATERIALS} kinds of materials."))
-            })?;
+            let kind =
+                ResourceKind::from_name(&name).ok_or_else(|| de::Error::custom(format!("Unknown resource '{name}'.")))?;
+            items
+                .try_push(StockItem { kind, count })
+                .map_err(|_| de::Error::custom(format!("At most {MAX_CONSTRUCTION_MATERIALS} kinds of materials.")))?;
         }
 
         Self::new(&items).map_err(de::Error::custom)
@@ -310,6 +310,9 @@ mod tests {
         assert!(serde_json::from_str::<ConstructionMaterials>(r#"{ "Gold": 1 }"#).is_err());
         assert!(serde_json::from_str::<ConstructionMaterials>(r#"{ "Wood": 0 }"#).is_err());
         assert!(serde_json::from_str::<ConstructionMaterials>(r#"{ "Stone": 1 }"#).is_err());
-        assert!(serde_json::from_str::<ConstructionMaterials>(r#"{ "Wood": 1, "Clay": 1, "Metal": 1, "Bricks": 1, "Rice": 1 }"#).is_err());
+        assert!(
+            serde_json::from_str::<ConstructionMaterials>(r#"{ "Wood": 1, "Clay": 1, "Metal": 1, "Bricks": 1, "Rice": 1 }"#)
+                .is_err()
+        );
     }
 }

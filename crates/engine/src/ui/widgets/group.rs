@@ -1,7 +1,7 @@
 use std::any::Any;
-use egui::vec2;
 
 use common::Vec2;
+use egui::vec2;
 
 use super::{UiWidget, UiWidgetContext, UiWidgetImpl};
 use crate::ui::{UiString, immediate::egui_vec2, internal};

@@ -1,4 +1,4 @@
-use objc2::{sel, rc::Retained};
+use objc2::{rc::Retained, sel};
 use objc2_app_kit::{NSApp, NSApplication, NSApplicationPresentationOptions, NSMenu, NSWindow};
 use objc2_foundation::MainThreadMarker;
 

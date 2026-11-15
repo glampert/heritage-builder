@@ -67,7 +67,14 @@ impl MinimapLayout {
 
     // In the bottom left corner of a screen of `screen_size` points, with `tool_count` tools, a map
     // of `map_size` points and `legend_entries` legend entries (0 without a lens) at `legend_scale`.
-    pub fn new(screen_size: Vec2, tool_count: usize, map_size: Vec2, legend_entries: usize, legend_scale: f32, frame: MinimapFrame) -> Self {
+    pub fn new(
+        screen_size: Vec2,
+        tool_count: usize,
+        map_size: Vec2,
+        legend_entries: usize,
+        legend_scale: f32,
+        frame: MinimapFrame,
+    ) -> Self {
         let [left, top, right, bottom] = frame.insets;
         let legend_columns = Self::legend_columns(map_size.x, legend_scale);
         let legend_rows = legend_entries.div_ceil(legend_columns);
@@ -83,7 +90,10 @@ impl MinimapLayout {
         let inner_min = window.min + Vec2::new(left, top);
         let lens_row = Rect::from_pos_and_size(inner_min, Vec2::new(map_size.x, BUTTON_SIZE));
         let map = Rect::from_pos_and_size(inner_min + Vec2::new(0.0, BUTTON_SIZE + GAP), map_size);
-        let legend = Rect::from_pos_and_size(Vec2::new(map.min.x, map.max.y + GAP), Vec2::new(map_size.x, legend_height - GAP).max(Vec2::zero()));
+        let legend = Rect::from_pos_and_size(
+            Vec2::new(map.min.x, map.max.y + GAP),
+            Vec2::new(map_size.x, legend_height - GAP).max(Vec2::zero()),
+        );
         let tools = Rect::from_pos_and_size(Vec2::new(map.max.x + GAP, inner_min.y), Vec2::new(BUTTON_SIZE, tools_height));
         let tool_spacing = if tool_count > 1 {
             ((tools_height - BUTTON_SIZE * tool_count as f32) / (tool_count - 1) as f32).max(0.0)
@@ -102,7 +112,10 @@ impl MinimapLayout {
 // whole cell coordinates.
 #[inline]
 pub fn cell_to_world(cell: Vec2) -> Vec2 {
-    Vec2::new((cell.x - cell.y) * HALF_BASE_TILE_WIDTH_F32 + HALF_BASE_TILE_WIDTH_F32, -(cell.x + cell.y) * HALF_BASE_TILE_HEIGHT_F32 + HALF_BASE_TILE_HEIGHT_F32)
+    Vec2::new(
+        (cell.x - cell.y) * HALF_BASE_TILE_WIDTH_F32 + HALF_BASE_TILE_WIDTH_F32,
+        -(cell.x + cell.y) * HALF_BASE_TILE_HEIGHT_F32 + HALF_BASE_TILE_HEIGHT_F32,
+    )
 }
 
 #[inline]
@@ -160,17 +173,17 @@ pub const ZOOM_STEP: f32 = 1.5;
 const AUTO_SCROLL_MARGIN: f32 = 0.12; // Of the view, kept between the camera's view and its edges.
 
 pub struct MinimapView {
-    pub zoom: f32,                  // 1: the playable area fills the map. More zooms in.
-    pub center: Vec2,               // Centre of the view, in world points.
-    pub auto_zoom: bool,            // Zoom so about `desired_visible_cells` show across.
-    pub auto_scroll: bool,          // Scroll to keep the camera's view on the map.
-    pub scroll_speed: f32,          // How fast auto scroll catches up, per second.
+    pub zoom: f32,         // 1: the playable area fills the map. More zooms in.
+    pub center: Vec2,      // Centre of the view, in world points.
+    pub auto_zoom: bool,   // Zoom so about `desired_visible_cells` show across.
+    pub auto_scroll: bool, // Scroll to keep the camera's view on the map.
+    pub scroll_speed: f32, // How fast auto scroll catches up, per second.
     pub desired_visible_cells: f32,
 
     // Recomputed every update:
-    pub map_rect: Rect,       // The map area on screen.
-    pub playable: Rect,       // The playable area in world points.
-    pub camera_rect: Rect,    // The camera's view on the minimap, clamped to the map area.
+    pub map_rect: Rect,    // The map area on screen.
+    pub playable: Rect,    // The playable area in world points.
+    pub camera_rect: Rect, // The camera's view on the minimap, clamped to the map area.
     pub cursor_pos: Vec2,
     pub map_size: Size,
 }
@@ -238,7 +251,8 @@ impl MinimapView {
             return full / self.zoom;
         }
         let aspect = map.x / map.y;
-        let fitted = if full.x / full.y > aspect { Vec2::new(full.y * aspect, full.y) } else { Vec2::new(full.x, full.x / aspect) };
+        let fitted =
+            if full.x / full.y > aspect { Vec2::new(full.y * aspect, full.y) } else { Vec2::new(full.x, full.x / aspect) };
         fitted / self.zoom
     }
 
@@ -279,7 +293,14 @@ impl MinimapView {
         self.clamp_center();
     }
 
-    pub fn update(&mut self, camera: &mut Camera, map_rect: Rect, map_size: Size, cursor_pos: Vec2, delta_time_secs: Seconds) {
+    pub fn update(
+        &mut self,
+        camera: &mut Camera,
+        map_rect: Rect,
+        map_size: Size,
+        cursor_pos: Vec2,
+        delta_time_secs: Seconds,
+    ) {
         let first_update = !self.is_valid() || self.map_size != map_size;
 
         self.map_rect = map_rect;
@@ -308,7 +329,8 @@ impl MinimapView {
         }
         self.clamp_center();
 
-        let mut camera_rect = Rect::from_extents(self.world_to_minimap(camera_world.min), self.world_to_minimap(camera_world.max));
+        let mut camera_rect =
+            Rect::from_extents(self.world_to_minimap(camera_world.min), self.world_to_minimap(camera_world.max));
         self.camera_rect = *camera_rect.clamp(&map_rect.shrunk(Vec2::one()));
     }
 
@@ -376,7 +398,11 @@ mod tests {
 
     #[test]
     fn cell_to_minimap_matches_world_to_minimap() {
-        let mut view = MinimapView { map_rect: Rect::from_pos_and_size(Vec2::new(10.0, 20.0), Vec2::new(300.0, 150.0)), map_size: Size::new(64, 64), ..Default::default() };
+        let mut view = MinimapView {
+            map_rect: Rect::from_pos_and_size(Vec2::new(10.0, 20.0), Vec2::new(300.0, 150.0)),
+            map_size: Size::new(64, 64),
+            ..Default::default()
+        };
         view.playable = IsoDiamond::from_tile_map(view.map_size, WorldToScreenTransform::default()).inner_rect();
         view.center = view.playable.center();
         view.zoom = 1.3;
@@ -392,7 +418,11 @@ mod tests {
 
     #[test]
     fn playable_area_fills_the_map_at_zoom_one() {
-        let mut view = MinimapView { map_rect: Rect::from_pos_and_size(Vec2::zero(), Vec2::new(300.0, 150.0)), map_size: Size::new(80, 80), ..Default::default() };
+        let mut view = MinimapView {
+            map_rect: Rect::from_pos_and_size(Vec2::zero(), Vec2::new(300.0, 150.0)),
+            map_size: Size::new(80, 80),
+            ..Default::default()
+        };
         view.playable = IsoDiamond::from_tile_map(view.map_size, WorldToScreenTransform::default()).inner_rect();
         view.center = view.playable.center();
         let min = view.world_to_minimap(view.playable.min);

@@ -8,9 +8,8 @@
 // UiMessageBox::with_panel, UiTooltipText::with_panel and UiTextButton::with_frame. Load one with
 // UiWidgetContext::load_nine_slice, which knows the texture's size.
 
-use smallvec::SmallVec;
-
 use common::{Rect, Vec2};
+use smallvec::SmallVec;
 
 use crate::render::texture::TextureHandle;
 
@@ -55,9 +54,9 @@ impl UiNineSliceCenter {
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct UiNineSlice {
     pub texture: TextureHandle,
-    pub texture_size: Vec2,       // In pixels.
-    pub slice_px: [f32; 4],       // The borders in pixels: left, top, right, bottom.
-    pub scale: f32,               // Points per pixel: 0.5 draws 2× art at its intended size.
+    pub texture_size: Vec2, // In pixels.
+    pub slice_px: [f32; 4], // The borders in pixels: left, top, right, bottom.
+    pub scale: f32,         // Points per pixel: 0.5 draws 2× art at its intended size.
     pub center: UiNineSliceCenter,
 }
 
@@ -115,7 +114,8 @@ impl UiNineSlice {
         let mut points_per_pixel = self.points_per_pixel();
 
         // Shrink the borders to fit the rect, keeping the corners' shape.
-        let fit = |border_points: f32, available: f32| if border_points > available { available / border_points } else { 1.0 };
+        let fit =
+            |border_points: f32, available: f32| if border_points > available { available / border_points } else { 1.0 };
         let shrink = fit((left + right) * points_per_pixel, size.x).min(fit((top + bottom) * points_per_pixel, size.y));
         points_per_pixel *= shrink;
 
@@ -138,8 +138,13 @@ impl UiNineSlice {
             let row_spans = spans(ys[row], ys[row + 1], vs[row], vs[row + 1], (tile && row == 1).then_some(row_tile));
 
             for column in 0..3 {
-                let column_spans =
-                    spans(xs[column], xs[column + 1], us[column], us[column + 1], (tile && column == 1).then_some(column_tile));
+                let column_spans = spans(
+                    xs[column],
+                    xs[column + 1],
+                    us[column],
+                    us[column + 1],
+                    (tile && column == 1).then_some(column_tile),
+                );
 
                 for &(y0, y1, v0, v1) in &row_spans {
                     for &(x0, x1, u0, u1) in &column_spans {
@@ -357,7 +362,12 @@ mod tests {
 
         // Corners 4, top and bottom edges 4 each, left and right edges 2 each, centre 8.
         assert_eq!(quads.len(), 4 + 8 + 4 + 8);
-        let center: Vec<_> = quads.iter().filter(|quad| quad.rect.min.x >= 10.0 && quad.rect.max.x <= 90.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 50.0).collect();
+        let center: Vec<_> = quads
+            .iter()
+            .filter(|quad| {
+                quad.rect.min.x >= 10.0 && quad.rect.max.x <= 90.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 50.0
+            })
+            .collect();
         assert_eq!(center.len(), 8);
         for quad in &center {
             assert_eq!(quad.rect.size(), Vec2::new(20.0, 20.0));
@@ -370,13 +380,19 @@ mod tests {
         // A 70 point middle: tiles of 20, 20, 20 and a last one of 10 showing half the centre.
         // The top edge repeats across only, so its texture is inset across only.
         let quads = slice.quads(rect(0.0, 0.0, 90.0, 40.0));
-        let top_edge: Vec<_> = quads.iter().filter(|quad| quad.rect.min.y == 0.0 && quad.rect.min.x >= 10.0 && quad.rect.max.x <= 80.0).collect();
+        let top_edge: Vec<_> = quads
+            .iter()
+            .filter(|quad| quad.rect.min.y == 0.0 && quad.rect.min.x >= 10.0 && quad.rect.max.x <= 80.0)
+            .collect();
         assert_eq!(top_edge.len(), 4);
         assert_rect(top_edge[0].uv, rect(c0, 0.0, c1, 0.25));
         assert_rect(top_edge[3].rect, rect(70.0, 0.0, 80.0, 10.0));
         assert_rect(top_edge[3].uv, rect(c0, 0.0, c0 + (c1 - c0) * 0.5, 0.25));
         // The left edge spans 20 points: one whole tile, inset down only.
-        let left_edge: Vec<_> = quads.iter().filter(|quad| quad.rect.min.x == 0.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 30.0).collect();
+        let left_edge: Vec<_> = quads
+            .iter()
+            .filter(|quad| quad.rect.min.x == 0.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 30.0)
+            .collect();
         assert_eq!(left_edge.len(), 1);
         assert_rect(left_edge[0].uv, rect(0.0, c0, 0.25, c1));
     }
@@ -390,7 +406,10 @@ mod tests {
         const HALF_TEXEL: f32 = 0.5 / 40.0;
         let (c0, c1) = (0.25 + HALF_TEXEL, 0.75 - HALF_TEXEL);
 
-        let top_edge: Vec<_> = quads.iter().filter(|quad| quad.rect.min.y == 0.0 && quad.rect.min.x >= 10.0 && quad.rect.max.x <= 80.0).collect();
+        let top_edge: Vec<_> = quads
+            .iter()
+            .filter(|quad| quad.rect.min.y == 0.0 && quad.rect.min.x >= 10.0 && quad.rect.max.x <= 80.0)
+            .collect();
         assert_eq!(top_edge.len(), 4);
         for (index, quad) in top_edge.iter().enumerate() {
             let x0 = 10.0 + 17.5 * index as f32;
@@ -399,13 +418,21 @@ mod tests {
         }
 
         // 20 points down: one whole tile, as Tile would draw it.
-        let left_edge: Vec<_> = quads.iter().filter(|quad| quad.rect.min.x == 0.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 30.0).collect();
+        let left_edge: Vec<_> = quads
+            .iter()
+            .filter(|quad| quad.rect.min.x == 0.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 30.0)
+            .collect();
         assert_eq!(left_edge.len(), 1);
         assert_rect(left_edge[0].rect, rect(0.0, 10.0, 10.0, 30.0));
         assert_rect(left_edge[0].uv, rect(0.0, c0, 0.25, c1));
 
         // The centre: 4 × 1 whole tiles.
-        let center: Vec<_> = quads.iter().filter(|quad| quad.rect.min.x >= 10.0 && quad.rect.max.x <= 80.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 30.0).collect();
+        let center: Vec<_> = quads
+            .iter()
+            .filter(|quad| {
+                quad.rect.min.x >= 10.0 && quad.rect.max.x <= 80.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 30.0
+            })
+            .collect();
         assert_eq!(center.len(), 4);
         for quad in &center {
             assert_rect(quad.uv, rect(c0, c0, c1, c1));
@@ -426,7 +453,10 @@ mod tests {
         let slice = slice((40.0, 40.0), [10.0, 10.0, 10.0, 10.0]).with_center(UiNineSliceCenter::Round);
         for width in [25.0, 47.0, 68.0, 71.0, 133.3, 500.0] {
             let quads = slice.quads(rect(0.0, 0.0, width + 20.0, 40.0));
-            let top_edge: Vec<_> = quads.iter().filter(|quad| quad.rect.min.y == 0.0 && quad.rect.min.x >= 10.0 && quad.rect.max.x <= width + 10.0).collect();
+            let top_edge: Vec<_> = quads
+                .iter()
+                .filter(|quad| quad.rect.min.y == 0.0 && quad.rect.min.x >= 10.0 && quad.rect.max.x <= width + 10.0)
+                .collect();
             let count = top_edge.len();
             assert_eq!(count, round_tile_count(width, 20.0), "{width}");
             for quad in &top_edge {
@@ -442,7 +472,10 @@ mod tests {
         // The cap holds for round tiles too.
         let tiny = self::slice((3.0, 3.0), [1.0, 1.0, 1.0, 1.0]).with_center(UiNineSliceCenter::Round);
         let quads = tiny.quads(rect(0.0, 0.0, 1002.0, 3.0));
-        let middle = quads.iter().filter(|quad| quad.rect.min.x >= 1.0 && quad.rect.max.x <= 1001.0 && quad.rect.min.y == 1.0).count();
+        let middle = quads
+            .iter()
+            .filter(|quad| quad.rect.min.x >= 1.0 && quad.rect.max.x <= 1001.0 && quad.rect.min.y == 1.0)
+            .count();
         assert_eq!(middle, UiNineSlice::MAX_TILES_PER_AXIS);
     }
 
@@ -450,7 +483,8 @@ mod tests {
     fn a_centre_one_texel_wide_tiles_its_texel_centre() {
         let slice = slice((3.0, 3.0), [1.0, 1.0, 1.0, 1.0]).with_center(UiNineSliceCenter::Tile);
         let quads = slice.quads(rect(0.0, 0.0, 6.0, 3.0));
-        let center: Vec<_> = quads.iter().filter(|quad| quad.rect.min.x >= 1.0 && quad.rect.max.x <= 5.0 && quad.rect.min.y == 1.0).collect();
+        let center: Vec<_> =
+            quads.iter().filter(|quad| quad.rect.min.x >= 1.0 && quad.rect.max.x <= 5.0 && quad.rect.min.y == 1.0).collect();
         assert_eq!(center.len(), 4);
         for quad in &center {
             assert_rect(quad.uv, rect(0.5, 0.5, 0.5, 0.5));
@@ -461,7 +495,10 @@ mod tests {
     fn tiles_are_capped() {
         let slice = slice((3.0, 3.0), [1.0, 1.0, 1.0, 1.0]).with_center(UiNineSliceCenter::Tile);
         let quads = slice.quads(rect(0.0, 0.0, 1002.0, 3.0)); // A 1000 point middle of 1 point tiles.
-        let middle = quads.iter().filter(|quad| quad.rect.min.x >= 1.0 && quad.rect.max.x <= 1001.0 && quad.rect.min.y == 1.0).count();
+        let middle = quads
+            .iter()
+            .filter(|quad| quad.rect.min.x >= 1.0 && quad.rect.max.x <= 1001.0 && quad.rect.min.y == 1.0)
+            .count();
         assert_eq!(middle, UiNineSlice::MAX_TILES_PER_AXIS);
     }
 

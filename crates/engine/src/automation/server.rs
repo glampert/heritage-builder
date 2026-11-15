@@ -124,7 +124,8 @@ impl Drop for AutomationServer {
 
         // Give the writers a moment to send what's queued, such as the response to `quit`.
         let deadline = Instant::now() + SHUTDOWN_FLUSH_TIMEOUT;
-        while Instant::now() < deadline && self.shared.connections().iter().any(|connection| connection.has_pending_writes()) {
+        while Instant::now() < deadline && self.shared.connections().iter().any(|connection| connection.has_pending_writes())
+        {
             thread::sleep(Duration::from_millis(5));
         }
 
@@ -171,16 +172,21 @@ impl InfoFiles {
     fn write(port: u16, token: &str) -> Result<Self, String> {
         let logs_path = log::logs_path();
         let logs_dir = logs_path.as_path();
-        std::fs::create_dir_all(logs_dir).map_err(|err| format!("Automation server: can't create {}: {err}", logs_dir.display()))?;
+        std::fs::create_dir_all(logs_dir)
+            .map_err(|err| format!("Automation server: can't create {}: {err}", logs_dir.display()))?;
 
         let pid = std::process::id();
         let info = json!({ "pid": pid, "port": port, "token": token }).to_string();
 
-        let files = Self { latest: logs_dir.join("automation.json"), this_instance: logs_dir.join(format!("automation-{pid}.json")) };
+        let files = Self {
+            latest: logs_dir.join("automation.json"),
+            this_instance: logs_dir.join(format!("automation-{pid}.json")),
+        };
 
         // The instance file goes first: tools that launched this process wait for it.
         for path in [&files.this_instance, &files.latest] {
-            write_private_file(path, &info).map_err(|err| format!("Automation server: can't write {}: {err}", path.display()))?;
+            write_private_file(path, &info)
+                .map_err(|err| format!("Automation server: can't write {}: {err}", path.display()))?;
         }
 
         Ok(files)
@@ -385,11 +391,17 @@ fn run_reader(mut stream: TcpStream, connection: Arc<Connection>, shared: Arc<Sh
                 }
 
                 if buffer.len() > MAX_REQUEST_BYTES {
-                    connection.send(error_response(&Value::Null, INVALID_REQUEST, "InvalidRequest", "Request too long.").to_string());
+                    connection.send(
+                        error_response(&Value::Null, INVALID_REQUEST, "InvalidRequest", "Request too long.").to_string(),
+                    );
                     break;
                 }
             }
-            Err(err) if matches!(err.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut | io::ErrorKind::Interrupted) => {}
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut | io::ErrorKind::Interrupted
+                ) => {}
             Err(_) => break,
         }
     }
@@ -525,7 +537,8 @@ fn register_log_listener(shared: Weak<Shared>) {
             let min_level = *connection.log_level.lock().unwrap_or_else(PoisonError::into_inner);
             if min_level.is_some_and(|min_level| record.level >= min_level) {
                 let notification = notification.get_or_insert_with(|| {
-                    let channel = record.channel.map(|channel| channel.name.trim().trim_start_matches('[').trim_end_matches(']'));
+                    let channel =
+                        record.channel.map(|channel| channel.name.trim().trim_start_matches('[').trim_end_matches(']'));
                     json!({
                         "jsonrpc": "2.0",
                         "method": "log",

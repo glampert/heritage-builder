@@ -43,7 +43,10 @@ pub(super) fn read_prop(_context: &SimContext, prop: &Prop, tile: &Tile) -> Insp
             note: None,
             rows: vec![ValueRow {
                 label: building::good_name(kind),
-                value: tc("production.units", i64::from(prop.harvestable_amount()), &[("good", &building::good_name(kind).to_lowercase())]),
+                value: tc("production.units", i64::from(prop.harvestable_amount()), &[(
+                    "good",
+                    &building::good_name(kind).to_lowercase(),
+                )]),
                 warn: false,
             }],
         });

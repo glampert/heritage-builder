@@ -4,11 +4,10 @@
 
 use std::collections::BTreeMap;
 
-use serde::Deserialize;
-use strum::{Display, EnumCount, EnumIter, EnumString};
-
 use common::{Color, Size, coords::Cell};
 use minimap_bake::{CellRect, Cover, Grid, Terrain};
+use serde::Deserialize;
+use strum::{Display, EnumCount, EnumIter, EnumString};
 
 use super::style::HexColor;
 use crate::tile::{
@@ -28,15 +27,17 @@ use crate::tile::{
 pub enum MinimapClass {
     #[default]
     Building, // A block in its sector's colour, with a shadow and an outline.
-    Field,    // Paddies and farms: a striped patch, flat.
-    Plaza,    // Paved squares: flat, no shadow.
-    Decor,    // Gardens and statues: no outline.
-    None,     // Not drawn.
+    Field, // Paddies and farms: a striped patch, flat.
+    Plaza, // Paved squares: flat, no shadow.
+    Decor, // Gardens and statues: no outline.
+    None,  // Not drawn.
 }
 
 // Buildings that get an icon on the minimap. The seat (palace or governor's house) is where the
 // Home tool goes.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Deserialize, Display, EnumCount, EnumIter, EnumString)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Deserialize, Display, EnumCount, EnumIter, EnumString,
+)]
 pub enum LandmarkKind {
     Seat,
     Temple,
@@ -303,7 +304,10 @@ impl MinimapFeature {
 
     // The footprint's centre in cell coordinates (cell centres at whole numbers).
     pub fn center(&self) -> (f32, f32) {
-        (self.base_cell.x as f32 + (self.size.width - 1) as f32 * 0.5, self.base_cell.y as f32 + (self.size.height - 1) as f32 * 0.5)
+        (
+            self.base_cell.x as f32 + (self.size.width - 1) as f32 * 0.5,
+            self.base_cell.y as f32 + (self.size.height - 1) as f32 * 0.5,
+        )
     }
 
     pub fn contains(&self, cell: Cell) -> bool {
@@ -317,7 +321,7 @@ impl MinimapFeature {
 #[derive(Default)]
 pub struct MinimapFeatures {
     features: BTreeMap<(i32, i32), MinimapFeature>, // By base cell, (y, x), for a stable order.
-    version: u64,                                    // Goes up on every change, for the shape cache.
+    version: u64,                                   // Goes up on every change, for the shape cache.
 }
 
 impl MinimapFeatures {

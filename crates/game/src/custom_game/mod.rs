@@ -15,10 +15,10 @@
 pub mod config;
 pub mod preview;
 
+pub use config::{MapConfigs, MapDef, MapSource};
+use engine::ui::text::{self, UiTextCategory};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, IntoEnumIterator};
-
-use engine::ui::text::{self, UiTextCategory};
 
 use crate::{
     GameLoop,
@@ -29,8 +29,6 @@ use crate::{
     sim::calendar::{CalendarSettings, EraDef},
     tile::sets::{PresetTiles, TERRAIN_LAND_CATEGORY, TERRAIN_WATER_CATEGORY},
 };
-
-pub use config::{MapConfigs, MapDef, MapSource};
 
 // ----------------------------------------------
 // Difficulty
@@ -90,9 +88,13 @@ impl ChosenMap {
         match self {
             Self::Blank { width, height, terrain } => LoadMapSetting::EmptyMap {
                 size_in_cells: common::Size::new(*width, *height),
-                terrain_tile_category: if *terrain == PresetTiles::Water { TERRAIN_WATER_CATEGORY } else { TERRAIN_LAND_CATEGORY }
-                    .string
-                    .to_string(),
+                terrain_tile_category: if *terrain == PresetTiles::Water {
+                    TERRAIN_WATER_CATEGORY
+                } else {
+                    TERRAIN_LAND_CATEGORY
+                }
+                .string
+                .to_string(),
                 terrain_tile_name: terrain.to_string().to_lowercase(),
             },
             Self::Preset { preset_number } => LoadMapSetting::Preset { preset_number: *preset_number },
@@ -154,7 +156,12 @@ pub fn starting_dates(realm: Realm) -> Vec<CalendarSettings> {
         return vec![CalendarSettings { start_month: 1, ..defaults.clone() }];
     }
     eras.iter()
-        .map(|era| CalendarSettings { start_year: era.start_year.max(1), start_month: 1, eras: eras.clone(), ..defaults.clone() })
+        .map(|era| CalendarSettings {
+            start_year: era.start_year.max(1),
+            start_month: 1,
+            eras: eras.clone(),
+            ..defaults.clone()
+        })
         .filter(|settings| settings.validate().is_ok())
         .collect()
 }
@@ -261,7 +268,8 @@ mod tests {
     #[test]
     fn custom_games_from_headers() {
         // A campaign mission is none; nor is a save without a header.
-        let campaign = SaveHeader { campaign_id: Some("dragon_legacy".into()), realm: Some(Realm::DaiLong), ..SaveHeader::default() };
+        let campaign =
+            SaveHeader { campaign_id: Some("dragon_legacy".into()), realm: Some(Realm::DaiLong), ..SaveHeader::default() };
         assert_eq!(ActiveCustomGame::from_header(&campaign), None);
         assert_eq!(ActiveCustomGame::from_header(&SaveHeader::default()), None);
 
@@ -269,7 +277,12 @@ mod tests {
         let plain = SaveHeader { realm: Some(Realm::DaiLong), ..SaveHeader::default() };
         assert_eq!(ActiveCustomGame::from_header(&plain), None);
 
-        let record = CustomGameRecord { map: Some("blank".into()), difficulty: Difficulty::Hard, fast_construction: true, ..CustomGameRecord::default() };
+        let record = CustomGameRecord {
+            map: Some("blank".into()),
+            difficulty: Difficulty::Hard,
+            fast_construction: true,
+            ..CustomGameRecord::default()
+        };
         let custom = SaveHeader { realm: Some(Realm::Kambara), custom_game: Some(record.clone()), ..SaveHeader::default() };
         assert_eq!(ActiveCustomGame::from_header(&custom), Some(ActiveCustomGame { realm: Realm::Kambara, record }));
     }
@@ -287,13 +300,16 @@ mod tests {
     #[test]
     fn blank_maps_load_as_empty_maps() {
         let map = ChosenMap::Blank { width: 64, height: 96, terrain: PresetTiles::Water };
-        let LoadMapSetting::EmptyMap { size_in_cells, terrain_tile_category, terrain_tile_name } = map.load_map_setting() else {
+        let LoadMapSetting::EmptyMap { size_in_cells, terrain_tile_category, terrain_tile_name } = map.load_map_setting()
+        else {
             panic!("a blank map is an empty map");
         };
         assert_eq!(size_in_cells, common::Size::new(64, 96));
         assert_eq!(terrain_tile_category, "water");
         assert_eq!(terrain_tile_name, "water");
         let map = ChosenMap::Blank { width: 64, height: 64, terrain: PresetTiles::Dirt };
-        assert!(matches!(map.load_map_setting(), LoadMapSetting::EmptyMap { terrain_tile_category, .. } if terrain_tile_category == "land"));
+        assert!(
+            matches!(map.load_map_setting(), LoadMapSetting::EmptyMap { terrain_tile_category, .. } if terrain_tile_category == "land")
+        );
     }
 }

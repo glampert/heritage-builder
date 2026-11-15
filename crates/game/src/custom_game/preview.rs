@@ -8,11 +8,13 @@
 // TODO(realm-ui): preview a save's map, e.g. from a small preview image written beside the save, or
 // its tile map read on a worker thread.
 
+use common::Size;
 use minimap_bake::{Cover, Grid, Scratch, Terrain};
 
-use common::Size;
-
-use crate::{debug::preset_maps::{self, PresetGround}, tile::{minimap::style::MinimapStyle, sets::PresetTiles}};
+use crate::{
+    debug::preset_maps::{self, PresetGround},
+    tile::{minimap::style::MinimapStyle, sets::PresetTiles},
+};
 
 // The preview image's size in pixels at the mockup's shape (its well is 470 × 330 points). The
 // dialog bakes it at its well's shape (preview_pixels), so the sea fills the well.
@@ -52,7 +54,13 @@ pub struct GridStats {
 impl PreviewGrid {
     fn new(size: Size, terrain: Terrain) -> Self {
         let count = (size.width.max(0) * size.height.max(0)) as usize;
-        Self { size, terrain: vec![terrain; count], cover: vec![Cover::None; count], roads: vec![false; count], buildings: vec![None; count] }
+        Self {
+            size,
+            terrain: vec![terrain; count],
+            cover: vec![Cover::None; count],
+            roads: vec![false; count],
+            buildings: vec![None; count],
+        }
     }
 
     // A blank map: one terrain all over.

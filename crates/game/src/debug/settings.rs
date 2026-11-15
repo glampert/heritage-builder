@@ -10,18 +10,18 @@ use proc_macros::DrawDebugUi;
 
 use super::{log_viewer, preset_maps, screens::ScreensDevMenu};
 use crate::{
-    cheats,
     GameLoop,
-    config::GameConfigs,
-    ui_context::GameUiContext,
-    unit::config::UnitConfigs,
     building::config::BuildingConfigs,
-    prop::config::PropConfigs,
     campaign::config::CampaignConfigs,
+    cheats,
+    config::GameConfigs,
+    prop::config::PropConfigs,
     tile::{
         rendering::{MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS, TileMapRenderFlags},
         sets::PresetTiles,
     },
+    ui_context::GameUiContext,
+    unit::config::UnitConfigs,
 };
 
 // ----------------------------------------------
@@ -356,7 +356,6 @@ impl DebugSettingsDevMenu {
 
         self.draw_debug_ui(context.ui_sys);
 
-
         let mut show_popup_messages = super::show_popup_messages();
         if ui::checkbox(ui_sys, "Show Popup Messages", &mut show_popup_messages) {
             super::set_show_popup_messages(show_popup_messages);
@@ -376,7 +375,14 @@ impl DebugSettingsDevMenu {
 
         let mut line_thickness = game_loop.grid_line_thickness();
         let (min_thickness, max_thickness) = (MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS);
-        if ui::slider(ui_sys, "Grid thickness", min_thickness, max_thickness, UiNumberFormat::Decimals(1), &mut line_thickness) {
+        if ui::slider(
+            ui_sys,
+            "Grid thickness",
+            min_thickness,
+            max_thickness,
+            UiNumberFormat::Decimals(1),
+            &mut line_thickness,
+        ) {
             game_loop.set_grid_line_thickness(line_thickness);
         }
 

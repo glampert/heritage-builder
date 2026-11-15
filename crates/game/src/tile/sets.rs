@@ -28,8 +28,8 @@ use super::{
     TileKind,
     TileMapLayerKind,
     atlas::{self, *},
+    minimap::model::MinimapTileDef,
 };
-use super::minimap::model::MinimapTileDef;
 use crate::{
     building::construction::{ConstructionMaterials, ConstructionTier},
     pathfind::NodeKind as PathNodeKind,
@@ -58,11 +58,11 @@ pub const OBJECTS_OVERLAYS_CATEGORY: StrHashPair = StrHashPair::from_str("overla
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Display)]
 pub enum PresetTiles {
     #[default]
-    Grass     = hash::fnv1a_from_str("grass"),
-    Dirt      = hash::fnv1a_from_str("dirt"),
-    Water     = hash::fnv1a_from_str("water"),
+    Grass = hash::fnv1a_from_str("grass"),
+    Dirt = hash::fnv1a_from_str("dirt"),
+    Water = hash::fnv1a_from_str("water"),
     VacantLot = hash::fnv1a_from_str("vacant_lot"),
-    DirtRoad  = hash::fnv1a_from_str("dirt_road"),
+    DirtRoad = hash::fnv1a_from_str("dirt_road"),
     PavedRoad = hash::fnv1a_from_str("paved_road"),
 }
 
@@ -652,7 +652,11 @@ impl TileDef {
     // How long the tile takes to build: its own tier if it has one, else Basic for buildings
     // and Instant for everything else.
     pub fn construction_tier(&self) -> ConstructionTier {
-        self.construction.unwrap_or(if self.is(TileKind::Building) { ConstructionTier::Basic } else { ConstructionTier::Instant })
+        self.construction.unwrap_or(if self.is(TileKind::Building) {
+            ConstructionTier::Basic
+        } else {
+            ConstructionTier::Instant
+        })
     }
 
     // True if placing the tile costs anything: gold or materials.
@@ -704,7 +708,7 @@ impl TileDef {
     #[inline]
     pub fn flags(&self) -> TileFlags {
         let mut flags = TileFlags::empty();
-        flags.set(TileFlags::OccludesTerrain,    self.occludes_terrain);
+        flags.set(TileFlags::OccludesTerrain, self.occludes_terrain);
         flags.set(TileFlags::RandomizePlacement, self.randomize_placement);
         flags.set(TileFlags::SettlersSpawnPoint, self.path_kind.intersects(PathNodeKind::SettlersSpawnPoint));
         flags
@@ -1338,8 +1342,8 @@ impl TileSets {
 
     #[inline]
     pub fn handle_to_tile_def(&'static self, handle: TileDefHandle) -> Option<&'static TileDef> {
-        let set_idx  = handle.0 as usize; // TileSet index into TileSets.
-        let cat_idx  = handle.1 as usize; // TileCategory index into TileSet.
+        let set_idx = handle.0 as usize; // TileSet index into TileSets.
+        let cat_idx = handle.1 as usize; // TileCategory index into TileSet.
         let tile_idx = handle.2 as usize; // TileDef index into TileCategory.
 
         if set_idx >= self.sets.len() {
@@ -1368,7 +1372,7 @@ impl TileSets {
 
     #[inline]
     pub fn serializable_handle_to_tile_def(&'static self, handle: SerializableTileDefHandle) -> Option<&'static TileDef> {
-        let set_idx       = handle.0; // TileSet index into TileSets, same as layer kind.
+        let set_idx = handle.0; // TileSet index into TileSets, same as layer kind.
         let category_hash = handle.1; // TileCategory name hash.
         let tile_def_hash = handle.2; // TileDef name hash.
 
@@ -1619,7 +1623,10 @@ impl TileSets {
 
                     let mut tex_atlas = OfflinePackedTextureAtlas::new(layer, tex_cache, &cached_metadata);
                     if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path, skip_loading_textures) {
-                        log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
+                        log::error!(
+                            log::channel!("tileset"),
+                            "Post load failed for TileSet '{layer}' - {tile_set_json_path}!"
+                        );
                         return false;
                     }
                     tex_atlas.commit_textures(tex_cache);
@@ -1629,7 +1636,10 @@ impl TileSets {
 
                     let mut tex_atlas = RuntimePackedTextureAtlas::new(layer, tex_cache);
                     if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path, skip_loading_textures) {
-                        log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
+                        log::error!(
+                            log::channel!("tileset"),
+                            "Post load failed for TileSet '{layer}' - {tile_set_json_path}!"
+                        );
                         return false;
                     }
                     tex_atlas.commit_textures(tex_cache);

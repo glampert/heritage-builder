@@ -9,10 +9,9 @@
 use std::borrow::Cow;
 
 use arrayvec::ArrayString;
+use common::{Rect, write_fixed_string};
 use serde_json::Value;
 use smallvec::SmallVec;
-
-use common::{Rect, write_fixed_string};
 
 #[derive(Clone, Debug)]
 pub struct UiWidgetInfo {
@@ -144,7 +143,9 @@ impl UiWidgetRegistry {
 
         // An unlabeled widget takes the path of the group or menu around it, unless that's the
         // menu's own content record: then it goes by its kind, e.g. "LoadGame/item_list".
-        let base_path = if label.is_empty() && self.recording.iter().any(|recorded| recorded.path == base_path && recorded.kind == "menu_content") {
+        let base_path = if label.is_empty()
+            && self.recording.iter().any(|recorded| recorded.path == base_path && recorded.kind == "menu_content")
+        {
             format!("{base_path}/{kind}")
         } else {
             base_path
@@ -256,7 +257,10 @@ mod tests {
         registry.push_path("Load Game");
         assert_eq!(registry.record(info("item_list", "")).as_deref(), Some("Load Game/item_list"));
         registry.pop_path();
-        assert_eq!(registry.record(info("sprite_button", "ui/palette/roads")).as_deref(), Some("ui\u{2215}palette\u{2215}roads"));
+        assert_eq!(
+            registry.record(info("sprite_button", "ui/palette/roads")).as_deref(),
+            Some("ui\u{2215}palette\u{2215}roads")
+        );
         assert_eq!(registry.record(info("checkbox", "Mute##7")).as_deref(), Some("Mute"));
 
         // Nothing is listed until the frame is complete.

@@ -27,12 +27,20 @@
 use std::fmt;
 
 use arrayvec::ArrayString;
+use common::{Color, FieldAccessorXY, Rect, Vec2, format_fixed_string};
 use egui::{Align, Align2, Color32, Id, Key, Pos2, RectAlign, Sense, Stroke, StrokeKind, TextStyle, pos2, vec2};
 use serde_json::Value;
 
-use common::{Color, FieldAccessorXY, Rect, Vec2, format_fixed_string};
-
-use super::{UiDecoratedPanel, UiFontScale, UiNineSlice, UiPanelDecoration, UiSystem, UiWidgetInfo, renderer::egui_texture, widgets::list_index};
+use super::{
+    UiDecoratedPanel,
+    UiFontScale,
+    UiNineSlice,
+    UiPanelDecoration,
+    UiSystem,
+    UiWidgetInfo,
+    renderer::egui_texture,
+    widgets::list_index,
+};
 use crate::render::texture::TextureHandle;
 
 // ----------------------------------------------
@@ -224,7 +232,14 @@ pub(super) fn record_lazy(
 }
 
 // Records a widget that isn't an egui widget, such as a window, by its rect.
-pub(super) fn record_rect(ui_sys: &UiSystem, kind: &'static str, label: &str, rect: egui::Rect, hovered: bool, value: Option<Value>) -> Option<String> {
+pub(super) fn record_rect(
+    ui_sys: &UiSystem,
+    kind: &'static str,
+    label: &str,
+    rect: egui::Rect,
+    hovered: bool,
+    value: Option<Value>,
+) -> Option<String> {
     record_rect_visible(ui_sys, kind, label, rect, hovered, true, value)
 }
 
@@ -381,7 +396,13 @@ pub fn dummy(ui_sys: &UiSystem, size: Vec2) {
 // Lays out the widgets drawn in `contents` inside `rect`, in window points, wherever the layout
 // was: in a row if `horizontal`, else in a column, `spacing` apart. The space it takes is
 // allocated as if it had been laid out there.
-pub fn place_at<R>(ui_sys: &UiSystem, rect: Rect, horizontal: bool, spacing: f32, contents: impl FnOnce(&UiSystem) -> R) -> R {
+pub fn place_at<R>(
+    ui_sys: &UiSystem,
+    rect: Rect,
+    horizontal: bool,
+    spacing: f32,
+    contents: impl FnOnce(&UiSystem) -> R,
+) -> R {
     ui_sys.with_parent_ui(|parent| {
         let layout = if horizontal { egui::Layout::left_to_right(Align::Min) } else { egui::Layout::top_down(Align::Min) };
         let builder = egui::UiBuilder::new().max_rect(egui_rect(rect)).layout(layout);
@@ -819,7 +840,15 @@ struct UiTitleBarClicks {
     close: bool,
 }
 
-fn title_bar(ui_sys: &UiSystem, ui: &mut egui::Ui, title: &str, name: &str, collapsible: bool, closable: bool, collapsed: bool) -> UiTitleBarClicks {
+fn title_bar(
+    ui_sys: &UiSystem,
+    ui: &mut egui::Ui,
+    title: &str,
+    name: &str,
+    collapsible: bool,
+    closable: bool,
+    collapsed: bool,
+) -> UiTitleBarClicks {
     let font = TextStyle::Body.resolve(ui.style());
     let text_color = ui.visuals().strong_text_color();
     let title = ui.painter().layout_no_wrap(title.to_owned(), font, text_color);
@@ -996,7 +1025,7 @@ pub fn scroll_to_bottom(ui_sys: &UiSystem) {
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub enum UiTooltipPlacement {
     #[default]
-    AtPointer,    // Next to the mouse pointer.
+    AtPointer, // Next to the mouse pointer.
     BesideWidget, // Under or beside the widget it's for, where it doesn't cover it.
 }
 
@@ -1024,7 +1053,8 @@ pub fn item_tooltip_placed(ui_sys: &UiSystem, placement: UiTooltipPlacement, con
 }
 
 // Where a tooltip beside its widget goes when the widget's left has no room for it.
-const BESIDE_WIDGET_ALIGNS: [RectAlign; 4] = [RectAlign::RIGHT_START, RectAlign::LEFT_END, RectAlign::RIGHT_END, RectAlign::TOP_START];
+const BESIDE_WIDGET_ALIGNS: [RectAlign; 4] =
+    [RectAlign::RIGHT_START, RectAlign::LEFT_END, RectAlign::RIGHT_END, RectAlign::TOP_START];
 
 // A tooltip for `response`'s widget, shown while it's hovered, at `placement`.
 fn placed_tooltip(response: &egui::Response, placement: UiTooltipPlacement) -> egui::Tooltip<'_> {
@@ -1076,19 +1106,27 @@ pub(super) fn custom_tooltip_decorated(
         return;
     };
 
-    show_styled_tooltip(ui_sys, placed_tooltip(&response, placement), font_scale, background, decorations, opacity, contents);
+    show_styled_tooltip(
+        ui_sys,
+        placed_tooltip(&response, placement),
+        font_scale,
+        background,
+        decorations,
+        opacity,
+        contents,
+    );
 }
 
 // What a tooltip draws behind its contents.
 #[derive(Copy, Clone, Default, PartialEq)]
 pub enum UiTooltipBackground {
     #[default]
-    Style,                  // The UI style's popup frame.
-    Sprite(TextureHandle),  // A sprite stretched behind the contents.
+    Style, // The UI style's popup frame.
+    Sprite(TextureHandle), // A sprite stretched behind the contents.
     // A 9-slice panel behind the contents, and the contents' insets on it in points (left, top,
     // right, bottom): the style's popup margins if None.
     Panel(UiNineSlice, Option<[f32; 4]>),
-    None,                   // Nothing: the contents alone.
+    None, // Nothing: the contents alone.
 }
 
 // A tooltip at the pointer, not tied to a widget, styled like custom_tooltip: shows while this is
@@ -1101,7 +1139,8 @@ pub fn pointer_tooltip(
     contents: impl FnOnce(&UiSystem),
 ) {
     let (layer_id, widget_id) = ui_sys.with_ui(|ui| (ui.layer_id(), ui.scope_id().with("pointer_tooltip")));
-    let tooltip = egui::Tooltip::always_open(ui_sys.ctx().clone(), layer_id, widget_id, egui::PopupAnchor::Pointer).gap(12.0);
+    let tooltip =
+        egui::Tooltip::always_open(ui_sys.ctx().clone(), layer_id, widget_id, egui::PopupAnchor::Pointer).gap(12.0);
     show_styled_tooltip(ui_sys, tooltip, font_scale, background, &[], opacity, contents);
 }
 
@@ -1130,7 +1169,12 @@ fn show_styled_tooltip(
         let mut frame = transparent_popup_frame(ui_sys);
         if let UiTooltipBackground::Panel(_, Some(insets)) = background {
             let points = |value: f32| value.round().clamp(0.0, 127.0) as i8;
-            frame = frame.inner_margin(egui::Margin { left: points(insets[0]), top: points(insets[1]), right: points(insets[2]), bottom: points(insets[3]) });
+            frame = frame.inner_margin(egui::Margin {
+                left: points(insets[0]),
+                top: points(insets[1]),
+                right: points(insets[2]),
+                bottom: points(insets[3]),
+            });
         }
         margin = Some(frame.inner_margin);
         tooltip.popup = tooltip.popup.frame(frame);
@@ -1194,12 +1238,21 @@ pub(super) fn nine_slice_shape(rect: egui::Rect, slice: &UiNineSlice, tint: Colo
 
 // The shapes of the decorations drawn behind a panel over `rect` (`behind`) or over it, in order,
 // each multiplied by `tint`; Noop if there are none.
-pub(super) fn decoration_shapes(rect: egui::Rect, decorations: &[UiPanelDecoration], tint: Color32, behind: bool) -> egui::Shape {
+pub(super) fn decoration_shapes(
+    rect: egui::Rect,
+    decorations: &[UiPanelDecoration],
+    tint: Color32,
+    behind: bool,
+) -> egui::Shape {
     let panel_rect = to_rect(rect);
     let shapes: Vec<egui::Shape> = decorations
         .iter()
         .filter(|decoration| decoration.behind == behind)
-        .filter_map(|decoration| decoration.rect(panel_rect).map(|at| egui::Shape::image(egui_texture(decoration.texture), egui_rect(at), uv_full(), tint)))
+        .filter_map(|decoration| {
+            decoration
+                .rect(panel_rect)
+                .map(|at| egui::Shape::image(egui_texture(decoration.texture), egui_rect(at), uv_full(), tint))
+        })
         .collect();
     match shapes.len() {
         0 => egui::Shape::Noop,
@@ -1209,7 +1262,11 @@ pub(super) fn decoration_shapes(rect: egui::Rect, decorations: &[UiPanelDecorati
 
 // A decorated panel over `rect` as two shapes: its behind decorations and its 9-slice, then its
 // other decorations, each multiplied by `tint`.
-pub(super) fn decorated_panel_shapes(rect: egui::Rect, panel: &UiDecoratedPanel, tint: Color32) -> (egui::Shape, egui::Shape) {
+pub(super) fn decorated_panel_shapes(
+    rect: egui::Rect,
+    panel: &UiDecoratedPanel,
+    tint: Color32,
+) -> (egui::Shape, egui::Shape) {
     let behind = decoration_shapes(rect, &panel.decorations, tint, true);
     let under = match behind {
         egui::Shape::Noop => nine_slice_shape(rect, &panel.panel, tint),
@@ -1315,15 +1372,16 @@ pub fn menu<R>(ui_sys: &UiSystem, label: &str, contents: impl FnOnce(&UiSystem) 
             .data(|data| data.get_temp::<f32>(bottom_id))
             .unwrap_or_else(|| parent.cursor().min.y + parent.spacing().interact_size.y);
 
-        let (response, inner) = egui::containers::menu::MenuButton::new(label_text(label)).config(menu_popup_config()).ui(parent, |ui| {
-            let margins = ui.style().spacing.menu_margin.sum().y + ui.style().spacing.menu_spacing;
-            let max_height = (ui.ctx().content_rect().bottom() - button_bottom - margins).max(0.0);
-            ui.set_max_height(max_height); // A new popup's room is egui's default area size.
-            egui::ScrollArea::vertical().id_salt(label).max_height(max_height).show(ui, |ui| {
-                let _path = path_scope(ui_sys, label);
-                ui_sys.ui_scope(ui, contents)
-            })
-        });
+        let (response, inner) =
+            egui::containers::menu::MenuButton::new(label_text(label)).config(menu_popup_config()).ui(parent, |ui| {
+                let margins = ui.style().spacing.menu_margin.sum().y + ui.style().spacing.menu_spacing;
+                let max_height = (ui.ctx().content_rect().bottom() - button_bottom - margins).max(0.0);
+                ui.set_max_height(max_height); // A new popup's room is egui's default area size.
+                egui::ScrollArea::vertical().id_salt(label).max_height(max_height).show(ui, |ui| {
+                    let _path = path_scope(ui_sys, label);
+                    ui_sys.ui_scope(ui, contents)
+                })
+            });
 
         parent.ctx().data_mut(|data| data.insert_temp(bottom_id, response.rect.bottom()));
         (response, inner.map(|inner| inner.inner.inner))
@@ -1372,7 +1430,13 @@ pub fn tab_bar<'a>(ui_sys: &'a UiSystem, id: &str, labels: &[impl AsRef<str>]) -
         let tab_padding = ui.spacing().button_padding.x * 2.0;
         let labels_width: f32 = labels
             .iter()
-            .map(|label| ui.painter().layout_no_wrap(label_text(label.as_ref()).to_owned(), font.clone(), Color32::PLACEHOLDER).size().x + tab_padding)
+            .map(|label| {
+                ui.painter()
+                    .layout_no_wrap(label_text(label.as_ref()).to_owned(), font.clone(), Color32::PLACEHOLDER)
+                    .size()
+                    .x
+                    + tab_padding
+            })
             .sum();
         let row_width = labels_width + ui.spacing().item_spacing.x * (labels.len() - 1) as f32;
         let frame_right = f32::from(ui.spacing().window_margin.right) + ui.visuals().window_stroke.width;
@@ -1441,7 +1505,9 @@ pub fn collapsing_header(ui_sys: &UiSystem, label: &str, default_open: bool) -> 
             ui.painter().galley(text_pos, galley, visuals.text_color());
         }
 
-        if let Some(Value::Bool(set_open)) = record(ui_sys, ui, &response, "header", label, None, true, Some(Value::Bool(open))) {
+        if let Some(Value::Bool(set_open)) =
+            record(ui_sys, ui, &response, "header", label, None, true, Some(Value::Bool(open)))
+        {
             open = set_open;
             ui.ctx().data_mut(|data| data.insert_temp(id, open));
         }
@@ -1452,11 +1518,7 @@ pub fn collapsing_header(ui_sys: &UiSystem, label: &str, default_open: bool) -> 
 
 // A collapsing header that, while open, puts its label in the paths of the widgets drawn under it,
 // until the returned scope is dropped. None while it's closed.
-pub fn collapsing_header_scope<'a>(
-    ui_sys: &'a UiSystem,
-    label: &str,
-    default_open: bool,
-) -> Option<UiWidgetPathScope<'a>> {
+pub fn collapsing_header_scope<'a>(ui_sys: &'a UiSystem, label: &str, default_open: bool) -> Option<UiWidgetPathScope<'a>> {
     collapsing_header(ui_sys, label, default_open).then(|| path_scope(ui_sys, label))
 }
 
@@ -1660,7 +1722,9 @@ pub fn checkbox(ui_sys: &UiSystem, label: &str, value: &mut bool) -> bool {
         let response = ui.checkbox(value, rich_text(ui_sys, ui, label_text(label)));
         let mut changed = response.changed();
 
-        if let Some(Value::Bool(set_value)) = record(ui_sys, ui, &response, "checkbox", label, None, true, Some(Value::Bool(*value))) {
+        if let Some(Value::Bool(set_value)) =
+            record(ui_sys, ui, &response, "checkbox", label, None, true, Some(Value::Bool(*value)))
+        {
             changed |= set_value != *value;
             *value = set_value;
         }
@@ -1783,7 +1847,14 @@ pub fn input_scalar<T: UiNumber>(ui_sys: &UiSystem, label: &str, value: &mut T, 
     input_number(ui_sys, label, value, step, UiNumberFormat::Default, false)
 }
 
-pub fn input_int(ui_sys: &UiSystem, label: &str, value: &mut i32, step: i32, format: UiNumberFormat, read_only: bool) -> bool {
+pub fn input_int(
+    ui_sys: &UiSystem,
+    label: &str,
+    value: &mut i32,
+    step: i32,
+    format: UiNumberFormat,
+    read_only: bool,
+) -> bool {
     input_number(ui_sys, label, value, step, format, read_only)
 }
 
@@ -1954,7 +2025,16 @@ pub fn combo(ui_sys: &UiSystem, label: &str, current_item: &mut usize, items: &[
                                 for (index, item) in items.iter().enumerate() {
                                     let item = item.as_ref();
                                     let response = ui.selectable_value(current_item, index, item);
-                                    record(ui_sys, ui, &response, "list_item", item, None, true, Some(Value::Bool(*current_item == index)));
+                                    record(
+                                        ui_sys,
+                                        ui,
+                                        &response,
+                                        "list_item",
+                                        item,
+                                        None,
+                                        true,
+                                        Some(Value::Bool(*current_item == index)),
+                                    );
                                     if response.clicked() {
                                         ui.close();
                                     }
@@ -1978,7 +2058,16 @@ pub fn combo(ui_sys: &UiSystem, label: &str, current_item: &mut usize, items: &[
                         for (index, item) in items.iter().enumerate() {
                             let item = item.as_ref();
                             let response = ui.selectable_value(current_item, index, item);
-                            record(ui_sys, ui, &response, "list_item", item, None, true, Some(Value::Bool(*current_item == index)));
+                            record(
+                                ui_sys,
+                                ui,
+                                &response,
+                                "list_item",
+                                item,
+                                None,
+                                true,
+                                Some(Value::Bool(*current_item == index)),
+                            );
                         }
                     });
                 });
@@ -2293,7 +2382,9 @@ pub fn painter(ui_sys: &UiSystem, layer: UiLayer) -> UiPainter {
     let painter = match layer {
         UiLayer::Window => ui_sys.with_ui(|ui| ui.painter().clone()),
         UiLayer::Background => ui_sys.ctx().layer_painter(egui::LayerId::background()),
-        UiLayer::Foreground => ui_sys.ctx().layer_painter(egui::LayerId::new(egui::Order::Foreground, Id::unique("ui_foreground"))),
+        UiLayer::Foreground => {
+            ui_sys.ctx().layer_painter(egui::LayerId::new(egui::Order::Foreground, Id::unique("ui_foreground")))
+        }
     };
     UiPainter { painter, font: ui_sys.text_font(), heading_family: ui_sys.style_font(&TextStyle::Heading).family }
 }
@@ -2538,7 +2629,11 @@ impl UiPainter {
     // What `draw` paints is clipped to `clip_rect`, within the current clip rect.
     pub fn clipped(&self, clip_rect: Rect, draw: impl FnOnce(&Self)) {
         let clip_rect = self.painter.clip_rect().intersect(egui_rect(clip_rect));
-        let clipped = Self { painter: self.painter.with_clip_rect(clip_rect), font: self.font.clone(), heading_family: self.heading_family.clone() };
+        let clipped = Self {
+            painter: self.painter.with_clip_rect(clip_rect),
+            font: self.font.clone(),
+            heading_family: self.heading_family.clone(),
+        };
         draw(&clipped);
     }
 
@@ -2580,9 +2675,7 @@ pub fn escape_pressed(ui_sys: &UiSystem) -> bool {
 // The first press of Escape among this frame's events, not its key repeats (egui's key_pressed
 // counts those too).
 pub(crate) fn escape_pressed_in(input: &egui::InputState) -> bool {
-    input.events.iter().any(|event| {
-        matches!(event, egui::Event::Key { key: Key::Escape, pressed: true, repeat: false, .. })
-    })
+    input.events.iter().any(|event| matches!(event, egui::Event::Key { key: Key::Escape, pressed: true, repeat: false, .. }))
 }
 
 // The size of the window the game draws in, in points.

@@ -8,10 +8,9 @@
 //   Đại Long.
 // choose_ui_realm() is that decision as a pure function of its inputs; ui_realm() gathers them.
 
+use engine::ui::text::{self, UiTextCategory};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
-
-use engine::ui::text::{self, UiTextCategory};
 
 use crate::{
     GameLoop,
@@ -27,8 +26,21 @@ use crate::{
 // "dailong", "kambara", "tampadesa". strum's names are for Display and FromStr, serde's for JSON;
 // both attributes are needed.
 #[derive(
-    Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug,
-    Display, EnumIter, EnumString, IntoStaticStr, Serialize, Deserialize,
+    Copy,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Debug,
+    Display,
+    EnumIter,
+    EnumString,
+    IntoStaticStr,
+    Serialize,
+    Deserialize,
 )]
 #[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
@@ -108,9 +120,9 @@ pub struct UiRealm {
 pub struct UiRealmInputs {
     pub override_realm: Option<Realm>,
     pub in_home_menu: bool,
-    pub campaign_realm: Option<Realm>,    // The active campaign's realm, if one is being played.
+    pub campaign_realm: Option<Realm>, // The active campaign's realm, if one is being played.
     pub custom_game_realm: Option<Realm>, // The Custom Game's realm, if one is being played.
-    pub profile_realm: Option<Realm>,     // The latest realm the profile has reached.
+    pub profile_realm: Option<Realm>,  // The latest realm the profile has reached.
 }
 
 // Which realm the UI shows, and why. Pure, for tests.

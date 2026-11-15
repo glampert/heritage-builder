@@ -10,7 +10,12 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
 use super::GameSystem;
-use crate::{GameLoop, config::GameConfigs, save_context::PostLoadContext, sim::{SimCmds, SimContext, SimContextMut}};
+use crate::{
+    GameLoop,
+    config::GameConfigs,
+    save_context::PostLoadContext,
+    sim::{SimCmds, SimContext, SimContextMut},
+};
 
 // ----------------------------------------------
 // MusicTrackKey
@@ -207,8 +212,8 @@ impl AmbientMusicSystem {
 
         match self.current_game_state {
             GameState::HomeMenu => self.play_track(sound_sys, MusicTrackKey::HomeMenu),
-            GameState::InGame   => self.play_track(sound_sys, MusicTrackKey::InGame),
-            GameState::Unknown  => {}, // Silence.
+            GameState::InGame => self.play_track(sound_sys, MusicTrackKey::InGame),
+            GameState::Unknown => {} // Silence.
         }
     }
 
@@ -246,7 +251,7 @@ impl AmbientMusicSystem {
             self.load_tracks(sound_sys);
         }
 
-        let track_is_playing   = self.update_current_track(sound_sys);
+        let track_is_playing = self.update_current_track(sound_sys);
         let game_state_changed = self.update_game_state();
 
         // If nothing is currently playing or if the game state has changed, start a new track.

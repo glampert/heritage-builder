@@ -43,7 +43,8 @@ struct MessageLog {
     dismissed: u64, // The newest message's id when the player closed the HUD's log: it shows again for a newer one.
 }
 
-static LOG: SingleThreadStatic<MessageLog> = SingleThreadStatic::new(MessageLog { messages: VecDeque::new(), next_id: 1, dismissed: 0 });
+static LOG: SingleThreadStatic<MessageLog> =
+    SingleThreadStatic::new(MessageLog { messages: VecDeque::new(), next_id: 1, dismissed: 0 });
 
 // A new message, the newest.
 pub fn push(kind: MessageKind, text: impl Into<String>) {

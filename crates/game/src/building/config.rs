@@ -5,17 +5,20 @@ use engine::{log, ui::UiSystem};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    risks::RiskRates,
     BuildingArchetype,
     BuildingArchetypeKind,
     BuildingKind,
     house::{HouseBuilding, HouseConfig, HouseLevel, HouseLevelConfig},
     producer::{ProducerBuilding, ProducerConfig},
+    risks::RiskRates,
     service::{ServiceBuilding, ServiceConfig},
     storage::{StorageBuilding, StorageConfig},
 };
 use crate::{
-    sim::{RandomGenerator, resources::{RESOURCE_KIND_COUNT, ServiceKind}},
+    sim::{
+        RandomGenerator,
+        resources::{RESOURCE_KIND_COUNT, ServiceKind},
+    },
     tile::sets::TileDef,
 };
 

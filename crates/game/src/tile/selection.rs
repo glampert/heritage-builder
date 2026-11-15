@@ -278,9 +278,7 @@ impl TileSelection {
         }
 
         // Highlight Objects:
-        if highlight_objects
-            && let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile_mut(base_cell)
-        {
+        if highlight_objects && let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile_mut(base_cell) {
             self.select_tile(object, selection_flags);
 
             // Highlight all terrain tiles this building occupies, unless we're batch clearing.

@@ -1,7 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::any::Any;
-use strum::EnumProperty;
 
 use common::{
     self,
@@ -10,24 +9,22 @@ use common::{
     hash::SmallSet,
 };
 use engine::{
-    log,
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
+    log,
     ui::{
         UiInputEvent,
-        UiStyleSource,
         UiString,
+        UiStyleSource,
         widgets::{UiTextButton, UiTooltipText, UiWidgetContext},
     },
 };
+use strum::EnumProperty;
 
 use crate::{
     building::construction::ConstructionMode,
     cheats,
-    sim::SimContextMut,
-    ui_context::GameUiContext,
     save_context::{Load, Save},
-    undo_redo::{self, EditAction, EditedLayer},
-    world::object::{Spawner, SpawnerResult},
+    sim::SimContextMut,
     tile::{
         Tile,
         TileKind,
@@ -39,6 +36,9 @@ use crate::{
         sets::{PresetTiles, TileDef, TileDefHandle, TileSets},
         water,
     },
+    ui_context::GameUiContext,
+    undo_redo::{self, EditAction, EditedLayer},
+    world::object::{Spawner, SpawnerResult},
 };
 
 pub(crate) mod dialog;
@@ -64,19 +64,9 @@ pub enum GameMenusMode {
 
 #[derive(Copy, Clone)]
 pub enum GameMenusInputArgs {
-    Key {
-        key: InputKey,
-        action: InputAction,
-        modifiers: InputModifiers,
-    },
-    Mouse {
-        button: MouseButton,
-        action: InputAction,
-        modifiers: InputModifiers,
-    },
-    Scroll {
-        amount: Vec2,
-    },
+    Key { key: InputKey, action: InputAction, modifiers: InputModifiers },
+    Mouse { button: MouseButton, action: InputAction, modifiers: InputModifiers },
+    Scroll { amount: Vec2 },
 }
 
 // ----------------------------------------------
@@ -171,9 +161,7 @@ pub trait GameMenusSystem: Any + Save + Load {
 
         // Incrementally build road segment (drag and draw segment):
         let is_road_tile_selected = self.palette().is_road_tile_selected();
-        if is_road_tile_selected
-            && let Some((start, end)) = range_selection_cells(context)
-        {
+        if is_road_tile_selected && let Some((start, end)) = range_selection_cells(context) {
             let road_kind = self.palette().selected_road_kind();
             self.placement().update_road_segment(road_kind, start, end, context);
         }
@@ -213,7 +201,8 @@ pub trait GameMenusSystem: Any + Save + Load {
                     // If attempting to place vacant lot over existing vacant lot, ignore.
                     if let Some(tile_to_place) = placement_attempt_tile_def
                         && let Some(obstruction) = obstructing_tile_def
-                        && tile_to_place.is_vacant_lot() && obstruction.is_vacant_lot()
+                        && tile_to_place.is_vacant_lot()
+                        && obstruction.is_vacant_lot()
                     {
                         fail_placement = false;
                     }
@@ -363,9 +352,10 @@ pub trait GameMenusSystem: Any + Save + Load {
                 // Left click on a tile can open the TileInspector:
                 if action == InputAction::Press && button == MouseButton::Left {
                     // Open inspector only if we're not in road placement or clear mode.
-                    if !is_road_tile_selected && !is_clear_selected
+                    if !is_road_tile_selected
+                        && !is_clear_selected
                         && let Some(tile_inspector) = self.tile_inspector()
-                            && context.topmost_selected_tile().is_some()
+                        && context.topmost_selected_tile().is_some()
                     {
                         tile_inspector.open(context);
                         context.tile_selection.reset();
@@ -485,7 +475,11 @@ impl TilePlacement {
 
     // Places a road segment from road::build_segment, as a player's drag does: every cell of the
     // segment, or none of them if it's blocked or the treasury can't pay for all of it.
-    pub fn place_road_segment(context: &SimContextMut, segment: &RoadSegment, undo_redo: bool) -> Result<(), RoadSegmentError> {
+    pub fn place_road_segment(
+        context: &SimContextMut,
+        segment: &RoadSegment,
+        undo_redo: bool,
+    ) -> Result<(), RoadSegmentError> {
         if segment.is_empty() {
             return Err(RoadSegmentError::Empty);
         }
@@ -510,7 +504,13 @@ impl TilePlacement {
         }
 
         if undo_redo {
-            undo_redo::record(EditAction::PlacedTiles, &segment.path, EditedLayer::Terrain, context.tile_map(), context.world());
+            undo_redo::record(
+                EditAction::PlacedTiles,
+                &segment.path,
+                EditedLayer::Terrain,
+                context.tile_map(),
+                context.world(),
+            );
         }
 
         Ok(())
@@ -616,13 +616,8 @@ impl TilePlacement {
                 rubble::update_variations(context.tile_map_mut(), CellRange::new(target_cell, target_cell));
             }
             SpawnerResult::Err(err) => {
-                let obstructing_tile_def = {
-                    if let TilePlacementErrReason::Obstruction(tile_def) = err.reason {
-                        Some(tile_def)
-                    } else {
-                        None
-                    }
-                };
+                let obstructing_tile_def =
+                    { if let TilePlacementErrReason::Obstruction(tile_def) = err.reason { Some(tile_def) } else { None } };
 
                 return PlaceOrClearResult::Failed {
                     placement_attempt_tile_def: Some(tile_def),
@@ -845,7 +840,12 @@ pub(crate) fn make_tooltip(context: &mut dyn UiWidgetContext, text: impl Into<Ui
 }
 
 // A text button in the retail style, as the skin draws `role` (skin::button).
-fn make_text_button<F>(context: &mut dyn UiWidgetContext, role: ButtonRole, label: impl Into<UiString>, on_pressed: F) -> UiTextButton
+fn make_text_button<F>(
+    context: &mut dyn UiWidgetContext,
+    role: ButtonRole,
+    label: impl Into<UiString>,
+    on_pressed: F,
+) -> UiTextButton
 where
     F: for<'a> Fn(&'a UiTextButton, &mut dyn UiWidgetContext) + 'static,
 {

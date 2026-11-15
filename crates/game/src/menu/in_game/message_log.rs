@@ -62,34 +62,62 @@ impl MessageLog {
         let icons: Vec<_> = shown.iter().map(|message| skin::hud_icon(context, message.kind.icon())).collect();
         let bleed = skin::hud_icon_bleed();
         let now = ui::text::get(UiTextCategory::Hud, "messages.now").to_string();
-        let value = json!(shown.iter().map(|message| json!({ "kind": message.kind, "text": message.text })).collect::<Vec<_>>());
+        let value =
+            json!(shown.iter().map(|message| json!({ "kind": message.kind, "text": message.text })).collect::<Vec<_>>());
         let canvas = UiCanvas::new(lines, move |_, painter, rect| {
             for (k, message) in shown.iter().enumerate() {
                 let y = rect.min.y + k as f32 * ROW_HEIGHT + ROW_HEIGHT * 0.5;
                 let (icon, icon_size) = icons[k];
                 let scale = 22.0 / (icon_size.x - 2.0 * bleed).max(1.0);
                 let drawn = icon_size * scale;
-                painter.image(icon, Rect::from_pos_and_size(Vec2::new(rect.min.x + 12.0, y) - drawn * 0.5, drawn), Color::white());
-                let look = UiLabelLook { size: 17.0, heading_font: k == 0, color: if k == 0 { text } else { sub }, ..Default::default() };
+                painter.image(
+                    icon,
+                    Rect::from_pos_and_size(Vec2::new(rect.min.x + 12.0, y) - drawn * 0.5, drawn),
+                    Color::white(),
+                );
+                let look = UiLabelLook {
+                    size: 17.0,
+                    heading_font: k == 0,
+                    color: if k == 0 { text } else { sub },
+                    ..Default::default()
+                };
                 let right = if k == 0 { rect.max.x - 48.0 } else { rect.max.x };
                 let line = fit_text(painter, &message.text, right - rect.min.x - 34.0, &look);
                 painter.label(Vec2::new(rect.min.x + 34.0, y + 6.0), UiTextAnchor::Start, &line, &look);
                 if k == 0 {
-                    painter.label(Vec2::new(rect.max.x, y + 6.0), UiTextAnchor::End, &now, &UiLabelLook { size: 14.0, color: sub, ..Default::default() });
+                    painter.label(Vec2::new(rect.max.x, y + 6.0), UiTextAnchor::End, &now, &UiLabelLook {
+                        size: 14.0,
+                        color: sub,
+                        ..Default::default()
+                    });
                 }
             }
         })
         .with_label("messages", Some(value));
 
         let mut menu = panel.apply_to_menu(
-            UiMenu::new("MessageLog").with_flags(UiMenuFlags::IsOpen).with_position(position).with_size(size).with_widget_spacing(Vec2::zero()),
+            UiMenu::new("MessageLog")
+                .with_flags(UiMenuFlags::IsOpen)
+                .with_position(position)
+                .with_size(size)
+                .with_widget_spacing(Vec2::zero()),
         );
         // The messages, and the close tile at the right of the newest.
         let close_scale = CLOSE_SIZE / skin::hud_tile_size(skin::HudTileKind::Small).x;
-        let close = skin::hud_tile_scaled(context, skin::HudTileKind::Small, close_scale, "Close", skin::HudGlyphGroup::Hud, "close")
-            .with_tooltip(skin::tooltip(context, ui::UiString::key(UiTextCategory::Hud, "messages.close")))
-            .on_pressed(|_, _| messages::dismiss());
-        let mut row = UiWidgetGroup::new().with_stack_vertically(false).with_center_horizontally(false).with_widget_spacing(Vec2::new(CLOSE_GAP, 0.0));
+        let close = skin::hud_tile_scaled(
+            context,
+            skin::HudTileKind::Small,
+            close_scale,
+            "Close",
+            skin::HudGlyphGroup::Hud,
+            "close",
+        )
+        .with_tooltip(skin::tooltip(context, ui::UiString::key(UiTextCategory::Hud, "messages.close")))
+        .on_pressed(|_, _| messages::dismiss());
+        let mut row = UiWidgetGroup::new()
+            .with_stack_vertically(false)
+            .with_center_horizontally(false)
+            .with_widget_spacing(Vec2::new(CLOSE_GAP, 0.0));
         let canvas = row.add_widget(canvas);
         row.add_widget(close);
         let row = menu.add_widget(row);

@@ -1,7 +1,10 @@
 #![allow(clippy::while_let_on_iterator)]
 
 use core::{iter, slice};
+
 use bitvec::vec::BitVec;
+use common::coords::{Cell, CellRange, WorldToScreenTransform};
+use engine::{log, ui::UiSystem};
 use serde::{
     Deserialize,
     Deserializer,
@@ -11,35 +14,32 @@ use serde::{
     ser::SerializeSeq,
 };
 
-use common::coords::{Cell, CellRange, WorldToScreenTransform};
-use engine::{log, ui::UiSystem};
-
 use super::{
     city_stock::{CityStock, MissingCost, Withdrawal},
     stats::WorldStats,
 };
 use crate::{
-    cheats,
-    constants::*,
-    save_context::*,
-    debug::DebugUiMode,
-    sim::{SimCmds, SimContext, SimContextMut, finance::LedgerCategory},
-    undo_redo::GameObjectSavedState,
-    prop::{Prop, PropId},
     building::{
         Building,
         BuildingKindAndId,
         construction::{self, ConstructionMode, ConstructionSite},
     },
-    unit::{Unit, UnitId, config::UnitConfigKey},
+    cheats,
+    constants::*,
+    debug::DebugUiMode,
+    prop::{Prop, PropId},
+    save_context::*,
+    sim::{SimCmds, SimContext, SimContextMut, finance::LedgerCategory},
     tile::{
         Tile,
         TileFlags,
         TileKind,
         TileMapLayerKind,
-        sets::{PresetTiles, TileDef},
         placement::{self, Placement, TileClearingErr, TilePlacementErr},
+        sets::{PresetTiles, TileDef},
     },
+    undo_redo::GameObjectSavedState,
+    unit::{Unit, UnitId, config::UnitConfigKey},
 };
 
 // ----------------------------------------------
@@ -91,11 +91,7 @@ impl Default for GenerationalIndex {
 
 impl std::fmt::Display for GenerationalIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if self.is_valid() {
-            write!(f, "[{},{}]", self.generation, self.index)
-        } else {
-            write!(f, "[invalid]")
-        }
+        if self.is_valid() { write!(f, "[{},{}]", self.generation, self.index) } else { write!(f, "[invalid]") }
     }
 }
 
@@ -116,23 +112,19 @@ pub trait GameObject {
     fn tally(&self, stats: &mut WorldStats);
 
     // Save/load support:
-    fn pre_save(&mut self, _context: &mut PreSaveContext)   {}
+    fn pre_save(&mut self, _context: &mut PreSaveContext) {}
     fn post_save(&mut self, _context: &mut PostSaveContext) {}
-    fn pre_load(&mut self, _context: &mut PreLoadContext)   {}
+    fn pre_load(&mut self, _context: &mut PreLoadContext) {}
     fn post_load(&mut self, _context: &mut PostLoadContext) {}
 
     // Optional undo/redo support:
-    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> { None }
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
+        None
+    }
     fn undo_redo_apply(&mut self, _state: &dyn GameObjectSavedState) {}
 
     // Debug:
-    fn draw_debug_ui(
-        &mut self,
-        cmds: &mut SimCmds,
-        context: &SimContextMut,
-        ui_sys: &UiSystem,
-        mode: DebugUiMode,
-    );
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem, mode: DebugUiMode);
 
     fn draw_debug_popups(
         &mut self,
@@ -202,12 +194,7 @@ where
 {
     pub fn new(capacity: usize, generation: u32) -> Self {
         let default_instance = T::default();
-        Self {
-            instances: vec![default_instance; capacity],
-            spawned: BitVec::repeat(false, capacity),
-            generation,
-            peak: 0
-        }
+        Self { instances: vec![default_instance; capacity], spawned: BitVec::repeat(false, capacity), generation, peak: 0 }
     }
 
     pub fn clear<F>(&mut self, context: &SimContextMut, on_despawned_fn: F)
@@ -702,8 +689,7 @@ impl<'game> Spawner<'game> {
     ) -> Result<&'game mut Unit, TilePlacementErr> {
         self.check_tile_cost(unit_tile_def).or_else(|missing| cost_error(unit_tile_def, &missing))?;
 
-        let result =
-            self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
+        let result = self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
 
         if result.is_ok() {
             let _ = self.subtract_tile_cost(unit_tile_def);
@@ -752,8 +738,7 @@ impl<'game> Spawner<'game> {
     ) -> Result<&'game mut Prop, TilePlacementErr> {
         self.check_tile_cost(prop_tile_def).or_else(|missing| cost_error(prop_tile_def, &missing))?;
 
-        let result =
-            self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
+        let result = self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
 
         if result.is_ok() {
             let _ = self.subtract_tile_cost(prop_tile_def);
@@ -861,14 +846,15 @@ impl<'game> Spawner<'game> {
     fn try_place_tile_with_def(&self, target_cell: Cell, tile_def: &'static TileDef) -> Result<&mut Tile, TilePlacementErr> {
         self.check_tile_cost(tile_def).or_else(|missing| cost_error(tile_def, &missing))?;
 
-        let prev_tile_def =
-            self.context.try_tile_from_layer(target_cell, tile_def.layer_kind()).map(|tile| tile.tile_def());
+        let prev_tile_def = self.context.try_tile_from_layer(target_cell, tile_def.layer_kind()).map(|tile| tile.tile_def());
 
         match self.context.try_place_tile(target_cell, tile_def) {
             Ok(tile) => {
                 let _ = self.subtract_tile_cost(tile_def);
 
-                if tile.path_kind().is_vacant_lot() && let Some(prev_tile) = prev_tile_def {
+                if tile.path_kind().is_vacant_lot()
+                    && let Some(prev_tile) = prev_tile_def
+                {
                     if prev_tile.hash == PresetTiles::Grass.hash() {
                         tile.set_variation_index(0);
                     } else if prev_tile.hash == PresetTiles::Dirt.hash() {
@@ -892,9 +878,17 @@ impl<'game> Spawner<'game> {
 fn cost_error<T>(tile_def: &'static TileDef, missing: &MissingCost) -> Result<T, TilePlacementErr> {
     let cost = tile_cost_text(tile_def);
     if missing.is_only_gold() {
-        placement::err!(Placement::CannotAffordCost, "Cannot afford tile '{}'. Cost: {cost}. Missing: {missing}", tile_def.name)
+        placement::err!(
+            Placement::CannotAffordCost,
+            "Cannot afford tile '{}'. Cost: {cost}. Missing: {missing}",
+            tile_def.name
+        )
     } else {
-        placement::err!(Placement::CannotAffordMaterials, "Cannot afford tile '{}'. Cost: {cost}. Missing: {missing}", tile_def.name)
+        placement::err!(
+            Placement::CannotAffordMaterials,
+            "Cannot afford tile '{}'. Cost: {cost}. Missing: {missing}",
+            tile_def.name
+        )
     }
 }
 

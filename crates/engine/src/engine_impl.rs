@@ -23,7 +23,16 @@ use crate::{
     log,
     platform,
     render::{RenderStats, RenderSystem, capture::CaptureRequest, debug::DebugDraw, texture::TextureCache},
-    screenshot::{self, ScreenshotFormat, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotResult, ScreenshotScale, ScreenshotSystem},
+    screenshot::{
+        self,
+        ScreenshotFormat,
+        ScreenshotId,
+        ScreenshotOutput,
+        ScreenshotRequest,
+        ScreenshotResult,
+        ScreenshotScale,
+        ScreenshotSystem,
+    },
     sound::SoundSystem,
     ui::UiSystem,
 };
@@ -420,8 +429,7 @@ impl Engine {
         let badge = self.badge_text();
 
         let ui_render_timer = PerfTimer::begin();
-        let ui_draw_data =
-            self.ui_system.end_frame(self.render_system.texture_cache_mut(), draw_overlays, badge.as_deref());
+        let ui_draw_data = self.ui_system.end_frame(self.render_system.texture_cache_mut(), draw_overlays, badge.as_deref());
         let ui_render_time_ms = ui_render_timer.end();
 
         self.render_stats = self.render_system.end_frame(ui_draw_data);
@@ -460,8 +468,7 @@ impl Engine {
             engine.set_fixed_delta_time(Some(fixed_delta_time));
         }
 
-        engine.one_shot_screenshot =
-            cli::one_shot_screenshot().map(|options| OneShotScreenshot { options, id: None });
+        engine.one_shot_screenshot = cli::one_shot_screenshot().map(|options| OneShotScreenshot { options, id: None });
 
         if cli::get().has("capture-input") {
             engine.set_input_capture(true);
@@ -586,7 +593,9 @@ impl Engine {
         let input_captured = self.input_captured;
         let events: ApplicationEventList = real_events
             .into_iter()
-            .filter(|event| !input_captured || matches!(event, ApplicationEvent::Quit | ApplicationEvent::WindowResize { .. }))
+            .filter(|event| {
+                !input_captured || matches!(event, ApplicationEvent::Quit | ApplicationEvent::WindowResize { .. })
+            })
             .chain(simulated_events)
             .collect();
 
@@ -705,7 +714,12 @@ impl Engine {
                     if let Err(err) = response.result
                         && response.frame.is_some()
                     {
-                        log::warning!(log::channel!("engine"), "Replayed command '{method}' failed: {}: {}", err.code, err.message);
+                        log::warning!(
+                            log::channel!("engine"),
+                            "Replayed command '{method}' failed: {}: {}",
+                            err.code,
+                            err.message
+                        );
                     }
                 })
             };
@@ -718,7 +732,10 @@ impl Engine {
             match event {
                 ApplicationEvent::Quit => events.push(event),
                 ApplicationEvent::WindowResize { window_size, .. } => {
-                    log::warning!(channel, "The window was resized to {window_size} during the replay, so it may differ from here on.");
+                    log::warning!(
+                        channel,
+                        "The window was resized to {window_size} during the replay, so it may differ from here on."
+                    );
                     events.push(event);
                 }
                 _ => {}

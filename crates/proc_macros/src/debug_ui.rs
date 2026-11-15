@@ -1,9 +1,6 @@
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    parse_macro_input,
-    punctuated::Punctuated,
-    token::Comma,
     Attribute,
     Data,
     DeriveInput,
@@ -12,31 +9,32 @@ use syn::{
     LitStr,
     Type,
     TypePath,
+    parse_macro_input,
+    punctuated::Punctuated,
+    token::Comma,
 };
 
 // -------------------------------------------------------
 // `#[derive(DrawDebugUi)]` PROCEDURAL MACRO:
 // -------------------------------------------------------
 
-/*
-| Attribute                   | Effect                         |
-| --------------------------- | ------------------------------ |
-| #[debug_ui(skip)]           | Skip the field entirely        |
-| #[debug_ui(separator)]      | Add a separator after          |
-| #[debug_ui(nested)]         | Nested struct with own fn      |
-| #[debug_ui(debug)]          | Format value with {:?} (Debug) |
-| #[debug_ui(label = "...")]  | Override default label         |
-| #[debug_ui(format = "...")] | Use custom format string       |
-| #[debug_ui(edit = "...")]   | Use an edit widget             |
-
-| Only meaningful when used together with `edit`:
-| ----------------------------------- | -------------------------------- |
-| #[debug_ui(step = "...")]           | Edit widget step (int, float)    |
-| #[debug_ui(min = "...")]            | Edit widget min (int, float)     |
-| #[debug_ui(max = "...")]            | Edit widget max (int, float)     |
-| #[debug_ui(decimals = "...")]       | Edit widget decimals (float)     |
-| #[debug_ui(widget = "...")]         | Edit widget kind (e.g. "slider") |
-*/
+// | Attribute                   | Effect                         |
+// | --------------------------- | ------------------------------ |
+// | #[debug_ui(skip)]           | Skip the field entirely        |
+// | #[debug_ui(separator)]      | Add a separator after          |
+// | #[debug_ui(nested)]         | Nested struct with own fn      |
+// | #[debug_ui(debug)]          | Format value with {:?} (Debug) |
+// | #[debug_ui(label = "...")]  | Override default label         |
+// | #[debug_ui(format = "...")] | Use custom format string       |
+// | #[debug_ui(edit = "...")]   | Use an edit widget             |
+//
+// | Only meaningful when used together with `edit`:
+// | ----------------------------------- | -------------------------------- |
+// | #[debug_ui(step = "...")]           | Edit widget step (int, float)    |
+// | #[debug_ui(min = "...")]            | Edit widget min (int, float)     |
+// | #[debug_ui(max = "...")]            | Edit widget max (int, float)     |
+// | #[debug_ui(decimals = "...")]       | Edit widget decimals (float)     |
+// | #[debug_ui(widget = "...")]         | Edit widget kind (e.g. "slider") |
 
 #[derive(Default)]
 struct DebugUiAttrs {
@@ -103,11 +101,7 @@ fn parse_debug_ui_attrs(attrs: &[Attribute]) -> DebugUiAttrs {
                 // `= "value"` part is optional.
                 result.edit = Some({
                     if let Ok(value) = meta.value() {
-                        if let Ok(parsed) = value.parse::<LitStr>() {
-                            parsed.value()
-                        } else {
-                            String::new()
-                        }
+                        if let Ok(parsed) = value.parse::<LitStr>() { parsed.value() } else { String::new() }
                     } else {
                         String::new()
                     }

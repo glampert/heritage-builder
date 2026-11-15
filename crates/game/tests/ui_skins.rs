@@ -2,7 +2,10 @@ use std::path::{Path, PathBuf};
 
 use engine::ui::{self, UiStyleSource, sound};
 use game::{
-    menu::{self, skin::{self, UiSkinDef}},
+    menu::{
+        self,
+        skin::{self, UiSkinDef},
+    },
     realm::Realm,
     tile::minimap::style::HexColor,
 };
@@ -123,7 +126,9 @@ fn test_every_skin_loads() {
     let skins = skins();
     assert_eq!(skins.len(), Realm::iter().count());
     for (realm, skin) in skins {
-        UiStyleSource::json(skin::theme_name(realm), skin.style.clone()).validate().unwrap_or_else(|err| panic!("{realm}: {err}"));
+        UiStyleSource::json(skin::theme_name(realm), skin.style.clone())
+            .validate()
+            .unwrap_or_else(|err| panic!("{realm}: {err}"));
         assert!(skin.sprite_scale > 0.0, "{realm}");
         skin::check_required(&skin).unwrap_or_else(|err| panic!("{realm}: {err}"));
         assert!(skin.panels.contains_key("caption"), "{realm}: no panel 'caption'");
@@ -136,7 +141,10 @@ fn test_every_skin_loads() {
         assert!(!skin.backdrops.home.is_empty(), "{realm}: no home backdrop");
         assert!(skin.ornaments.contains_key("crest"), "{realm}: no crest for the home menu");
         for name in [&skin.cards.panel, &skin.cards.selected] {
-            assert!(skin.panels.get(name).is_some_and(|panel| panel.slice.is_some()), "{realm}: no 9-slice panel '{name}' for the cards");
+            assert!(
+                skin.panels.get(name).is_some_and(|panel| panel.slice.is_some()),
+                "{realm}: no 9-slice panel '{name}' for the cards"
+            );
         }
         assert!(skin.panels.contains_key(&skin.toast.panel), "{realm}: no panel '{}' for the toasts", skin.toast.panel);
         assert!(skin.toast.scale > 0.0 && skin.toast.font_scale > 0.0, "{realm}: toast scales");
@@ -179,13 +187,20 @@ fn test_every_sprite_exists_and_slices_fit() {
                 assert!(ui_asset_exists(path), "{realm}: button '{role}': {path} doesn't exist");
             }
             if let Some(hover) = &button.hover {
-                assert!(skin.panels.get(hover).is_some_and(|panel| panel.slice.is_some()), "{realm}: button '{role}': no 9-slice panel '{hover}'");
+                assert!(
+                    skin.panels.get(hover).is_some_and(|panel| panel.slice.is_some()),
+                    "{realm}: button '{role}': no 9-slice panel '{hover}'"
+                );
             }
         }
         for (name, separator) in &skin.separators {
             match separator.slice {
                 Some(slice) => check_slice(realm, &format!("separator '{name}'"), &separator.sprite, slice),
-                None => assert!(ui_asset_exists(&separator.sprite), "{realm}: separator '{name}': {} doesn't exist", separator.sprite),
+                None => assert!(
+                    ui_asset_exists(&separator.sprite),
+                    "{realm}: separator '{name}': {} doesn't exist",
+                    separator.sprite
+                ),
             }
             if let Some(ornament) = &separator.ornament {
                 assert!(ui_asset_exists(ornament), "{realm}: separator '{name}': {ornament} doesn't exist");
@@ -212,7 +227,15 @@ fn test_every_sprite_exists_and_slices_fit() {
         }
 
         let controls = &skin.controls;
-        for path in [&controls.toggle.off, &controls.toggle.on, &controls.toggle.knob, &controls.checkbox.off, &controls.checkbox.on, &controls.slider.knob, &controls.dropdown.arrow] {
+        for path in [
+            &controls.toggle.off,
+            &controls.toggle.on,
+            &controls.toggle.knob,
+            &controls.checkbox.off,
+            &controls.checkbox.on,
+            &controls.slider.knob,
+            &controls.dropdown.arrow,
+        ] {
             assert!(ui_asset_exists(path), "{realm}: control sprite {path} doesn't exist");
         }
         for (what, part) in [
@@ -268,16 +291,35 @@ fn test_world_map_art_fits() {
     for (realm, skin) in skins() {
         let art = &skin.world_map;
         let map = art.base_map_size();
-        assert_eq!(jpeg_size(&art.base), (map.x.ceil(), map.y.ceil()), "{realm}: {} covers the extent {:?}", art.base, art.extent);
+        assert_eq!(
+            jpeg_size(&art.base),
+            (map.x.ceil(), map.y.ceil()),
+            "{realm}: {} covers the extent {:?}",
+            art.base,
+            art.extent
+        );
         if !art.threat.is_empty() {
             let (width, height) = png_size(&art.threat);
             let [x, y] = art.threat_anchor;
-            assert!((0.0..=width).contains(&x) && (0.0..=height).contains(&y), "{realm}: {} holds its anchor {:?}", art.threat, art.threat_anchor);
+            assert!(
+                (0.0..=width).contains(&x) && (0.0..=height).contains(&y),
+                "{realm}: {} holds its anchor {:?}",
+                art.threat,
+                art.threat_anchor
+            );
         }
         let (width, height) = png_size(&art.frame);
         let [x, y, map_width, map_height] = art.frame_map_rect;
-        assert!(x > 0.0 && y > 0.0 && x + map_width < width && y + map_height < height, "{realm}: {} holds the map at {:?}", art.frame, art.frame_map_rect);
-        assert!((map_width - map.x).abs() < 0.01 && (map_height - map.y).abs() < 0.01, "{realm}: the frame's map rect is the base's map");
+        assert!(
+            x > 0.0 && y > 0.0 && x + map_width < width && y + map_height < height,
+            "{realm}: {} holds the map at {:?}",
+            art.frame,
+            art.frame_map_rect
+        );
+        assert!(
+            (map_width - map.x).abs() < 0.01 && (map_height - map.y).abs() < 0.01,
+            "{realm}: the frame's map rect is the base's map"
+        );
         assert_eq!(jpeg_size(&art.backdrop), (1920.0, 1080.0), "{realm}: {}", art.backdrop);
 
         // What the screen draws live over it: every mark it needs, the emblems, and every colour
@@ -290,13 +332,12 @@ fn test_world_map_art_fits() {
         for path in art.emblems.values().flatten() {
             assert!(ui_asset_exists(path), "{realm}: world_map emblem {path} doesn't exist");
         }
-        let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
+        let resolves =
+            |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
         let looks = art.text.values().chain(art.seal_letter.iter());
         for look in looks {
-            for name in std::iter::once(&look.color)
-                .chain(look.halo.iter())
-                .chain(look.shadow.iter())
-                .chain(look.highlight.iter())
+            for name in
+                std::iter::once(&look.color).chain(look.halo.iter()).chain(look.shadow.iter()).chain(look.highlight.iter())
             {
                 assert!(resolves(name), "{realm}: world_map text: no colour '{name}'");
             }
@@ -322,10 +363,9 @@ fn test_world_map_art_fits() {
 fn test_intermission_art_fits() {
     for (realm, skin) in skins() {
         let art = &skin.intermission;
-        for (what, path, [_, _, width, height]) in [
-            ("stele", &art.stele.sprite, art.stele.sprite_rect()),
-            ("niche", &art.niche.sprite, art.niche.sprite_rect()),
-        ] {
+        for (what, path, [_, _, width, height]) in
+            [("stele", &art.stele.sprite, art.stele.sprite_rect()), ("niche", &art.niche.sprite, art.niche.sprite_rect())]
+        {
             assert!(ui_asset_exists(path), "{realm}: intermission {what}: {path} doesn't exist");
             let (pixels_x, pixels_y) = png_size(path);
             let (scale_x, scale_y) = (pixels_x / width, pixels_y / height);
@@ -348,10 +388,8 @@ fn test_intermission_art_fits() {
             |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
         for role in ["title", "line", "newest"] {
             let look = art.stele.looks.get(role).unwrap_or_else(|| panic!("{realm}: the stele has no '{role}' look"));
-            for name in std::iter::once(&look.color)
-                .chain(look.halo.iter())
-                .chain(look.shadow.iter())
-                .chain(look.highlight.iter())
+            for name in
+                std::iter::once(&look.color).chain(look.halo.iter()).chain(look.shadow.iter()).chain(look.highlight.iter())
             {
                 assert!(resolves(name), "{realm}: stele look '{role}': no colour '{name}'");
             }
@@ -361,7 +399,19 @@ fn test_intermission_art_fits() {
             assert!(resolves(value), "{realm}: stele colour '{name}': no colour '{value}'");
         }
         // The debrief's panel colours, by role: every one the dialog asks for.
-        for role in ["text", "sub", "heading", "accent", "section", "rule", "check", "check_mark", "check_open", "note_fill", "note_border"] {
+        for role in [
+            "text",
+            "sub",
+            "heading",
+            "accent",
+            "section",
+            "rule",
+            "check",
+            "check_mark",
+            "check_open",
+            "note_fill",
+            "note_border",
+        ] {
             let value = art.colors.get(role).unwrap_or_else(|| panic!("{realm}: the intermission has no '{role}' colour"));
             assert!(resolves(value), "{realm}: intermission colour '{role}': no colour '{value}'");
         }
@@ -381,7 +431,12 @@ fn test_story_art_fits() {
         assert!(ui_asset_exists(&art.frame), "{realm}: story frame {} doesn't exist", art.frame);
         let [left, top, right, bottom] = art.frame_bleed;
         let [width, height] = game::story::PANEL_SIZE;
-        assert_eq!(png_size(&art.frame), (width + left + right, height + top + bottom), "{realm}: {} isn't the panel and its bleed", art.frame);
+        assert_eq!(
+            png_size(&art.frame),
+            (width + left + right, height + top + bottom),
+            "{realm}: {} isn't the panel and its bleed",
+            art.frame
+        );
         assert_eq!(jpeg_size(&art.backdrop), (1920.0, 1080.0), "{realm}: {}", art.backdrop);
         assert!(
             skin.panels.get(&art.caption.panel).is_some_and(|panel| panel.slice.is_some()),
@@ -389,15 +444,26 @@ fn test_story_art_fits() {
             art.caption.panel
         );
         let [x, y] = art.caption.at;
-        assert!(x >= 0.0 && y >= 0.0 && x + art.caption.width <= width && y + art.caption.baseline + art.caption.bottom <= height, "{realm}: the caption fits the panel");
+        assert!(
+            x >= 0.0
+                && y >= 0.0
+                && x + art.caption.width <= width
+                && y + art.caption.baseline + art.caption.bottom <= height,
+            "{realm}: the caption fits the panel"
+        );
 
-        let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
+        let resolves =
+            |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
         let bubble = &art.bubble;
-        let looks = [&art.caption.look, &bubble.name, &bubble.text].into_iter().chain(["title", "line"].into_iter().map(|role| {
-            art.stele.get(role).unwrap_or_else(|| panic!("{realm}: the story has no stele '{role}' look"))
-        }));
+        let looks = [&art.caption.look, &bubble.name, &bubble.text].into_iter().chain(
+            ["title", "line"]
+                .into_iter()
+                .map(|role| art.stele.get(role).unwrap_or_else(|| panic!("{realm}: the story has no stele '{role}' look"))),
+        );
         for look in looks {
-            for name in std::iter::once(&look.color).chain(look.halo.iter()).chain(look.shadow.iter()).chain(look.highlight.iter()) {
+            for name in
+                std::iter::once(&look.color).chain(look.halo.iter()).chain(look.shadow.iter()).chain(look.highlight.iter())
+            {
                 assert!(resolves(name), "{realm}: story look: no colour '{name}'");
             }
         }
@@ -415,13 +481,29 @@ fn test_story_art_fits() {
 // find what they need: framed tabs, the icon frame, the toggle's sprites, the row panels.
 fn test_every_colour_and_widget_part_resolves() {
     for (realm, skin) in skins() {
-        let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
+        let resolves =
+            |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
         let meters = &skin.meters;
         let rows = &skin.rows;
         let toggle = &skin.controls.toggle;
         let names = [
-            &meters.fill, &meters.track, &meters.outline, &meters.goal, &meters.text, &rows.title, &rows.selected, &rows.subtitle,
-            &rows.label, &rows.value, &rows.header, &rows.rule, &rows.done, &rows.pending, &rows.failed, &toggle.text, &toggle.state_text,
+            &meters.fill,
+            &meters.track,
+            &meters.outline,
+            &meters.goal,
+            &meters.text,
+            &rows.title,
+            &rows.selected,
+            &rows.subtitle,
+            &rows.label,
+            &rows.value,
+            &rows.header,
+            &rows.rule,
+            &rows.done,
+            &rows.pending,
+            &rows.failed,
+            &toggle.text,
+            &toggle.state_text,
             &skin.toast.text,
         ];
         for name in names.into_iter().flatten() {
@@ -450,9 +532,15 @@ fn test_every_colour_and_widget_part_resolves() {
         }
 
         for role in ["tab", "tab_selected", "icon"] {
-            assert!(skin.buttons.get(role).is_some_and(|button| button.sprite.is_some()), "{realm}: button '{role}' isn't framed");
+            assert!(
+                skin.buttons.get(role).is_some_and(|button| button.sprite.is_some()),
+                "{realm}: button '{role}' isn't framed"
+            );
         }
-        assert!(skin.buttons["icon"].selected.is_some() && skin.buttons["icon"].size.is_some_and(|size| size > 0.0), "{realm}: icon button");
+        assert!(
+            skin.buttons["icon"].selected.is_some() && skin.buttons["icon"].size.is_some_and(|size| size > 0.0),
+            "{realm}: icon button"
+        );
         assert!(skin.buttons["menu_item"].marker.is_some(), "{realm}: no menu item marker");
         assert!(!toggle.off.is_empty() && !toggle.on.is_empty() && !toggle.knob.is_empty(), "{realm}: toggle sprites");
         assert!(toggle.size[0] > 0.0 && toggle.size[1] > 0.0, "{realm}: toggle size");
@@ -581,12 +669,18 @@ fn test_hud_art_exists() {
         }
         for name in ["hud_bar", "hud_panel", "hud_large"] {
             let panel = skin.panels.get(name).unwrap_or_else(|| panic!("{realm}: no panel '{name}'"));
-            check_slice(realm, name, &panel.sprite, panel.slice.unwrap_or_else(|| panic!("{realm}: '{name}' isn't a 9-slice")));
+            check_slice(
+                realm,
+                name,
+                &panel.sprite,
+                panel.slice.unwrap_or_else(|| panic!("{realm}: '{name}' isn't a 9-slice")),
+            );
             for deco in &panel.decorations {
                 assert!(ui_asset_exists(&deco.sprite), "{realm}: panel '{name}': ornament {} doesn't exist", deco.sprite);
             }
         }
-        let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
+        let resolves =
+            |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
         for (role, name) in &hud.colors {
             assert!(resolves(name), "{realm}: HUD colour '{role}': no colour '{name}'");
         }
@@ -601,7 +695,10 @@ fn test_hud_art_exists() {
         for name in [&hud.badge.fill, &hud.badge.ring, &hud.badge.text] {
             assert!(resolves(name), "{realm}: HUD badge: no colour '{name}'");
         }
-        for name in [&hud.glyph_tints.idle, &hud.glyph_tints.hovered, &hud.glyph_tints.pressed, &hud.glyph_tints.disabled].into_iter().flatten() {
+        for name in [&hud.glyph_tints.idle, &hud.glyph_tints.hovered, &hud.glyph_tints.pressed, &hud.glyph_tints.disabled]
+            .into_iter()
+            .flatten()
+        {
             assert!(resolves(name), "{realm}: HUD glyph tint: no colour '{name}'");
         }
     }

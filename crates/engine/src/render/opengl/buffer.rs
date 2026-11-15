@@ -11,9 +11,9 @@ pub const NULL_VERTEX_ARRAY_HANDLE: gl::types::GLuint = 0;
 #[derive(Copy, Clone)]
 #[allow(clippy::enum_variant_names)] // "Draw" suffix on each constant is intentional (e.g.: StaticDraw, StaticRead, StaticCopy, etc)
 pub enum BufferUsageHint {
-    StaticDraw  = gl::STATIC_DRAW,  // The user will set the data once.
+    StaticDraw = gl::STATIC_DRAW,   // The user will set the data once.
     DynamicDraw = gl::DYNAMIC_DRAW, // The user will set the data occasionally.
-    StreamDraw  = gl::STREAM_DRAW,  // The user will be changing the data after every use. Or almost every use.
+    StreamDraw = gl::STREAM_DRAW,   // The user will be changing the data after every use. Or almost every use.
 }
 
 // ----------------------------------------------

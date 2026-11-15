@@ -153,7 +153,10 @@ fn test_rebuild_matches_incremental_updates() {
 
     let mut rebuilt = Minimap::new(env.tile_map.size_in_cells());
     rebuilt.rebuild_from(&env.tile_map);
-    assert!(snapshot(&rebuilt) == snapshot(env.tile_map.minimap()), "a rebuilt minimap differs from the one kept up to date");
+    assert!(
+        snapshot(&rebuilt) == snapshot(env.tile_map.minimap()),
+        "a rebuilt minimap differs from the one kept up to date"
+    );
 }
 
 // ----------------------------------------------
@@ -193,7 +196,8 @@ fn test_patched_bake_matches_full_bake() {
 // ----------------------------------------------
 
 fn test_every_building_resolves_to_a_class() {
-    let buildings = TileSets::get().find_category_by_hash(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash).unwrap();
+    let buildings =
+        TileSets::get().find_category_by_hash(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash).unwrap();
     let mut checked = 0;
     let mut landmarks = Vec::new();
     buildings.for_each_tile_def(|tile_def| {

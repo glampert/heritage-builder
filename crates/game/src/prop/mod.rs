@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use common::{
     Color,
     coords::{Cell, CellRange, WorldToScreenTransform},
@@ -7,29 +5,31 @@ use common::{
     time::{CountdownTimer, Seconds},
 };
 use engine::ui::UiSystem;
+use serde::{Deserialize, Serialize};
 
 use super::{
-    undo_redo::GameObjectSavedState,
-    unit::UnitId,
     sim::{
-        SimCmds,
         SimCmdQueue,
-        SimContext, SimContextMut,
+        SimCmds,
+        SimContext,
+        SimContextMut,
         resources::{ResourceKind, StockItem},
     },
+    undo_redo::GameObjectSavedState,
+    unit::UnitId,
     world::{
         object::{GameObject, GenerationalIndex},
         stats::WorldStats,
     },
 };
 use crate::{
-    save_context::PostLoadContext,
-    undo_redo::game_object_undo_redo_state,
-    tile::{Tile, TileKind},
     debug::{
         DebugUiMode,
         game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color, game_object_debug_options},
     },
+    save_context::PostLoadContext,
+    tile::{Tile, TileKind},
+    undo_redo::game_object_undo_redo_state,
 };
 
 pub mod config;
@@ -138,8 +138,8 @@ impl GameObject for Prop {
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
         PropUndoRedoSavedState::new_state(PropUndoRedoSavedState {
             harvestable_amount: self.harvestable.amount,
-            respawn_countdown:  self.harvestable.respawn_timer.remaining_secs(),
-            initial_variation:  self.harvestable.initial_variation,
+            respawn_countdown: self.harvestable.respawn_timer.remaining_secs(),
+            initial_variation: self.harvestable.initial_variation,
         })
     }
 
@@ -339,15 +339,11 @@ impl Prop {
 
     #[inline]
     fn find_tile<'game>(&self, context: &'game SimContext) -> &'game Tile {
-        context
-            .find_tile(self.cell(), TileKind::Prop)
-            .expect("Prop should have an associated Tile in the TileMap!")
+        context.find_tile(self.cell(), TileKind::Prop).expect("Prop should have an associated Tile in the TileMap!")
     }
 
     #[inline]
     fn find_tile_mut<'game>(&self, context: &'game SimContextMut) -> &'game mut Tile {
-        context
-            .find_tile_mut(self.cell(), TileKind::Prop)
-            .expect("Prop should have an associated Tile in the TileMap!")
+        context.find_tile_mut(self.cell(), TileKind::Prop).expect("Prop should have an associated Tile in the TileMap!")
     }
 }

@@ -1,14 +1,16 @@
 use std::any::Any;
-use smallbox::smallbox;
-use egui::{Align2, Sense, pos2, vec2};
 
 use common::{Color, Vec2};
+use egui::{Align2, Sense, pos2, vec2};
+use smallbox::smallbox;
 
 use super::{UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext};
 use crate::{
     render::texture::TextureHandle,
     ui::{
-        UiFontScale, UiNineSlice, UiString,
+        UiFontScale,
+        UiNineSlice,
+        UiString,
         immediate::{self, color32, egui_vec2, nine_slice_shape, uv_full},
         internal,
         renderer::egui_texture,
@@ -74,7 +76,11 @@ impl UiWidget for UiMenuItem {
                 if lit {
                     match &self.hover_panel {
                         Some((panel, grow)) => {
-                            let tint = if response.is_pointer_button_down_on() { egui::Color32::from_white_alpha(170) } else { egui::Color32::WHITE };
+                            let tint = if response.is_pointer_button_down_on() {
+                                egui::Color32::from_white_alpha(170)
+                            } else {
+                                egui::Color32::WHITE
+                            };
                             painter.add(nine_slice_shape(rect.expand2(egui_vec2(*grow)), panel, tint));
                         }
                         None => {
@@ -83,8 +89,10 @@ impl UiWidget for UiMenuItem {
                         }
                     }
                     if let Some((marker, marker_size)) = self.marker {
-                        let marker_rect =
-                            egui::Rect::from_min_size(pos2(rect.left() + self.marker_margin, rect.center().y - marker_size.y * 0.5), egui_vec2(marker_size));
+                        let marker_rect = egui::Rect::from_min_size(
+                            pos2(rect.left() + self.marker_margin, rect.center().y - marker_size.y * 0.5),
+                            egui_vec2(marker_size),
+                        );
                         painter.image(egui_texture(marker), marker_rect, uv_full(), egui::Color32::WHITE);
                     }
                 }
@@ -100,7 +108,13 @@ impl UiWidget for UiMenuItem {
                 let top = rect.top() + self.padding;
                 painter.text(pos2(rect.center().x, top), Align2::CENTER_TOP, self.label.resolve(), font.clone(), text_color);
                 if let Some(subline) = &self.subline {
-                    painter.text(pos2(rect.center().x, top + label_height), Align2::CENTER_TOP, subline.resolve(), subline_font.clone(), subline_color);
+                    painter.text(
+                        pos2(rect.center().x, top + label_height),
+                        Align2::CENTER_TOP,
+                        subline.resolve(),
+                        subline_font.clone(),
+                        subline_color,
+                    );
                 }
             }
 

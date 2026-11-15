@@ -21,7 +21,7 @@ use super::{
     make_text_button,
     skin::{self, ButtonRole, HeadingLevel, SkinAlign, SkinDialogSize},
 };
-use crate::{menu::ButtonDef, profile, ui_context::GameUiContext, campaign::config::MissionMap};
+use crate::{campaign::config::MissionMap, menu::ButtonDef, profile, ui_context::GameUiContext};
 
 mod home;
 use home::*;
@@ -57,10 +57,10 @@ mod mission_briefing;
 use mission_briefing::*;
 
 mod story_comic;
-use story_comic::*;
-pub use story_comic::{StoryEnd, StoryRequest};
 pub(crate) use load_save::group_digits;
 pub(crate) use mission_complete::goal_line;
+use story_comic::*;
+pub use story_comic::{StoryEnd, StoryRequest};
 
 mod screen;
 
@@ -132,27 +132,21 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     MainGame,
     CustomGame,
     About,
-
     LoadGame,
     SaveGame,
     LoadOrSaveGame,
-
     CityManagement,
     PopulationManagement,
     ResourcesManagement,
     FinancesManagement,
-
     MainSettings,
     GameSettings,
     SoundSettings,
     GraphicsSettings,
-
     MissionComplete,
     CampaignComplete,
     MissionBriefing,
-
     WorldMap,
-
     StoryComic,
 ];
 
@@ -279,7 +273,8 @@ pub fn sync(context: &mut GameUiContext) {
         // values and tab are kept (settings::STATE).
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::MainSettings);
     } else if dialogs.window_built != window_version(context)
-        && !DialogMenuKind::iter().any(|kind| kind.scales_with_window() && dialogs.find_dialog(kind).menu().is_message_box_open())
+        && !DialogMenuKind::iter()
+            .any(|kind| kind.scales_with_window() && dialogs.find_dialog(kind).menu().is_message_box_open())
     {
         // About and the Game menu, whose contents scale with the window: not under a popup, which
         // a rebuild would close (the Game menu's Quit): once it's gone.
@@ -531,8 +526,8 @@ pub fn set_backdrop_dim(context: &mut GameUiContext, home_menu: bool) {
 fn load_mission_map(map: &MissionMap) {
     let game_loop = crate::GameLoop::get_mut();
     match map {
-        MissionMap::SaveGame { save_file }     => game_loop.load_save_game(PathRef::from_str(save_file)),
-        MissionMap::Preset   { preset_number } => game_loop.load_preset_map(*preset_number),
+        MissionMap::SaveGame { save_file } => game_loop.load_save_game(PathRef::from_str(save_file)),
+        MissionMap::Preset { preset_number } => game_loop.load_preset_map(*preset_number),
     }
 }
 
@@ -839,7 +834,10 @@ impl DialogMenusSingleton {
 
         // The Game menu: built again when it's opened in a game of another kind than it was built
         // for (its Mission briefing item is a campaign mission's only).
-        if dialog_menu_kind == DialogMenuKind::MainGame && !self.find_dialog(dialog_menu_kind).is_open() && main_game::needs_rebuild() {
+        if dialog_menu_kind == DialogMenuKind::MainGame
+            && !self.find_dialog(dialog_menu_kind).is_open()
+            && main_game::needs_rebuild()
+        {
             self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
             self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
         }
@@ -923,7 +921,8 @@ impl DialogMenusSingleton {
             // In the home menu, the backdrop shows clear around Home's own panel and dims behind a
             // dialog opened over it, as the mockups draw them.
             if in_home_menu() {
-                let dim = if top == DialogMenuKind::Home { skin::backdrop_dim(true) } else { skin::backdrop_dim_over_home() };
+                let dim =
+                    if top == DialogMenuKind::Home { skin::backdrop_dim(true) } else { skin::backdrop_dim_over_home() };
                 context.ui_sys.set_modal_backdrop_color(dim);
             }
 
@@ -975,7 +974,7 @@ common::singleton_late_init! { DIALOG_MENUS_SINGLETON, DialogMenusSingleton }
 // For common dialog menus:
 const DEFAULT_DIALOG_MENU_BUTTON_SPACING: Vec2 = Vec2::new(8.0, 8.0); // Large stacked buttons
 const DEFAULT_DIALOG_MENU_WIDGET_SPACING: Vec2 = Vec2::new(6.0, 6.0); // Settings widgets / input fields
-const DEFAULT_DIALOG_MENU_TEXT_SPACING:   Vec2 = Vec2::new(4.0, 4.0); // Lines of text: the city management lists
+const DEFAULT_DIALOG_MENU_TEXT_SPACING: Vec2 = Vec2::new(4.0, 4.0); // Lines of text: the city management lists
 const DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING: f32 = 12.0;
 const DEFAULT_DIALOG_MENU_HEADING_MARGIN_BOTTOM: f32 = 10.0;
 const DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
@@ -984,12 +983,14 @@ const DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 // which close the top dialog only (close_current_on_escape). With both, the dialog under it, on top
 // by the time the dialogs are drawn, saw the same key press and closed too. An Escape a focused text
 // field in the top dialog took from the menus closes it in draw_current instead.
-const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
-    UiMenuFlags::Modal.bits() | UiMenuFlags::PauseSimIfOpen.bits(),
-);
+const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags =
+    UiMenuFlags::from_bits_retain(UiMenuFlags::Modal.bits() | UiMenuFlags::PauseSimIfOpen.bits());
 
 const ALIGN_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
-    UiMenuFlags::AlignCenter.bits() | UiMenuFlags::AlignCenterTop.bits() | UiMenuFlags::AlignLeft.bits() | UiMenuFlags::AlignRight.bits(),
+    UiMenuFlags::AlignCenter.bits()
+        | UiMenuFlags::AlignCenterTop.bits()
+        | UiMenuFlags::AlignLeft.bits()
+        | UiMenuFlags::AlignRight.bits(),
 );
 
 // A dialog's window, from the skin's `dialogs` block (skin::SkinDialogDef): its size (in points at
@@ -1114,7 +1115,11 @@ where
 }
 
 // A button of `role` that closes the current dialog.
-fn make_dialog_close_button(context: &mut dyn UiWidgetContext, role: ButtonRole, label: impl Into<UiString>) -> UiTextButton {
+fn make_dialog_close_button(
+    context: &mut dyn UiWidgetContext,
+    role: ButtonRole,
+    label: impl Into<UiString>,
+) -> UiTextButton {
     make_text_button(context, role, label, |_, context| {
         close_current(context_as_mut::<GameUiContext>(context));
     })
@@ -1140,7 +1145,10 @@ mod tests {
         assert!(close(by_window(sizes, (1.0 + smallest) / 2.0), 46.0));
         assert!(close(by_window(sizes, 0.1), 36.0));
         assert!(close(by_window(sizes, 2.0), 56.0));
-        assert!(close(by_window(sizes, skin::dialog_scale(Vec2::new(1440.0, 800.0))), 36.0 + 20.0 * (800.0 / 1080.0 - smallest) / (1.0 - smallest)));
+        assert!(close(
+            by_window(sizes, skin::dialog_scale(Vec2::new(1440.0, 800.0))),
+            36.0 + 20.0 * (800.0 / 1080.0 - smallest) / (1.0 - smallest)
+        ));
     }
     use crate::menu::skin::SkinDialogSizeMode;
 
@@ -1170,7 +1178,10 @@ mod tests {
         assert_eq!(left.offset(Vec2::new(1920.0, 1080.0)), Some(Vec2::new(90.0, 0.0)));
         assert_eq!(left.offset(Vec2::new(1280.0, 720.0)), Some(Vec2::new(60.0, 0.0)));
         assert_eq!(frame(points, None, false).offset(Vec2::new(1920.0, 1080.0)), None);
-        let fullscreen = DialogFrame { offset: Some([90.0, 0.0]), ..frame(SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen), None, false) };
+        let fullscreen = DialogFrame {
+            offset: Some([90.0, 0.0]),
+            ..frame(SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen), None, false)
+        };
         assert_eq!(fullscreen.offset(Vec2::new(1920.0, 1080.0)), None);
     }
 
@@ -1179,7 +1190,9 @@ mod tests {
     #[test]
     fn fullscreen_dialogs() {
         let fullscreen = frame(SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen), Some(SkinAlign::Left), true);
-        for window in [Vec2::new(1440.0, 800.0), Vec2::new(1920.0, 1080.0), Vec2::new(3840.0, 2160.0), Vec2::new(800.0, 600.0)] {
+        for window in
+            [Vec2::new(1440.0, 800.0), Vec2::new(1920.0, 1080.0), Vec2::new(3840.0, 2160.0), Vec2::new(800.0, 600.0)]
+        {
             assert_eq!(fullscreen.size(window), window);
         }
         assert!(!fullscreen.shows_below());

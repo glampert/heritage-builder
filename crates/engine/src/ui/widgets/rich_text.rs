@@ -1,11 +1,13 @@
 use std::{any::Any, cell::RefCell};
-use egui::{Sense, text::LayoutJob, vec2};
 
 use common::{Color, Vec2};
+use egui::{Sense, text::LayoutJob, vec2};
 
 use super::{UiWidget, UiWidgetContext};
 use crate::ui::{
-    UiFontScale, UiString, UiSystem,
+    UiFontScale,
+    UiString,
+    UiSystem,
     immediate::{self, color32},
     internal,
 };
@@ -171,27 +173,31 @@ impl UiWidget for UiRichText {
 
         let ui_sys = context.ui_sys();
 
-        self.with_spans(|spans| ui_sys.with_ui(|ui| {
-            let width = self.width.unwrap_or_else(|| immediate::fill_size(ui).x);
-            let default_color = self.text_color.map_or_else(|| ui.visuals().text_color(), color32);
-            let job = self.layout_job(ui_sys, spans, width, default_color);
-            let galley = ui.ctx().fonts_mut(|fonts| fonts.layout_job(job));
+        self.with_spans(|spans| {
+            ui_sys.with_ui(|ui| {
+                let width = self.width.unwrap_or_else(|| immediate::fill_size(ui).x);
+                let default_color = self.text_color.map_or_else(|| ui.visuals().text_color(), color32);
+                let job = self.layout_job(ui_sys, spans, width, default_color);
+                let galley = ui.ctx().fonts_mut(|fonts| fonts.layout_job(job));
 
-            let size = vec2(if width > 0.0 { width } else { galley.size().x }, galley.size().y);
-            let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
-            // egui lines rows up on x = 0: their left, centre or right.
-            let x = match self.align {
-                UiTextAlign::Left => rect.left(),
-                UiTextAlign::Center => rect.center().x,
-                UiTextAlign::Right => rect.right(),
-            };
-            ui.painter().galley(egui::pos2(x, rect.top()), galley, default_color);
+                let size = vec2(if width > 0.0 { width } else { galley.size().x }, galley.size().y);
+                let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
+                // egui lines rows up on x = 0: their left, centre or right.
+                let x = match self.align {
+                    UiTextAlign::Left => rect.left(),
+                    UiTextAlign::Center => rect.center().x,
+                    UiTextAlign::Right => rect.right(),
+                };
+                ui.painter().galley(egui::pos2(x, rect.top()), galley, default_color);
 
-            // Its text only for ui.tree: the label (if it has none) and the value.
-            let text = if ui_sys.is_widget_registry_enabled() { plain_text(spans) } else { Default::default() };
-            let label = if self.label.is_empty() { text.as_str() } else { self.label.resolve() };
-            immediate::record_lazy(ui_sys, ui, &response, "rich_text", label, None, true, || Some(serde_json::Value::String(text.clone())));
-        }));
+                // Its text only for ui.tree: the label (if it has none) and the value.
+                let text = if ui_sys.is_widget_registry_enabled() { plain_text(spans) } else { Default::default() };
+                let label = if self.label.is_empty() { text.as_str() } else { self.label.resolve() };
+                immediate::record_lazy(ui_sys, ui, &response, "rich_text", label, None, true, || {
+                    Some(serde_json::Value::String(text.clone()))
+                });
+            })
+        });
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
@@ -374,7 +380,8 @@ impl UiRichText {
                 color: color.unwrap_or(default_color),
                 italics: span.emphasis,
                 extra_letter_spacing: self.letter_spacing,
-                line_height: (self.line_spacing != 0.0).then(|| ui_sys.ctx().fonts_mut(|fonts| fonts.row_height(&font)) + self.line_spacing),
+                line_height: (self.line_spacing != 0.0)
+                    .then(|| ui_sys.ctx().fonts_mut(|fonts| fonts.row_height(&font)) + self.line_spacing),
                 ..Default::default()
             };
             let leading_space = if after_emphasis && !span.emphasis { italic_overhang } else { 0.0 };
@@ -405,18 +412,15 @@ mod tests {
 
     #[test]
     fn emphasis_and_colours_nest() {
-        assert_eq!(
-            parse_rich_text("The *flood* came [accent]early, *very* early[/] this year."),
-            [
-                span("The ", false, None),
-                span("flood", true, None),
-                span(" came ", false, None),
-                span("early, ", false, Some("accent")),
-                span("very", true, Some("accent")),
-                span(" early", false, Some("accent")),
-                span(" this year.", false, None),
-            ]
-        );
+        assert_eq!(parse_rich_text("The *flood* came [accent]early, *very* early[/] this year."), [
+            span("The ", false, None),
+            span("flood", true, None),
+            span(" came ", false, None),
+            span("early, ", false, Some("accent")),
+            span("very", true, Some("accent")),
+            span(" early", false, Some("accent")),
+            span(" this year.", false, None),
+        ]);
         assert_eq!(parse_rich_text("[#a8261c]red[/]"), [span("red", false, Some("#a8261c"))]);
     }
 
@@ -433,7 +437,11 @@ mod tests {
         assert_eq!(parse_rich_text("a *b"), [span("a ", false, None), span("b", true, None)]);
         assert_eq!(parse_rich_text("[sub]a"), [span("a", false, Some("sub"))]);
         assert_eq!(parse_rich_text("**a"), [span("a", false, None)]);
-        assert_eq!(parse_rich_text("Đại *Long*\nline two"), [span("Đại ", false, None), span("Long", true, None), span("\nline two", false, None)]);
+        assert_eq!(parse_rich_text("Đại *Long*\nline two"), [
+            span("Đại ", false, None),
+            span("Long", true, None),
+            span("\nline two", false, None)
+        ]);
     }
 
     #[test]

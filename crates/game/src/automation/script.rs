@@ -13,9 +13,8 @@
 
 use std::{collections::VecDeque, io::Write, path::Path};
 
-use serde_json::{Value, json};
-
 use engine::Engine;
+use serde_json::{Value, json};
 
 use super::{CommandOutput, ErrorCode, find_command, parse_command_text};
 
@@ -27,7 +26,7 @@ pub struct ScriptLine {
 
 pub struct ScriptRunner {
     script_name: String,
-    print_fn: fn(&Value), // Where output lines go: stdout, except in tests.
+    print_fn: fn(&Value),        // Where output lines go: stdout, except in tests.
     lines: VecDeque<ScriptLine>, // Not started yet.
     continue_on_error: bool,
     waiting: bool,  // A line is running.

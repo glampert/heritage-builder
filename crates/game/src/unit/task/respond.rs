@@ -1,18 +1,21 @@
 use std::any::Any;
-use serde::{Deserialize, Serialize};
 
 use common::{callback::Callback, coords::Cell};
-use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use engine::{
+    log,
+    ui::{DrawDebugUi, UiSystem},
+};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
 
 use super::{
-    UnitTaskOriginBuildingDebug,
+    UnitTask,
     UnitTaskContext,
+    UnitTaskId,
+    UnitTaskOriginBuildingDebug,
+    UnitTaskPool,
     UnitTaskState,
     UnitTaskTransition,
-    UnitTask,
-    UnitTaskId,
-    UnitTaskPool,
     invoke_completion_callback_deferred,
     with_task,
 };
@@ -173,9 +176,7 @@ pub struct UnitTaskRespond {
 impl UnitTaskRespond {
     // The emergency is still where it was when the walker set out: the building burns, or is sick.
     fn target_needs_him(&self, sim_context: &SimContext) -> bool {
-        sim_context
-            .find_building(self.target.kind, self.target.id)
-            .is_some_and(|building| self.emergency.is_at(building))
+        sim_context.find_building(self.target.kind, self.target.id).is_some_and(|building| self.emergency.is_at(building))
     }
 
     // How far from where he stands a responder looks for the next emergency: his building's reach.
@@ -190,8 +191,12 @@ impl UnitTaskRespond {
 
         // The goal is where the path ends, the cell he'll stand on, in place of a road link.
         let stand_on = BuildingTileInfo { road_link: path.last().unwrap().cell, base_cell: self.target_tile.base_cell };
-        let goal =
-            UnitNavGoal::building(self.origin_building.kind, self.origin_building_tile.base_cell, self.target.kind, stand_on);
+        let goal = UnitNavGoal::building(
+            self.origin_building.kind,
+            self.origin_building_tile.base_cell,
+            self.target.kind,
+            stand_on,
+        );
         ctx.unit.move_to_goal(path, goal);
     }
 
@@ -369,10 +374,10 @@ impl UnitTaskState for UnitTaskRespondState {
 
     fn update(self, task: &mut UnitTaskRespond, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
-            Self::MovingToTarget    => task.update_moving_to_target(ctx),
+            Self::MovingToTarget => task.update_moving_to_target(ctx),
             Self::ReturningToOrigin => task.update_returning(ctx),
             Self::ReportingToOrigin => task.update_reporting(ctx),
-            Self::Done              => UnitTaskTransition::Done,
+            Self::Done => UnitTaskTransition::Done,
         }
     }
 }

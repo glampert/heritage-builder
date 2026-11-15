@@ -1,11 +1,18 @@
-use common::coords::Cell;
-use common::time::Seconds;
+use common::{coords::Cell, time::Seconds};
 use game::{
-    building::{BuildingKind, BuildingKindAndId, config::BuildingConfigs, construction::{ConstructionMaterials, ConstructionMode}},
-    config::GameConfigs,
+    building::{
+        BuildingKind,
+        BuildingKindAndId,
+        config::BuildingConfigs,
+        construction::{ConstructionMaterials, ConstructionMode},
+    },
     cheats,
+    config::GameConfigs,
     menu::{PlaceOrClearResult, TilePlacement},
-    sim::{SimCmdQueue, resources::{ResourceKind, StockItem}},
+    sim::{
+        SimCmdQueue,
+        resources::{ResourceKind, StockItem},
+    },
     tile::placement::TilePlacementErrReason,
     undo_redo,
     world::city_stock::{CityStock, Withdrawal, WithdrawnItem},
@@ -148,7 +155,9 @@ fn test_player_placement_charges_gold() {
         let well_def = test_utils::find_building_def("small_well");
         {
             let context = env.new_sim_context(0.0);
-            assert!(TilePlacement::place(&context, Cell::new(4, 4), well_def, true, false, ConstructionMode::Finished).is_ok());
+            assert!(
+                TilePlacement::place(&context, Cell::new(4, 4), well_def, true, false, ConstructionMode::Finished).is_ok()
+            );
         }
 
         assert_eq!(gold(&mut env), gold_before - well_def.cost);
@@ -233,13 +242,18 @@ fn test_city_stock_counts_every_yard() {
 
         assert!(CityStock::can_afford(&env.world, env.sim.finance(), 10, &materials(&[(ResourceKind::Bricks, 7)])).is_ok());
 
-        let missing = CityStock::can_afford(&env.world, env.sim.finance(), 1000, &materials(&[(ResourceKind::Bricks, 8), (ResourceKind::Wood, 2)]))
-            .unwrap_err();
+        let missing = CityStock::can_afford(
+            &env.world,
+            env.sim.finance(),
+            1000,
+            &materials(&[(ResourceKind::Bricks, 8), (ResourceKind::Wood, 2)]),
+        )
+        .unwrap_err();
         assert_eq!(missing.gold, 1000 - gold(&mut env));
-        assert_eq!(missing.materials.as_slice(), &[
-            StockItem { kind: ResourceKind::Bricks, count: 1 },
-            StockItem { kind: ResourceKind::Wood, count: 2 },
-        ]);
+        assert_eq!(missing.materials.as_slice(), &[StockItem { kind: ResourceKind::Bricks, count: 1 }, StockItem {
+            kind: ResourceKind::Wood,
+            count: 2
+        },]);
     });
 }
 
@@ -403,7 +417,8 @@ fn test_clearing_a_site_refunds_it() {
     as_player(|| {
         let mut env = TestEnvironment::new();
         let yard = spawn_yard(&mut env, Cell::new(2, 2), 0);
-        let temple_materials = materials(&[(ResourceKind::Bricks, 8), (ResourceKind::Wood, 6), (ResourceKind::RoofTiles, 4)]);
+        let temple_materials =
+            materials(&[(ResourceKind::Bricks, 8), (ResourceKind::Wood, 6), (ResourceKind::RoofTiles, 4)]);
         assert!(CityStock::deposit(&mut env.world, &temple_materials).is_empty());
         let gold_before = gold(&mut env);
 
@@ -489,7 +504,8 @@ fn test_settlers_move_in_when_their_house_is_built() {
             let cmds = context.cmds_mut();
             cmds.spawn_building_with_tile_def_cb(cell, house_def, |context, result| {
                 let Ok(building) = result else { panic!("the house should spawn") };
-                let site = game::building::construction::ConstructionSite::new(4.0, 0, Withdrawal::default()).with_settlers(2);
+                let site =
+                    game::building::construction::ConstructionSite::new(4.0, 0, Withdrawal::default()).with_settlers(2);
                 building.start_construction(site, context);
             });
             cmds.execute(&context);
@@ -527,10 +543,15 @@ fn test_editor_mode_builds_finished() {
 fn test_construction_art_covers_every_footprint() {
     use game::{
         building::{BuildingArchetypeKind, construction::CONSTRUCTION_STAGES},
-        tile::{TileMapLayerKind, rendering, sets::{OBJECTS_BUILDINGS_CATEGORY, TileSets}},
+        tile::{
+            TileMapLayerKind,
+            rendering,
+            sets::{OBJECTS_BUILDINGS_CATEGORY, TileSets},
+        },
     };
 
-    let buildings = TileSets::get().find_category_by_hash(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash).unwrap();
+    let buildings =
+        TileSets::get().find_category_by_hash(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash).unwrap();
     let mut checked = 0;
     buildings.for_each_tile_def(|tile_def| {
         let cells = tile_def.logical_size.width / 64;
@@ -540,7 +561,9 @@ fn test_construction_art_covers_every_footprint() {
         assert_eq!(frames, usize::from(CONSTRUCTION_STAGES), "scaffold_{cells}x{cells} needs a frame per stage");
         assert_eq!(scaffold.logical_size, tile_def.logical_size);
 
-        if BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def) == Some(BuildingArchetypeKind::HouseBuilding) {
+        if BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def)
+            == Some(BuildingArchetypeKind::HouseBuilding)
+        {
             let overlay = rendering::renovation_tile_def(cells)
                 .unwrap_or_else(|| panic!("No renovation_{cells}x{cells} for '{}'", tile_def.name));
             assert_eq!(overlay.logical_size, tile_def.logical_size);

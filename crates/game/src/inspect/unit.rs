@@ -4,17 +4,35 @@
 
 use engine::ui::text::{self, UiTextCategory};
 
-use super::{Action, ActionKind, ErrandIcon, InspectIcon, InspectReport, InspectTarget, PanelKind, Section, Status, Tone, ValueRow, building, distance_text, duration_text, t, tc, tf};
+use super::{
+    Action,
+    ActionKind,
+    ErrandIcon,
+    InspectIcon,
+    InspectReport,
+    InspectTarget,
+    PanelKind,
+    Section,
+    Status,
+    Tone,
+    ValueRow,
+    building,
+    distance_text,
+    duration_text,
+    t,
+    tc,
+    tf,
+};
 use crate::{
     city::spaced_name,
     realm::Realm,
     sim::{SimContext, resources::StockItem},
-    world::object::GameObject,
     unit::{
         Unit,
         navigation::UnitNavGoal,
         task::{Emergency, UnitTaskArchetype, UnitTaskFetchState, UnitTaskRespondState},
     },
+    world::object::GameObject,
 };
 
 pub(super) fn read(context: &SimContext, unit: &Unit, realm: Realm) -> Option<InspectReport> {
@@ -44,7 +62,10 @@ pub(super) fn read(context: &SimContext, unit: &Unit, realm: Realm) -> Option<In
     {
         rows.push(ValueRow {
             label: t("errand.carrying"),
-            value: tc("production.units", i64::from(item.count), &[("good", &building::good_name(item.kind).to_lowercase())]),
+            value: tc("production.units", i64::from(item.count), &[(
+                "good",
+                &building::good_name(item.kind).to_lowercase(),
+            )]),
             warn: false,
         });
     }
@@ -104,8 +125,8 @@ pub(super) fn capitalized(text: &str) -> String {
 
 // What a walker is doing, read from its task.
 struct Doing {
-    word: String,                // The status line: "Delivering".
-    line: String,                // The errand line a building's panel shows.
+    word: String, // The status line: "Delivering".
+    line: String, // The errand line a building's panel shows.
     icon: ErrandIcon,
     origin: Option<String>,      // Its building, in a sentence ("the pottery kiln").
     destination: Option<String>, // Where it's going, the same.
@@ -128,7 +149,8 @@ impl Doing {
 
         let (word_key, line, icon, origin_cell) = match task {
             UnitTaskArchetype::UnitTaskDeliverToStorage(task) => {
-                let (count, kind) = inventory.map_or((task.resource_count, task.resource_kind_to_deliver), |item| (item.count, item.kind));
+                let (count, kind) =
+                    inventory.map_or((task.resource_count, task.resource_kind_to_deliver), |item| (item.count, item.kind));
                 let goods = tc("production.units", i64::from(count), &[("good", &building::good_name(kind).to_lowercase())]);
                 let line = match &destination {
                     Some(to) => tf("errand.delivering_to", &[("who", &who), ("goods", &goods), ("building", to)]),
@@ -137,17 +159,26 @@ impl Doing {
                 ("status.delivering", line, ErrandIcon::Cart, Some(task.origin_building_tile.base_cell))
             }
             UnitTaskArchetype::UnitTaskFetchFromStorage(task) => {
-                let goods: Vec<String> = task.resources_to_fetch.iter().map(|item| building::good_name(item.kind).to_lowercase()).collect();
+                let goods: Vec<String> =
+                    task.resources_to_fetch.iter().map(|item| building::good_name(item.kind).to_lowercase()).collect();
                 let goods = goods.join(&format!(" {} ", t("or")));
-                let carried = |item: StockItem| tc("production.units", i64::from(item.count), &[("good", &building::good_name(item.kind).to_lowercase())]);
+                let carried = |item: StockItem| {
+                    tc("production.units", i64::from(item.count), &[(
+                        "good",
+                        &building::good_name(item.kind).to_lowercase(),
+                    )])
+                };
                 let line = match (task.state, inventory) {
                     (UnitTaskFetchState::RoutingSurplus | UnitTaskFetchState::UnloadingSurplus, Some(item)) => {
                         tf("errand.storing_surplus", &[("who", &who), ("goods", &carried(item))])
                     }
                     (_, Some(item)) => tf("errand.bringing_back", &[("who", &who), ("goods", &carried(item))]),
-                    (UnitTaskFetchState::ReturningToOrigin | UnitTaskFetchState::DeliveringToOrigin | UnitTaskFetchState::Done, None) => {
-                        tf("errand.returning_empty", &[("who", &who)])
-                    }
+                    (
+                        UnitTaskFetchState::ReturningToOrigin
+                        | UnitTaskFetchState::DeliveringToOrigin
+                        | UnitTaskFetchState::Done,
+                        None,
+                    ) => tf("errand.returning_empty", &[("who", &who)]),
                     (_, None) => match &destination {
                         Some(from) => tf("errand.fetching_from", &[("who", &who), ("goods", &goods), ("building", from)]),
                         None => tf("errand.fetching", &[("who", &who), ("goods", &goods)]),
@@ -155,27 +186,39 @@ impl Doing {
                 };
                 ("status.fetching", line, ErrandIcon::Cart, Some(task.origin_building_tile.base_cell))
             }
-            UnitTaskArchetype::UnitTaskRandomizedPatrol(task) => {
-                ("status.on_rounds", tf("errand.on_rounds", &[("who", &who)]), ErrandIcon::Walker, Some(task.origin_building_tile.base_cell))
-            }
+            UnitTaskArchetype::UnitTaskRandomizedPatrol(task) => (
+                "status.on_rounds",
+                tf("errand.on_rounds", &[("who", &who)]),
+                ErrandIcon::Walker,
+                Some(task.origin_building_tile.base_cell),
+            ),
             UnitTaskArchetype::UnitTaskRespond(task) => {
                 let origin = Some(task.origin_building_tile.base_cell);
                 if task.state != UnitTaskRespondState::MovingToTarget {
                     ("status.going_home", tf("errand.going_home", &[("who", &who)]), ErrandIcon::Walker, origin)
                 } else {
                     let line = match (task.emergency, name_at(task.target_tile.base_cell)) {
-                        (Emergency::Fire, Some(target)) => tf("errand.answering_fire", &[("who", &who), ("building", &target)]),
-                        (Emergency::Outbreak, Some(target)) => tf("errand.answering_sickness", &[("who", &who), ("building", &target)]),
+                        (Emergency::Fire, Some(target)) => {
+                            tf("errand.answering_fire", &[("who", &who), ("building", &target)])
+                        }
+                        (Emergency::Outbreak, Some(target)) => {
+                            tf("errand.answering_sickness", &[("who", &who), ("building", &target)])
+                        }
                         (Emergency::Fire, None) => tf("errand.answering_fire_gone", &[("who", &who)]),
                         (Emergency::Outbreak, None) => tf("errand.answering_sickness_gone", &[("who", &who)]),
                     };
                     ("status.answering", line, ErrandIcon::Walker, origin)
                 }
             }
-            UnitTaskArchetype::UnitTaskHarvestWood(task) => {
-                ("status.gathering", tf("errand.gathering", &[("who", &who)]), ErrandIcon::Walker, Some(task.origin_building_tile.base_cell))
+            UnitTaskArchetype::UnitTaskHarvestWood(task) => (
+                "status.gathering",
+                tf("errand.gathering", &[("who", &who)]),
+                ErrandIcon::Walker,
+                Some(task.origin_building_tile.base_cell),
+            ),
+            UnitTaskArchetype::UnitTaskSettler(_) => {
+                ("status.settling", tf("errand.settling", &[("who", &who)]), ErrandIcon::Walker, None)
             }
-            UnitTaskArchetype::UnitTaskSettler(_) => ("status.settling", tf("errand.settling", &[("who", &who)]), ErrandIcon::Walker, None),
             _ => ("status.walking", tf("errand.walking", &[("who", &who)]), ErrandIcon::Walker, None),
         };
         // Its home only while it stands.

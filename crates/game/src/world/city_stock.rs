@@ -166,7 +166,12 @@ impl CityStock {
     // Ok if the treasury has `gold` and the storage yards every material; otherwise what's
     // missing. A treasury in debt can't pay any gold. The tile cost cheat makes everything
     // affordable.
-    pub fn can_afford(world: &World, finance: &Finance, gold: u32, materials: &ConstructionMaterials) -> Result<(), MissingCost> {
+    pub fn can_afford(
+        world: &World,
+        finance: &Finance,
+        gold: u32,
+        materials: &ConstructionMaterials,
+    ) -> Result<(), MissingCost> {
         if cheats::get().ignore_tile_cost {
             return Ok(());
         }
@@ -204,7 +209,13 @@ impl CityStock {
                 remaining != 0 // Continue until satisfied.
             });
 
-            debug_assert!(remaining == 0 || cheats::get().ignore_tile_cost, "Withdrew {} of {} {}.", item.count - remaining, item.count, item.kind);
+            debug_assert!(
+                remaining == 0 || cheats::get().ignore_tile_cost,
+                "Withdrew {} of {} {}.",
+                item.count - remaining,
+                item.count,
+                item.kind
+            );
             Self::subtract_from_stats(world, item.kind, item.count - remaining);
         }
 

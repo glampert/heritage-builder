@@ -22,14 +22,13 @@
 
 use std::collections::BTreeMap;
 
-use serde::Deserialize;
-
 use common::{Color, Vec2};
 use engine::{
     log,
     render::texture::TextureHandle,
     ui::{UiDecorationAnchor, widgets::*},
 };
+use serde::Deserialize;
 
 use super::skin::{self, sprite_and_size};
 
@@ -109,10 +108,24 @@ impl Default for SkinHudBadgeDef {
 
 // The glyphs every skin draws, besides one per building in the build palette (`building/<tile>`,
 // through `glyph_aliases`): the sector column's, the HUD's buttons', the minimap's; and its line icons.
-pub const SECTOR_GLYPHS: &[&str] =
-    &["clear", "housing", "roads", "food", "industry", "services", "infrastructure", "culture", "trade", "beauty", "undo", "redo"];
-pub const HUD_GLYPHS: &[&str] = &["pause", "play", "fast", "faster", "goals", "menu", "save", "gear", "book", "briefing", "close"];
-pub const MINIMAP_GLYPHS: &[&str] = &["pin", "fire", "water", "sectors", "city", "plus", "minus", "alert", "home", "world", "collapse"];
+pub const SECTOR_GLYPHS: &[&str] = &[
+    "clear",
+    "housing",
+    "roads",
+    "food",
+    "industry",
+    "services",
+    "infrastructure",
+    "culture",
+    "trade",
+    "beauty",
+    "undo",
+    "redo",
+];
+pub const HUD_GLYPHS: &[&str] =
+    &["pause", "play", "fast", "faster", "goals", "menu", "save", "gear", "book", "briefing", "close"];
+pub const MINIMAP_GLYPHS: &[&str] =
+    &["pin", "fire", "water", "sectors", "city", "plus", "minus", "alert", "home", "world", "collapse"];
 pub const HUD_ICONS: &[&str] = &["population", "coin", "food", "request", "trade", "warn", "monument"];
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -179,11 +192,7 @@ fn color_or(name: &Option<String>, fallback: Color) -> Color {
 // A colour of the HUD by role (the block's `colors`), else the `text` colour `fallback` names.
 pub fn hud_color(role: &str, fallback: &str) -> Color {
     let hud = skin::hud();
-    hud.colors
-        .get(role)
-        .and_then(|name| skin::color(name))
-        .or_else(|| skin::color(fallback))
-        .unwrap_or_else(Color::white)
+    hud.colors.get(role).and_then(|name| skin::color(name)).or_else(|| skin::color(fallback)).unwrap_or_else(Color::white)
 }
 
 // The badge's look.
@@ -237,13 +246,26 @@ pub fn hud_glyph(context: &mut dyn UiWidgetContext, group: HudGlyphGroup, name: 
 }
 
 // A tile of `kind` labelled `label` (its automation path) with the glyph `name` of `group`.
-pub fn hud_tile(context: &mut dyn UiWidgetContext, kind: HudTileKind, label: &str, group: HudGlyphGroup, name: &str) -> UiIconTile {
+pub fn hud_tile(
+    context: &mut dyn UiWidgetContext,
+    kind: HudTileKind,
+    label: &str,
+    group: HudGlyphGroup,
+    name: &str,
+) -> UiIconTile {
     hud_tile_scaled(context, kind, 1.0, label, group, name)
 }
 
 // The same, `scale` times its size (the sector column on a short window), its frame's bleed and the
 // glyph's room with it.
-pub fn hud_tile_scaled(context: &mut dyn UiWidgetContext, kind: HudTileKind, scale: f32, label: &str, group: HudGlyphGroup, name: &str) -> UiIconTile {
+pub fn hud_tile_scaled(
+    context: &mut dyn UiWidgetContext,
+    kind: HudTileKind,
+    scale: f32,
+    label: &str,
+    group: HudGlyphGroup,
+    name: &str,
+) -> UiIconTile {
     let mut look = hud_tile_look(context, kind);
     if scale != 1.0 {
         let bleed = hud_tile_bleed(kind).map(|side| side * scale);

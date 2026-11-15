@@ -6,17 +6,18 @@ use std::{
     hash::{DefaultHasher, Hash, Hasher},
     ops::{Index, IndexMut},
 };
-use rand::Rng;
-use arrayvec::ArrayVec;
-use priority_queue::PriorityQueue;
-use serde::{Deserialize, Serialize};
 
+use arrayvec::ArrayVec;
 use common::{
-    Size,
     Color,
+    Size,
     bitflags_with_display,
     coords::{Cell, CellRange},
 };
+use priority_queue::PriorityQueue;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+
 use crate::tile::{TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerRefs};
 
 #[cfg(test)]
@@ -124,15 +125,17 @@ impl NodeKind {
 
     #[inline]
     pub fn is_flying_object_placeable(self) -> bool {
-        self.intersects(Self::Water
-                      | Self::EmptyLand
-                      | Self::Road
-                      | Self::VacantLot
-                      | Self::SettlersSpawnPoint
-                      | Self::Building
-                      | Self::Vegetation
-                      | Self::HarvestableTree
-                      | Self::Rocks)
+        self.intersects(
+            Self::Water
+                | Self::EmptyLand
+                | Self::Road
+                | Self::VacantLot
+                | Self::SettlersSpawnPoint
+                | Self::Building
+                | Self::Vegetation
+                | Self::HarvestableTree
+                | Self::Rocks,
+        )
     }
 
     #[inline]
@@ -150,17 +153,17 @@ impl NodeKind {
         }
 
         // NOTE: If multiple flags are set, higher on this list will match first and win.
-        map_to_color!(self, BuildingAccess,     Color::new(0.50, 0.50, 0.50, 1.0)); // light gray
-        map_to_color!(self, BuildingRoadLink,   Color::new(1.00, 0.00, 0.00, 1.0)); // red
-        map_to_color!(self, Building,           Color::new(0.66, 0.23, 0.74, 1.0)); // purple
-        map_to_color!(self, VacantLot,          Color::new(0.00, 0.90, 0.90, 1.0)); // cyan
+        map_to_color!(self, BuildingAccess, Color::new(0.50, 0.50, 0.50, 1.0)); // light gray
+        map_to_color!(self, BuildingRoadLink, Color::new(1.00, 0.00, 0.00, 1.0)); // red
+        map_to_color!(self, Building, Color::new(0.66, 0.23, 0.74, 1.0)); // purple
+        map_to_color!(self, VacantLot, Color::new(0.00, 0.90, 0.90, 1.0)); // cyan
         map_to_color!(self, SettlersSpawnPoint, Color::new(0.66, 0.13, 0.13, 1.0)); // dark red
-        map_to_color!(self, Rocks,              Color::new(0.20, 0.20, 0.20, 1.0)); // dark gray
-        map_to_color!(self, HarvestableTree,    Color::new(0.10, 0.85, 0.15, 1.0)); // green
-        map_to_color!(self, Vegetation,         Color::new(0.00, 0.45, 0.00, 1.0)); // dark green
-        map_to_color!(self, Road,               Color::new(0.60, 0.40, 0.30, 1.0)); // brown
-        map_to_color!(self, EmptyLand,          Color::new(0.82, 0.88, 0.07, 1.0)); // bright yellow
-        map_to_color!(self, Water,              Color::new(0.11, 0.39, 0.45, 1.0)); // dark blue
+        map_to_color!(self, Rocks, Color::new(0.20, 0.20, 0.20, 1.0)); // dark gray
+        map_to_color!(self, HarvestableTree, Color::new(0.10, 0.85, 0.15, 1.0)); // green
+        map_to_color!(self, Vegetation, Color::new(0.00, 0.45, 0.00, 1.0)); // dark green
+        map_to_color!(self, Road, Color::new(0.60, 0.40, 0.30, 1.0)); // brown
+        map_to_color!(self, EmptyLand, Color::new(0.82, 0.88, 0.07, 1.0)); // bright yellow
+        map_to_color!(self, Water, Color::new(0.11, 0.39, 0.45, 1.0)); // dark blue
 
         Color::black() // fallback: NodeKind::empty()
     }
@@ -317,11 +320,7 @@ impl Graph {
     pub fn with_empty_grid(grid_size: Size) -> Self {
         debug_assert!(grid_size.is_valid());
         let node_count = (grid_size.width * grid_size.height) as usize;
-        Self {
-            grid: Grid::new(grid_size, vec![NodeKind::empty(); node_count]),
-            vacant_lots: 0,
-            settlers_spawn_point: None,
-        }
+        Self { grid: Grid::new(grid_size, vec![NodeKind::empty(); node_count]), vacant_lots: 0, settlers_spawn_point: None }
     }
 
     pub fn with_node_kind(grid_size: Size, node_kind: NodeKind) -> Self {
@@ -357,11 +356,7 @@ impl Graph {
             }
         }
 
-        Self {
-            grid: Grid::new(grid_size, nodes),
-            vacant_lots,
-            settlers_spawn_point,
-        }
+        Self { grid: Grid::new(grid_size, nodes), vacant_lots, settlers_spawn_point }
     }
 
     pub fn from_tile_map(tile_map: &TileMap) -> Self {
@@ -388,20 +383,18 @@ impl Graph {
 
         // Terrain layer:
         layers.for_each_tile(TileKind::Terrain, |layers, tile| {
-            self.update(layers, GraphUpdateAction::TilePlaced(
-                tile.cell_range(),
-                TileMapLayerKind::Terrain,
-                tile.path_kind(),
-            ));
+            self.update(
+                layers,
+                GraphUpdateAction::TilePlaced(tile.cell_range(), TileMapLayerKind::Terrain, tile.path_kind()),
+            );
         });
 
         // Objects layer:
         layers.for_each_tile(Self::OBJECT_KINDS, |layers, tile| {
-            self.update(layers, GraphUpdateAction::TilePlaced(
-                tile.cell_range(),
-                TileMapLayerKind::Objects,
-                tile.path_kind(),
-            ));
+            self.update(
+                layers,
+                GraphUpdateAction::TilePlaced(tile.cell_range(), TileMapLayerKind::Objects, tile.path_kind()),
+            );
         });
     }
 
@@ -428,9 +421,7 @@ impl Graph {
 
                         // Add surrounding building access nodes:
                         for_each_surrounding_cell(cell_range, |cell| {
-                            if !layers.has_tile(cell, Graph::OBJECT_KINDS)
-                                && layers.is_cell_within_bounds(cell)
-                            {
+                            if !layers.has_tile(cell, Graph::OBJECT_KINDS) && layers.is_cell_within_bounds(cell) {
                                 graph.append_node_kind_internal(Node::new(cell), NodeKind::BuildingAccess);
                             }
                             true // Continue to next.
@@ -460,19 +451,15 @@ impl Graph {
                         // node reflects the true tile-map state (e.g. a
                         // VacantLot/Road/Water terrain re-emerges when the
                         // Object above is removed).
-                        let terrain_kind = layers
-                            .find_tile(cell, TileKind::Terrain)
-                            .map(|t| t.path_kind())
-                            .unwrap_or(NodeKind::EmptyLand);
+                        let terrain_kind =
+                            layers.find_tile(cell, TileKind::Terrain).map(|t| t.path_kind()).unwrap_or(NodeKind::EmptyLand);
                         graph.set_node_kind(Node::new(cell), terrain_kind);
                     }
 
                     if tile_kind.intersects(TileKind::Building | TileKind::Blocker) {
                         // Clear surrounding building access nodes:
                         for_each_surrounding_cell(cell_range, |cell| {
-                            if !layers.has_tile(cell, Graph::OBJECT_KINDS)
-                                && layers.is_cell_within_bounds(cell)
-                            {
+                            if !layers.has_tile(cell, Graph::OBJECT_KINDS) && layers.is_cell_within_bounds(cell) {
                                 graph.clear_node_kind_internal(Node::new(cell), NodeKind::BuildingAccess);
                             }
                             true // Continue to next.
@@ -492,13 +479,13 @@ impl Graph {
             GraphUpdateAction::TileDefEdited(cell_range, layer_kind, tile_kind, path_kind) => {
                 // NOTE: Simulate TileCleared followed by TilePlaced to refresh the graph state.
                 tile_cleared(self, layers, cell_range, layer_kind, tile_kind);
-                tile_placed(self,  layers, cell_range, layer_kind, path_kind);
+                tile_placed(self, layers, cell_range, layer_kind, path_kind);
             }
             GraphUpdateAction::TileMoved(from_cells, to_cells, layer_kind, tile_kind, path_kind) => {
                 debug_assert!(from_cells.size() == to_cells.size());
                 // NOTE: Same as TileCleared(from_cells) followed by TilePlaced(to_cells).
                 tile_cleared(self, layers, from_cells, layer_kind, tile_kind);
-                tile_placed(self,  layers, to_cells,   layer_kind, path_kind);
+                tile_placed(self, layers, to_cells, layer_kind, path_kind);
             }
             GraphUpdateAction::TileFlagsChanged(cell_range, new_flags, path_kind) => {
                 if Self::tile_flags_affect_node_kind(new_flags) {
@@ -576,16 +563,13 @@ impl Graph {
     // Building tiles are handled specially since we need
     // then for building searches.
     const OBJECT_KINDS: TileKind = TileKind::from_bits_retain(
-        TileKind::Building.bits() |
-        TileKind::Blocker.bits()  |
-        TileKind::Rocks.bits()    |
-        TileKind::Vegetation.bits()
+        TileKind::Building.bits() | TileKind::Blocker.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits(),
     );
 
     #[inline]
     fn set_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
-        let had_vacant_lot  = self.grid[node].intersects(NodeKind::VacantLot);
-        let has_vacant_lot  = kind.intersects(NodeKind::VacantLot);
+        let had_vacant_lot = self.grid[node].intersects(NodeKind::VacantLot);
+        let has_vacant_lot = kind.intersects(NodeKind::VacantLot);
 
         let had_spawn_point = self.grid[node].intersects(NodeKind::SettlersSpawnPoint);
         let has_spawn_point = kind.intersects(NodeKind::SettlersSpawnPoint);
@@ -935,11 +919,7 @@ pub struct Search {
 
 impl Search {
     pub fn with_graph(graph: &Graph) -> Self {
-        if graph.grid_size().is_valid() {
-            Self::with_grid_size(graph.grid_size())
-        } else {
-            Self::default()
-        }
+        if graph.grid_size().is_valid() { Self::with_grid_size(graph.grid_size()) } else { Self::default() }
     }
 
     pub fn with_grid_size(grid_size: Size) -> Self {
@@ -1076,8 +1056,7 @@ impl Search {
         // borrow it requires. Inline the same logic instead — the field
         // splits keep the borrow checker happy.
         for (index, node) in self.possible_waypoints.iter().enumerate() {
-            let valid_path = Self::try_reconstruct_path(
-                &mut self.path, &self.came_from, self.generation, start, *node);
+            let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, self.generation, start, *node);
 
             if valid_path && path_filter.accepts(index, &self.path, *node) {
                 return SearchResult::PathFound(&self.path);
@@ -1370,12 +1349,7 @@ impl Search {
     // traversable. Replaces the 5 copies of the same guard at the top of
     // each public search method.
     #[inline]
-    fn validate_endpoints(
-        graph: &Graph,
-        traversable: NodeKind,
-        start: Node,
-        goal: Option<Node>,
-    ) -> bool {
+    fn validate_endpoints(graph: &Graph, traversable: NodeKind, start: Node, goal: Option<Node>) -> bool {
         if !graph.node_kind(start).is_some_and(|k| k.intersects(traversable)) {
             return false;
         }
@@ -1447,8 +1421,7 @@ impl Search {
         start: Node,
         candidate: Node,
     ) -> bool {
-        let valid = Self::try_reconstruct_path(
-            &mut self.path, &self.came_from, self.generation, start, candidate);
+        let valid = Self::try_reconstruct_path(&mut self.path, &self.came_from, self.generation, start, candidate);
 
         if valid && filter.accepts(*paths_found, &self.path, candidate) {
             return true;
@@ -1523,9 +1496,9 @@ pub fn for_each_surrounding_cell(start_cells: CellRange, mut visitor_fn: impl Fn
     for cell in &expanded_range {
         // Skip diagonal corners.
         let is_corner = (cell.x == start_x && cell.y == start_y)
-                     || (cell.x == start_x && cell.y == end_y)
-                     || (cell.x == end_x   && cell.y == start_y)
-                     || (cell.x == end_x   && cell.y == end_y);
+            || (cell.x == start_x && cell.y == end_y)
+            || (cell.x == end_x && cell.y == start_y)
+            || (cell.x == end_x && cell.y == end_y);
 
         if is_corner {
             continue;

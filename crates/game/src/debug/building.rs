@@ -1,8 +1,4 @@
-use smallvec::{SmallVec, smallvec};
 use bitflags::Flags;
-use rand::seq::IteratorRandom;
-use num_enum::TryFromPrimitive;
-
 use common::{
     Color,
     coords::{Cell, CellRange},
@@ -12,7 +8,10 @@ use engine::{
     log,
     ui::{self, DrawDebugUi, UiStaticVar, UiSystem},
 };
+use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
+use rand::seq::IteratorRandom;
+use smallvec::{SmallVec, smallvec};
 
 use crate::{
     building::{
@@ -34,8 +33,8 @@ use crate::{
         service::{ServiceBuilding, ServiceStock},
         storage::{MAX_STORAGE_SLOTS, StorageBuilding, StorageSlots},
     },
-    pathfind,
     debug::DebugUiMode,
+    pathfind,
     sim::{SimCmds, SimContextMut, resources::ResourceKind},
     tile::{TileFlags, TileKind},
     unit::UnitTaskHelper,
@@ -91,13 +90,22 @@ impl Building {
             });
         };
 
-        ui::with_font_scale(ui_sys, 1.2, |ui_sys| ui::text(ui_sys, format_small!("{} | ID{} @{}", self.name(), self.id(), self.base_cell())));
+        ui::with_font_scale(ui_sys, 1.2, |ui_sys| {
+            ui::text(ui_sys, format_small!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()))
+        });
 
         color_bullet_bool("Linked to road", self.is_linked_to_road());
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
-            ui::bullet_text(ui_sys, format_small!("Tax: (generated: {}, avail: {})", house.tax_generated(context.sim_ctx.finance().tax_percent()), house.tax_available()));
+            ui::bullet_text(
+                ui_sys,
+                format_small!(
+                    "Tax: (generated: {}, avail: {})",
+                    house.tax_generated(context.sim_ctx.finance().tax_percent()),
+                    house.tax_available()
+                ),
+            );
 
             if !house.level().is_max() {
                 let upgrade_requirements = house.upgrade_requirements(context);
@@ -133,12 +141,15 @@ impl Building {
 
         if let Some(workers) = self.archetype().workers() {
             if let Some(worker_pool) = workers.as_household_worker_pool() {
-                ui::bullet_text(ui_sys, format_small!(
-                    "Workers: {} (employed: {}, unemployed: {})",
-                    worker_pool.total_workers(),
-                    worker_pool.employed_count(),
-                    worker_pool.unemployed_count()
-                ));
+                ui::bullet_text(
+                    ui_sys,
+                    format_small!(
+                        "Workers: {} (employed: {}, unemployed: {})",
+                        worker_pool.total_workers(),
+                        worker_pool.employed_count(),
+                        worker_pool.unemployed_count()
+                    ),
+                );
             } else if let Some(employer) = workers.as_employer() {
                 color_bullet_bool("Has min workers", self.archetype().has_min_required_workers());
                 color_bullet_bool("Has all workers", employer.is_at_max_capacity());
@@ -146,15 +157,21 @@ impl Building {
                     ui::horizontal(ui_sys, |ui_sys| {
                         ui::bullet_text(ui_sys, "Workers:");
                         ui::text_colored(ui_sys, Color::red(), format_small!("{}", employer.employee_count()));
-                        ui::text(ui_sys, format_small!("(min: {}, max: {})", employer.min_employees(), employer.max_employees()));
+                        ui::text(
+                            ui_sys,
+                            format_small!("(min: {}, max: {})", employer.min_employees(), employer.max_employees()),
+                        );
                     });
                 } else {
-                    ui::bullet_text(ui_sys, format_small!(
-                        "Workers: {} (min: {}, max: {})",
-                        employer.employee_count(),
-                        employer.min_employees(),
-                        employer.max_employees()
-                    ));
+                    ui::bullet_text(
+                        ui_sys,
+                        format_small!(
+                            "Workers: {} (min: {}, max: {})",
+                            employer.employee_count(),
+                            employer.min_employees(),
+                            employer.max_employees()
+                        ),
+                    );
                 }
             }
         }
@@ -162,9 +179,7 @@ impl Building {
 
     fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
-        if let Some(_path) =
-            ui::collapsing_header_scope(ui_sys, "Properties##_building_properties", false)
-        {
+        if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Properties##_building_properties", false) {
             #[derive(DrawDebugUi)]
             struct DrawDebugUiVariables<'a> {
                 name: &'a str,
@@ -316,29 +331,42 @@ impl Building {
         let fullness = self.fullness();
         let risks = self.risks();
         ui::text(ui_sys, format_small!("Fire risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Fire), rates.fire));
-        ui::text(ui_sys, format_small!("Collapse risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Collapse), rates.collapse));
+        ui::text(
+            ui_sys,
+            format_small!("Collapse risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Collapse), rates.collapse),
+        );
         if has_disease {
-            ui::text(ui_sys, format_small!("Disease risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Disease), rates.disease));
-            ui::text(ui_sys, format_small!(
-                "Needs: water {}, food {}, apothecary {}; fullness {:.2}",
-                risks.is_near_water(),
-                risks.has_food(),
-                risks.is_near_apothecary(),
-                fullness
-            ));
+            ui::text(
+                ui_sys,
+                format_small!("Disease risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Disease), rates.disease),
+            );
+            ui::text(
+                ui_sys,
+                format_small!(
+                    "Needs: water {}, food {}, apothecary {}; fullness {:.2}",
+                    risks.is_near_water(),
+                    risks.has_food(),
+                    risks.is_near_apothecary(),
+                    fullness
+                ),
+            );
         }
         ui::text(ui_sys, format_small!("Near water: {}, jitter: {:.3}", risks.is_near_water(), risks.jitter()));
         if let Some(burning) = risks.burning() {
             ui::text_colored(ui_sys, Color::red(), format_small!("Burning: {:.1}s left", burning.secs_left));
         }
         if let Some(outbreak) = risks.outbreak() {
-            ui::text_colored(ui_sys, Color::yellow(), format_small!(
-                "Sick for {:.1}s: next deaths at {:.1}s ({:.0}%), {} died so far",
-                outbreak.secs,
-                outbreak.next_death_secs,
-                outbreak.fraction * 100.0,
-                outbreak.deaths
-            ));
+            ui::text_colored(
+                ui_sys,
+                Color::yellow(),
+                format_small!(
+                    "Sick for {:.1}s: next deaths at {:.1}s ({:.0}%), {} died so far",
+                    outbreak.secs,
+                    outbreak.next_death_secs,
+                    outbreak.fraction * 100.0,
+                    outbreak.deaths
+                ),
+            );
         }
         if !context.sim_ctx.risks().is_active() {
             ui::text_colored(ui_sys, Color::yellow(), "Risks are off: a fire neither spreads nor burns down.");
@@ -558,12 +586,18 @@ impl DrawDebugUi for StorageSlots {
                             if ui::input_scalar(ui_sys, &res_label, &mut new_count, 1) {
                                 match new_count.cmp(&prev_count) {
                                     std::cmp::Ordering::Greater => {
-                                        new_count =
-                                            self.increment_slot_resource_count(slot_index, *res_kind, new_count - prev_count);
+                                        new_count = self.increment_slot_resource_count(
+                                            slot_index,
+                                            *res_kind,
+                                            new_count - prev_count,
+                                        );
                                     }
                                     std::cmp::Ordering::Less => {
-                                        new_count =
-                                            self.decrement_slot_resource_count(slot_index, *res_kind, prev_count - new_count);
+                                        new_count = self.decrement_slot_resource_count(
+                                            slot_index,
+                                            *res_kind,
+                                            prev_count - new_count,
+                                        );
                                     }
                                     std::cmp::Ordering::Equal => {} // nothing
                                 }
@@ -608,20 +642,19 @@ impl ProducerBuilding {
 
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
         if self.production_input_stock.requires_any_resource()
-            && let Some(_path) =
-                ui::collapsing_header_scope(ui_sys, "Raw Materials In Stock", false)
-            {
-                self.production_input_stock.draw_debug_ui(ui_sys);
+            && let Some(_path) = ui::collapsing_header_scope(ui_sys, "Raw Materials In Stock", false)
+        {
+            self.production_input_stock.draw_debug_ui(ui_sys);
 
-                ui::horizontal(ui_sys, |ui_sys| {
-                    if ui::button(ui_sys, "Fill Stock##_fill_input_stock") {
-                        self.production_input_stock.fill();
-                    }
-                    if ui::button(ui_sys, "Clear Stock##_clear_input_stock") {
-                        self.production_input_stock.clear();
-                    }
-                });
-            }
+            ui::horizontal(ui_sys, |ui_sys| {
+                if ui::button(ui_sys, "Fill Stock##_fill_input_stock") {
+                    self.production_input_stock.fill();
+                }
+                if ui::button(ui_sys, "Clear Stock##_clear_input_stock") {
+                    self.production_input_stock.clear();
+                }
+            });
+        }
     }
 
     fn draw_debug_ui_production_output(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
@@ -805,16 +838,22 @@ impl HouseBuilding {
             ui::separator(ui_sys);
             ui::text(ui_sys, label);
 
-            ui::text(ui_sys, format_small!(
-                "  Resources avail : {} (req: {})",
-                level_requirements.resources_available_count(),
-                level_requirements.level_config.resources_required.len()
-            ));
-            ui::text(ui_sys, format_small!(
-                "  Services avail  : {} (req: {})",
-                level_requirements.services_available_count(),
-                level_requirements.level_config.services_required.len()
-            ));
+            ui::text(
+                ui_sys,
+                format_small!(
+                    "  Resources avail : {} (req: {})",
+                    level_requirements.resources_available_count(),
+                    level_requirements.level_config.resources_required.len()
+                ),
+            );
+            ui::text(
+                ui_sys,
+                format_small!(
+                    "  Services avail  : {} (req: {})",
+                    level_requirements.services_available_count(),
+                    level_requirements.level_config.services_required.len()
+                ),
+            );
 
             let header = format_small!("Resources##_building_resources_{}", header_id);
             if let Some(_path) = ui::collapsing_header_scope(ui_sys, &header, false) {

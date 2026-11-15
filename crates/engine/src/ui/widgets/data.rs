@@ -3,16 +3,18 @@
 // what it shows as its value, so automation can read it.
 
 use std::any::Any;
-use smallbox::smallbox;
-use egui::{Align2, Sense, Stroke, StrokeKind, pos2, vec2};
 
 use common::{Color, Vec2};
+use egui::{Align2, Sense, Stroke, StrokeKind, pos2, vec2};
+use smallbox::smallbox;
 
 use super::{UiColumnWidth, UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext, split_column_widths};
 use crate::{
     render::texture::TextureHandle,
     ui::{
-        UiFontScale, UiString, UiSystem,
+        UiFontScale,
+        UiString,
+        UiSystem,
         immediate::{self, color32, uv_full},
         internal,
         renderer::egui_texture,
@@ -54,16 +56,22 @@ impl UiColumnAlign {
 // under each row, and the room above and below the text.
 #[derive(Copy, Clone, Debug)]
 pub struct UiRowLook {
-    pub label_color: Option<Color>, // Key-values' labels, a table's cells.
-    pub value_color: Option<Color>, // Key-values' values.
+    pub label_color: Option<Color>,  // Key-values' labels, a table's cells.
+    pub value_color: Option<Color>,  // Key-values' values.
     pub header_color: Option<Color>, // A table's header.
-    pub rule_color: Option<Color>,  // No rule if None.
+    pub rule_color: Option<Color>,   // No rule if None.
     pub padding: f32,
 }
 
 impl Default for UiRowLook {
     fn default() -> Self {
-        Self { label_color: None, value_color: None, header_color: None, rule_color: Some(Color::new(0.5, 0.45, 0.4, 0.35)), padding: 4.0 }
+        Self {
+            label_color: None,
+            value_color: None,
+            header_color: None,
+            rule_color: Some(Color::new(0.5, 0.45, 0.4, 0.35)),
+            padding: 4.0,
+        }
     }
 }
 
@@ -83,7 +91,14 @@ fn draw_rule(ui: &egui::Ui, rect: egui::Rect, look: &UiRowLook) {
 const KEY_VALUE_GAP: f32 = 8.0;
 
 // The text in `rect`, cut at its width.
-fn draw_cell_text(ui: &egui::Ui, rect: egui::Rect, text: &str, font: &egui::FontId, color: egui::Color32, align: UiColumnAlign) {
+fn draw_cell_text(
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    text: &str,
+    font: &egui::FontId,
+    color: egui::Color32,
+    align: UiColumnAlign,
+) {
     draw_spaced_cell_text(ui, rect, text, font, color, align, 0.0);
 }
 
@@ -100,7 +115,8 @@ fn draw_spaced_cell_text(
     let galley = if letter_spacing == 0.0 {
         ui.painter().layout(text.to_string(), font.clone(), color, f32::INFINITY)
     } else {
-        let format = egui::TextFormat { font_id: font.clone(), color, extra_letter_spacing: letter_spacing, ..Default::default() };
+        let format =
+            egui::TextFormat { font_id: font.clone(), color, extra_letter_spacing: letter_spacing, ..Default::default() };
         ui.painter().layout_job(egui::text::LayoutJob::single_section(text.to_string(), format))
     };
     let anchor = align.anchor();
@@ -188,18 +204,29 @@ impl UiWidget for UiKeyValues {
             let label_color = self.look.label_color.map_or_else(|| ui.visuals().weak_text_color(), color32);
             let value_color = self.look.value_color.map_or_else(|| ui.visuals().text_color(), color32);
             for (index, (label, value)) in self.pairs.iter().enumerate() {
-                let row_rect = egui::Rect::from_min_size(pos2(rect.left(), rect.top() + row * index as f32), vec2(width, row));
+                let row_rect =
+                    egui::Rect::from_min_size(pos2(rect.left(), rect.top() + row * index as f32), vec2(width, row));
                 let text_rect = row_rect.shrink2(vec2(0.0, self.look.padding));
                 // The value whole, the label cut short of it.
-                let value_width = ui.fonts_mut(|fonts| fonts.layout_no_wrap(value.resolve().to_string(), font.clone(), value_color).size().x);
+                let value_width = ui.fonts_mut(|fonts| {
+                    fonts.layout_no_wrap(value.resolve().to_string(), font.clone(), value_color).size().x
+                });
                 let label_right = (text_rect.right() - value_width - KEY_VALUE_GAP).max(text_rect.left());
-                draw_cell_text(ui, text_rect.with_max_x(label_right), label.resolve(), &font, label_color, UiColumnAlign::Left);
+                draw_cell_text(
+                    ui,
+                    text_rect.with_max_x(label_right),
+                    label.resolve(),
+                    &font,
+                    label_color,
+                    UiColumnAlign::Left,
+                );
                 draw_cell_text(ui, text_rect, value.resolve(), &font, value_color, UiColumnAlign::Right);
                 draw_rule(ui, row_rect, &self.look);
             }
 
             immediate::record_lazy(ui_sys, ui, &response, "key_values", self.label.resolve(), None, true, || {
-                let pairs = self.pairs.iter().map(|(label, value)| serde_json::json!([label.resolve(), value.resolve()])).collect();
+                let pairs =
+                    self.pairs.iter().map(|(label, value)| serde_json::json!([label.resolve(), value.resolve()])).collect();
                 Some(serde_json::Value::Array(pairs))
             });
         });
@@ -277,7 +304,8 @@ impl UiKeyValues {
             }
 
             immediate::record_lazy(ui_sys, ui, &response, "key_values", self.label.resolve(), None, true, || {
-                let pairs = self.pairs.iter().map(|(label, value)| serde_json::json!([label.resolve(), value.resolve()])).collect();
+                let pairs =
+                    self.pairs.iter().map(|(label, value)| serde_json::json!([label.resolve(), value.resolve()])).collect();
                 Some(serde_json::Value::Array(pairs))
             });
         });
@@ -403,7 +431,11 @@ pub enum UiTableStatusLook {
 
 impl Default for UiTableStatusLook {
     fn default() -> Self {
-        Self::Painted { done: Color::new(0.2, 0.55, 0.25, 1.0), pending: Color::new(0.5, 0.45, 0.4, 1.0), failed: Color::new(0.7, 0.15, 0.1, 1.0) }
+        Self::Painted {
+            done: Color::new(0.2, 0.55, 0.25, 1.0),
+            pending: Color::new(0.5, 0.45, 0.4, 1.0),
+            failed: Color::new(0.7, 0.15, 0.1, 1.0),
+        }
     }
 }
 
@@ -464,7 +496,12 @@ fn draw_bullet(ui: &egui::Ui, center: egui::Pos2, size: f32, bullet: UiBullet, c
             ui.painter().rect_filled(egui::Rect::from_center_size(center, vec2(size, size)), 0.0, fill);
         }
         UiBullet::Diamond => {
-            let points = vec![center + vec2(0.0, -half), center + vec2(half, 0.0), center + vec2(0.0, half), center + vec2(-half, 0.0)];
+            let points = vec![
+                center + vec2(0.0, -half),
+                center + vec2(half, 0.0),
+                center + vec2(0.0, half),
+                center + vec2(-half, 0.0),
+            ];
             ui.painter().add(egui::Shape::convex_polygon(points, fill, Stroke::NONE));
         }
         UiBullet::Circle => {
@@ -508,7 +545,8 @@ impl UiWidget for UiTable {
             let widths = split_column_widths(width - status_width, &column_widths, self.column_spacing);
             let column_rect = |index: usize, row_rect: egui::Rect| {
                 let left = cells_left + widths[..index].iter().sum::<f32>() + self.column_spacing * index as f32;
-                egui::Rect::from_min_size(pos2(left, row_rect.top()), vec2(widths[index], row_rect.height())).shrink2(vec2(0.0, self.look.padding))
+                egui::Rect::from_min_size(pos2(left, row_rect.top()), vec2(widths[index], row_rect.height()))
+                    .shrink2(vec2(0.0, self.look.padding))
             };
 
             let header_color = self.look.header_color.map_or_else(|| ui.visuals().strong_text_color(), color32);
@@ -521,16 +559,33 @@ impl UiWidget for UiTable {
                     cell = cell.with_min_x(rect.left());
                 }
                 let color = column.title_color.map_or(header_color, color32);
-                draw_spaced_cell_text(ui, cell, column.title.resolve(), &header_font, color, column.align, self.header.letter_spacing);
+                draw_spaced_cell_text(
+                    ui,
+                    cell,
+                    column.title.resolve(),
+                    &header_font,
+                    color,
+                    column.align,
+                    self.header.letter_spacing,
+                );
             }
             if self.header.rule && !self.header.hidden {
-                draw_rule(ui, header_rect, &UiRowLook { rule_color: self.look.rule_color.or(Some(Color::gray())), ..self.look });
+                draw_rule(ui, header_rect, &UiRowLook {
+                    rule_color: self.look.rule_color.or(Some(Color::gray())),
+                    ..self.look
+                });
             }
 
             for (row_index, table_row) in self.rows.iter().enumerate() {
-                let row_rect = egui::Rect::from_min_size(pos2(rect.left(), rect.top() + header_row + row * row_index as f32), vec2(width, row));
+                let row_rect = egui::Rect::from_min_size(
+                    pos2(rect.left(), rect.top() + header_row + row * row_index as f32),
+                    vec2(width, row),
+                );
                 if let (Some(look), Some(status)) = (&self.status_column, table_row.status) {
-                    let icon_rect = egui::Rect::from_center_size(pos2(rect.left() + status_width * 0.5, row_rect.center().y), vec2(row, row) * 0.55);
+                    let icon_rect = egui::Rect::from_center_size(
+                        pos2(rect.left() + status_width * 0.5, row_rect.center().y),
+                        vec2(row, row) * 0.55,
+                    );
                     draw_status(ui, icon_rect, status, look);
                 }
                 if let Some((bullet, color, size)) = self.bullet {
@@ -552,7 +607,10 @@ impl UiWidget for UiTable {
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         let ui_sys = context.ui_sys();
         let width = self.width.unwrap_or_else(|| internal::available_size(ui_sys).x);
-        Vec2::new(width, self.header_height(ui_sys) + row_height(ui_sys, self.font_scale, &self.look) * self.rows.len() as f32)
+        Vec2::new(
+            width,
+            self.header_height(ui_sys) + row_height(ui_sys, self.font_scale, &self.look) * self.rows.len() as f32,
+        )
     }
 
     fn label(&self) -> &str {
@@ -581,7 +639,11 @@ fn draw_status(ui: &egui::Ui, rect: egui::Rect, status: UiTableStatus, look: &Ui
                 UiTableStatus::Done => {
                     ui.painter().circle_filled(rect.center(), radius, color32(done));
                     let c = rect.center();
-                    let points = vec![c + vec2(-radius * 0.5, 0.0), c + vec2(-radius * 0.17, radius * 0.42), c + vec2(radius * 0.5, -radius * 0.42)];
+                    let points = vec![
+                        c + vec2(-radius * 0.5, 0.0),
+                        c + vec2(-radius * 0.17, radius * 0.42),
+                        c + vec2(radius * 0.5, -radius * 0.42),
+                    ];
                     ui.painter().add(egui::Shape::line(points, Stroke::new(width * 1.4, color32(mark))));
                 }
                 UiTableStatus::Pending | UiTableStatus::Failed => {
@@ -607,7 +669,11 @@ fn draw_status(ui: &egui::Ui, rect: egui::Rect, status: UiTableStatus, look: &Ui
                     ui.painter().add(egui::Shape::line(points, Stroke::new(width, color32(done))));
                 }
                 UiTableStatus::Pending => {
-                    ui.painter().circle_stroke(rect.center(), rect.width() * 0.4, Stroke::new(width * 0.7, color32(pending)));
+                    ui.painter().circle_stroke(
+                        rect.center(),
+                        rect.width() * 0.4,
+                        Stroke::new(width * 0.7, color32(pending)),
+                    );
                 }
                 UiTableStatus::Failed => {
                     let stroke = Stroke::new(width, color32(failed));
@@ -966,8 +1032,10 @@ impl UiMeter {
                 let radius = rect.width().min(rect.height()) * 0.5 - thickness * 0.5 - 1.0;
                 let center = rect.center();
                 painter.circle_stroke(center, radius, Stroke::new(thickness, color32(look.track)));
-                let points: Vec<egui::Pos2> =
-                    ring_arc_points(Vec2::new(center.x, center.y), radius, fraction, 64).into_iter().map(|point| pos2(point.x, point.y)).collect();
+                let points: Vec<egui::Pos2> = ring_arc_points(Vec2::new(center.x, center.y), radius, fraction, 64)
+                    .into_iter()
+                    .map(|point| pos2(point.x, point.y))
+                    .collect();
                 if points.len() > 1 {
                     painter.add(egui::Shape::line(points, Stroke::new(thickness, color32(look.fill))));
                 }
@@ -988,7 +1056,10 @@ impl UiMeter {
                 let gap = (rect.width() * 0.02).clamp(2.0, 6.0);
                 let width = ((rect.width() - gap * (steps - 1) as f32) / steps as f32).max(1.0);
                 for step in 0..steps {
-                    let step_rect = egui::Rect::from_min_size(pos2(rect.left() + (width + gap) * step as f32, rect.top()), vec2(width, rect.height()));
+                    let step_rect = egui::Rect::from_min_size(
+                        pos2(rect.left() + (width + gap) * step as f32, rect.top()),
+                        vec2(width, rect.height()),
+                    );
                     let color = if step < filled { look.fill } else { look.track };
                     painter.rect_filled(step_rect, 2.0, color32(color));
                     painter.rect_stroke(step_rect, 2.0, outline, StrokeKind::Inside);

@@ -9,24 +9,24 @@ fn test_invalid_paths() {
     // Invalid start node:
     {
         let start = Node::new(Cell::new(-1, -1));
-        let goal  = Node::new(Cell::new(0, 0));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
+        let goal = Node::new(Cell::new(0, 0));
+        let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
         assert!(path.not_found());
     }
 
     // Invalid goal node:
     {
         let start = Node::new(Cell::new(0, 0));
-        let goal  = Node::new(Cell::new(8, 8));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
+        let goal = Node::new(Cell::new(8, 8));
+        let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
         assert!(path.not_found());
     }
 
     // Non traversable nodes:
     {
         let start = Node::new(Cell::new(0, 0));
-        let goal  = Node::new(Cell::new(3, 3));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        let goal = Node::new(Cell::new(3, 3));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
         assert!(path.not_found());
     }
 }
@@ -38,14 +38,8 @@ fn test_straight_line_paths() {
 
     // Two vertical and horizontal crossing road paths.
     let nodes = vec![
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        R,R,R,R,R,R,R,R,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
+        W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W, R, R, R, R, R, R, R, R, W, W, W, R, W, W, W,
+        W, W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W,
     ];
 
     // Expected paths:
@@ -62,8 +56,8 @@ fn test_straight_line_paths() {
     // Vertical path across the grid:
     {
         let start = Node::new(Cell::new(3, 0));
-        let goal  = Node::new(Cell::new(3, 7));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        let goal = Node::new(Cell::new(3, 7));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 assert_eq!(path, &vertical_path);
@@ -75,8 +69,8 @@ fn test_straight_line_paths() {
     // Horizontal path across the grid:
     {
         let start = Node::new(Cell::new(0, 3));
-        let goal  = Node::new(Cell::new(7, 3));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        let goal = Node::new(Cell::new(7, 3));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 assert_eq!(path, &horizontal_path);
@@ -88,8 +82,8 @@ fn test_straight_line_paths() {
     // Crossing path from top to right:
     {
         let start = Node::new(Cell::new(3, 0));
-        let goal  = Node::new(Cell::new(7, 3));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        let goal = Node::new(Cell::new(7, 3));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 assert_eq!(path, &top_to_right_path);
@@ -101,8 +95,8 @@ fn test_straight_line_paths() {
     // Crossing path from left to bottom:
     {
         let start = Node::new(Cell::new(0, 3));
-        let goal  = Node::new(Cell::new(3, 7));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        let goal = Node::new(Cell::new(3, 7));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 assert_eq!(path, &left_to_bottom_path);
@@ -119,25 +113,21 @@ fn test_diagonal_paths() {
 
     // One single diagonal road path.
     let nodes = vec![
-        R,R,W,W,W,W,W,W,
-        W,R,R,W,W,W,W,W,
-        W,W,R,R,W,W,W,W,
-        W,W,W,R,R,W,W,W,
-        W,W,W,W,R,R,W,W,
-        W,W,W,W,W,R,R,W,
-        W,W,W,W,W,W,R,R,
-        W,W,W,W,W,W,W,R,
+        R, R, W, W, W, W, W, W, W, R, R, W, W, W, W, W, W, W, R, R, W, W, W, W, W, W, W, R, R, W, W, W, W, W, W, W, R, R, W,
+        W, W, W, W, W, W, R, R, W, W, W, W, W, W, W, R, R, W, W, W, W, W, W, W, R,
     ];
 
     // Expected path:
-    let diagonal_path: Vec<Node> = (0..8).flat_map(|i| {
-        let mut nodes = Vec::new();
-        if i > 0 {
-            nodes.push(Node::new(Cell::new(i, i - 1)));
-        }
-        nodes.push(Node::new(Cell::new(i, i)));
-        nodes
-    }).collect();
+    let diagonal_path: Vec<Node> = (0..8)
+        .flat_map(|i| {
+            let mut nodes = Vec::new();
+            if i > 0 {
+                nodes.push(Node::new(Cell::new(i, i - 1)));
+            }
+            nodes.push(Node::new(Cell::new(i, i)));
+            nodes
+        })
+        .collect();
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
     let heuristic = AStarUniformCostHeuristic::new();
@@ -146,8 +136,8 @@ fn test_diagonal_paths() {
     // start=goal:
     {
         let start = Node::new(Cell::new(0, 0));
-        let goal  = Node::new(Cell::new(0, 0));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        let goal = Node::new(Cell::new(0, 0));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 assert_eq!(path, &[goal]);
@@ -159,8 +149,8 @@ fn test_diagonal_paths() {
     // Diagonal path across the grid:
     {
         let start = Node::new(Cell::new(0, 0));
-        let goal  = Node::new(Cell::new(7, 7));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        let goal = Node::new(Cell::new(7, 7));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 assert_eq!(path, &diagonal_path);
@@ -172,12 +162,11 @@ fn test_diagonal_paths() {
     // Diagonal path across the grid (reverse):
     {
         let start = Node::new(Cell::new(7, 7));
-        let goal  = Node::new(Cell::new(0, 0));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        let goal = Node::new(Cell::new(0, 0));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
         match path {
             SearchResult::PathFound(path) => {
-                let reverse_diagonal_path: Vec<Node> =
-                    diagonal_path.iter().rev().cloned().collect();
+                let reverse_diagonal_path: Vec<Node> = diagonal_path.iter().rev().cloned().collect();
                 assert_eq!(path, &reverse_diagonal_path);
             }
             _ => panic!("Expected a path!"),
@@ -192,14 +181,8 @@ fn test_find_waypoint() {
 
     // Two vertical and horizontal crossing road paths.
     let nodes = vec![
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        R,R,R,R,R,R,R,R,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
+        W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W, R, R, R, R, R, R, R, R, W, W, W, R, W, W, W,
+        W, W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W,
     ];
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
@@ -213,18 +196,11 @@ fn test_find_waypoint() {
         let start = Node::new(Cell::new(3, 0));
         let max_distance = 5;
 
-        let path = search.find_waypoints(&graph,
-                                         &heuristic,
-                                         &bias,
-                                         &mut filter,
-                                         NodeKind::Road,
-                                         start,
-                                         max_distance);
+        let path = search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::Road, start, max_distance);
 
         match path {
             SearchResult::PathFound(path) => {
-                let expected_path: Vec<Node> =
-                    (0..=5).map(|i| Node::new(Cell::new(3, i))).collect();
+                let expected_path: Vec<Node> = (0..=5).map(|i| Node::new(Cell::new(3, i))).collect();
                 assert_eq!(path, &expected_path); // goal=[3,5]
             }
             _ => panic!("Expected a path!"),
@@ -236,18 +212,11 @@ fn test_find_waypoint() {
         let start = Node::new(Cell::new(0, 3));
         let max_distance = 7;
 
-        let path = search.find_waypoints(&graph,
-                                         &heuristic,
-                                         &bias,
-                                         &mut filter,
-                                         NodeKind::Road,
-                                         start,
-                                         max_distance);
+        let path = search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::Road, start, max_distance);
 
         match path {
             SearchResult::PathFound(path) => {
-                let expected_path: Vec<Node> =
-                    (0..=7).map(|i| Node::new(Cell::new(i, 3))).collect();
+                let expected_path: Vec<Node> = (0..=7).map(|i| Node::new(Cell::new(i, 3))).collect();
                 assert_eq!(path, &expected_path); // goal=[7,3]
             }
             _ => panic!("Expected a path!"),
@@ -261,14 +230,8 @@ fn test_find_waypoint_shorter_distance() {
     const W: NodeKind = NodeKind::Water;
 
     let nodes = vec![
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,R,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
+        W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W, W, W, W, R, W, W, W, W, W, W, W, R, W, W, W,
+        W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W,
     ];
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
@@ -280,13 +243,7 @@ fn test_find_waypoint_shorter_distance() {
     let start = Node::new(Cell::new(3, 0));
     let max_distance = 7; // Max distance is bigger than length of only available path.
 
-    let path = search.find_waypoints(&graph,
-                                     &heuristic,
-                                     &bias,
-                                     &mut filter,
-                                     NodeKind::Road,
-                                     start,
-                                     max_distance);
+    let path = search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::Road, start, max_distance);
 
     match path {
         SearchResult::PathFound(path) => {
@@ -306,14 +263,8 @@ fn test_find_path_to_node() {
 
     // Row 3 is a road; cell (5, 3) is also flagged as a vacant lot.
     let nodes = vec![
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        R,R,R,R,R,V,R,R,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
+        W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, R, R, R, R, R, V, R, R, W, W, W, W, W, W, W,
+        W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W,
     ];
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
@@ -327,13 +278,7 @@ fn test_find_path_to_node() {
     // Path from road start to the vacant lot.
     {
         let start = Node::new(Cell::new(0, 3));
-        let path = search.find_path_to_node(&graph,
-                                            &heuristic,
-                                            &bias,
-                                            &mut filter,
-                                            traversable,
-                                            start,
-                                            NodeKind::VacantLot);
+        let path = search.find_path_to_node(&graph, &heuristic, &bias, &mut filter, traversable, start, NodeKind::VacantLot);
         match path {
             SearchResult::PathFound(path) => {
                 let expected: Vec<Node> = (0..=5).map(|i| Node::new(Cell::new(i, 3))).collect();
@@ -346,13 +291,7 @@ fn test_find_path_to_node() {
     // start == goal: unit already standing on a vacant lot.
     {
         let start = Node::new(Cell::new(5, 3));
-        let path = search.find_path_to_node(&graph,
-                                            &heuristic,
-                                            &bias,
-                                            &mut filter,
-                                            traversable,
-                                            start,
-                                            NodeKind::VacantLot);
+        let path = search.find_path_to_node(&graph, &heuristic, &bias, &mut filter, traversable, start, NodeKind::VacantLot);
         match path {
             SearchResult::PathFound(path) => {
                 assert_eq!(path, &[start]);
@@ -365,13 +304,15 @@ fn test_find_path_to_node() {
     {
         let start = Node::new(Cell::new(0, 3));
         let traversable_with_empty = NodeKind::Road | NodeKind::EmptyLand;
-        let path = search.find_path_to_node(&graph,
-                                            &heuristic,
-                                            &bias,
-                                            &mut filter,
-                                            traversable_with_empty,
-                                            start,
-                                            NodeKind::EmptyLand);
+        let path = search.find_path_to_node(
+            &graph,
+            &heuristic,
+            &bias,
+            &mut filter,
+            traversable_with_empty,
+            start,
+            NodeKind::EmptyLand,
+        );
         assert!(path.not_found());
     }
 }
@@ -384,14 +325,8 @@ fn test_find_buildings() {
 
     // Row 3 is a road; cell (5, 3) is also flagged as a building road link.
     let nodes = vec![
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        R,R,R,R,R,l,R,R,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
+        W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, R, R, R, R, R, l, R, R, W, W, W, W, W, W, W,
+        W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W,
     ];
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
@@ -404,13 +339,7 @@ fn test_find_buildings() {
     {
         let start = Node::new(Cell::new(0, 3));
         let max_distance = 100;
-        let path = search.find_buildings(&graph,
-                                         &heuristic,
-                                         &bias,
-                                         &mut filter,
-                                         NodeKind::Road,
-                                         start,
-                                         max_distance);
+        let path = search.find_buildings(&graph, &heuristic, &bias, &mut filter, NodeKind::Road, start, max_distance);
         match path {
             SearchResult::PathFound(path) => {
                 let expected: Vec<Node> = (0..=5).map(|i| Node::new(Cell::new(i, 3))).collect();
@@ -424,13 +353,7 @@ fn test_find_buildings() {
     {
         let start = Node::new(Cell::new(5, 3));
         let max_distance = 100;
-        let path = search.find_buildings(&graph,
-                                         &heuristic,
-                                         &bias,
-                                         &mut filter,
-                                         NodeKind::Road,
-                                         start,
-                                         max_distance);
+        let path = search.find_buildings(&graph, &heuristic, &bias, &mut filter, NodeKind::Road, start, max_distance);
         match path {
             SearchResult::PathFound(path) => {
                 assert_eq!(path, &[start]);
@@ -443,13 +366,7 @@ fn test_find_buildings() {
     {
         let start = Node::new(Cell::new(0, 3));
         let max_distance = 3; // Not enough to reach (5, 3).
-        let path = search.find_buildings(&graph,
-                                         &heuristic,
-                                         &bias,
-                                         &mut filter,
-                                         NodeKind::Road,
-                                         start,
-                                         max_distance);
+        let path = search.find_buildings(&graph, &heuristic, &bias, &mut filter, NodeKind::Road, start, max_distance);
         assert!(path.not_found());
     }
 }
@@ -465,8 +382,8 @@ fn test_find_path_adjacent_cells() {
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(0, 0));
-    let goal  = Node::new(Cell::new(1, 0));
-    let path  = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
+    let goal = Node::new(Cell::new(1, 0));
+    let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
     match path {
         SearchResult::PathFound(path) => {
             assert_eq!(path, &[start, goal]);
@@ -483,14 +400,8 @@ fn test_find_path_detour_around_obstacle() {
     // Row 3 is a road with a two-cell Water wall at (3,3) and (4,3).
     // Rows above/below are also road, so the search must detour around.
     let nodes = vec![
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,R,R,R,R,
-        R,R,R,W,W,R,R,R,
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, W, W, R, R, R, R, R, R, R, R, R, R,
+        R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R,
     ];
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
@@ -498,8 +409,8 @@ fn test_find_path_detour_around_obstacle() {
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(0, 3));
-    let goal  = Node::new(Cell::new(7, 3));
-    let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+    let goal = Node::new(Cell::new(7, 3));
+    let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
     match path {
         SearchResult::PathFound(path) => {
             // Manhattan distance is 7 (8 nodes straight). The 2-wide wall
@@ -507,8 +418,11 @@ fn test_find_path_detour_around_obstacle() {
             assert_eq!(path.len(), 10);
             assert_eq!(*path.first().unwrap(), start);
             assert_eq!(*path.last().unwrap(), goal);
-            assert!(!path.iter().any(|n| n.cell == Cell::new(3, 3) || n.cell == Cell::new(4, 3)),
-                    "Path must not cross the Water wall: {:?}", path);
+            assert!(
+                !path.iter().any(|n| n.cell == Cell::new(3, 3) || n.cell == Cell::new(4, 3)),
+                "Path must not cross the Water wall: {:?}",
+                path
+            );
         }
         _ => panic!("Expected a path!"),
     }
@@ -521,14 +435,8 @@ fn test_find_path_unreachable_surrounded_goal() {
 
     // (4,4) is Road but fully boxed in by Water on all four 4-neighbors.
     let nodes = vec![
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,W,R,R,R,
-        R,R,R,W,R,W,R,R,
-        R,R,R,R,W,R,R,R,
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, W, R, R, R, R, R, R, W, R, W, R,
+        R, R, R, R, R, W, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R,
     ];
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
@@ -536,8 +444,8 @@ fn test_find_path_unreachable_surrounded_goal() {
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(0, 0));
-    let goal  = Node::new(Cell::new(4, 4));
-    let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+    let goal = Node::new(Cell::new(4, 4));
+    let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
     assert!(path.not_found());
 }
 
@@ -548,14 +456,8 @@ fn test_find_path_disconnected_components() {
 
     // Two Road rows separated by a solid Water sea — no bridge.
     let nodes = vec![
-        R,R,R,R,R,R,R,R,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        W,W,W,W,W,W,W,W,
-        R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W,
+        W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, R, R, R, R, R, R, R, R,
     ];
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
@@ -563,8 +465,8 @@ fn test_find_path_disconnected_components() {
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(0, 0));
-    let goal  = Node::new(Cell::new(0, 7));
-    let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+    let goal = Node::new(Cell::new(0, 7));
+    let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
     assert!(path.not_found());
 }
 
@@ -577,8 +479,8 @@ fn test_find_path_boundary_hugging() {
     // Path along the top edge (y=0):
     {
         let start = Node::new(Cell::new(0, 0));
-        let goal  = Node::new(Cell::new(7, 0));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
+        let goal = Node::new(Cell::new(7, 0));
+        let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 let expected: Vec<Node> = (0..8).map(|i| Node::new(Cell::new(i, 0))).collect();
@@ -591,8 +493,8 @@ fn test_find_path_boundary_hugging() {
     // Opposite corners — just verify length and endpoints (many equal-cost routes).
     {
         let start = Node::new(Cell::new(0, 0));
-        let goal  = Node::new(Cell::new(7, 7));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
+        let goal = Node::new(Cell::new(7, 7));
+        let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 // Manhattan distance = 14, so optimal path = 15 nodes.
@@ -615,8 +517,8 @@ fn test_find_path_optimality() {
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(1, 2));
-    let goal  = Node::new(Cell::new(6, 5));
-    let path  = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
+    let goal = Node::new(Cell::new(6, 5));
+    let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
     match path {
         SearchResult::PathFound(path) => {
             let manhattan = start.manhattan_distance(goal);
@@ -641,8 +543,8 @@ fn test_search_reuse_across_queries() {
     // 1st query: success.
     {
         let start = Node::new(Cell::new(0, 0));
-        let goal  = Node::new(Cell::new(3, 0));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
+        let goal = Node::new(Cell::new(3, 0));
+        let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 let expected: Vec<Node> = (0..=3).map(|i| Node::new(Cell::new(i, 0))).collect();
@@ -655,16 +557,16 @@ fn test_search_reuse_across_queries() {
     // 2nd query: non-traversable kind -> PathNotFound, must not leak state.
     {
         let start = Node::new(Cell::new(0, 0));
-        let goal  = Node::new(Cell::new(3, 0));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        let goal = Node::new(Cell::new(3, 0));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
         assert!(path.not_found());
     }
 
     // 3rd query: reset() must clear came_from / cost_so_far from the 1st run.
     {
         let start = Node::new(Cell::new(7, 7));
-        let goal  = Node::new(Cell::new(7, 4));
-        let path  = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
+        let goal = Node::new(Cell::new(7, 4));
+        let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
         match path {
             SearchResult::PathFound(path) => {
                 let expected: Vec<Node> = (4..=7).rev().map(|i| Node::new(Cell::new(7, i))).collect();
@@ -682,21 +584,15 @@ fn test_find_path_deterministic() {
 
     // Non-trivial grid with multiple equal-cost detour options around obstacles.
     let nodes = vec![
-        R,R,R,R,R,R,R,R,
-        R,W,W,W,W,W,W,R,
-        R,R,R,R,R,R,W,R,
-        W,W,W,W,W,R,W,R,
-        R,R,R,R,W,R,W,R,
-        R,W,W,R,W,R,W,R,
-        R,R,R,R,R,R,R,R,
-        R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, W, W, W, W, W, W, R, R, R, R, R, R, R, W, R, W, W, W, W, W, R, W, R, R, R, R, R, W, R, W,
+        R, R, W, W, R, W, R, W, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R,
     ];
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
     let heuristic = AStarUniformCostHeuristic::new();
 
     let start = Node::new(Cell::new(0, 0));
-    let goal  = Node::new(Cell::new(7, 6));
+    let goal = Node::new(Cell::new(7, 6));
 
     let path_a: Path = {
         let mut search = Search::with_graph(&graph);
@@ -728,7 +624,7 @@ fn test_find_paths_accepts_first_matches_find_path() {
     let heuristic = AStarUniformCostHeuristic::new();
 
     let start = Node::new(Cell::new(0, 0));
-    let goal  = Node::new(Cell::new(5, 3));
+    let goal = Node::new(Cell::new(5, 3));
 
     let single: Path = {
         let mut search = Search::with_graph(&graph);
@@ -776,8 +672,8 @@ fn test_find_paths_filter_rejects_all_returns_not_found() {
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(0, 0));
-    let goal  = Node::new(Cell::new(3, 3));
-    let path  = search.find_paths(&graph, &heuristic, &mut filter, 4, NodeKind::EmptyLand, start, goal);
+    let goal = Node::new(Cell::new(3, 3));
+    let path = search.find_paths(&graph, &heuristic, &mut filter, 4, NodeKind::EmptyLand, start, goal);
     assert!(path.not_found());
 }
 
@@ -789,8 +685,8 @@ fn test_find_paths_filter_fallback() {
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(0, 0));
-    let goal  = Node::new(Cell::new(3, 3));
-    let path  = search.find_paths(&graph, &heuristic, &mut filter, 4, NodeKind::EmptyLand, start, goal);
+    let goal = Node::new(Cell::new(3, 3));
+    let path = search.find_paths(&graph, &heuristic, &mut filter, 4, NodeKind::EmptyLand, start, goal);
     match path {
         SearchResult::PathFound(path) => {
             // Fallback path may not be the shortest, but must still connect start->goal.
@@ -811,14 +707,8 @@ fn test_find_waypoints_blocked_start() {
     const W: NodeKind = NodeKind::Water;
 
     let nodes = vec![
-        W,W,W,W,W,W,W,W,
-        W,R,R,R,R,R,R,W,
-        W,R,R,R,R,R,R,W,
-        W,R,R,R,R,R,R,W,
-        W,R,R,R,R,R,R,W,
-        W,R,R,R,R,R,R,W,
-        W,R,R,R,R,R,R,W,
-        W,W,W,W,W,W,W,W,
+        W, W, W, W, W, W, W, W, W, R, R, R, R, R, R, W, W, R, R, R, R, R, R, W, W, R, R, R, R, R, R, W, W, R, R, R, R, R, R,
+        W, W, R, R, R, R, R, R, W, W, R, R, R, R, R, R, W, W, W, W, W, W, W, W, W,
     ];
 
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
@@ -829,7 +719,7 @@ fn test_find_waypoints_blocked_start() {
 
     // Start is on Water — not traversable as Road.
     let start = Node::new(Cell::new(0, 0));
-    let path  = search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::Road, start, 5);
+    let path = search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::Road, start, 5);
     assert!(path.not_found());
 }
 
@@ -842,7 +732,7 @@ fn test_find_waypoints_max_distance_one() {
     let mut search = Search::with_graph(&graph);
 
     let start = Node::new(Cell::new(3, 3));
-    let path  = search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::EmptyLand, start, 1);
+    let path = search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::EmptyLand, start, 1);
     match path {
         SearchResult::PathFound(path) => {
             assert_eq!(path.len(), 2, "Expected [start, neighbor]: {:?}", path);
@@ -887,8 +777,7 @@ fn test_find_waypoints_random_directional_bias() {
         let mut rng = Pcg64::seed_from_u64(42);
         let bias = RandomDirectionalBias::new(&mut rng, 1.0, 2.0);
         let mut search = Search::with_graph(&graph);
-        match search.find_waypoints(&graph, &heuristic, &bias, &mut filter,
-                                    NodeKind::EmptyLand, start, max_distance) {
+        match search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::EmptyLand, start, max_distance) {
             SearchResult::PathFound(p) => *p.last().unwrap(),
             _ => panic!("Expected a path!"),
         }
@@ -897,8 +786,7 @@ fn test_find_waypoints_random_directional_bias() {
         let mut rng = Pcg64::seed_from_u64(42);
         let bias = RandomDirectionalBias::new(&mut rng, 1.0, 2.0);
         let mut search = Search::with_graph(&graph);
-        match search.find_waypoints(&graph, &heuristic, &bias, &mut filter,
-                                    NodeKind::EmptyLand, start, max_distance) {
+        match search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::EmptyLand, start, max_distance) {
             SearchResult::PathFound(p) => *p.last().unwrap(),
             _ => panic!("Expected a path!"),
         }
@@ -909,8 +797,7 @@ fn test_find_waypoints_random_directional_bias() {
     let east_endpoint = {
         let bias = FixedDirectionalBias { dir_x: 1.0, dir_y: 0.0, strength: 2.0 };
         let mut search = Search::with_graph(&graph);
-        match search.find_waypoints(&graph, &heuristic, &bias, &mut filter,
-                                    NodeKind::EmptyLand, start, max_distance) {
+        match search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::EmptyLand, start, max_distance) {
             SearchResult::PathFound(p) => *p.last().unwrap(),
             _ => panic!("Expected a path!"),
         }
@@ -918,19 +805,16 @@ fn test_find_waypoints_random_directional_bias() {
     let west_endpoint = {
         let bias = FixedDirectionalBias { dir_x: -1.0, dir_y: 0.0, strength: 2.0 };
         let mut search = Search::with_graph(&graph);
-        match search.find_waypoints(&graph, &heuristic, &bias, &mut filter,
-                                    NodeKind::EmptyLand, start, max_distance) {
+        match search.find_waypoints(&graph, &heuristic, &bias, &mut filter, NodeKind::EmptyLand, start, max_distance) {
             SearchResult::PathFound(p) => *p.last().unwrap(),
             _ => panic!("Expected a path!"),
         }
     };
     assert_ne!(east_endpoint, west_endpoint, "Opposite biases must steer to distinct endpoints");
 
-    assert!(east_endpoint.cell.x > start.cell.x,
-            "East bias endpoint should be east of start: {:?}", east_endpoint);
+    assert!(east_endpoint.cell.x > start.cell.x, "East bias endpoint should be east of start: {:?}", east_endpoint);
 
-    assert!(west_endpoint.cell.x < start.cell.x,
-            "West bias endpoint should be west of start: {:?}", west_endpoint);
+    assert!(west_endpoint.cell.x < start.cell.x, "West bias endpoint should be west of start: {:?}", west_endpoint);
 }
 
 // ----------------------------------------------
@@ -973,12 +857,7 @@ fn test_graph_vacant_lot_counters() {
     const R: NodeKind = NodeKind::Road;
     const V: NodeKind = NodeKind::VacantLot;
 
-    let nodes = vec![
-        R,R,R,R,
-        R,V,V,R,
-        R,R,R,R,
-        R,R,R,R,
-    ];
+    let nodes = vec![R, R, R, R, R, V, V, R, R, R, R, R, R, R, R, R];
     let mut graph = Graph::with_node_grid(Size::new(4, 4), nodes);
 
     assert!(graph.has_vacant_lot_nodes());
@@ -1004,12 +883,7 @@ fn test_graph_settlers_spawn_point() {
     const R: NodeKind = NodeKind::Road;
     const S: NodeKind = NodeKind::SettlersSpawnPoint;
 
-    let nodes = vec![
-        R,R,R,R,
-        R,R,R,R,
-        R,R,S,R,
-        R,R,R,R,
-    ];
+    let nodes = vec![R, R, R, R, R, R, R, R, R, R, S, R, R, R, R, R];
     let mut graph = Graph::with_node_grid(Size::new(4, 4), nodes);
 
     let first = Node::new(Cell::new(2, 2));
@@ -1043,7 +917,7 @@ fn test_graph_dynamic_obstacle_reroutes() {
     let heuristic = AStarUniformCostHeuristic::new();
 
     let start = Node::new(Cell::new(0, 3));
-    let goal  = Node::new(Cell::new(7, 3));
+    let goal = Node::new(Cell::new(7, 3));
 
     // 1st search on the pristine grid: straight-line path (8 nodes).
     let path_before: Path = {
@@ -1130,13 +1004,7 @@ fn test_find_nearest_road_link() {
 
     // Road cardinally adjacent to the target cell -> Some.
     {
-        let nodes = vec![
-            E,E,E,E,E,
-            E,E,R,E,E,
-            E,E,E,E,E,
-            E,E,E,E,E,
-            E,E,E,E,E,
-        ];
+        let nodes = vec![E, E, E, E, E, E, E, R, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E, E];
         let graph = Graph::with_node_grid(Size::new(5, 5), nodes);
         let range = CellRange::new(Cell::new(2, 2), Cell::new(2, 2));
         assert_eq!(find_nearest_road_link(&graph, range), Some(Cell::new(2, 1)));
@@ -1144,13 +1012,7 @@ fn test_find_nearest_road_link() {
 
     // Only diagonal Roads around the target -> corners are skipped, no link found.
     {
-        let nodes = vec![
-            E,E,E,E,E,
-            E,R,E,R,E,
-            E,E,E,E,E,
-            E,R,E,R,E,
-            E,E,E,E,E,
-        ];
+        let nodes = vec![E, E, E, E, E, E, R, E, R, E, E, E, E, E, E, E, R, E, R, E, E, E, E, E, E];
         let graph = Graph::with_node_grid(Size::new(5, 5), nodes);
         let range = CellRange::new(Cell::new(2, 2), Cell::new(2, 2));
         assert_eq!(find_nearest_road_link(&graph, range), None);
@@ -1169,20 +1031,21 @@ fn test_for_each_surrounding_cell_skips_corners() {
     // Expanded range (1,1)..=(4,4) contains 16 cells; 4 corners are skipped -> 12.
     assert_eq!(visited.len(), 12);
 
-    let corners = [
-        Cell::new(1, 1), Cell::new(4, 1),
-        Cell::new(1, 4), Cell::new(4, 4),
-    ];
+    let corners = [Cell::new(1, 1), Cell::new(4, 1), Cell::new(1, 4), Cell::new(4, 4)];
     for corner in corners {
         assert!(!visited.contains(&corner), "Corner {:?} must not be visited", corner);
     }
 
     // The 8 edge cells of the expanded ring must all be visited.
     let edges = [
-        Cell::new(2, 1), Cell::new(3, 1), // top
-        Cell::new(2, 4), Cell::new(3, 4), // bottom
-        Cell::new(1, 2), Cell::new(1, 3), // left
-        Cell::new(4, 2), Cell::new(4, 3), // right
+        Cell::new(2, 1),
+        Cell::new(3, 1), // top
+        Cell::new(2, 4),
+        Cell::new(3, 4), // bottom
+        Cell::new(1, 2),
+        Cell::new(1, 3), // left
+        Cell::new(4, 2),
+        Cell::new(4, 3), // right
     ];
     for edge in edges {
         assert!(visited.contains(&edge), "Edge {:?} must be visited", edge);
@@ -1209,14 +1072,8 @@ fn test_find_path_next_to() {
     // A building at (5..=6, 1..=2), reached by land from the west and only by water from the
     // north. The road runs along y = 7.
     let nodes = vec![
-        L,L,L,L,W,A,A,W,
-        L,L,L,L,A,B,B,A,
-        L,W,W,L,A,B,B,A,
-        L,W,L,L,L,L,L,L,
-        L,W,L,W,W,W,W,W,
-        L,L,L,L,L,L,L,L,
-        L,L,L,L,L,L,L,L,
-        R,R,R,R,R,R,R,R,
+        L, L, L, L, W, A, A, W, L, L, L, L, A, B, B, A, L, W, W, L, A, B, B, A, L, W, L, L, L, L, L, L, L, W, L, W, W, W, W,
+        W, L, L, L, L, L, L, L, L, L, L, L, L, L, L, L, L, R, R, R, R, R, R, R, R,
     ];
     let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
     let heuristic = AStarUniformCostHeuristic::new();
@@ -1233,7 +1090,12 @@ fn test_find_path_next_to() {
         let end = path.last().unwrap().cell;
         assert!(end == Cell::new(5, 3) || end == Cell::new(6, 3), "ends south of the building: {end}");
         for node in path.iter() {
-            assert!(graph.node_kind(*node).unwrap().intersects(land), "steps on {} at {}", graph.node_kind(*node).unwrap(), node.cell);
+            assert!(
+                graph.node_kind(*node).unwrap().intersects(land),
+                "steps on {} at {}",
+                graph.node_kind(*node).unwrap(),
+                node.cell
+            );
         }
         assert_eq!(path.len(), 1 + 5 + 4, "four cells north and five or six east: {path:?}");
     }
@@ -1256,7 +1118,8 @@ fn test_find_path_next_to() {
     // Road only: no road reaches it.
     {
         let start = Node::new(Cell::new(0, 7));
-        let path = search.find_path_next_to(&graph, &heuristic, NodeKind::Road, start, 32, |node| building.contains(node.cell));
+        let path =
+            search.find_path_next_to(&graph, &heuristic, NodeKind::Road, start, 32, |node| building.contains(node.cell));
         assert!(path.not_found());
     }
 }

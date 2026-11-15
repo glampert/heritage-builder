@@ -27,7 +27,15 @@ impl UiTooltipText {
         let text = text.into();
         debug_assert!(!text.is_empty());
 
-        Self { text, font_scale: UiFontScale::default(), background: UiTooltipBackground::Style, decorations: Vec::new(), placement: UiTooltipPlacement::default(), opacity: 1.0, text_color: None }
+        Self {
+            text,
+            font_scale: UiFontScale::default(),
+            background: UiTooltipBackground::Style,
+            decorations: Vec::new(),
+            placement: UiTooltipPlacement::default(),
+            opacity: 1.0,
+            text_color: None,
+        }
     }
 
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
@@ -83,11 +91,17 @@ impl UiTooltipText {
     pub(super) fn draw(&self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        crate::ui::immediate::custom_tooltip_decorated(context.ui_sys(), self.font_scale, self.background, &self.decorations, self.placement, self.opacity, |ui_sys| {
-            match self.text_color {
+        crate::ui::immediate::custom_tooltip_decorated(
+            context.ui_sys(),
+            self.font_scale,
+            self.background,
+            &self.decorations,
+            self.placement,
+            self.opacity,
+            |ui_sys| match self.text_color {
                 Some(color) => crate::ui::text_colored(ui_sys, color, self.text.resolve()),
                 None => crate::ui::text(ui_sys, self.text.resolve()),
-            }
-        });
+            },
+        );
     }
 }

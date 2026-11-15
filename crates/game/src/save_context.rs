@@ -10,9 +10,9 @@ use engine::{
 };
 
 use crate::{
-    tile::TileMap,
     config::GameConfigs,
     sim::{RandomGenerator, SimCmds},
+    tile::TileMap,
 };
 
 // ----------------------------------------------
@@ -21,13 +21,17 @@ use crate::{
 
 pub trait Save {
     fn pre_save(&mut self, _context: &mut PreSaveContext) {}
-    fn save(&self, _state: &mut SaveStateImpl) -> SaveResult { Ok(()) }
+    fn save(&self, _state: &mut SaveStateImpl) -> SaveResult {
+        Ok(())
+    }
     fn post_save(&mut self, _context: &mut PostSaveContext) {}
 }
 
 pub trait Load {
     fn pre_load(&mut self, _context: &mut PreLoadContext) {}
-    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult { Ok(()) }
+    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult {
+        Ok(())
+    }
     fn post_load(&mut self, _context: &mut PostLoadContext) {}
 }
 
@@ -56,8 +60,7 @@ impl PreSaveContext {
 // ----------------------------------------------
 
 #[derive(Default)]
-pub struct PostSaveContext {
-}
+pub struct PostSaveContext {}
 
 impl PostSaveContext {
     #[inline]

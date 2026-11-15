@@ -1,22 +1,24 @@
 use std::any::Any;
-use serde::{Deserialize, Serialize};
 
 use common::{
-    hash,
-    coords::Cell,
-    time::UpdateTimer,
     callback::{self, Callback},
+    coords::Cell,
+    hash,
+    time::UpdateTimer,
 };
 use engine::{Engine, log};
+use serde::{Deserialize, Serialize};
 
 use super::GameSystem;
 use crate::{
-    pathfind::Node,
+    building::{
+        BuildingKind,
+        construction::{self, ConstructionSite},
+    },
     config::GameConfigs,
+    pathfind::Node,
     save_context::PostLoadContext,
-    building::{BuildingKind, construction::{self, ConstructionSite}},
-    sim::{SimCmds, SimContext, SimContextMut, SimCmdQueue, commands::ImmediateModeSimCmds},
-    world::city_stock::Withdrawal,
+    sim::{SimCmdQueue, SimCmds, SimContext, SimContextMut, commands::ImmediateModeSimCmds},
     tile::{
         TileFlags,
         TileKind,
@@ -38,6 +40,7 @@ use crate::{
             UnitTaskSettlerState,
         },
     },
+    world::city_stock::Withdrawal,
 };
 
 // ----------------------------------------------
@@ -137,7 +140,11 @@ impl Settler {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(population_to_add != 0);
 
-        Unit::try_spawn_with_task_deferred_cb(cmds, context, unit_origin, UnitConfigKey::Settler,
+        Unit::try_spawn_with_task_deferred_cb(
+            cmds,
+            context,
+            unit_origin,
+            UnitConfigKey::Settler,
             UnitTaskSettler {
                 completion_callback: Callback::default(),
                 completion_task: context.task_manager_mut().new_task(UnitTaskDespawnWithCallback {
@@ -171,7 +178,11 @@ impl Settler {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(population_leaving != 0);
 
-        Unit::try_spawn_with_task_deferred_cb(cmds, context, unit_origin, UnitConfigKey::Settler,
+        Unit::try_spawn_with_task_deferred_cb(
+            cmds,
+            context,
+            unit_origin,
+            UnitConfigKey::Settler,
             UnitTaskSettler {
                 completion_callback: Callback::default(),
                 completion_task: context.task_manager_mut().new_task(UnitTaskDespawnWithCallback {
@@ -208,8 +219,7 @@ impl Settler {
         unit_prev_goal: Option<UnitNavGoal>,
         extra_args: &[UnitTaskArg],
     ) {
-        let settle_new_vacant_lot =
-            unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
+        let settle_new_vacant_lot = unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
 
         if settle_new_vacant_lot {
             if let Some(tile_def) = Self::find_house_tile_def(context) {
@@ -260,10 +270,6 @@ impl Settler {
     }
 
     fn find_house_tile_def(context: &SimContext) -> Option<&'static TileDef> {
-        context.find_tile_def(
-            TileMapLayerKind::Objects,
-            OBJECTS_BUILDINGS_CATEGORY.hash,
-            hash::fnv1a_from_str("house0"),
-        )
+        context.find_tile_def(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash, hash::fnv1a_from_str("house0"))
     }
 }

@@ -7,41 +7,45 @@ use common::{
     time::{Milliseconds, PerfTimer, Seconds, UpdateTimer},
 };
 use engine::{
-    log,
-    save,
     Engine,
-    cli::{self, CliOption},
-    ui::{self, UiInputEvent, sound::UiSoundKey, text::UiTextCategory},
-    runner::RunLoop,
-    file_sys::paths::PathRef,
-    screenshot::{self, ScreenshotFormat, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
     app::{
         ApplicationEvent,
         input::{InputAction, InputKey, InputModifiers, MouseButton},
     },
+    cli::{self, CliOption},
+    file_sys::paths::PathRef,
+    log,
+    runner::RunLoop,
+    save,
+    screenshot::{self, ScreenshotFormat, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
+    ui::{self, UiInputEvent, sound::UiSoundKey, text::UiTextCategory},
 };
 
 use crate::{
     automation::{self, Automation, CommandContext, FrameControl, ScriptRunner},
+    building::{self, config::BuildingConfigs},
+    campaign::{self, config::CampaignConfigs},
     cheats,
+    config::GameConfigs,
     debug::{self, log_viewer::LogViewer},
     launch,
+    menu::{
+        self,
+        GameMenusMode,
+        dialog::{self, DialogMenuKind},
+    },
     profile,
-    save_header,
-    undo_redo,
-    menu::{self, GameMenusMode, dialog::{self, DialogMenuKind}},
-    config::GameConfigs,
-    unit::config::UnitConfigs,
-    building::{self, config::BuildingConfigs},
     prop::config::PropConfigs,
+    save_header,
+    session::{self, GameSession, GameSessionCmdQueue},
     sim::Simulation,
     system::GameSystems,
-    session::{self, GameSession, GameSessionCmdQueue},
-    campaign::{self, config::CampaignConfigs},
     tile::{
         rendering::{TileMapRenderFlags, TileMapRenderStats},
         sets::{TileDef, TileSets},
     },
+    undo_redo,
+    unit::config::UnitConfigs,
 };
 
 // ----------------------------------------------
@@ -104,9 +108,9 @@ pub enum AfterSaveAction {
 
 struct AfterSave {
     then: AfterSaveAction,
-    generation: u64,     // session::generation() when it was asked: another game by then leaves nothing.
-    saved: bool,         // The save ran and succeeded (GameLoop::update_after_save).
-    frames_waited: u32,  // Since then, for its thumbnail.
+    generation: u64,    // session::generation() when it was asked: another game by then leaves nothing.
+    saved: bool,        // The save ran and succeeded (GameLoop::update_after_save).
+    frames_waited: u32, // Since then, for its thumbnail.
 }
 
 // The frames a save and quit waits for its thumbnail at most.
@@ -125,7 +129,7 @@ pub struct GameLoop {
 
     autosave_timer: UpdateTimer,
     enable_autosave: bool,
-    autosave_allowed: bool, // Whether enable_autosave can be turned on (autosave_allowed above).
+    autosave_allowed: bool,   // Whether enable_autosave can be turned on (autosave_allowed above).
     saves_user_configs: bool, // Whether the Settings dialog writes the user configs (saves_user_configs above).
 
     smoke_test: Option<SaveSmokeTest>,
@@ -347,10 +351,10 @@ impl RunLoop for GameLoop {
         let (end_frame_time_ms, ui_render_time_ms, present_frame_time_ms) = self.engine.end_frame();
 
         self.stats.engine_begin_frame_time_ms = begin_frame_time_ms;
-        self.stats.engine_end_frame_time_ms   = end_frame_time_ms;
-        self.stats.ui_render_frame_time_ms    = ui_render_time_ms;
-        self.stats.present_frame_time_ms      = present_frame_time_ms;
-        self.stats.total_frame_time_ms        = frame_timer.end();
+        self.stats.engine_end_frame_time_ms = end_frame_time_ms;
+        self.stats.ui_render_frame_time_ms = ui_render_time_ms;
+        self.stats.present_frame_time_ms = present_frame_time_ms;
+        self.stats.total_frame_time_ms = frame_timer.end();
     }
 
     #[inline]
@@ -682,7 +686,9 @@ impl GameLoop {
         // Nor while a mission's briefing is waiting to open or open: a save before its Begin would
         // load as a mission under way, which opens no briefing (and so offers no choice point's
         // sites). The timer pauses the same way.
-        if campaign::is_briefing_pending() || (dialog::is_initialized() && dialog::is_in_stack(DialogMenuKind::MissionBriefing)) {
+        if campaign::is_briefing_pending()
+            || (dialog::is_initialized() && dialog::is_in_stack(DialogMenuKind::MissionBriefing))
+        {
             return;
         }
 
@@ -727,11 +733,14 @@ impl GameLoop {
         crate::city::history::clear(); // And its history.
 
         let map_size = self.session.tile_map().size_in_cells();
-        self.engine.send_automation_event("session.changed", serde_json::json!({
-            "menus_mode": self.session.current_menus_mode().map(|mode| format!("{mode:?}")),
-            "map_size": [map_size.width, map_size.height],
-            "frame": self.engine.frame_clock().frame_number(),
-        }));
+        self.engine.send_automation_event(
+            "session.changed",
+            serde_json::json!({
+                "menus_mode": self.session.current_menus_mode().map(|mode| format!("{mode:?}")),
+                "map_size": [map_size.width, map_size.height],
+                "frame": self.engine.frame_clock().frame_number(),
+            }),
+        );
     }
 
     // A message (the HUD's log) for each building the player had built that completed last frame, and one
@@ -823,7 +832,8 @@ impl GameLoop {
                     let path = screenshot.path.unwrap_or_default();
                     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
                     log::info!(log::channel!("game"), "Saved screenshot: {}", path.display());
-                    let message = ui::text::format(UiTextCategory::Messages, "toast.screenshot_saved", &[("file", &file_name)]);
+                    let message =
+                        ui::text::format(UiTextCategory::Messages, "toast.screenshot_saved", &[("file", &file_name)]);
                     show_toast(engine, message, UiSoundKey::Notification);
                 }
                 Err(err) => {

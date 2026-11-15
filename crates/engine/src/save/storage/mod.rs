@@ -81,7 +81,7 @@ trait SaveGameStorageBackend: Sized {
 // Public API
 // ----------------------------------------------
 
-pub const AUTOSAVE_FILE_NAME:     PathRef = PathRef::from_str("autosave");
+pub const AUTOSAVE_FILE_NAME: PathRef = PathRef::from_str("autosave");
 pub const DEFAULT_SAVE_FILE_NAME: PathRef = PathRef::from_str("save_game");
 
 #[inline]

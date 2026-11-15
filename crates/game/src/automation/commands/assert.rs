@@ -4,13 +4,12 @@
 
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
-use serde_json::{Value, json};
-
 use engine::{
     cli,
     screenshot::{self, ImageComparison, ScreenshotFormat, ScreenshotOutput, ScreenshotRequest},
 };
+use serde::Deserialize;
+use serde_json::{Value, json};
 
 use super::observe::screenshot_scale;
 use crate::{
@@ -222,7 +221,9 @@ impl ImageCheck {
 
         let (diff_pixels, max_channel_diff, diff_png) =
             match screenshot::compare_png(png, golden, self.tolerance).map_err(CommandError::failed)? {
-                ImageComparison::Compared { diff_pixels, max_channel_diff, diff_png } => (diff_pixels, max_channel_diff, diff_png),
+                ImageComparison::Compared { diff_pixels, max_channel_diff, diff_png } => {
+                    (diff_pixels, max_channel_diff, diff_png)
+                }
                 ImageComparison::SizeMismatch { actual, expected } => {
                     return Err(CommandError::new(
                         ErrorCode::AssertionFailed,

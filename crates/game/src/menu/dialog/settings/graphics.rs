@@ -11,7 +11,8 @@ const WINDOW_MODES: [ApplicationWindowMode; 3] =
     [ApplicationWindowMode::Windowed, ApplicationWindowMode::FullScreen, ApplicationWindowMode::ExclusiveFullScreen];
 
 // The window sizes offered, besides the configs' own and their default (resolutions()).
-const RESOLUTIONS: [(i32, i32); 7] = [(1280, 720), (1366, 768), (1440, 800), (1600, 900), (1920, 1080), (2560, 1440), (3840, 2160)];
+const RESOLUTIONS: [(i32, i32); 7] =
+    [(1280, 720), (1366, 768), (1440, 800), (1600, 900), (1920, 1080), (2560, 1440), (3840, 2160)];
 
 // The frame rate limits offered (0: none).
 const FRAME_RATE_LIMITS: [u32; 5] = [0, 30, 60, 120, 144];
@@ -22,7 +23,9 @@ fn window_mode_items() -> Vec<String> {
         .map(|mode| match mode {
             ApplicationWindowMode::Windowed => ui::text::get(UiTextCategory::Menu, "settings.window_mode.windowed"),
             ApplicationWindowMode::FullScreen => ui::text::get(UiTextCategory::Menu, "settings.window_mode.fullscreen"),
-            ApplicationWindowMode::ExclusiveFullScreen => ui::text::get(UiTextCategory::Menu, "settings.window_mode.exclusive"),
+            ApplicationWindowMode::ExclusiveFullScreen => {
+                ui::text::get(UiTextCategory::Menu, "settings.window_mode.exclusive")
+            }
         })
         .map(str::to_string)
         .collect()
@@ -45,7 +48,10 @@ fn resolution_items(sizes: &[Size]) -> Vec<String> {
     sizes
         .iter()
         .map(|size| {
-            ui::text::format(UiTextCategory::Menu, "settings.resolution.size", &[("width", &size.width.to_string()), ("height", &size.height.to_string())])
+            ui::text::format(UiTextCategory::Menu, "settings.resolution.size", &[
+                ("width", &size.width.to_string()),
+                ("height", &size.height.to_string()),
+            ])
         })
         .collect()
 }
@@ -107,9 +113,15 @@ fn texture_filter_items() -> Vec<String> {
         .map(|filter| match filter {
             TextureFilter::Nearest => ui::text::get(UiTextCategory::Menu, "settings.filter.nearest"),
             TextureFilter::Linear => ui::text::get(UiTextCategory::Menu, "settings.filter.linear"),
-            TextureFilter::NearestMipmapNearest => ui::text::get(UiTextCategory::Menu, "settings.filter.nearest_mipmap_nearest"),
-            TextureFilter::LinearMipmapNearest => ui::text::get(UiTextCategory::Menu, "settings.filter.linear_mipmap_nearest"),
-            TextureFilter::NearestMipmapLinear => ui::text::get(UiTextCategory::Menu, "settings.filter.nearest_mipmap_linear"),
+            TextureFilter::NearestMipmapNearest => {
+                ui::text::get(UiTextCategory::Menu, "settings.filter.nearest_mipmap_nearest")
+            }
+            TextureFilter::LinearMipmapNearest => {
+                ui::text::get(UiTextCategory::Menu, "settings.filter.linear_mipmap_nearest")
+            }
+            TextureFilter::NearestMipmapLinear => {
+                ui::text::get(UiTextCategory::Menu, "settings.filter.nearest_mipmap_linear")
+            }
             TextureFilter::LinearMipmapLinear => ui::text::get(UiTextCategory::Menu, "settings.filter.linear_mipmap_linear"),
         })
         .map(str::to_string)
@@ -118,9 +130,12 @@ fn texture_filter_items() -> Vec<String> {
 
 pub(super) fn settings() -> Vec<SettingDef> {
     let tab = SettingsTab::Graphics;
-    let def = |label: UiString, control: SettingControl, restart: bool, read: fn(&GameConfigs) -> SettingValue, write: fn(&mut GameConfigs, SettingValue)| {
-        SettingDef { tab, label, control, restart, read, write }
-    };
+    let def =
+        |label: UiString,
+         control: SettingControl,
+         restart: bool,
+         read: fn(&GameConfigs) -> SettingValue,
+         write: fn(&mut GameConfigs, SettingValue)| { SettingDef { tab, label, control, restart, read, write } };
     let toggle = || SettingControl::Toggle;
 
     vec![
@@ -128,14 +143,21 @@ pub(super) fn settings() -> Vec<SettingDef> {
             UiString::key(UiTextCategory::Menu, "settings.window_mode"),
             SettingControl::Dropdown { items: window_mode_items() },
             true,
-            |configs| SettingValue::Choice(WINDOW_MODES.iter().position(|mode| *mode == configs.engine.window_mode).unwrap_or(0)),
-            |configs, value| configs.engine.window_mode = WINDOW_MODES.get(value.as_choice()).copied().unwrap_or(ApplicationWindowMode::Windowed),
+            |configs| {
+                SettingValue::Choice(WINDOW_MODES.iter().position(|mode| *mode == configs.engine.window_mode).unwrap_or(0))
+            },
+            |configs, value| {
+                configs.engine.window_mode =
+                    WINDOW_MODES.get(value.as_choice()).copied().unwrap_or(ApplicationWindowMode::Windowed)
+            },
         ),
         def(
             UiString::key(UiTextCategory::Menu, "settings.resolution"),
             SettingControl::Dropdown { items: resolution_items(&resolutions()) },
             true,
-            |configs| SettingValue::Choice(resolutions().iter().position(|size| *size == configs.engine.window_size).unwrap_or(0)),
+            |configs| {
+                SettingValue::Choice(resolutions().iter().position(|size| *size == configs.engine.window_size).unwrap_or(0))
+            },
             |configs, value| {
                 if let Some(size) = resolutions().get(value.as_choice()) {
                     configs.engine.window_size = *size;
@@ -167,7 +189,9 @@ pub(super) fn settings() -> Vec<SettingDef> {
             SettingControl::Dropdown { items: frame_rate_limit_items() },
             false,
             |configs| SettingValue::Choice(nearest_choice(&FRAME_RATE_LIMITS, configs.engine.frame_rate_limit)),
-            |configs, value| configs.engine.frame_rate_limit = FRAME_RATE_LIMITS.get(value.as_choice()).copied().unwrap_or(0),
+            |configs, value| {
+                configs.engine.frame_rate_limit = FRAME_RATE_LIMITS.get(value.as_choice()).copied().unwrap_or(0)
+            },
         ),
         def(
             UiString::key(UiTextCategory::Menu, "settings.texture_filtering"),

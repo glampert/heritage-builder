@@ -3,8 +3,8 @@ use std::cell::{RefCell, RefMut};
 use common::{
     Size,
     Vec2,
-    time::Seconds,
     hash::{self, FNV1aHash},
+    time::Seconds,
 };
 use engine::{
     Engine,
@@ -19,9 +19,9 @@ use engine::{
 
 use crate::{
     camera::Camera,
-    world::World,
-    sim::{Simulation, SimContextMut},
+    sim::{SimContextMut, Simulation},
     tile::{Tile, TileMap, selection::TileSelection},
+    world::World,
 };
 
 // ----------------------------------------------

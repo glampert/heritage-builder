@@ -170,20 +170,20 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
         }
 
         let (pool, track_gain) = match params.kind {
-            SoundKind::Sfx             => (&mut self.sfx,        &self.sfx_gain),
-            SoundKind::Ambience        => (&mut self.ambience,   &self.ambience_gain),
-            SoundKind::SpatialAmbience => (&mut self.spatial,    &self.spatial_gain),
-            SoundKind::Music           => (&mut self.music,      &self.music_gain),
-            SoundKind::Narration       => (&mut self.narration,  &self.narration_gain),
+            SoundKind::Sfx => (&mut self.sfx, &self.sfx_gain),
+            SoundKind::Ambience => (&mut self.ambience, &self.ambience_gain),
+            SoundKind::SpatialAmbience => (&mut self.spatial, &self.spatial_gain),
+            SoundKind::Music => (&mut self.music, &self.music_gain),
+            SoundKind::Narration => (&mut self.narration, &self.narration_gain),
         };
 
         // Look up the AudioBuffer for this sound.
         let buffer = match params.kind {
             SoundKind::SpatialAmbience => params.registry.ambience.get(&params.key_hash),
-            SoundKind::Sfx             => params.registry.sfx.get(&params.key_hash),
-            SoundKind::Ambience        => params.registry.ambience.get(&params.key_hash),
-            SoundKind::Music           => params.registry.music.get(&params.key_hash),
-            SoundKind::Narration       => params.registry.narration.get(&params.key_hash),
+            SoundKind::Sfx => params.registry.sfx.get(&params.key_hash),
+            SoundKind::Ambience => params.registry.ambience.get(&params.key_hash),
+            SoundKind::Music => params.registry.music.get(&params.key_hash),
+            SoundKind::Narration => params.registry.narration.get(&params.key_hash),
         };
 
         let buffer = match buffer {
@@ -229,22 +229,22 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
         }
         let fade_out = settings.fade_out_secs(sound_handle.kind);
         let pool = match sound_handle.kind {
-            SoundKind::Sfx             => &mut self.sfx,
-            SoundKind::Ambience        => &mut self.ambience,
+            SoundKind::Sfx => &mut self.sfx,
+            SoundKind::Ambience => &mut self.ambience,
             SoundKind::SpatialAmbience => &mut self.spatial,
-            SoundKind::Music           => &mut self.music,
-            SoundKind::Narration       => &mut self.narration,
+            SoundKind::Music => &mut self.music,
+            SoundKind::Narration => &mut self.narration,
         };
         pool.stop_one(&self.ctx, sound_handle, fade_out);
     }
 
     fn stop_kind(&mut self, kind: SoundKind, fade_out: Seconds) {
         let pool = match kind {
-            SoundKind::Sfx             => &mut self.sfx,
-            SoundKind::Ambience        => &mut self.ambience,
+            SoundKind::Sfx => &mut self.sfx,
+            SoundKind::Ambience => &mut self.ambience,
             SoundKind::SpatialAmbience => &mut self.spatial,
-            SoundKind::Music           => &mut self.music,
-            SoundKind::Narration       => &mut self.narration,
+            SoundKind::Music => &mut self.music,
+            SoundKind::Narration => &mut self.narration,
         };
         pool.stop_all(&self.ctx, fade_out);
     }
@@ -259,11 +259,11 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
 
     fn is_playing(&self, sound_handle: SoundHandle) -> bool {
         let pool = match sound_handle.kind {
-            SoundKind::Sfx             => &self.sfx,
-            SoundKind::Ambience        => &self.ambience,
+            SoundKind::Sfx => &self.sfx,
+            SoundKind::Ambience => &self.ambience,
             SoundKind::SpatialAmbience => &self.spatial,
-            SoundKind::Music           => &self.music,
-            SoundKind::Narration       => &self.narration,
+            SoundKind::Music => &self.music,
+            SoundKind::Narration => &self.narration,
         };
         pool.is_playing(sound_handle)
     }
@@ -282,11 +282,11 @@ struct WebAudioSoundAsset {
 }
 
 pub struct WebAudioSoundAssetRegistry {
-    sfx:       PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
-    ambience:  PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
-    music:     PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
+    sfx: PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
+    ambience: PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
+    music: PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
     narration: PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
-    paths:     Box<SoundAssetPaths>,
+    paths: Box<SoundAssetPaths>,
 }
 
 struct SoundAssetPaths {
@@ -300,18 +300,18 @@ impl SoundAssetRegistry for WebAudioSoundAssetRegistry {
     fn new() -> Self {
         let sound_base_path = paths::assets_path().join("sounds");
         let asset_paths = SoundAssetPaths {
-            sfx:       sound_base_path.join("sfx"),
-            ambience:  sound_base_path.join("ambience"),
-            music:     sound_base_path.join("music"),
+            sfx: sound_base_path.join("sfx"),
+            ambience: sound_base_path.join("ambience"),
+            music: sound_base_path.join("music"),
             narration: sound_base_path.join("narration"),
         };
 
         Self {
-            sfx:       PreHashedKeyMap::default(),
-            ambience:  PreHashedKeyMap::default(),
-            music:     PreHashedKeyMap::default(),
+            sfx: PreHashedKeyMap::default(),
+            ambience: PreHashedKeyMap::default(),
+            music: PreHashedKeyMap::default(),
             narration: PreHashedKeyMap::default(),
-            paths:     Box::new(asset_paths),
+            paths: Box::new(asset_paths),
         }
     }
 

@@ -7,14 +7,10 @@
 
 use std::collections::BTreeMap;
 
+use common::{Color, Size, coords::Cell};
 use strum::{Display, EnumIter, EnumString};
 
-use common::{Color, Size, coords::Cell};
-
-use super::{
-    model::MinimapFeatures,
-    style::MinimapStyle,
-};
+use super::{model::MinimapFeatures, style::MinimapStyle};
 use crate::{
     building::{
         BuildingKind,
@@ -117,7 +113,12 @@ impl LensData {
         for value in &self.values {
             let t = *value as f32 / 255.0;
             let channel = |a: f32, b: f32| ((a + (b - a) * t) * 255.0).round().clamp(0.0, 255.0) as u8;
-            out.extend_from_slice(&[channel(low.r, high.r), channel(low.g, high.g), channel(low.b, high.b), channel(low.a, high.a)]);
+            out.extend_from_slice(&[
+                channel(low.r, high.r),
+                channel(low.g, high.g),
+                channel(low.b, high.b),
+                channel(low.a, high.a),
+            ]);
         }
     }
 }

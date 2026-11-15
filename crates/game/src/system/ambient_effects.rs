@@ -82,15 +82,19 @@ pub(crate) fn spawn_bird(cmds: &mut SimCmds, context: &SimContext, flight_path: 
         }
     };
 
-    Unit::try_spawn_with_task_deferred_cb(cmds, context, path.first().unwrap().cell, UnitConfigKey::Bird, UnitTaskFollowPath {
-        path,
-        completion_callback: Callback::default(),
-        completion_task: context.task_manager_mut().new_task(UnitTaskDespawn::default()),
-        terminate_if_stuck: true,
-        state: UnitTaskFollowPathState::default(),
-    },
-    move |context, result| {
-        match result {
+    Unit::try_spawn_with_task_deferred_cb(
+        cmds,
+        context,
+        path.first().unwrap().cell,
+        UnitConfigKey::Bird,
+        UnitTaskFollowPath {
+            path,
+            completion_callback: Callback::default(),
+            completion_task: context.task_manager_mut().new_task(UnitTaskDespawn::default()),
+            terminate_if_stuck: true,
+            state: UnitTaskFollowPathState::default(),
+        },
+        move |context, result| match result {
             Ok(unit) => {
                 unit.set_animation(context, anim_set_key);
                 unit.set_depth_sort_override(context, TileDepthSortOverride::Topmost);
@@ -98,8 +102,8 @@ pub(crate) fn spawn_bird(cmds: &mut SimCmds, context: &SimContext, flight_path: 
             Err(err) => {
                 log::warning!(log::channel!("ambient_effects"), "Failed to spawn bird: {}", err.message);
             }
-        }
-    });
+        },
+    );
 }
 
 pub(crate) fn spawn_bird_with_random_flight_path(cmds: &mut SimCmds, context: &SimContext) {

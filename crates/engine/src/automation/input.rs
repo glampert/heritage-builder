@@ -55,12 +55,8 @@ pub fn click_gesture(point: Vec2, button: MouseButton) -> Vec<InputStep> {
 // Press at `from`, move to `to` in `frames` even steps, release there.
 pub fn drag_gesture(from: Vec2, to: Vec2, button: MouseButton, frames: u32) -> Vec<InputStep> {
     let frames = frames.max(1);
-    let mut steps = vec![
-        InputStep::MoveCursor(from),
-        InputStep::EndFrame,
-        InputStep::MouseButton(button, true),
-        InputStep::EndFrame,
-    ];
+    let mut steps =
+        vec![InputStep::MoveCursor(from), InputStep::EndFrame, InputStep::MouseButton(button, true), InputStep::EndFrame];
 
     for frame in 1..=frames {
         let t = frame as f32 / frames as f32;
@@ -155,7 +151,11 @@ impl InputTimeline {
                 InputStep::MoveCursor(point) => input.cursor_pos = point,
                 InputStep::MouseButton(button, pressed) => {
                     input.set_mouse_button(button, pressed);
-                    events.push(ApplicationEvent::MouseButton(button, InputAction::from_pressed(pressed), input.modifiers()));
+                    events.push(ApplicationEvent::MouseButton(
+                        button,
+                        InputAction::from_pressed(pressed),
+                        input.modifiers(),
+                    ));
                 }
                 InputStep::Key(key, pressed) => {
                     input.set_key(key, pressed);

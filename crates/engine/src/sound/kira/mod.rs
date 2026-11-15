@@ -109,15 +109,7 @@ impl super::SoundSystemBackend for KiraSoundSystemBackend {
         let music = MusicController::new(music_track, SoundKind::Music);
         let narration = NarrationController::new(narration_track, SoundKind::Narration);
 
-        Some(Box::new(Self {
-            manager,
-            sfx,
-            ambience,
-            spatial,
-            music,
-            narration,
-            listener_position: IsoPointF32::default(),
-        }))
+        Some(Box::new(Self { manager, sfx, ambience, spatial, music, narration, listener_position: IsoPointF32::default() }))
     }
 
     fn update(&mut self, listener_position: IsoPointF32, settings: &SoundGlobalSettings) {
@@ -194,21 +186,21 @@ impl super::SoundSystemBackend for KiraSoundSystemBackend {
         let fade_out = settings.fade_out_secs(sound_handle.kind);
 
         match sound_handle.kind {
-            SoundKind::Sfx             => self.sfx.stop(sound_handle, fade_out),
-            SoundKind::Ambience        => self.ambience.stop(sound_handle, fade_out),
+            SoundKind::Sfx => self.sfx.stop(sound_handle, fade_out),
+            SoundKind::Ambience => self.ambience.stop(sound_handle, fade_out),
             SoundKind::SpatialAmbience => self.spatial.stop(sound_handle, fade_out),
-            SoundKind::Music           => self.music.stop(sound_handle, fade_out),
-            SoundKind::Narration       => self.narration.stop(sound_handle, fade_out),
+            SoundKind::Music => self.music.stop(sound_handle, fade_out),
+            SoundKind::Narration => self.narration.stop(sound_handle, fade_out),
         }
     }
 
     fn stop_kind(&mut self, kind: SoundKind, fade_out: Seconds) {
         match kind {
-            SoundKind::Sfx             => self.sfx.stop_all(fade_out),
-            SoundKind::Ambience        => self.ambience.stop_all(fade_out),
+            SoundKind::Sfx => self.sfx.stop_all(fade_out),
+            SoundKind::Ambience => self.ambience.stop_all(fade_out),
             SoundKind::SpatialAmbience => self.spatial.stop_all(fade_out),
-            SoundKind::Music           => self.music.stop_all(fade_out),
-            SoundKind::Narration       => self.narration.stop_all(fade_out),
+            SoundKind::Music => self.music.stop_all(fade_out),
+            SoundKind::Narration => self.narration.stop_all(fade_out),
         }
     }
 
@@ -222,11 +214,11 @@ impl super::SoundSystemBackend for KiraSoundSystemBackend {
 
     fn is_playing(&self, sound_handle: SoundHandle) -> bool {
         match sound_handle.kind {
-            SoundKind::Sfx             => self.sfx.is_playing(sound_handle),
-            SoundKind::Ambience        => self.ambience.is_playing(sound_handle),
+            SoundKind::Sfx => self.sfx.is_playing(sound_handle),
+            SoundKind::Ambience => self.ambience.is_playing(sound_handle),
             SoundKind::SpatialAmbience => self.spatial.is_playing(sound_handle),
-            SoundKind::Music           => self.music.is_playing(sound_handle),
-            SoundKind::Narration       => self.narration.is_playing(sound_handle),
+            SoundKind::Music => self.music.is_playing(sound_handle),
+            SoundKind::Narration => self.narration.is_playing(sound_handle),
         }
     }
 }
@@ -359,18 +351,18 @@ impl super::SoundAssetRegistry for KiraSoundAssetRegistry {
     fn new() -> Self {
         let sound_base_path = paths::assets_path().join("sounds");
         let asset_paths = SoundAssetPaths {
-            sfx:       sound_base_path.join("sfx"),
-            ambience:  sound_base_path.join("ambience"),
-            music:     sound_base_path.join("music"),
+            sfx: sound_base_path.join("sfx"),
+            ambience: sound_base_path.join("ambience"),
+            music: sound_base_path.join("music"),
             narration: sound_base_path.join("narration"),
         };
 
         Self {
-            sfx:       PreHashedKeyMap::default(),
-            ambience:  PreHashedKeyMap::default(),
-            music:     PreHashedKeyMap::default(),
+            sfx: PreHashedKeyMap::default(),
+            ambience: PreHashedKeyMap::default(),
+            music: PreHashedKeyMap::default(),
             narration: PreHashedKeyMap::default(),
-            paths:     Box::new(asset_paths),
+            paths: Box::new(asset_paths),
         }
     }
 
@@ -523,7 +515,8 @@ where
     }
 
     fn is_playing(&self, sound_handle: SoundHandle) -> bool {
-        if sound_handle.is_valid() && sound_handle.kind == self.kind
+        if sound_handle.is_valid()
+            && sound_handle.kind == self.kind
             && let Some(sound) = self.try_get_sound(sound_handle)
         {
             return sound.is_playing();
@@ -745,35 +738,16 @@ impl SoundInstance for SpatialSoundInstance {
 // ----------------------------------------------
 
 // Plays general sound effects like UI clicks, alerts, popups.
-type SfxController = SoundController<
-    false,
-    false,
-    TrackHandle,
-    StaticSoundInstance,
-    StaticSoundAsset,
-    StaticSoundHandle
->;
+type SfxController = SoundController<false, false, TrackHandle, StaticSoundInstance, StaticSoundAsset, StaticSoundHandle>;
 
 // Plays non-positional ambience sounds. E.g.: global city noises, nature sounds.
-type AmbienceController = SoundController<
-    false,
-    false,
-    RcMut<TrackHandle>,
-    StaticSoundInstance,
-    StaticSoundAsset,
-    StaticSoundHandle
->;
+type AmbienceController =
+    SoundController<false, false, RcMut<TrackHandle>, StaticSoundInstance, StaticSoundAsset, StaticSoundHandle>;
 
 // Fake 3D positional sound. Shares the ambiance track.
 // Plays sounds that have a specific origin in the world. E.g.: fire, building collapsed.
-type SpatialController = SoundController<
-    false,
-    true,
-    RcMut<TrackHandle>,
-    SpatialSoundInstance,
-    StaticSoundAsset,
-    StaticSoundHandle
->;
+type SpatialController =
+    SoundController<false, true, RcMut<TrackHandle>, SpatialSoundInstance, StaticSoundAsset, StaticSoundHandle>;
 
 // Plays streamed background soundtrack music.
 type MusicController = SoundController<
@@ -782,7 +756,7 @@ type MusicController = SoundController<
     TrackHandle,
     StreamedSoundInstance,
     StreamedSoundAsset,
-    StreamingSoundHandle<FromFileError>
+    StreamingSoundHandle<FromFileError>,
 >;
 
 // Plays streamed narration / voice-over tracks.
@@ -792,5 +766,5 @@ type NarrationController = SoundController<
     TrackHandle,
     StreamedSoundInstance,
     StreamedSoundAsset,
-    StreamingSoundHandle<FromFileError>
+    StreamingSoundHandle<FromFileError>,
 >;

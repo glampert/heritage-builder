@@ -41,7 +41,9 @@ pub fn set(pointer: &str, value: Value) -> Result<(Value, Value), String> {
     let mut patches = PATCHES.lock().unwrap();
     match patches.iter_mut().find(|patch| patch.pointer == pointer) {
         Some(patch) => patch.patched = current.clone(),
-        None => patches.push(ConfigPatch { pointer: pointer.to_string(), original: previous.clone(), patched: current.clone() }),
+        None => {
+            patches.push(ConfigPatch { pointer: pointer.to_string(), original: previous.clone(), patched: current.clone() })
+        }
     }
 
     Ok((previous, current))

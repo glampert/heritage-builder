@@ -1,9 +1,8 @@
 use arrayvec::ArrayString;
-use rand::{self, Rng};
-use smallvec::SmallVec;
-
 use common::{self, Color, Rect, Vec2, time::Seconds};
 use engine::ui::{self, UiLayer, UiSystem};
+use rand::{self, Rng};
+use smallvec::SmallVec;
 
 // Max length of a popup message text. Debug-only, so we commit to a fixed
 // worst-case size and avoid any heap allocation on the hot path.

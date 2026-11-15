@@ -1,38 +1,36 @@
 use std::any::Any;
-use rand::{Rng, seq::SliceRandom};
-use serde::{Deserialize, Serialize};
 
 use common::{
     callback::Callback,
     time::{CountdownTimer, Seconds},
 };
-use engine::{log, ui::{self, DrawDebugUi, UiSystem}};
+use engine::{
+    log,
+    ui::{self, DrawDebugUi, UiSystem},
+};
 use proc_macros::DrawDebugUi;
+use rand::{Rng, seq::SliceRandom};
+use serde::{Deserialize, Serialize};
 
 use super::{
-    UnitTaskOriginBuildingDebug,
+    UnitTask,
     UnitTaskContext,
+    UnitTaskId,
+    UnitTaskOriginBuildingDebug,
+    UnitTaskPool,
     UnitTaskState,
     UnitTaskTransition,
-    UnitTask,
-    UnitTaskId,
-    UnitTaskPool,
     invoke_completion_callback_deferred,
     with_task,
 };
 use crate::{
-    pathfind::{
-        Node,
-        NodeKind as PathNodeKind,
-        Path,
-        PathFilter,
-        PathHistory,
-        RandomDirectionalBias,
-        SearchResult,
-    },
-    sim::{SimCmdQueue, SimContext, SimContextMut},
-    unit::{Unit, navigation::{self, UnitDirection, UnitNavGoal}},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
+    pathfind::{Node, NodeKind as PathNodeKind, Path, PathFilter, PathHistory, RandomDirectionalBias, SearchResult},
+    sim::{SimCmdQueue, SimContext, SimContextMut},
+    unit::{
+        Unit,
+        navigation::{self, UnitDirection, UnitNavGoal},
+    },
     world::object::GameObject,
 };
 
@@ -72,7 +70,7 @@ impl UnitPatrolPathRecord {
 
 fn path_direction(path: &Path) -> UnitDirection {
     let start = path.first().unwrap();
-    let goal  = path.last().unwrap();
+    let goal = path.last().unwrap();
     navigation::direction_between(start.cell, goal.cell)
 }
 
@@ -81,7 +79,7 @@ fn path_direction(path: &Path) -> UnitDirection {
 // ----------------------------------------------
 
 const PATROL_MIN_PREFERRED_PATH_LEN: i32 = 4;
-const PATROL_MAX_REPEATED_DIR_AXIS:  i32 = 2;
+const PATROL_MAX_REPEATED_DIR_AXIS: i32 = 2;
 
 struct UnitPatrolWaypointFilter<'task, R: Rng> {
     rng: &'task mut R,
@@ -105,7 +103,7 @@ impl<R: Rng> PathFilter for UnitPatrolWaypointFilter<'_, R> {
         }
 
         let prev_direction = self.path_record.current_direction;
-        let new_direction  = path_direction(path);
+        let new_direction = path_direction(path);
 
         // Try picking a different direction.
         if new_direction == prev_direction {
@@ -375,10 +373,10 @@ impl UnitTaskRandomizedPatrol {
             // The Vec is capped; once full, additional matches are dropped.
             if let Some(visited_buildings) = &mut self.visited_buildings
                 && visited_buildings.len() < MAX_PATROL_VISITED_BUILDINGS
-                    && !visited_buildings.contains(&kind_and_id)
-                {
-                    visited_buildings.push(kind_and_id);
-                }
+                && !visited_buildings.contains(&kind_and_id)
+            {
+                visited_buildings.push(kind_and_id);
+            }
         }
     }
 
@@ -473,10 +471,10 @@ impl UnitTaskState for UnitTaskPatrolState {
 
     fn update(self, task: &mut UnitTaskRandomizedPatrol, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
-            Self::Patrolling         => task.update_patrolling(ctx),
-            Self::ReturningToOrigin  => task.update_returning(ctx),
+            Self::Patrolling => task.update_patrolling(ctx),
+            Self::ReturningToOrigin => task.update_returning(ctx),
             Self::DeliveringToOrigin => task.update_delivering(ctx),
-            Self::Done               => UnitTaskTransition::Done,
+            Self::Done => UnitTaskTransition::Done,
         }
     }
 }

@@ -1,12 +1,6 @@
 use std::ops::{Index, IndexMut};
-use rand::Rng;
-use slab::Slab;
-use arrayvec::ArrayVec;
-use enum_dispatch::enum_dispatch;
-use num_enum::TryFromPrimitive;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator, VariantArray, VariantNames};
 
+use arrayvec::ArrayVec;
 use common::{
     Color,
     Rect,
@@ -14,18 +8,27 @@ use common::{
     Vec2,
     bitflags_with_display,
     constants::*,
+    coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
     hash::StringHash,
     mem::RawPtr,
     time::Seconds,
-    coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
 };
 use engine::{file_sys::paths::PathRef, log, save::*};
-
+use enum_dispatch::enum_dispatch;
 use minimap::Minimap;
-use selection::TileSelection;
+use num_enum::TryFromPrimitive;
 use placement::{Clearing, Placement, TileClearingErr, TilePlacementErr, TilePlacementOp};
+use rand::Rng;
+use selection::TileSelection;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sets::{SerializableTileDefHandle, TileAnimSet, TileDef, TileIconSprite, TileSets, TileTexInfo};
-use crate::{pathfind::{NodeKind as PathNodeKind, Graph, GraphUpdateAction}, save_context::*};
+use slab::Slab;
+use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator, VariantArray, VariantNames};
+
+use crate::{
+    pathfind::{Graph, GraphUpdateAction, NodeKind as PathNodeKind},
+    save_context::*,
+};
 
 pub mod minimap;
 pub mod placement;
@@ -890,11 +893,11 @@ impl Tile {
     pub fn path_kind(&self) -> PathNodeKind {
         let mut path_kind = self.tile_def().path_kind;
 
-        path_kind.set(PathNodeKind::BuildingRoadLink,   self.has_flags(TileFlags::BuildingRoadLink));
+        path_kind.set(PathNodeKind::BuildingRoadLink, self.has_flags(TileFlags::BuildingRoadLink));
         path_kind.set(PathNodeKind::SettlersSpawnPoint, self.has_flags(TileFlags::SettlersSpawnPoint));
 
-        path_kind.set(PathNodeKind::Building,   self.is(TileKind::Building | TileKind::Blocker));
-        path_kind.set(PathNodeKind::Rocks,      self.is(TileKind::Rocks));
+        path_kind.set(PathNodeKind::Building, self.is(TileKind::Building | TileKind::Blocker));
+        path_kind.set(PathNodeKind::Rocks, self.is(TileKind::Rocks));
         path_kind.set(PathNodeKind::Vegetation, self.is(TileKind::Vegetation));
 
         path_kind
@@ -1071,10 +1074,8 @@ impl Tile {
 
     #[inline]
     pub fn set_variation_index(&mut self, index: usize) {
-        self.variation_index = index
-            .min(self.variation_count() - 1)
-            .try_into()
-            .expect("Value cannot fit into a TileVariationIndex!");
+        self.variation_index =
+            index.min(self.variation_count() - 1).try_into().expect("Value cannot fit into a TileVariationIndex!");
 
         // Propagate to owner tile in case this is a blocker.
         self.archetype.set_variation_index(self.variation_index());
@@ -1252,7 +1253,9 @@ impl Tile {
 // ----------------------------------------------
 
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq, Display, EnumCount, EnumIter, EnumProperty, TryFromPrimitive, Serialize, Deserialize)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, Display, EnumCount, EnumIter, EnumProperty, TryFromPrimitive, Serialize, Deserialize,
+)]
 pub enum TileMapLayerKind {
     #[strum(props(AssetsPath = "tiles/terrain", Name = "terrain"))]
     Terrain,
@@ -1392,11 +1395,7 @@ impl TilePoolIndex {
 
 impl std::fmt::Display for TilePoolIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if self.is_valid() {
-            write!(f, "[{}]", self.value)
-        } else {
-            write!(f, "[invalid]")
-        }
+        if self.is_valid() { write!(f, "[{}]", self.value) } else { write!(f, "[invalid]") }
     }
 }
 
@@ -1449,7 +1448,8 @@ impl TilePool {
 
     #[inline(always)]
     fn is_cell_within_bounds(&self, cell: Cell) -> bool {
-        !((cell.x < 0 || cell.x >= self.layer_size_in_cells.width) || (cell.y < 0 || cell.y >= self.layer_size_in_cells.height))
+        !((cell.x < 0 || cell.x >= self.layer_size_in_cells.width)
+            || (cell.y < 0 || cell.y >= self.layer_size_in_cells.height))
     }
 
     #[inline(always)]
@@ -1798,7 +1798,7 @@ impl TileMapLayer {
         // Helper closure to get a raw pointer from try_tile_mut().
         let mut raw_tile_ptr = |c: Cell| {
             self.try_tile_mut(c).map(|tile| tile as *mut Tile) // Convert to raw
-                                                               // pointer
+            // pointer
         };
 
         if include_self {
@@ -2058,16 +2058,16 @@ impl TileMapPlayableArea {
             min_sum: margin,
             max_sum: ((map_size.width - 1) + (map_size.height - 1)) - margin,
             min_diff: -(map_size.height - 1) + margin,
-            max_diff:  (map_size.width  - 1) - margin,
+            max_diff: (map_size.width - 1) - margin,
         }
     }
 
     fn with_inner_rect_margin(map_size: Size) -> Self {
         // Trim all tiles that fall outside the inner axis-aligned
         // rect that perfectly fits inside the map diamond.
-        let margin_x = (map_size.width  / 2) - 1;
+        let margin_x = (map_size.width / 2) - 1;
         let margin_y = (map_size.height / 2) - 1;
-        let margin   = margin_x.min(margin_y);
+        let margin = margin_x.min(margin_y);
         Self::with_margin(map_size, margin)
     }
 
@@ -2091,13 +2091,13 @@ impl TileMapPlayableArea {
     }
 
     fn cell_range(&self, map_size: Size) -> CellRange {
-        let max_cell_x = map_size.width  - 1;
+        let max_cell_x = map_size.width - 1;
         let max_cell_y = map_size.height - 1;
         match self {
             Self::WholeMap => CellRange::new(Cell::new(0, 0), Cell::new(max_cell_x, max_cell_y)),
             Self::TrimmedMargins { min_sum, .. } => {
                 let margin = *min_sum;
-                let inset  = margin / 2;
+                let inset = margin / 2;
                 let min = Cell::new(inset, inset);
                 let max = Cell::new(max_cell_x - inset, max_cell_y - inset);
                 CellRange::new(min, max)
@@ -2116,7 +2116,7 @@ impl TileMapPlayableArea {
         match self {
             Self::WholeMap => true,
             Self::TrimmedMargins { min_sum, max_sum, min_diff, max_diff } => {
-                let sum  = x + y;
+                let sum = x + y;
                 let diff = x - y;
                 sum >= *min_sum && sum <= *max_sum && diff >= *min_diff && diff <= *max_diff
             }
@@ -2142,7 +2142,7 @@ pub struct TileStats {
 // Optional callbacks used for editing and dev
 // ----------------------------------------------
 
-pub type TilePlacedCallback   = fn(&mut Tile, bool);
+pub type TilePlacedCallback = fn(&mut Tile, bool);
 pub type RemovingTileCallback = fn(&mut Tile);
 pub type TileMapResetCallback = fn(&mut TileMap);
 
@@ -2199,40 +2199,40 @@ pub struct TileMap {
 macro_rules! update_search_graph {
     // NOTE: Units are skipped here because Units do not alter the search graph.
     // `$layers` is a `TileMapLayerRefs` (Copy), forwarded to `Graph::update`.
-    ($layers:expr, $graph:expr, $cells:expr, $layer_kind:expr, $tile_kind:expr, TileCleared) => {{
+    ($layers:expr, $graph:expr, $cells:expr, $layer_kind:expr, $tile_kind:expr,TileCleared) => {{
         if !$tile_kind.intersects(TileKind::Unit) {
             $graph.update($layers, GraphUpdateAction::TileCleared($cells, $layer_kind, $tile_kind));
         }
     }};
-    ($layers:expr, $graph:expr, $tile:expr, TilePlaced) => {{
+    ($layers:expr, $graph:expr, $tile:expr,TilePlaced) => {{
         if !$tile.is(TileKind::Unit) {
-            let cells      = $tile.cell_range();
+            let cells = $tile.cell_range();
             let layer_kind = $tile.layer_kind();
-            let path_kind  = $tile.path_kind();
+            let path_kind = $tile.path_kind();
             $graph.update($layers, GraphUpdateAction::TilePlaced(cells, layer_kind, path_kind));
         }
     }};
-    ($layers:expr, $graph:expr, $tile:expr, TileDefEdited) => {{
+    ($layers:expr, $graph:expr, $tile:expr,TileDefEdited) => {{
         if !$tile.is(TileKind::Unit) {
-            let cells      = $tile.cell_range();
+            let cells = $tile.cell_range();
             let layer_kind = $tile.layer_kind();
-            let tile_kind  = $tile.kind();
-            let path_kind  = $tile.path_kind();
+            let tile_kind = $tile.kind();
+            let path_kind = $tile.path_kind();
             $graph.update($layers, GraphUpdateAction::TileDefEdited(cells, layer_kind, tile_kind, path_kind));
         }
     }};
-    ($layers:expr, $graph:expr, $tile:expr, TileMoved($from_cells:expr)) => {{
+    ($layers:expr, $graph:expr, $tile:expr,TileMoved($from_cells:expr)) => {{
         if !$tile.is(TileKind::Unit) {
-            let to_cells   = $tile.cell_range();
+            let to_cells = $tile.cell_range();
             let layer_kind = $tile.layer_kind();
-            let tile_kind  = $tile.kind();
-            let path_kind  = $tile.path_kind();
+            let tile_kind = $tile.kind();
+            let path_kind = $tile.path_kind();
             $graph.update($layers, GraphUpdateAction::TileMoved($from_cells, to_cells, layer_kind, tile_kind, path_kind));
         }
     }};
-    ($layers:expr, $graph:expr, $tile:expr, $new_flags:expr, TileFlagsChanged) => {{
+    ($layers:expr, $graph:expr, $tile:expr, $new_flags:expr,TileFlagsChanged) => {{
         if !$tile.is(TileKind::Unit) && Graph::tile_flags_affect_node_kind($new_flags) {
-            let cells     = $tile.cell_range();
+            let cells = $tile.cell_range();
             let path_kind = $tile.path_kind();
             $graph.update($layers, GraphUpdateAction::TileFlagsChanged(cells, $new_flags, path_kind));
         }
@@ -2726,8 +2726,8 @@ impl TileMap {
         let Self { layers, minimap, graph, .. } = self;
         let layer = &mut *layers[layer_kind as usize];
 
-        placement::internal::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
-            .map(|(tile, new_pool_capacity)| {
+        placement::internal::try_place_tile_in_layer(layer, target_cell, tile_def_to_place).map(
+            |(tile, new_pool_capacity)| {
                 if let Some(callback) = tile_placed_callback {
                     let did_reallocate = new_pool_capacity != prev_pool_capacity;
                     callback(tile, did_reallocate);
@@ -2737,7 +2737,8 @@ impl TileMap {
                 update_search_graph!(layer_refs, graph, tile, TilePlaced);
 
                 tile
-            })
+            },
+        )
     }
 
     pub fn try_clear_tile_from_layer(
@@ -2760,14 +2761,13 @@ impl TileMap {
         let layers = self.layers();
         let base_cell = self.try_tile_from_layer(target_cell, layer_kind).map_or(target_cell, |tile| tile.base_cell());
 
-        let result =
-            placement::internal::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
+        let result = placement::internal::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
 
         if let Ok(tile_def) = result {
             self.minimap.clear_tile(base_cell, tile_def);
 
             let tile_cells = tile_def.cell_range(target_cell);
-            let tile_kind  = tile_def.kind();
+            let tile_kind = tile_def.kind();
 
             update_search_graph!(layers, self.graph, tile_cells, layer_kind, tile_kind, TileCleared);
         }
@@ -2805,7 +2805,7 @@ impl TileMap {
             self.minimap.clear_tile(base_cell, tile_def);
 
             let tile_cells = tile_def.cell_range(target_cell);
-            let tile_kind  = tile_def.kind();
+            let tile_kind = tile_def.kind();
 
             update_search_graph!(layers, self.graph, tile_cells, layer_kind, tile_kind, TileCleared);
         }

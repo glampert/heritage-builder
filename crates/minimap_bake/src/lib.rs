@@ -88,11 +88,11 @@ pub struct BakeStyle {
     pub max_depth_cells: i32, // Water this far from land, or farther, is deepest.
     pub foam_width: f32,      // Of the band around the shoreline, in mask units (0.5 is the shore).
     pub foam_strength: f32,
-    pub hill_shade: [f32; 2],    // Clamp range of the shading factor.
-    pub hill_strength: f32,      // Shading per unit of elevation slope.
-    pub elevation_cells: f32,    // Size of the elevation noise's features, in cells.
-    pub forest_texture: f32,     // How much the foliage noise varies forests (0..1).
-    pub land_texture: f32,       // How much it varies open land (0..1).
+    pub hill_shade: [f32; 2], // Clamp range of the shading factor.
+    pub hill_strength: f32,   // Shading per unit of elevation slope.
+    pub elevation_cells: f32, // Size of the elevation noise's features, in cells.
+    pub forest_texture: f32,  // How much the foliage noise varies forests (0..1).
+    pub land_texture: f32,    // How much it varies open land (0..1).
 }
 
 impl Default for BakeStyle {
@@ -230,11 +230,11 @@ pub struct Scratch {
     depth: Vec<i32>,              // Chamfer distance from land, per cell of the depth window.
     kernels: Vec<Kernel>,
     kernels_key: Option<(u32, [u32; MASK_COUNT])>,
-    lines: [Vec<f32>; MASK_COUNT],  // The masks along one pixel row.
-    depth_line: Vec<f32>,           // Depth along one pixel row, per cell column.
-    elevation_line: Vec<[f32; 3]>,  // Elevation along one pixel row, per cell column.
-    elevation: Vec<[f32; 3]>, // Value and gradient at each cell corner of the region, grown by one.
-    foliage: Vec<f32>,        // One tile of the foliage noise, FOLIAGE_PERIOD cells square, per pixel.
+    lines: [Vec<f32>; MASK_COUNT], // The masks along one pixel row.
+    depth_line: Vec<f32>,          // Depth along one pixel row, per cell column.
+    elevation_line: Vec<[f32; 3]>, // Elevation along one pixel row, per cell column.
+    elevation: Vec<[f32; 3]>,      // Value and gradient at each cell corner of the region, grown by one.
+    foliage: Vec<f32>,             // One tile of the foliage noise, FOLIAGE_PERIOD cells square, per pixel.
     foliage_key: Option<(u32, u32)>,
 }
 
@@ -374,7 +374,15 @@ pub fn bake_all(grid: &Grid, style: &BakeStyle, px: u32, scratch: &mut Scratch, 
     bake_region(grid, style, CellRect::map(grid.width, grid.height), px, scratch, out);
 }
 
-fn shade_pixel(style: &BakeStyle, masks: &[f32; MASK_COUNT], depth: f32, elevation: f32, gradient: [f32; 2], light: [f32; 2], foliage: f32) -> Rgb {
+fn shade_pixel(
+    style: &BakeStyle,
+    masks: &[f32; MASK_COUNT],
+    depth: f32,
+    elevation: f32,
+    gradient: [f32; 2],
+    light: [f32; 2],
+    foliage: f32,
+) -> Rgb {
     let water = masks[WATER].clamp(0.0, 1.0);
 
     // Land: low to high ground, forests and rocks, then the hill shading.
@@ -611,7 +619,8 @@ fn elevation_pass(style: &BakeStyle, region: CellRect, seed: u32, scratch: &mut 
     scratch.elevation.reserve((width * height) as usize);
     for y in 0..height {
         for x in 0..width {
-            let (value, gradient) = elevation((region.x0 - 1 + x) as f32, (region.y0 - 1 + y) as f32, style.elevation_cells, seed);
+            let (value, gradient) =
+                elevation((region.x0 - 1 + x) as f32, (region.y0 - 1 + y) as f32, style.elevation_cells, seed);
             scratch.elevation.push([value, gradient[0], gradient[1]]);
         }
     }
@@ -734,7 +743,9 @@ fn erf(x: f32) -> f32 {
     let x = x.abs() as f64;
     let t = 1.0 / (1.0 + 0.327_591_1 * x);
     let y = 1.0
-        - (((((1.061_405_429 * t - 1.453_152_027) * t) + 1.421_413_741) * t - 0.284_496_736) * t + 0.254_829_592) * t * (-x * x).exp();
+        - (((((1.061_405_429 * t - 1.453_152_027) * t) + 1.421_413_741) * t - 0.284_496_736) * t + 0.254_829_592)
+            * t
+            * (-x * x).exp();
     sign * y as f32
 }
 
@@ -838,9 +849,8 @@ mod tests {
         let out = map.bake(px);
         let tex_width = 16 * px as usize;
         let row = 8 * px as usize;
-        let brightest = (5 * px as usize..11 * px as usize).max_by(|a, b| {
-            luma(pixel(&out, tex_width, *a, row)).total_cmp(&luma(pixel(&out, tex_width, *b, row)))
-        });
+        let brightest = (5 * px as usize..11 * px as usize)
+            .max_by(|a, b| luma(pixel(&out, tex_width, *a, row)).total_cmp(&luma(pixel(&out, tex_width, *b, row))));
         let shore = 8 * px as usize;
         let brightest = brightest.unwrap();
         assert!(brightest.abs_diff(shore) <= 2, "foam peak at pixel {brightest}, shore at {shore}");
@@ -923,8 +933,11 @@ mod timing {
             for i in 0..count {
                 let (x, y) = ((i as i32) % side, (i as i32) / side);
                 let river = ((x as f32 * 0.08).sin() * 10.0 + side as f32 * 0.4 - y as f32).abs() < 6.0;
-                if river || (x - 20).pow(2) + (y - 30).pow(2) < 100 { terrain[i] = Terrain::Water; }
-                else if ((x / 9 + y / 7) % 5 == 0) && (x * 31 + y * 17) % 3 != 0 { cover[i] = Cover::Vegetation; }
+                if river || (x - 20).pow(2) + (y - 30).pow(2) < 100 {
+                    terrain[i] = Terrain::Water;
+                } else if ((x / 9 + y / 7) % 5 == 0) && (x * 31 + y * 17) % 3 != 0 {
+                    cover[i] = Cover::Vegetation;
+                }
             }
             let grid = Grid { width: side, height: side, terrain: &terrain, cover: &cover };
             let px = px_per_cell(side, side, max_side);
@@ -934,7 +947,14 @@ mod timing {
             bake_all(&grid, &BakeStyle::default(), px, &mut scratch, &mut out);
             let full = start.elapsed();
             let start = std::time::Instant::now();
-            bake_region(&grid, &BakeStyle::default(), CellRect::cell(60, 60).grown(margin_cells(&BakeStyle::default())), px, &mut scratch, &mut out);
+            bake_region(
+                &grid,
+                &BakeStyle::default(),
+                CellRect::cell(60, 60).grown(margin_cells(&BakeStyle::default())),
+                px,
+                &mut scratch,
+                &mut out,
+            );
             println!("{side}x{side} at {px} px/cell: full {full:?}, one edit {:?}", start.elapsed());
         }
     }

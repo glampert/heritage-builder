@@ -87,9 +87,14 @@ fn list_preloaded_entries<'a>(
 
         match relative.split_once('/') {
             None if flags.intersects(CollectFlags::Files) => {
-                let matches = extension.is_none_or(|extension| Path::new(relative).extension().is_some_and(|ext| ext == extension));
+                let matches =
+                    extension.is_none_or(|extension| Path::new(relative).extension().is_some_and(|ext| ext == extension));
                 if matches {
-                    files.push(if flags.intersects(CollectFlags::FilenamesOnly) { PathBuf::from(relative) } else { PathBuf::from(path) });
+                    files.push(if flags.intersects(CollectFlags::FilenamesOnly) {
+                        PathBuf::from(relative)
+                    } else {
+                        PathBuf::from(path)
+                    });
                 }
             }
             Some((sub_dir, _)) if flags.intersects(CollectFlags::SubDirs) => {
@@ -214,21 +219,28 @@ mod tests {
 
     #[test]
     fn preloaded_files_by_extension() {
-        assert_eq!(
-            list("assets/configs/ui/text", CollectFlags::Files, Some("json")).unwrap(),
-            ["assets/configs/ui/text/en.json", "assets/configs/ui/text/vi.json"],
-        );
-        assert_eq!(list("assets/configs/ui/text/", CollectFlags::Files | CollectFlags::FilenamesOnly, None).unwrap(), ["README.md", "en.json", "vi.json"]);
+        assert_eq!(list("assets/configs/ui/text", CollectFlags::Files, Some("json")).unwrap(), [
+            "assets/configs/ui/text/en.json",
+            "assets/configs/ui/text/vi.json"
+        ],);
+        assert_eq!(list("assets/configs/ui/text/", CollectFlags::Files | CollectFlags::FilenamesOnly, None).unwrap(), [
+            "README.md",
+            "en.json",
+            "vi.json"
+        ]);
     }
 
     #[test]
     fn preloaded_sub_dirs_once_each_after_the_files() {
-        assert_eq!(
-            list("assets/configs/ui", CollectFlags::Files | CollectFlags::SubDirs, None).unwrap(),
-            ["assets/configs/ui/textures.json", "assets/configs/ui/skins", "assets/configs/ui/text"],
-        );
+        assert_eq!(list("assets/configs/ui", CollectFlags::Files | CollectFlags::SubDirs, None).unwrap(), [
+            "assets/configs/ui/textures.json",
+            "assets/configs/ui/skins",
+            "assets/configs/ui/text"
+        ],);
         assert_eq!(list("assets/configs", CollectFlags::SubDirs, None).unwrap(), ["assets/configs/ui"]);
-        assert_eq!(list("assets/configs/ui/skins", CollectFlags::Files, None).unwrap(), ["assets/configs/ui/skins/dailong.json"]);
+        assert_eq!(list("assets/configs/ui/skins", CollectFlags::Files, None).unwrap(), [
+            "assets/configs/ui/skins/dailong.json"
+        ]);
     }
 
     #[test]
@@ -237,6 +249,10 @@ mod tests {
         let err = list("assets/sounds", CollectFlags::Files | CollectFlags::ErrorIfPathDoesNotExist, None).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
         // A directory with files, none matching, exists.
-        assert!(list("assets/configs/ui/text", CollectFlags::Files | CollectFlags::ErrorIfPathDoesNotExist, Some("png")).unwrap().is_empty());
+        assert!(
+            list("assets/configs/ui/text", CollectFlags::Files | CollectFlags::ErrorIfPathDoesNotExist, Some("png"))
+                .unwrap()
+                .is_empty()
+        );
     }
 }

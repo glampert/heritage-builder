@@ -12,7 +12,7 @@ use crate::{
 // ----------------------------------------------
 
 pub enum Placement {}
-pub enum Clearing  {}
+pub enum Clearing {}
 
 pub trait TileErrorDomain {
     type Err;
@@ -242,13 +242,14 @@ pub mod internal {
             if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell)
                 && tile.path_kind().intersects(
                     PathNodeKind::Road | PathNodeKind::Water | PathNodeKind::Building | PathNodeKind::SettlersSpawnPoint,
-                ) {
-                    return err!(
-                        Placement::Obstruction(tile.tile_def()),
-                        "Cannot place vacant lot over terrain tile '{}'.",
-                        tile.name()
-                    );
-                }
+                )
+            {
+                return err!(
+                    Placement::Obstruction(tile.tile_def()),
+                    "Cannot place vacant lot over terrain tile '{}'.",
+                    tile.name()
+                );
+            }
 
             // Objects layer mut be empty.
             if let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile(target_cell) {

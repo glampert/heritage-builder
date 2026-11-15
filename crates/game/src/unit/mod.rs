@@ -1,24 +1,24 @@
+use anim::*;
 use common::{
     self,
     Color,
-    hash,
     coords::{Cell, CellRange, IsoPointF32, WorldToScreenTransform},
+    hash,
 };
-use engine::{log, ui::UiSystem};
-use serde::{Deserialize, Serialize};
-
-use anim::*;
 use config::*;
+use engine::{log, ui::UiSystem};
 use navigation::*;
 use patrol::*;
+use serde::{Deserialize, Serialize};
 use task::*;
 
 use super::{
     building::{Building, BuildingKind},
     sim::{
-        SimCmds,
         SimCmdQueue,
-        SimContext, SimContextMut,
+        SimCmds,
+        SimContext,
+        SimContextMut,
         commands::{SpawnPromise, SpawnQueryResult, SpawnReadyResult},
         resources::{ResourceKind, StockItem},
     },
@@ -28,12 +28,12 @@ use super::{
     },
 };
 use crate::{
-    save_context::PostLoadContext,
-    pathfind::{NodeKind as PathNodeKind, Path},
     debug::{
         DebugUiMode,
         game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
     },
+    pathfind::{NodeKind as PathNodeKind, Path},
+    save_context::PostLoadContext,
     tile::{
         self,
         Tile,
@@ -264,7 +264,8 @@ impl Unit {
             return true;
         }
 
-        if tile_map.try_move_tile_with_stacking(self.tile_index, self.map_cell, destination_cell, TileMapLayerKind::Objects) {
+        if tile_map.try_move_tile_with_stacking(self.tile_index, self.map_cell, destination_cell, TileMapLayerKind::Objects)
+        {
             let tile = tile_map.tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
             debug_assert!(tile.is(TileKind::Unit));
 
@@ -554,8 +555,7 @@ impl Unit {
         unit_config: UnitConfigKey,
         task: Task,
         on_spawned: F,
-    )
-    where
+    ) where
         Task: UnitTask,
         UnitTaskArchetype: From<Task>,
         F: Fn(&SimContextMut, Result<&mut Unit, TilePlacementErr>) + 'static,
@@ -683,7 +683,7 @@ impl Unit {
 #[derive(Clone, Debug, Default)]
 pub enum UnitSpawnState {
     #[default]
-    Unset,                       // Invalid UnitId
+    Unset, // Invalid UnitId
     Failed,                      // Invalid UnitId
     Pending(SpawnPromise<Unit>), // Invalid UnitId
     Spawned(UnitId),             // Valid UnitId
@@ -759,20 +759,24 @@ pub trait UnitTaskHelper: Sized {
         unit_origin: Cell,
         unit_config: UnitConfigKey,
         task: Task,
-    )
-    where
+    ) where
         Task: UnitTask,
         UnitTaskArchetype: From<Task>,
     {
         debug_assert!(!self.is_spawned_or_pending_spawn(), "Unit already spawned! reset() first.");
 
         let promise = Unit::try_spawn_with_task_deferred_promise(
-            cmds, context, unit_origin, unit_config, task,
+            cmds,
+            context,
+            unit_origin,
+            unit_config,
+            task,
             move |_context, result| {
                 if let Err(err) = result {
                     log::error!(log::channel!("unit"), "{}: {}", spawner_name, err.message);
                 }
-            });
+            },
+        );
 
         self.set_spawn_state(UnitSpawnState::Pending(promise));
     }
@@ -800,9 +804,7 @@ pub trait UnitTaskHelper: Sized {
         } else {
             debug_assert!(matches!(
                 self.spawn_state(),
-                UnitSpawnState::Spawned(_) |
-                UnitSpawnState::Failed |
-                UnitSpawnState::Unset
+                UnitSpawnState::Spawned(_) | UnitSpawnState::Failed | UnitSpawnState::Unset
             ));
         }
     }
@@ -818,9 +820,7 @@ pub trait UnitTaskHelper: Sized {
         // Check post save invariants.
         debug_assert!(matches!(
             self.spawn_state(),
-            UnitSpawnState::Spawned(_) |
-            UnitSpawnState::Failed |
-            UnitSpawnState::Unset
+            UnitSpawnState::Spawned(_) | UnitSpawnState::Failed | UnitSpawnState::Unset
         ));
         debug_assert!(self.get_pending_promise().is_none());
     }
@@ -830,9 +830,7 @@ pub trait UnitTaskHelper: Sized {
         // Check post load invariants.
         debug_assert!(matches!(
             self.spawn_state(),
-            UnitSpawnState::Spawned(_) |
-            UnitSpawnState::Failed |
-            UnitSpawnState::Unset
+            UnitSpawnState::Spawned(_) | UnitSpawnState::Failed | UnitSpawnState::Unset
         ));
         debug_assert!(self.get_pending_promise().is_none());
     }
@@ -863,11 +861,7 @@ impl UnitTaskHelper for SpawnedUnitWithTask {
 
     #[inline]
     fn get_pending_promise(&mut self) -> Option<SpawnPromise<Unit>> {
-        if let UnitSpawnState::Pending(promise) = &mut self.spawn_state {
-            Some(std::mem::take(promise))
-        } else {
-            None
-        }
+        if let UnitSpawnState::Pending(promise) = &mut self.spawn_state { Some(std::mem::take(promise)) } else { None }
     }
 
     #[inline]
@@ -882,21 +876,14 @@ impl UnitTaskHelper for SpawnedUnitWithTask {
 
     #[inline]
     fn unit_id(&self) -> UnitId {
-        if let UnitSpawnState::Spawned(unit_id) = self.spawn_state {
-            unit_id
-        } else {
-            UnitId::invalid()
-        }
+        if let UnitSpawnState::Spawned(unit_id) = self.spawn_state { unit_id } else { UnitId::invalid() }
     }
 }
 
 #[cfg(debug_assertions)]
 impl Drop for SpawnedUnitWithTask {
     fn drop(&mut self) {
-        debug_assert!(
-            !self.is_pending_spawn(),
-            "SpawnedUnitWithTask dropped while holding a pending SpawnPromise!",
-        );
+        debug_assert!(!self.is_pending_spawn(), "SpawnedUnitWithTask dropped while holding a pending SpawnPromise!",);
     }
 }
 
@@ -913,10 +900,7 @@ impl Serialize for SpawnedUnitWithTask {
         S: serde::Serializer,
     {
         // Ensure spawn promise is resolved by now.
-        debug_assert!(
-            !self.is_pending_spawn(),
-            "SpawnedUnitWithTask should have completed spawning before serialization!",
-        );
+        debug_assert!(!self.is_pending_spawn(), "SpawnedUnitWithTask should have completed spawning before serialization!",);
 
         // Serialize unit id only.
         let unit_id = self.unit_id();

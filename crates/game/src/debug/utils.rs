@@ -2,8 +2,8 @@ use common::{
     Color,
     Rect,
     Vec2,
-    format_small,
     coords::{self, CellRange, WorldToScreenTransform},
+    format_small,
 };
 use engine::{
     render::{RenderStats, debug::DebugDraw},
@@ -12,7 +12,6 @@ use engine::{
 
 use crate::{
     GameLoopStats,
-    world::World,
     tile::{
         Tile,
         TileDepthSortOverride,
@@ -23,6 +22,7 @@ use crate::{
         road,
         water,
     },
+    world::World,
 };
 
 // ----------------------------------------------
@@ -38,13 +38,13 @@ pub fn draw_tile_debug(
     flags: TileMapRenderFlags,
 ) {
     let draw_debug_info = {
-        tile.has_flags(TileFlags::DrawDebugInfo | TileFlags::DrawBlockerInfo) ||
-        (tile.is(TileKind::Terrain)    && flags.contains(TileMapRenderFlags::DrawTerrainTileDebug))   ||
-        (tile.is(TileKind::Blocker)    && flags.contains(TileMapRenderFlags::DrawBlockersTileDebug))  ||
-        (tile.is(TileKind::Building)   && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebug)) ||
-        (tile.is(TileKind::Unit)       && flags.contains(TileMapRenderFlags::DrawUnitsTileDebug))     ||
-        (tile.is(TileKind::Rocks)      && flags.contains(TileMapRenderFlags::DrawPropsTileDebug))     ||
-        (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetationTileDebug))
+        tile.has_flags(TileFlags::DrawDebugInfo | TileFlags::DrawBlockerInfo)
+            || (tile.is(TileKind::Terrain) && flags.contains(TileMapRenderFlags::DrawTerrainTileDebug))
+            || (tile.is(TileKind::Blocker) && flags.contains(TileMapRenderFlags::DrawBlockersTileDebug))
+            || (tile.is(TileKind::Building) && flags.contains(TileMapRenderFlags::DrawBuildingsTileDebug))
+            || (tile.is(TileKind::Unit) && flags.contains(TileMapRenderFlags::DrawUnitsTileDebug))
+            || (tile.is(TileKind::Rocks) && flags.contains(TileMapRenderFlags::DrawPropsTileDebug))
+            || (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetationTileDebug))
     };
 
     let draw_debug_bounds =
@@ -70,18 +70,22 @@ pub fn draw_cursor_overlay(
     cursor_screen_pos: Vec2,
     opt_text: Option<&str>,
 ) {
-    ui::overlay(ui_sys, ui::UiOverlay::new("Cursor Debug", cursor_screen_pos + Vec2::new(10.0, 10.0)).bg_alpha(0.6), |ui_sys| {
-        if let Some(text) = opt_text {
-            ui::text(ui_sys, text);
-        } else {
-            let cursor_iso_pos = coords::screen_to_iso_point(cursor_screen_pos, transform);
-            let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos);
+    ui::overlay(
+        ui_sys,
+        ui::UiOverlay::new("Cursor Debug", cursor_screen_pos + Vec2::new(10.0, 10.0)).bg_alpha(0.6),
+        |ui_sys| {
+            if let Some(text) = opt_text {
+                ui::text(ui_sys, text);
+            } else {
+                let cursor_iso_pos = coords::screen_to_iso_point(cursor_screen_pos, transform);
+                let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos);
 
-            ui::text(ui_sys, format_small!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
-            ui::text(ui_sys, format_small!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
-            ui::text(ui_sys, format_small!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
-        }
-    });
+                ui::text(ui_sys, format_small!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
+                ui::text(ui_sys, format_small!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
+                ui::text(ui_sys, format_small!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
+            }
+        },
+    );
 }
 
 pub fn draw_screen_origin_marker(debug_draw: &mut DebugDraw) {
@@ -107,44 +111,96 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem, render_sys_stats: &RenderStats,
     let position = Vec2::new(5.0, ui::screen_size(ui_sys).y - 250.0);
 
     ui::overlay(ui_sys, ui::UiOverlay::new("Render Stats", position).bg_alpha(0.8), |ui_sys| {
-        ui::text_colored(ui_sys, Color::yellow(), format_small!("Render submit     : {:.2}ms",
-                          render_sys_stats.render_submit_time_ms));
+        ui::text_colored(
+            ui_sys,
+            Color::yellow(),
+            format_small!("Render submit     : {:.2}ms", render_sys_stats.render_submit_time_ms),
+        );
 
-        ui::text_colored(ui_sys, Color::yellow(), format_small!("Tiles drawn       : {} | Peak: {}",
-                          tile_render_stats.tiles_drawn,
-                          tile_render_stats.peak_tiles_drawn));
+        ui::text_colored(
+            ui_sys,
+            Color::yellow(),
+            format_small!(
+                "Tiles drawn       : {} | Peak: {}",
+                tile_render_stats.tiles_drawn,
+                tile_render_stats.peak_tiles_drawn
+            ),
+        );
 
-        ui::text_colored(ui_sys, Color::yellow(), format_small!("Triangles drawn   : {} | Peak: {}",
-                          render_sys_stats.triangles_drawn,
-                          render_sys_stats.peak_triangles_drawn));
+        ui::text_colored(
+            ui_sys,
+            Color::yellow(),
+            format_small!(
+                "Triangles drawn   : {} | Peak: {}",
+                render_sys_stats.triangles_drawn,
+                render_sys_stats.peak_triangles_drawn
+            ),
+        );
 
-        ui::text_colored(ui_sys, Color::yellow(), format_small!("Texture changes   : {} | Peak: {}",
-                          render_sys_stats.texture_changes,
-                          render_sys_stats.peak_texture_changes));
+        ui::text_colored(
+            ui_sys,
+            Color::yellow(),
+            format_small!(
+                "Texture changes   : {} | Peak: {}",
+                render_sys_stats.texture_changes,
+                render_sys_stats.peak_texture_changes
+            ),
+        );
 
-        ui::text_colored(ui_sys, Color::yellow(), format_small!("Draw calls        : {} | Peak: {}",
-                          render_sys_stats.draw_calls,
-                          render_sys_stats.peak_draw_calls));
+        ui::text_colored(
+            ui_sys,
+            Color::yellow(),
+            format_small!(
+                "Draw calls        : {} | Peak: {}",
+                render_sys_stats.draw_calls,
+                render_sys_stats.peak_draw_calls
+            ),
+        );
 
-        ui::text(ui_sys, format_small!("Tile sort list    : {} | Peak: {}",
-                              tile_render_stats.tile_sort_list_len,
-                              tile_render_stats.peak_tile_sort_list_len));
+        ui::text(
+            ui_sys,
+            format_small!(
+                "Tile sort list    : {} | Peak: {}",
+                tile_render_stats.tile_sort_list_len,
+                tile_render_stats.peak_tile_sort_list_len
+            ),
+        );
 
-        ui::text(ui_sys, format_small!("Tiles highlighted : {} | Peak: {}",
-                              tile_render_stats.tiles_drawn_highlighted,
-                              tile_render_stats.peak_tiles_drawn_highlighted));
+        ui::text(
+            ui_sys,
+            format_small!(
+                "Tiles highlighted : {} | Peak: {}",
+                tile_render_stats.tiles_drawn_highlighted,
+                tile_render_stats.peak_tiles_drawn_highlighted
+            ),
+        );
 
-        ui::text(ui_sys, format_small!("Tiles invalidated : {} | Peak: {}",
-                              tile_render_stats.tiles_drawn_invalidated,
-                              tile_render_stats.peak_tiles_drawn_invalidated));
+        ui::text(
+            ui_sys,
+            format_small!(
+                "Tiles invalidated : {} | Peak: {}",
+                tile_render_stats.tiles_drawn_invalidated,
+                tile_render_stats.peak_tiles_drawn_invalidated
+            ),
+        );
 
-        ui::text(ui_sys, format_small!("Lines drawn       : {} | Peak: {}",
-                              render_sys_stats.lines_drawn,
-                              render_sys_stats.peak_lines_drawn));
+        ui::text(
+            ui_sys,
+            format_small!(
+                "Lines drawn       : {} | Peak: {}",
+                render_sys_stats.lines_drawn,
+                render_sys_stats.peak_lines_drawn
+            ),
+        );
 
-        ui::text(ui_sys, format_small!("Points drawn      : {} | Peak: {}",
-                              render_sys_stats.points_drawn,
-                              render_sys_stats.peak_points_drawn));
+        ui::text(
+            ui_sys,
+            format_small!(
+                "Points drawn      : {} | Peak: {}",
+                render_sys_stats.points_drawn,
+                render_sys_stats.peak_points_drawn
+            ),
+        );
     });
 }
 
@@ -187,9 +243,23 @@ pub fn draw_world_perf_stats(
         ui::text(ui_sys, format_small!("- Anim       : {:.2}ms", game_stats.anim_frame_time_ms));
         ui::text(ui_sys, format_small!("- Sound      : {:.2}ms", game_stats.sound_frame_time_ms));
         ui::text(ui_sys, format_small!("- Draw World : {:.2}ms", game_stats.draw_world_frame_time_ms));
-        ui::text(ui_sys, format_small!("- Ui B/E     : {:.2}ms/{:.2}ms", game_stats.ui_begin_frame_time_ms, game_stats.ui_end_frame_time_ms));
+        ui::text(
+            ui_sys,
+            format_small!(
+                "- Ui B/E     : {:.2}ms/{:.2}ms",
+                game_stats.ui_begin_frame_time_ms,
+                game_stats.ui_end_frame_time_ms
+            ),
+        );
         ui::text(ui_sys, format_small!("- Ui Render  : {:.2}ms", game_stats.ui_render_frame_time_ms));
-        ui::text(ui_sys, format_small!("- Engine B/E : {:.2}ms/{:.2}ms", game_stats.engine_begin_frame_time_ms, game_stats.engine_end_frame_time_ms));
+        ui::text(
+            ui_sys,
+            format_small!(
+                "- Engine B/E : {:.2}ms/{:.2}ms",
+                game_stats.engine_begin_frame_time_ms,
+                game_stats.engine_end_frame_time_ms
+            ),
+        );
         ui::text(ui_sys, format_small!("- Present    : {:.2}ms", game_stats.present_frame_time_ms));
     });
 }
@@ -317,9 +387,9 @@ fn draw_tile_bounds(
 
 // Refresh state cached from TileDef during placement and road junction variations.
 pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
-    let mut road_cells  = Vec::new();
+    let mut road_cells = Vec::new();
     let mut water_cells = Vec::new();
-    let mut port_cells  = Vec::new();
+    let mut port_cells = Vec::new();
 
     tile_map.for_each_tile_mut(TileKind::Terrain, |tile_map, tile| {
         tile_map.on_tile_def_edited(tile);

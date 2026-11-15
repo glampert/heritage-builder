@@ -25,12 +25,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use common::Size;
-use engine::{
-    file_sys::paths::PathRef,
-    log,
-    render::texture::TextureHandle,
-    save::storage,
-};
+use engine::{file_sys::paths::PathRef, log, render::texture::TextureHandle, save::storage};
 
 use super::*;
 use crate::{
@@ -47,16 +42,16 @@ use crate::{
 // Layout (points on a 1920 × 1080 window, scaled by the dialog's scale: skin::dialog_scale)
 // ----------------------------------------------
 
-const PREVIEW_WIDTH: f32 = 440.0;     // The preview column's.
+const PREVIEW_WIDTH: f32 = 440.0; // The preview column's.
 const COLUMN_SPACING: f32 = 56.0;
-const PART_SPACING: f32 = 12.0;       // Between the parts of a column, and the columns and buttons.
+const PART_SPACING: f32 = 12.0; // Between the parts of a column, and the columns and buttons.
 const ROW_ICON_SIZE: f32 = 52.0;
 const ROW_PADDING: [f32; 2] = [14.0, 9.0];
 const ROW_SPACING: f32 = 4.0;
-const RIGHT_COLUMN: f32 = 0.6;        // Where a row's time and date start, in its text's width.
+const RIGHT_COLUMN: f32 = 0.6; // Where a row's time and date start, in its text's width.
 const LIST_SCROLL_BAR_WIDTH: f32 = 12.0; // About what the list's scroll bar takes from its rows.
-const LIST_MIN_HEIGHT: f32 = 100.0;   // At least this tall, whatever the window.
-const COLUMNS_SLACK: f32 = 24.0;      // Room left under the columns for what measuring misses.
+const LIST_MIN_HEIGHT: f32 = 100.0; // At least this tall, whatever the window.
+const COLUMNS_SLACK: f32 = 24.0; // Room left under the columns for what measuring misses.
 const DELETE_WIDTH: f32 = 200.0;
 const CANCEL_WIDTH: f32 = 180.0;
 const SAVE_WIDTH: f32 = 180.0;
@@ -125,12 +120,12 @@ struct Preview {
 struct LoadSaveState {
     mode: LoadSaveMode,
     saves: Vec<SaveEntry>,
-    field: String,           // The "Save as" field's text.
-    built: (u32, u32),       // build_key() when the dialog was built.
+    field: String,     // The "Save as" field's text.
+    built: (u32, u32), // build_key() when the dialog was built.
     preview: Option<Preview>,
     preview_revision: u32,       // save_header::revision() its thumbnail was read at.
     retired: Vec<TextureHandle>, // Thumbnails replaced, released before the next frame draws.
-    synced: bool,            // The list's selection, the preview and the buttons follow `field`.
+    synced: bool,                // The list's selection, the preview and the buttons follow `field`.
 }
 
 impl LoadSaveState {
@@ -239,11 +234,10 @@ pub(crate) fn group_digits(value: i64) -> String {
 fn time_played_text(secs: f64) -> String {
     let minutes = (secs.max(0.0) / 60.0).floor() as u64;
     let (hours, minutes) = (minutes / 60, minutes % 60);
-    ui::text::format(
-        UiTextCategory::Menu,
-        "load_save.time_played",
-        &[("hours", &hours.to_string()), ("minutes", &format!("{minutes:02}"))],
-    )
+    ui::text::format(UiTextCategory::Menu, "load_save.time_played", &[
+        ("hours", &hours.to_string()),
+        ("minutes", &format!("{minutes:02}")),
+    ])
 }
 
 // When a save was made, as the list shows it: "Today, 21:14", "Yesterday, 23:40" or "4 Nov 2026",
@@ -260,11 +254,11 @@ fn saved_text(saved_at: &str, today: Option<(i32, u32, u32)>) -> Option<String> 
         }
     }
     let month = month_name(month);
-    Some(ui::text::format(
-        UiTextCategory::Menu,
-        "load_save.saved.date",
-        &[("day", &day.to_string()), ("month", month), ("year", &year.to_string())],
-    ))
+    Some(ui::text::format(UiTextCategory::Menu, "load_save.saved.date", &[
+        ("day", &day.to_string()),
+        ("month", month),
+        ("year", &year.to_string()),
+    ]))
 }
 
 fn month_name(month: u32) -> &'static str {
@@ -330,11 +324,11 @@ fn place_text(entry: &SaveEntry) -> String {
     }
     let city = summary.header.city_name.clone();
     match mission_of(entry) {
-        Some((campaign, mission, mission_name)) => ui::text::format(
-            UiTextCategory::Menu,
-            "load_save.campaign_place",
-            &[("campaign", &campaign), ("mission", &mission.to_string()), ("place", &city.unwrap_or(mission_name))],
-        ),
+        Some((campaign, mission, mission_name)) => ui::text::format(UiTextCategory::Menu, "load_save.campaign_place", &[
+            ("campaign", &campaign),
+            ("mission", &mission.to_string()),
+            ("place", &city.unwrap_or(mission_name)),
+        ]),
         // A custom game: "Custom game · <city>", or its map's name until custom games name their
         // cities.
         None if summary.header.custom_game.is_some() => match city.or_else(|| custom_map_name(&summary.header)) {
@@ -373,14 +367,16 @@ fn details(entry: Option<&SaveEntry>) -> Vec<(UiString, UiString)> {
         None => none.clone(),
     };
     let campaign = match &mission {
-        Some((campaign, number, _)) => {
-            ui::text::format(UiTextCategory::Menu, "load_save.campaign", &[("campaign", campaign), ("mission", &number.to_string())])
-        }
+        Some((campaign, number, _)) => ui::text::format(UiTextCategory::Menu, "load_save.campaign", &[
+            ("campaign", campaign),
+            ("mission", &number.to_string()),
+        ]),
         // A custom game's map ("Delta Flood Plain", as the mockup shows it).
         None => header.and_then(custom_map_name).unwrap_or_else(|| none.clone()),
     };
     let date = header.and_then(|header| header.date_text.clone()).unwrap_or_else(|| none.clone());
-    let population = header.and_then(|header| header.population).map_or_else(|| none.clone(), |value| group_digits(i64::from(value)));
+    let population =
+        header.and_then(|header| header.population).map_or_else(|| none.clone(), |value| group_digits(i64::from(value)));
     let treasury = header.and_then(|header| header.treasury).map_or_else(|| none.clone(), group_digits);
     let played = header.and_then(|header| header.time_played_secs).map_or_else(|| none.clone(), time_played_text);
 
@@ -490,7 +486,8 @@ impl LoadOrSaveGame {
         let title_key = if loads_only { "load_save.title_load" } else { "load_save.title" };
         let title = skin::heading(context, [UiString::key(UiTextCategory::Menu, title_key)], HeadingLevel::Dialog);
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
-        let mut menu = skin::dialog(context, &Self::KIND.to_string(), flags).with_widget_spacing(Vec2::new(0.0, PART_SPACING * scale));
+        let mut menu =
+            skin::dialog(context, &Self::KIND.to_string(), flags).with_widget_spacing(Vec2::new(0.0, PART_SPACING * scale));
 
         let buttons_row = buttons(context, scale);
         let field = save_as_field(context, text_scale);
@@ -505,8 +502,10 @@ impl LoadOrSaveGame {
         // column, the list takes what its headers, the field and its label leave.
         let spacing = PART_SPACING * scale;
         let content = skin::dialog_content_size(&Self::KIND.to_string(), window);
-        let columns_height = content.y - title.measure(context).y - buttons_row.measure(context).y - spacing * 2.0 - COLUMNS_SLACK * scale;
-        let field_height = if loads_only { 0.0 } else { save_as.measure(context).y + field.measure(context).y + spacing * 2.0 };
+        let columns_height =
+            content.y - title.measure(context).y - buttons_row.measure(context).y - spacing * 2.0 - COLUMNS_SLACK * scale;
+        let field_height =
+            if loads_only { 0.0 } else { save_as.measure(context).y + field.measure(context).y + spacing * 2.0 };
         let list_height = columns_height - headers.measure(context).y - field_height - spacing;
         let list_height = list_height.floor().max(LIST_MIN_HEIGHT * scale);
 
@@ -527,7 +526,10 @@ impl LoadOrSaveGame {
         let aspect = if thumbnail.is_valid() { thumbnail.height as f32 / thumbnail.width as f32 } else { 9.0 / 16.0 };
         let mut right_group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, spacing * 1.5));
         let look = UiRowLook { padding: DETAILS_ROW_PADDING * scale, ..skin::row_look() };
-        let mut key_values = skin::key_values().with_label("details").with_look(look).with_font_scale(UiFontScale(text_scale * DETAILS_FONT_SCALE));
+        let mut key_values = skin::key_values()
+            .with_label("details")
+            .with_look(look)
+            .with_font_scale(UiFontScale(text_scale * DETAILS_FONT_SCALE));
         key_values.set_pairs(details(None));
         // The thumbnail as large as the column's width, or as the details leave under it.
         let details_height = key_values.measure(context).y;
@@ -551,7 +553,10 @@ impl LoadOrSaveGame {
             }
         });
 
-        Self { menu: menu.into_rc(), parts: Parts { columns, left, right, list, image, details, buttons, delete_column, actions_column } }
+        Self {
+            menu: menu.into_rc(),
+            parts: Parts { columns, left, right, list, image, details, buttons, delete_column, actions_column },
+        }
     }
 
     // Makes the list's selection, the preview and the buttons follow the field: the save it names.
@@ -617,7 +622,11 @@ fn enable_button(widget: &mut UiWidgetImpl, enabled: bool) {
 
 // The texture the preview shows for the save at `selected`: its thumbnail, loaded once per save
 // picked. The texture it replaces is released next frame.
-fn preview_for(context: &mut GameUiContext, state: &mut LoadSaveState, selected: Option<usize>) -> Option<(TextureHandle, Vec2)> {
+fn preview_for(
+    context: &mut GameUiContext,
+    state: &mut LoadSaveState,
+    selected: Option<usize>,
+) -> Option<(TextureHandle, Vec2)> {
     let save = selected.map(|index| state.saves[index].name.clone());
     let current = state.preview.as_ref().map(|preview| preview.save.clone());
     // A newer save or thumbnail under the same name is read again.
@@ -650,7 +659,12 @@ fn load_thumbnail(context: &mut GameUiContext, save: &str) -> Option<(TextureHan
     };
     let size = Size::new(image.width() as i32, image.height() as i32);
     let name = format!("save_thumbnail#{}", THUMBNAIL_COUNTER.fetch_add(1, Ordering::Relaxed));
-    let texture = context.render_sys().texture_cache_mut().new_initialized_texture(&name, size, image.as_raw(), Some(ui::texture_settings()));
+    let texture = context.render_sys().texture_cache_mut().new_initialized_texture(
+        &name,
+        size,
+        image.as_raw(),
+        Some(ui::texture_settings()),
+    );
     Some((texture, Vec2::new(size.width as f32, size.height as f32)))
 }
 
@@ -692,7 +706,8 @@ fn save_list(context: &mut GameUiContext, scale: f32, text_scale: f32, height: f
         .map(|entry| {
             let header = entry.header();
             let realm = header.and_then(|header| header.realm).unwrap_or(Realm::DaiLong);
-            let saved = header.and_then(|header| header.saved_at.as_deref()).and_then(|saved_at| saved_text(saved_at, today));
+            let saved =
+                header.and_then(|header| header.saved_at.as_deref()).and_then(|saved_at| saved_text(saved_at, today));
             let date = header.and_then(|header| header.date_text.clone());
             let mut row = UiListRow::new(entry.name.clone())
                 .with_subtitle(place_text(entry))
@@ -762,38 +777,59 @@ impl ButtonsRow {
 fn buttons(context: &mut GameUiContext, scale: f32) -> ButtonsRow {
     let height = by_window(BUTTON_HEIGHTS, scale).round();
     let mode = STATE.as_ref().mode;
-    let button = |context: &mut GameUiContext, role: ButtonRole, label: UiString, width: f32, on_pressed: fn(&mut GameUiContext)| {
-        make_text_button(context, role, label, move |_, context| {
-            on_pressed(context_as_mut::<GameUiContext>(context));
-        })
-        .with_width(UiTextButtonWidth::Fixed((width * scale).round()))
-        .with_min_height(height)
-    };
+    let button =
+        |context: &mut GameUiContext, role: ButtonRole, label: UiString, width: f32, on_pressed: fn(&mut GameUiContext)| {
+            make_text_button(context, role, label, move |_, context| {
+                on_pressed(context_as_mut::<GameUiContext>(context));
+            })
+            .with_width(UiTextButtonWidth::Fixed((width * scale).round()))
+            .with_min_height(height)
+        };
     let (save_role, load_role) = match mode {
         LoadSaveMode::Load => (ButtonRole::Secondary, ButtonRole::Primary),
         LoadSaveMode::Save => (ButtonRole::Primary, ButtonRole::Secondary),
     };
 
-    let delete = button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "load_save.delete"), DELETE_WIDTH, on_delete);
-    let cancel = button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), CANCEL_WIDTH, |context| {
-        super::close_current(context);
-    });
+    let delete = button(
+        context,
+        ButtonRole::Secondary,
+        UiString::key(UiTextCategory::Menu, "load_save.delete"),
+        DELETE_WIDTH,
+        on_delete,
+    );
+    let cancel = button(
+        context,
+        ButtonRole::Secondary,
+        UiString::key(UiTextCategory::Menu, "button.cancel"),
+        CANCEL_WIDTH,
+        |context| {
+            super::close_current(context);
+        },
+    );
     // Over the home menu, no Save: there's no game to save (the dialog only loads).
     let loads_only = super::in_home_menu();
     let load = button(context, load_role, UiString::key(UiTextCategory::Menu, "load_save.load"), LOAD_WIDTH, on_load);
 
     let spacing = (BUTTON_SPACING * scale).round();
-    let mut actions = UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::new(spacing, 0.0)).with_widget(cancel);
+    let mut actions =
+        UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::new(spacing, 0.0)).with_widget(cancel);
     let actions_width = if loads_only {
         ((CANCEL_WIDTH + LOAD_WIDTH) * scale).round() + spacing
     } else {
-        actions.add_widget(button(context, save_role, UiString::key(UiTextCategory::Menu, "load_save.save"), SAVE_WIDTH, on_save));
+        actions.add_widget(button(
+            context,
+            save_role,
+            UiString::key(UiTextCategory::Menu, "load_save.save"),
+            SAVE_WIDTH,
+            on_save,
+        ));
         ((CANCEL_WIDTH + SAVE_WIDTH + LOAD_WIDTH) * scale).round() + spacing * 2.0
     };
     actions.add_widget(load);
 
     let mut columns = UiColumns::new().with_spacing(spacing);
-    let delete = columns.add_column(UiColumnWidth::Fixed((DELETE_WIDTH * scale).round()), UiWidgetGroup::new().with_widget(delete));
+    let delete =
+        columns.add_column(UiColumnWidth::Fixed((DELETE_WIDTH * scale).round()), UiWidgetGroup::new().with_widget(delete));
     columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
     let actions = columns.add_column(UiColumnWidth::Fixed(actions_width), UiWidgetGroup::new().with_widget(actions));
     ButtonsRow { columns, delete, actions }
@@ -828,13 +864,23 @@ fn on_save(context: &mut GameUiContext) {
             let lines = [UiString::key(UiTextCategory::Menu, "popup.overwrite_save.title")];
             let name = name.clone();
             skin::popup(context, "Overwrite Save Game Popup", lines).with_buttons([
-                make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "button.yes"), move |_, context| {
-                    GameLoop::get_mut().save_game(PathRef::from_str(&name));
-                    super::find::<LoadOrSaveGame>().menu.close_message_box(context);
-                }),
-                make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.no"), |_, context| {
-                    super::find::<LoadOrSaveGame>().menu.close_message_box(context);
-                }),
+                make_text_button(
+                    context,
+                    ButtonRole::Primary,
+                    UiString::key(UiTextCategory::Menu, "button.yes"),
+                    move |_, context| {
+                        GameLoop::get_mut().save_game(PathRef::from_str(&name));
+                        super::find::<LoadOrSaveGame>().menu.close_message_box(context);
+                    },
+                ),
+                make_text_button(
+                    context,
+                    ButtonRole::Secondary,
+                    UiString::key(UiTextCategory::Menu, "button.no"),
+                    |_, context| {
+                        super::find::<LoadOrSaveGame>().menu.close_message_box(context);
+                    },
+                ),
             ])
         });
     } else {
@@ -855,15 +901,25 @@ fn on_delete(context: &mut GameUiContext) {
         let body = [UiString::key(UiTextCategory::Menu, "popup.delete_save.body")];
         let name = name.clone();
         skin::popup_with_body(context, "Delete Save Game Popup", [UiString::from(title)], body).with_buttons([
-            make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "load_save.delete"), move |_, context| {
-                // A failure is logged; the list is read again either way.
-                let _ = session::delete_save(PathRef::from_str(&name));
-                STATE.as_mut().field.clear();
-                super::find::<LoadOrSaveGame>().menu.close_message_box(context);
-            }),
-            make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), |_, context| {
-                super::find::<LoadOrSaveGame>().menu.close_message_box(context);
-            }),
+            make_text_button(
+                context,
+                ButtonRole::Primary,
+                UiString::key(UiTextCategory::Menu, "load_save.delete"),
+                move |_, context| {
+                    // A failure is logged; the list is read again either way.
+                    let _ = session::delete_save(PathRef::from_str(&name));
+                    STATE.as_mut().field.clear();
+                    super::find::<LoadOrSaveGame>().menu.close_message_box(context);
+                },
+            ),
+            make_text_button(
+                context,
+                ButtonRole::Secondary,
+                UiString::key(UiTextCategory::Menu, "button.cancel"),
+                |_, context| {
+                    super::find::<LoadOrSaveGame>().menu.close_message_box(context);
+                },
+            ),
         ])
     });
 }

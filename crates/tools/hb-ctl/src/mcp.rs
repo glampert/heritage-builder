@@ -108,8 +108,7 @@ impl McpServer<'_> {
 
     fn initialize(&self, params: &Value) -> Value {
         let requested = params["protocolVersion"].as_str().unwrap_or_default();
-        let version =
-            if SUPPORTED_PROTOCOL_VERSIONS.contains(&requested) { requested } else { DEFAULT_PROTOCOL_VERSION };
+        let version = if SUPPORTED_PROTOCOL_VERSIONS.contains(&requested) { requested } else { DEFAULT_PROTOCOL_VERSION };
 
         json!({
             "protocolVersion": version,
@@ -270,12 +269,17 @@ impl McpServer<'_> {
         }
         self.launched_pid = Some(pid);
 
-        tool_text(&json!({ "pid": pid, "port": launched.instance.port, "log": launched.log_path.display().to_string() }), false)
+        tool_text(
+            &json!({ "pid": pid, "port": launched.instance.port, "log": launched.log_path.display().to_string() }),
+            false,
+        )
     }
 
     fn run_command(&mut self, method: &str, params: Value) -> Value {
         let Some(client) = &mut self.client else {
-            return tool_error("No game is connected. Use game_launch to start one, or game_connect for one already running.");
+            return tool_error(
+                "No game is connected. Use game_launch to start one, or game_connect for one already running.",
+            );
         };
 
         if method == "screenshot" {

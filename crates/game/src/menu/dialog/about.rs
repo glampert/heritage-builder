@@ -15,13 +15,13 @@ use super::{
 // Layout (points on a 1920 × 1080 window, scaled with the content area: dialog_content_scale)
 // ----------------------------------------------
 
-const ABOUT_WIDGET_SPACING: f32 = 6.0;     // Between the panel's parts, and a section's lines.
-const ABOUT_CREST_HEIGHT: f32 = 64.0;      // The crest is drawn this tall at most, keeping its shape.
-const ABOUT_STUDIO_FONT_SCALE: f32 = 1.1;  // "A City Builder by Core System Games".
-const ABOUT_ROLE_FONT_SCALE: f32 = 0.8;    // A credit section's role, in capitals.
-const ABOUT_NAMES_FONT_SCALE: f32 = 1.0;   // Its names.
-const ABOUT_SECTION_SPACING: f32 = 14.0;   // Between credit sections.
-const ABOUT_COLUMN_SPACING: f32 = 24.0;    // Between the credits' two columns.
+const ABOUT_WIDGET_SPACING: f32 = 6.0; // Between the panel's parts, and a section's lines.
+const ABOUT_CREST_HEIGHT: f32 = 64.0; // The crest is drawn this tall at most, keeping its shape.
+const ABOUT_STUDIO_FONT_SCALE: f32 = 1.1; // "A City Builder by Core System Games".
+const ABOUT_ROLE_FONT_SCALE: f32 = 0.8; // A credit section's role, in capitals.
+const ABOUT_NAMES_FONT_SCALE: f32 = 1.0; // Its names.
+const ABOUT_SECTION_SPACING: f32 = 14.0; // Between credit sections.
+const ABOUT_COLUMN_SPACING: f32 = 24.0; // Between the credits' two columns.
 const ABOUT_QUOTE_FONT_SCALE: f32 = 1.2;
 const ABOUT_FOOTER_FONT_SCALE: f32 = 0.85; // The version and copyright.
 const ABOUT_BACK_BUTTON_WIDTH: f32 = 240.0;
@@ -58,13 +58,22 @@ impl About {
             parts_height += crest.measure(context).y + spacing;
             menu.add_widget(crest);
         }
-        let title = skin::heading_scaled(context, [UiString::key(UiTextCategory::Menu, "home.title")], HeadingLevel::Title, scale, text);
+        let title = skin::heading_scaled(
+            context,
+            [UiString::key(UiTextCategory::Menu, "home.title")],
+            HeadingLevel::Title,
+            scale,
+            text,
+        );
         parts_height += title.measure(context).y + spacing;
         menu.add_widget(title);
         let subtitle = skin::heading_scaled(context, [UiString::from(subtitle())], HeadingLevel::Subtitle, scale, text);
         parts_height += subtitle.measure(context).y + spacing;
         menu.add_widget(subtitle);
-        let studio = text_block([line(UiString::key(UiTextCategory::Menu, "about.studio"), ABOUT_STUDIO_FONT_SCALE * text, "ink")], 0.0);
+        let studio = text_block(
+            [line(UiString::key(UiTextCategory::Menu, "about.studio"), ABOUT_STUDIO_FONT_SCALE * text, "ink")],
+            0.0,
+        );
         parts_height += studio.measure(context).y + spacing;
         menu.add_widget(studio);
         let rule = skin::separator(context, "rule");
@@ -74,7 +83,10 @@ impl About {
         parts_height += credits.measure(context).y + spacing;
         menu.add_widget(credits);
 
-        let quote = text_block([line(UiString::key(UiTextCategory::Menu, "about.quote"), ABOUT_QUOTE_FONT_SCALE * text, "sub")], 0.0);
+        let quote = text_block(
+            [line(UiString::key(UiTextCategory::Menu, "about.quote"), ABOUT_QUOTE_FONT_SCALE * text, "sub")],
+            0.0,
+        );
         let footer = ui::text::format(UiTextCategory::Menu, "about.footer", &[("version", crate::version())]);
         let footer = text_block([line(footer, ABOUT_FOOTER_FONT_SCALE * text, "sub")], 0.0);
         let back = back_button(context, scale, text / scale);
@@ -112,27 +124,24 @@ fn credit_sections() -> [[(UiString, Vec<UiString>); 3]; 2] {
     let tba = || vec![UiString::key(UiTextCategory::Menu, "about.credits.tba")];
     [
         [
-            (UiString::key(UiTextCategory::Menu, "about.credits.design"), vec![UiString::key(UiTextCategory::Menu, "about.credits.design.names")]),
+            (UiString::key(UiTextCategory::Menu, "about.credits.design"), vec![UiString::key(
+                UiTextCategory::Menu,
+                "about.credits.design.names",
+            )]),
             (UiString::key(UiTextCategory::Menu, "about.credits.art"), tba()),
             (UiString::key(UiTextCategory::Menu, "about.credits.music"), tba()),
         ],
         [
             (UiString::key(UiTextCategory::Menu, "about.credits.consultants"), tba()),
-            (
-                UiString::key(UiTextCategory::Menu, "about.credits.fonts"),
-                vec![
-                    UiString::key(UiTextCategory::Menu, "about.credits.fonts.names"),
-                    UiString::key(UiTextCategory::Menu, "about.credits.fonts.names_2"),
-                    UiString::key(UiTextCategory::Menu, "about.credits.fonts.licence"),
-                ],
-            ),
-            (
-                UiString::key(UiTextCategory::Menu, "about.credits.built_with"),
-                vec![
-                    UiString::key(UiTextCategory::Menu, "about.credits.built_with.names"),
-                    UiString::key(UiTextCategory::Menu, "about.credits.built_with.names_2"),
-                ],
-            ),
+            (UiString::key(UiTextCategory::Menu, "about.credits.fonts"), vec![
+                UiString::key(UiTextCategory::Menu, "about.credits.fonts.names"),
+                UiString::key(UiTextCategory::Menu, "about.credits.fonts.names_2"),
+                UiString::key(UiTextCategory::Menu, "about.credits.fonts.licence"),
+            ]),
+            (UiString::key(UiTextCategory::Menu, "about.credits.built_with"), vec![
+                UiString::key(UiTextCategory::Menu, "about.credits.built_with.names"),
+                UiString::key(UiTextCategory::Menu, "about.credits.built_with.names_2"),
+            ]),
         ],
     ]
 }

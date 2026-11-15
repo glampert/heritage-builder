@@ -17,10 +17,21 @@ use engine::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
     ui::{
-        UiLabelLook, UiPainter, UiSystem, UiTextAnchor,
-        text::{self, UiTextCategory},
+        UiLabelLook,
+        UiPainter,
+        UiSystem,
+        UiTextAnchor,
         path_scope,
-        widgets::{UiMapViewPointer, UiMapViewState, UiMapViewTransform, UiWidgetContext, map_view_transform, record_map_item, record_map_marker},
+        text::{self, UiTextCategory},
+        widgets::{
+            UiMapViewPointer,
+            UiMapViewState,
+            UiMapViewTransform,
+            UiWidgetContext,
+            map_view_transform,
+            record_map_item,
+            record_map_marker,
+        },
     },
 };
 
@@ -30,7 +41,17 @@ use crate::{
     menu::skin::{self, SkinChoiceBoxDef, SkinMapPlaceDef, SkinMapRouteDef, SkinMapTextDef},
     world_map::{
         WorldMapProvider,
-        config::{CityKind, LabelSide, MapLabelAlign, MapLabelDef, MapLabelStyle, RouteKind, RouteState, ThreatDef, UnchartedAreaDef},
+        config::{
+            CityKind,
+            LabelSide,
+            MapLabelAlign,
+            MapLabelDef,
+            MapLabelStyle,
+            RouteKind,
+            RouteState,
+            ThreatDef,
+            UnchartedAreaDef,
+        },
         provider::{ChoiceSiteInfo, MapCity, MapRoute, NextMissionChoice},
     },
 };
@@ -172,7 +193,12 @@ impl MapScene {
             let title = text::get(UiTextCategory::Realm, &area.title);
             painter.label(point, UiTextAnchor::Middle, &look.case("uncharted", title), &look.text("uncharted", 0.0));
             let note = text::get(UiTextCategory::Realm, &area.subtitle);
-            painter.label(point + Vec2::new(0.0, UNCHARTED_NOTE_DROP * k), UiTextAnchor::Middle, note, &look.text("uncharted_note", 0.0));
+            painter.label(
+                point + Vec2::new(0.0, UNCHARTED_NOTE_DROP * k),
+                UiTextAnchor::Middle,
+                note,
+                &look.text("uncharted_note", 0.0),
+            );
         }
 
         for threat in &self.threats {
@@ -198,7 +224,9 @@ impl MapScene {
         // Recorded for automation only while the widget registry is on.
         let recording = ui_sys.is_widget_registry_enabled();
         let mut markers: Vec<(String, Rect, String, serde_json::Value)> = Vec::new();
-        for city in self.cities.iter().filter(|city| !city.player_owned).chain(self.cities.iter().filter(|city| city.player_owned)) {
+        for city in
+            self.cities.iter().filter(|city| !city.player_owned).chain(self.cities.iter().filter(|city| city.player_owned))
+        {
             let point = at(city.position);
             let is_selected = selected == Some(city.id.as_str());
             let is_hovered = hovered == Some(city.id.as_str());
@@ -246,7 +274,10 @@ impl MapScene {
             let (box_rect, names) = look.draw_choice_box(painter, choice, corner, &sites, transform.rect, hovered);
             let pointed = pointer_at.is_some_and(|cursor| box_rect.contains_point(cursor));
             if pointed {
-                hit = names.iter().find(|(_, rect)| pointer_at.is_some_and(|cursor| rect.contains_point(cursor))).map(|(pick, _)| pick.id());
+                hit = names
+                    .iter()
+                    .find(|(_, rect)| pointer_at.is_some_and(|cursor| rect.contains_point(cursor)))
+                    .map(|(pick, _)| pick.id());
             }
             (choice, box_rect, names, pointed)
         });
@@ -261,10 +292,21 @@ impl MapScene {
             for (pick, rect) in &names {
                 let id = pick.id();
                 let (label, value) = match pick {
-                    ChoicePick::Site(site) => (site.phrase.as_str(), serde_json::json!({ "site": site.site.to_string(), "mission": site.mission_index })),
+                    ChoicePick::Site(site) => (
+                        site.phrase.as_str(),
+                        serde_json::json!({ "site": site.site.to_string(), "mission": site.mission_index }),
+                    ),
                     ChoicePick::Next => (choice.subtitle.as_str(), serde_json::json!({ "mission": choice.mission_index })),
                 };
-                record_map_item(ui_sys, "choice_option", label, *rect, transform.rect, hit.as_deref() == Some(id.as_str()), Some(value));
+                record_map_item(
+                    ui_sys,
+                    "choice_option",
+                    label,
+                    *rect,
+                    transform.rect,
+                    hit.as_deref() == Some(id.as_str()),
+                    Some(value),
+                );
             }
         }
         hit
@@ -284,15 +326,22 @@ impl MapScene {
         let title = text::get(UiTextCategory::Realm, &threat.title);
         painter.label(text_at, UiTextAnchor::Middle, &look.case("threat", title), &look.text("threat", 0.0));
         let note = text::get(UiTextCategory::Realm, &threat.subtitle);
-        painter.label(text_at + Vec2::new(0.0, THREAT_NOTE_DROP * k), UiTextAnchor::Middle, note, &look.text("threat_note", 0.0));
+        painter.label(
+            text_at + Vec2::new(0.0, THREAT_NOTE_DROP * k),
+            UiTextAnchor::Middle,
+            note,
+            &look.text("threat_note", 0.0),
+        );
         if threat.arrow.len() >= 2 {
-            let points: Vec<Vec2> = threat.arrow.iter().map(|point| transform.to_screen(Vec2::new(point[0], point[1]))).collect();
+            let points: Vec<Vec2> =
+                threat.arrow.iter().map(|point| transform.to_screen(Vec2::new(point[0], point[1]))).collect();
             let color = look.color("threat_arrow", "accent");
             painter.dashed_polyline(&catmull_rom(&points, CURVE_STEPS), 2.5 * k, color, 6.0 * k, 5.0 * k);
             let (tip, before) = (points[points.len() - 1], points[points.len() - 2]);
             let dir = normalized(tip - before);
             let side = Vec2::new(-dir.y, dir.x);
-            let head = [tip + dir * (4.0 * k), tip - dir * (9.0 * k) + side * (6.0 * k), tip - dir * (9.0 * k) - side * (6.0 * k)];
+            let head =
+                [tip + dir * (4.0 * k), tip - dir * (9.0 * k) + side * (6.0 * k), tip - dir * (9.0 * k) - side * (6.0 * k)];
             painter.convex_polygon(&head, color, 0.0, color);
         }
     }
@@ -428,7 +477,11 @@ impl MapLook {
         let marks = art.marks.iter().map(|(name, path)| (name.clone(), skin::sprite_and_size(context, path))).collect();
         let threat = (!art.threat.is_empty()).then(|| {
             let texture = context.load_texture(PathRef::from_str(&art.threat));
-            let size = context.render_sys().texture_cache().texture_size(texture).map_or(Vec2::new(1.0, 1.0), |size| Vec2::new(size.width as f32, size.height as f32));
+            let size = context
+                .render_sys()
+                .texture_cache()
+                .texture_size(texture)
+                .map_or(Vec2::new(1.0, 1.0), |size| Vec2::new(size.width as f32, size.height as f32));
             (texture, size)
         });
         Self {
@@ -445,7 +498,11 @@ impl MapLook {
     }
 
     fn color(&self, name: &str, fallback: &str) -> Color {
-        self.colors.get(name).and_then(|value| skin::color(value)).or_else(|| skin::color(fallback)).unwrap_or(Color::black())
+        self.colors
+            .get(name)
+            .and_then(|value| skin::color(value))
+            .or_else(|| skin::color(fallback))
+            .unwrap_or(Color::black())
     }
 
     fn opt_color(&self, name: &str) -> Option<Color> {
@@ -517,7 +574,14 @@ impl MapLook {
         painter.circle_stroke(point, radius * k, 3.0 * k, selected);
         if !faint {
             let outer = self.color("selected_outer", "accent");
-            painter.dashed_circle(point, (radius + SELECTED_OUTER_RADIUS - SELECTED_RADIUS) * k, 1.0 * k, outer, 3.0 * k, 4.0 * k);
+            painter.dashed_circle(
+                point,
+                (radius + SELECTED_OUTER_RADIUS - SELECTED_RADIUS) * k,
+                1.0 * k,
+                outer,
+                3.0 * k,
+                4.0 * k,
+            );
         }
     }
 
@@ -526,7 +590,8 @@ impl MapLook {
     fn draw_city(&self, painter: &UiPainter, city: &MapCity, point: Vec2, selected: bool, hovered: bool) -> Rect {
         let k = self.scale;
         let hit_half = HIT_HALF_SIZE * k;
-        let mut rect = Rect::from_pos_and_size(point - Vec2::new(hit_half, hit_half), Vec2::new(hit_half * 2.0, hit_half * 2.0));
+        let mut rect =
+            Rect::from_pos_and_size(point - Vec2::new(hit_half, hit_half), Vec2::new(hit_half * 2.0, hit_half * 2.0));
         let name = city.name();
 
         if !city.player_owned {
@@ -573,7 +638,15 @@ impl MapLook {
     }
 
     // A name beside a marker at `point`, as the generator's place_label puts it.
-    fn draw_name(&self, painter: &UiPainter, text_role: &str, place_role: &str, name: &str, point: Vec2, side: LabelSide) -> Rect {
+    fn draw_name(
+        &self,
+        painter: &UiPainter,
+        text_role: &str,
+        place_role: &str,
+        name: &str,
+        point: Vec2,
+        side: LabelSide,
+    ) -> Rect {
         let k = self.scale;
         let look = self.text(text_role, 0.0);
         let place = self.place(place_role);
@@ -624,7 +697,8 @@ impl MapLook {
         let pieces = subtitle_pieces(choice);
 
         // As large as the mockup's, or more for longer text.
-        let measure = |text: &str, look: &UiLabelLook| painter.label_rect(Vec2::zero(), UiTextAnchor::Start, text, look).width();
+        let measure =
+            |text: &str, look: &UiLabelLook| painter.label_rect(Vec2::zero(), UiTextAnchor::Start, text, look).width();
         let title_width = measure(&choice.title, &title_look);
         let sub_width: f32 = pieces.iter().map(|piece| measure(piece.text(), &sub_look)).sum();
         // The seal's arrows (one each way) mark a choice: none for the next mission alone.
@@ -669,7 +743,8 @@ impl MapLook {
             painter.rect_stroke(rect, 0.0, def.border_width * k, self.color("choice_box_border", "ink"));
         }
         let inset = def.inner_inset * k;
-        let inner = Rect::from_pos_and_size(min + Vec2::new(inset, inset), rect.size() - Vec2::new(inset * 2.0, inset * 2.0));
+        let inner =
+            Rect::from_pos_and_size(min + Vec2::new(inset, inset), rect.size() - Vec2::new(inset * 2.0, inset * 2.0));
         if let Some(fill) = self.opt_color("choice_box_inner_fill") {
             painter.rect_filled(inner, fill, 0.0);
         }
@@ -700,8 +775,17 @@ impl MapLook {
                     let look = if lit { UiLabelLook { color: hover, ..sub_look } } else { sub_look };
                     let drawn = painter.label(Vec2::new(x, baseline), UiTextAnchor::Start, text, &look);
                     let underline = baseline + 3.0 * k;
-                    let color = if lit { hover } else { Color::new(sub_look.color.r, sub_look.color.g, sub_look.color.b, sub_look.color.a * 0.45) };
-                    painter.line(Vec2::new(drawn.min.x, underline), Vec2::new(drawn.max.x, underline), (if lit { 1.5 } else { 1.0 }) * k, color);
+                    let color = if lit {
+                        hover
+                    } else {
+                        Color::new(sub_look.color.r, sub_look.color.g, sub_look.color.b, sub_look.color.a * 0.45)
+                    };
+                    painter.line(
+                        Vec2::new(drawn.min.x, underline),
+                        Vec2::new(drawn.max.x, underline),
+                        (if lit { 1.5 } else { 1.0 }) * k,
+                        color,
+                    );
                     names.push((pick, drawn));
                     x += drawn.width();
                 }
@@ -745,7 +829,12 @@ impl MapLook {
     fn draw_compass(&self, painter: &UiPainter, point: Vec2) {
         if self.draw_mark(painter, "compass", point).is_some() {
             let look = self.text("compass", 0.0);
-            painter.label(point - Vec2::new(0.0, COMPASS_N_RISE * self.scale), UiTextAnchor::Middle, text::get(UiTextCategory::Menu, "world_map.compass_north"), &look);
+            painter.label(
+                point - Vec2::new(0.0, COMPASS_N_RISE * self.scale),
+                UiTextAnchor::Middle,
+                text::get(UiTextCategory::Menu, "world_map.compass_north"),
+                &look,
+            );
         }
     }
 

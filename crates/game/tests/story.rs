@@ -107,10 +107,10 @@ fn test_campaign_one_sequences() {
     let i_b = story.sequence("i_b").unwrap();
     assert_eq!(i_b.trigger, StoryTrigger::AfterMission(MissionRef::Index(4)), "after mission 5");
     assert_eq!(i_b.panels.len(), 4);
-    assert_eq!(
-        i_b.panels[1].bubbles.iter().map(|bubble| bubble.kind).collect::<Vec<_>>(),
-        [BubbleKind::Group, BubbleKind::Speech]
-    );
+    assert_eq!(i_b.panels[1].bubbles.iter().map(|bubble| bubble.kind).collect::<Vec<_>>(), [
+        BubbleKind::Group,
+        BubbleKind::Speech
+    ]);
     assert_eq!(resolve_trigger(campaigns.campaign(campaign).unwrap(), &i_b.trigger), TriggerPoint::Pending);
 
     assert_eq!(stories.before_mission(campaigns, campaign, 0).map(|sequence| sequence.sequence.id.as_str()), Some("i_a"));
@@ -226,9 +226,7 @@ fn test_triggers_resolve() {
 
 fn test_validation_finds_errors() {
     let campaigns = synthetic_campaigns();
-    let bubble = |anchor: [f32; 2], tail: [f32; 2]| {
-        serde_json::json!({ "speaker": "speaker.x", "text": "story.x", "anchor": anchor, "tail": tail })
-    };
+    let bubble = |anchor: [f32; 2], tail: [f32; 2]| serde_json::json!({ "speaker": "speaker.x", "text": "story.x", "anchor": anchor, "tail": tail });
     let errors = stories_for(
         &campaigns,
         serde_json::json!({ "sequences": [
@@ -314,10 +312,9 @@ fn test_seen_sequences_and_replay() {
     // profile.set keeps each once, in order.
     let mut edited = Profile::new();
     edited
-        .set_campaign_records(
-            &campaigns,
-            vec![serde_json::json!({ "id": "one", "sequences_seen": ["start", "end", "start"] })],
-        )
+        .set_campaign_records(&campaigns, vec![
+            serde_json::json!({ "id": "one", "sequences_seen": ["start", "end", "start"] }),
+        ])
         .unwrap();
     assert_eq!(edited.record("one").unwrap().sequences_seen, ["start", "end"]);
 
@@ -326,9 +323,7 @@ fn test_seen_sequences_and_replay() {
     let (shipped, _) = configs();
     let with_seen = |campaign: &str, seen: &[&str]| {
         let mut profile = Profile::new();
-        profile
-            .set_campaign_records(shipped, vec![serde_json::json!({ "id": campaign, "sequences_seen": seen })])
-            .unwrap();
+        profile.set_campaign_records(shipped, vec![serde_json::json!({ "id": campaign, "sequences_seen": seen })]).unwrap();
         game::story::check_seen_sequences(&profile)
     };
     assert_eq!(with_seen("dragon_legacy", &["i_a"]), Ok(()));

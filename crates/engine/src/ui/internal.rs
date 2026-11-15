@@ -2,10 +2,9 @@
 // groups of them centered in a menu. Groups place each widget at a position they compute, in a
 // child Ui at that rect (UiSystem::draw_at), then move the menu's cursor past the whole group.
 
+use common::Vec2;
 use egui::{Color32, TextStyle, pos2, vec2};
 use smallvec::SmallVec;
-
-use common::Vec2;
 
 use super::{UiFontScale, UiString, UiSystem, immediate::color32, widgets::*};
 
@@ -228,7 +227,8 @@ pub fn draw_centered_text_group(
 
             let color = line.color.map_or(default_color, color32);
             let wrap_width = line.wrap_width.unwrap_or(f32::INFINITY);
-            let galley = ui.painter().layout(line.string.resolve().to_string(), font(ui_sys, line.font_scale), color, wrap_width);
+            let galley =
+                ui.painter().layout(line.string.resolve().to_string(), font(ui_sys, line.font_scale), color, wrap_width);
             ui.painter().galley(pos2(x, y), galley, color);
 
             offset_y += line_height;
@@ -236,7 +236,10 @@ pub fn draw_centered_text_group(
     });
 
     let group = egui::Rect::from_min_size(pos2(start_x, start_y), vec2(max_width, total_height));
-    advance_past(ui_sys, egui::Rect::from_min_max(pos2(cursor.x, start_y), pos2(cursor.x.max(group.right()), group.bottom())));
+    advance_past(
+        ui_sys,
+        egui::Rect::from_min_max(pos2(cursor.x, start_y), pos2(cursor.x.max(group.right()), group.bottom())),
+    );
     group
 }
 
@@ -312,7 +315,8 @@ pub fn draw_centered_widget_group(
         };
 
         // Inputs, sliders and dropdowns fill the width up to the group's right margin.
-        let item_width = (margin_right > 0.0).then(|| (region_avail.x - (widget_pos.x - cursor.x) - margin_left - margin_right).max(0.0));
+        let item_width =
+            (margin_right > 0.0).then(|| (region_avail.x - (widget_pos.x - cursor.x) - margin_left - margin_right).max(0.0));
         let size = vec2(item_width.unwrap_or(widget_size.x).max(widget_size.x), widget_size.y);
 
         let previous_item_width = ui_sys.set_item_width(item_width);
@@ -325,7 +329,10 @@ pub fn draw_centered_widget_group(
     }
 
     let group = egui::Rect::from_min_size(pos2(start_x, start_y), vec2(total_width, total_height));
-    advance_past(ui_sys, egui::Rect::from_min_max(pos2(cursor.x, start_y), pos2(cursor.x.max(group.right()), group.bottom())));
+    advance_past(
+        ui_sys,
+        egui::Rect::from_min_max(pos2(cursor.x, start_y), pos2(cursor.x.max(group.right()), group.bottom())),
+    );
     group
 }
 
@@ -382,7 +389,9 @@ pub fn draw_centered_labeled_widget_group(
 
     // Draw each row: its label, then its widget after the labels' column.
     let mut offset_y = 0.0;
-    for (((label, widget), row_size), (_, widget_size)) in labels_and_widgets.iter_mut().zip(row_sizes.iter()).zip(sizes.iter()) {
+    for (((label, widget), row_size), (_, widget_size)) in
+        labels_and_widgets.iter_mut().zip(row_sizes.iter()).zip(sizes.iter())
+    {
         let font_scale = widget.font_scale();
         let y = start_y + offset_y;
         let row_height = row_size.y - item_spacing.y;
@@ -398,7 +407,8 @@ pub fn draw_centered_labeled_widget_group(
         let x = start_x + label_column + item_spacing.x;
 
         // Inputs, sliders and dropdowns fill the width up to the group's right margin.
-        let item_width = (margin_right > 0.0).then(|| (region_avail.x - (x - cursor.x) - margin_left - margin_right).max(0.0));
+        let item_width =
+            (margin_right > 0.0).then(|| (region_avail.x - (x - cursor.x) - margin_left - margin_right).max(0.0));
         let size = vec2(item_width.unwrap_or(widget_size.x).max(widget_size.x), row_height);
 
         // The group's label names the widget for UI automation.
@@ -412,6 +422,9 @@ pub fn draw_centered_labeled_widget_group(
     }
 
     let group = egui::Rect::from_min_size(pos2(start_x, start_y), vec2(max_width, total_height));
-    advance_past(ui_sys, egui::Rect::from_min_max(pos2(cursor.x, start_y), pos2(cursor.x.max(group.right()), group.bottom())));
+    advance_past(
+        ui_sys,
+        egui::Rect::from_min_max(pos2(cursor.x, start_y), pos2(cursor.x.max(group.right()), group.bottom())),
+    );
     group
 }

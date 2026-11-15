@@ -1,15 +1,19 @@
 use std::any::Any;
-use smallbox::smallbox;
-use egui::Sense;
-use strum::EnumCount;
 
 use common::{Color, Rect, Vec2};
+use egui::Sense;
+use smallbox::smallbox;
+use strum::EnumCount;
 
-use super::{UiSpriteButtonState, UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext, fit_image, UiImageFit};
+use super::{UiImageFit, UiSpriteButtonState, UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext, fit_image};
 use crate::{
     render::texture::TextureHandle,
     ui::{
-        UiDecorationAnchor, UiLabelLook, UiNineSlice, UiPainter, UiTextAnchor,
+        UiDecorationAnchor,
+        UiLabelLook,
+        UiNineSlice,
+        UiPainter,
+        UiTextAnchor,
         decorated_panel::{overhang, union},
         immediate::{self, egui_rect, to_rect},
         sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
@@ -570,7 +574,12 @@ impl UiIconTile {
 
     fn badge_label_look(&self) -> UiLabelLook {
         let badge = &self.look.badge;
-        UiLabelLook { size: badge.font_size, heading_font: badge.heading_font, color: badge.text_color, ..Default::default() }
+        UiLabelLook {
+            size: badge.font_size,
+            heading_font: badge.heading_font,
+            color: badge.text_color,
+            ..Default::default()
+        }
     }
 }
 
@@ -615,21 +624,28 @@ mod tests {
 
     #[test]
     fn atlas_glyph_uv_from_pixels() {
-        let glyph = UiIconGlyph::from_atlas_pixels(TextureHandle::White, Vec2::new(256.0, 128.0), rect(64.0, 32.0, 128.0, 96.0));
+        let glyph =
+            UiIconGlyph::from_atlas_pixels(TextureHandle::White, Vec2::new(256.0, 128.0), rect(64.0, 32.0, 128.0, 96.0));
         assert_eq!(glyph.uv, rect(0.25, 0.25, 0.5, 0.75));
         assert_eq!(UiIconGlyph::new(TextureHandle::White).uv, rect(0.0, 0.0, 1.0, 1.0));
     }
 
     #[test]
     fn badge_is_a_disc_or_a_pill_at_its_anchor() {
-        let badge = UiIconTileBadge { anchor: UiDecorationAnchor::TopRight, offset: Vec2::new(-2.0, 3.0), radius: 8.0, ..Default::default() };
+        let badge = UiIconTileBadge {
+            anchor: UiDecorationAnchor::TopRight,
+            offset: Vec2::new(-2.0, 3.0),
+            radius: 8.0,
+            ..Default::default()
+        };
         let tile = rect(0.0, 0.0, 40.0, 40.0);
         // Short text: a 16 point disc centred at (38, 3).
         assert_eq!(badge.rect(tile, 6.0), rect(30.0, -5.0, 46.0, 11.0));
         // "0/3" 20 points wide: 28 wide, as high.
         assert_eq!(badge.rect(tile, 20.0), rect(24.0, -5.0, 52.0, 11.0));
 
-        let bottom_left = UiIconTileBadge { anchor: UiDecorationAnchor::BottomLeft, offset: Vec2::zero(), radius: 5.0, ..badge };
+        let bottom_left =
+            UiIconTileBadge { anchor: UiDecorationAnchor::BottomLeft, offset: Vec2::zero(), radius: 5.0, ..badge };
         assert_eq!(bottom_left.rect(tile, 0.0), rect(-5.0, 35.0, 5.0, 45.0));
     }
 

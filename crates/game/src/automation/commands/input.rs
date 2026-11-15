@@ -2,14 +2,13 @@
 // mouse and keyboard (see engine::automation::input). Gestures turn input capture on: the real
 // mouse and keyboard are ignored until input.capture on=false.
 
-use serde::Deserialize;
-use serde_json::{Value, json};
-
 use common::{Vec2, coords::Cell};
 use engine::{
     app::input::{InputKey, MouseButton, VirtualInput},
     automation::input::{self as gestures, GestureId, InputStep},
 };
+use serde::Deserialize;
+use serde_json::{Value, json};
 
 use super::{CellParam, camera::cell_to_screen};
 use crate::automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params, pending};
@@ -27,8 +26,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Move the virtual cursor to a window point or a map cell, or park it off the window.",
         params: &[
             ParamDef { name: "point", kind: "point", required: false, help: "[x, y] in window points." },
-            ParamDef { name: "cell", kind: "cell", required: false, help: "[x, y] map cell; centers the camera on it if needed." },
-            ParamDef { name: "park", kind: "bool", required: false, help: "True moves it off the window, hovering nothing." },
+            ParamDef {
+                name: "cell",
+                kind: "cell",
+                required: false,
+                help: "[x, y] map cell; centers the camera on it if needed.",
+            },
+            ParamDef {
+                name: "park",
+                kind: "bool",
+                required: false,
+                help: "True moves it off the window, hovering nothing.",
+            },
         ],
         run: cmd_move,
     },
@@ -37,7 +46,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Click at a window point or a map cell: hover, press, release, over several frames.",
         params: &[
             ParamDef { name: "point", kind: "point", required: false, help: "[x, y] in window points." },
-            ParamDef { name: "cell", kind: "cell", required: false, help: "[x, y] map cell; centers the camera on it if needed." },
+            ParamDef {
+                name: "cell",
+                kind: "cell",
+                required: false,
+                help: "[x, y] map cell; centers the camera on it if needed.",
+            },
             ParamDef { name: "button", kind: "string", required: false, help: "left (default), right or middle." },
         ],
         run: cmd_click,
@@ -46,9 +60,19 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "input.drag",
         help: "Press at one place, move to another over some frames, release. Roads are drawn this way.",
         params: &[
-            ParamDef { name: "from", kind: "point", required: true, help: "[x, y] window point, or a cell with cells=true." },
+            ParamDef {
+                name: "from",
+                kind: "point",
+                required: true,
+                help: "[x, y] window point, or a cell with cells=true.",
+            },
             ParamDef { name: "to", kind: "point", required: true, help: "[x, y] window point, or a cell with cells=true." },
-            ParamDef { name: "cells", kind: "bool", required: false, help: "True: from and to are map cells. Default false." },
+            ParamDef {
+                name: "cells",
+                kind: "bool",
+                required: false,
+                help: "True: from and to are map cells. Default false.",
+            },
             ParamDef { name: "button", kind: "string", required: false, help: "left (default), right or middle." },
             ParamDef { name: "frames", kind: "int", required: false, help: "Frames to move over. Default 10." },
         ],
@@ -58,7 +82,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "input.key",
         help: "Press and release a key, with modifier keys held.",
         params: &[
-            ParamDef { name: "key", kind: "string", required: true, help: "Key name, e.g. Escape, Enter, A, F12, Slash, GraveAccent." },
+            ParamDef {
+                name: "key",
+                kind: "string",
+                required: true,
+                help: "Key name, e.g. Escape, Enter, A, F12, Slash, GraveAccent.",
+            },
             ParamDef { name: "modifiers", kind: "string[]", required: false, help: "Any of shift, ctrl, alt, cmd." },
         ],
         run: cmd_key,
@@ -93,7 +122,11 @@ struct Target {
 }
 
 // A window point, as given or for a map cell. The point must be in the window.
-fn resolve_target(context: &mut CommandContext, point: Option<[f32; 2]>, cell: Option<CellParam>) -> Result<Target, CommandError> {
+fn resolve_target(
+    context: &mut CommandContext,
+    point: Option<[f32; 2]>,
+    cell: Option<CellParam>,
+) -> Result<Target, CommandError> {
     match (point, cell) {
         (Some(point), None) => {
             let point = Vec2::new(point[0], point[1]);
@@ -146,7 +179,10 @@ fn require_point_in_window(context: &CommandContext, point: Vec2) -> Result<(), 
 fn button_param(button: Option<&str>) -> Result<MouseButton, CommandError> {
     match button.unwrap_or("left").parse::<MouseButton>() {
         Ok(button @ (MouseButton::Left | MouseButton::Right | MouseButton::Middle)) => Ok(button),
-        _ => Err(CommandError::invalid_params(format!("button must be left, right or middle, got '{}'.", button.unwrap_or_default()))),
+        _ => Err(CommandError::invalid_params(format!(
+            "button must be left, right or middle, got '{}'.",
+            button.unwrap_or_default()
+        ))),
     }
 }
 
@@ -251,9 +287,9 @@ fn cmd_drag(context: &mut CommandContext, params: Value) -> CommandResult {
     let (from, to, camera_moved) = if params.cells {
         let cell = |coords: [f32; 2]| {
             let is_whole = coords.iter().all(|coord| coord.fract() == 0.0 && coord.abs() < 1e6);
-            is_whole
-                .then(|| Cell::new(coords[0] as i32, coords[1] as i32))
-                .ok_or_else(|| CommandError::invalid_params(format!("With cells=true, from and to are whole cells, got {coords:?}.")))
+            is_whole.then(|| Cell::new(coords[0] as i32, coords[1] as i32)).ok_or_else(|| {
+                CommandError::invalid_params(format!("With cells=true, from and to are whole cells, got {coords:?}."))
+            })
         };
         let (from_cell, to_cell) = (cell(params.from)?, cell(params.to)?);
 
@@ -292,19 +328,17 @@ fn cmd_key(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let params: Params = parse_params(params)?;
 
-    let key: InputKey = params
-        .key
-        .parse()
-        .ok()
-        .filter(|key| *key != InputKey::Unknown)
-        .ok_or_else(|| CommandError::invalid_params(format!("Unknown key '{}'. Names look like Escape, A, Num1, F12.", params.key)))?;
+    let key: InputKey = params.key.parse().ok().filter(|key| *key != InputKey::Unknown).ok_or_else(|| {
+        CommandError::invalid_params(format!("Unknown key '{}'. Names look like Escape, A, Num1, F12.", params.key))
+    })?;
 
     let modifiers = params
         .modifiers
         .iter()
         .map(|name| {
-            gestures::modifier_key(name)
-                .ok_or_else(|| CommandError::invalid_params(format!("Unknown modifier '{name}'. Use shift, ctrl, alt or cmd.")))
+            gestures::modifier_key(name).ok_or_else(|| {
+                CommandError::invalid_params(format!("Unknown modifier '{name}'. Use shift, ctrl, alt or cmd."))
+            })
         })
         .collect::<Result<Vec<InputKey>, CommandError>>()?;
 

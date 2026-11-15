@@ -39,7 +39,7 @@ impl GlfwWindowManager {
         glfw_instance.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
 
         // MacOS specific. Ignored otherwise.
-        glfw_instance.window_hint(glfw::WindowHint::CocoaRetinaFramebuffer(true));  // We want High-DPI retina display always.
+        glfw_instance.window_hint(glfw::WindowHint::CocoaRetinaFramebuffer(true)); // We want High-DPI retina display always.
         glfw_instance.window_hint(glfw::WindowHint::CocoaGraphicsSwitching(false)); // Prefer the discrete GPU and avoid low-power integrated graphics.
 
         if params.window_mode.is_fullscreen() {
@@ -269,9 +269,9 @@ fn create_exclusive_fullscreen_window(
 
     match result {
         Ok((window, event_receiver)) => {
-            let (ww, wh)   = window.get_size();
+            let (ww, wh) = window.get_size();
             let (fbw, fbh) = window.get_framebuffer_size();
-            let (sx, sy)   = window.get_content_scale();
+            let (sx, sy) = window.get_content_scale();
             log::info!(log::channel!("app"), "Fullscreen window OK - Win:({ww}x{wh}), Fb:({fbw}x{fbh}), Scale:({sx},{sy})");
             (window, event_receiver)
         }
@@ -307,12 +307,7 @@ fn select_best_video_mode(modes: &[glfw::VidMode]) -> Option<glfw::VidMode> {
     }
 
     // Otherwise pick highest refresh rate.
-    best_modes.sort_by(|a, b| {
-        a.refresh_rate
-            .cmp(&b.refresh_rate)
-            .then(a.width.cmp(&b.width))
-            .then(a.height.cmp(&b.height))
-    });
+    best_modes.sort_by(|a, b| a.refresh_rate.cmp(&b.refresh_rate).then(a.width.cmp(&b.width)).then(a.height.cmp(&b.height)));
     best_modes.last().map(|mode| **mode)
 }
 
@@ -325,23 +320,12 @@ mod tests {
     use super::*;
 
     fn vm(w: u32, h: u32, r: u32) -> glfw::VidMode {
-        glfw::VidMode {
-            width: w,
-            height: h,
-            red_bits: 8,
-            green_bits: 8,
-            blue_bits: 8,
-            refresh_rate: r,
-        }
+        glfw::VidMode { width: w, height: h, red_bits: 8, green_bits: 8, blue_bits: 8, refresh_rate: r }
     }
 
     #[test]
     fn prefers_highest_resolution() {
-        let modes = [
-            vm(1920, 1080, 60),
-            vm(2560, 1440, 60),
-            vm(1920, 1080, 144),
-        ];
+        let modes = [vm(1920, 1080, 60), vm(2560, 1440, 60), vm(1920, 1080, 144)];
 
         let best = select_best_video_mode(&modes).unwrap();
         assert_eq!(best.width, 2560);
@@ -350,10 +334,7 @@ mod tests {
 
     #[test]
     fn prefers_60hz_when_same_resolution() {
-        let modes = [
-            vm(2560, 1440, 144),
-            vm(2560, 1440, 60),
-        ];
+        let modes = [vm(2560, 1440, 144), vm(2560, 1440, 60)];
 
         let best = select_best_video_mode(&modes).unwrap();
         assert_eq!(best.refresh_rate, 60);

@@ -4,11 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    campaign::config::MissionRisksDef,
-    cheats,
-    config::RiskConfigs,
-};
+use crate::{campaign::config::MissionRisksDef, cheats, config::RiskConfigs};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CityRisks {

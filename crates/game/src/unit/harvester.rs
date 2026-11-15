@@ -2,17 +2,17 @@ use common::{callback::Callback, coords::Cell, time::CountdownTimer};
 use serde::{Deserialize, Serialize};
 
 use super::{
+    SpawnedUnitWithTask,
     Unit,
     UnitId,
-    UnitTaskHelper,
     UnitSpawnState,
-    SpawnedUnitWithTask,
+    UnitTaskHelper,
     config::UnitConfigKey,
     task::{UnitTaskDespawn, UnitTaskHarvestCompletionCallback, UnitTaskHarvestState, UnitTaskHarvestWood},
 };
 use crate::{
-    prop::PropId,
     building::BuildingContext,
+    prop::PropId,
     sim::commands::{SimCmds, SpawnPromise},
 };
 

@@ -167,7 +167,7 @@ impl Record {
 
             if let Some(object_tile) = maybe_object_tile
                 && let Some(game_object_state) = &state.game_object_state
-                    && let Some(game_object) = context.find_game_object_for_tile_mut(object_tile)
+                && let Some(game_object) = context.find_game_object_for_tile_mut(object_tile)
             {
                 game_object.undo_redo_apply(game_object_state.as_ref());
             }
@@ -265,14 +265,14 @@ impl UndoRedoSingleton {
 
             if layers.intersects(EditedLayer::Terrain)
                 && let Some(terrain_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain)
-                    && terrain_tile.path_kind().intersects(SUPPORTED_TERRAIN_KINDS)
+                && terrain_tile.path_kind().intersects(SUPPORTED_TERRAIN_KINDS)
             {
                 saved_state.terrain_tile_state = record_tile_state(terrain_tile);
             }
 
             if layers.intersects(EditedLayer::Objects)
                 && let Some(object_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects)
-                    && object_tile.is(SUPPORTED_OBJECT_KINDS)
+                && object_tile.is(SUPPORTED_OBJECT_KINDS)
             {
                 saved_state.object_tile_state = record_tile_state(object_tile);
 

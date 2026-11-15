@@ -37,9 +37,17 @@ mod overlay;
 use std::rc::Rc;
 
 use common::{Color, Rect};
-use engine::ui::{UiLabelLook, UiTextAnchor, sound::{self as ui_sound, UiSoundKey as SoundKey}};
+use engine::ui::{
+    UiLabelLook,
+    UiTextAnchor,
+    sound::{self as ui_sound, UiSoundKey as SoundKey},
+};
+use overlay::MapScene;
 
-use super::*;
+use super::{
+    screen::{Scales, left_group, row, spacer, text_line, text_width, tight},
+    *,
+};
 use crate::{
     GameLoop,
     campaign::{self, config::CampaignConfigs},
@@ -49,10 +57,6 @@ use crate::{
     sim::calendar::Season,
     world_map::{self as world_map_data, WorldMapProvider, config::CityKind, provider::ChoiceSiteInfo},
 };
-
-use overlay::MapScene;
-use super::screen::{Scales, left_group, row, spacer, text_line, text_width, tight};
-
 
 // ----------------------------------------------
 // Layout (points on a 1920 × 1080 window, as the mockup generator draws it; scaled by the window:
@@ -115,7 +119,6 @@ const PANEL_SLACK: f32 = 6.0; // Left under the panel's parts for what measuring
 const MAX_ZOOM: f32 = 3.0;
 const WHEEL_STEP: f32 = 1.25;
 
-
 // ----------------------------------------------
 // State
 // ----------------------------------------------
@@ -142,8 +145,15 @@ struct BuildKey {
     rebuilds: u32,
 }
 
-static STATE: UiStaticVar<WorldMapScreenState> =
-    UiStaticVar::new(WorldMapScreenState { campaign: None, selected: None, hovered: None, view: None, active: false, built: None, rebuilds: 0 });
+static STATE: UiStaticVar<WorldMapScreenState> = UiStaticVar::new(WorldMapScreenState {
+    campaign: None,
+    selected: None,
+    hovered: None,
+    view: None,
+    active: false,
+    built: None,
+    rebuilds: 0,
+});
 
 // The campaign whose map the screen shows in `realm`'s skin: the mission being played's (or the
 // default campaign, world_map::default_campaign) when it's that realm's, else the first visible
@@ -241,7 +251,12 @@ pub fn screen_info() -> Option<WorldMapScreenInfo> {
     }
     let state = STATE.as_ref();
     let view = state.view.unwrap_or_else(fitted_view);
-    Some(WorldMapScreenInfo { campaign: state.campaign, selected: state.selected.clone(), hovered: state.hovered.clone(), view })
+    Some(WorldMapScreenInfo {
+        campaign: state.campaign,
+        selected: state.selected.clone(),
+        hovered: state.hovered.clone(),
+        view,
+    })
 }
 
 // The view the map opens with: the whole map, fit to its panel, centred on the skin's map extent.
@@ -349,7 +364,6 @@ impl DialogMenu for WorldMap {
     }
 }
 
-
 // A world map colour of the skin (its `world_map.colors`, a `text` name or "#RRGGBB(AA)").
 fn map_color(name: &str) -> Option<Color> {
     skin::world_map().colors.get(name).and_then(|value| skin::color(value))
@@ -366,7 +380,11 @@ impl WorldMap {
         let scales = Scales::new(window);
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
 
-        let mut menu = UiMenu::new(kind).with_flags(flags).with_size(window).with_content_insets(UiMenuInsets::same(0.0)).with_widget_spacing(Vec2::zero());
+        let mut menu = UiMenu::new(kind)
+            .with_flags(flags)
+            .with_size(window)
+            .with_content_insets(UiMenuInsets::same(0.0))
+            .with_widget_spacing(Vec2::zero());
 
         // Built at boot and on every rebuild (a realm switch, a skin or language change) for every
         // dialog kind, but shown only once prepared for opening, in game: until then an empty
@@ -385,7 +403,8 @@ impl WorldMap {
         let provider = state.campaign.and_then(world_map_data::provider);
         let scene = provider.as_ref().map(|provider| Rc::new(MapScene::new(provider)));
         let panel = provider.as_ref().and_then(|provider| state.selected.as_deref().and_then(|id| provider.city_panel(id)));
-        let selected_city = scene.as_ref().and_then(|scene| state.selected.as_deref().and_then(|id| scene.city(id).cloned()));
+        let selected_city =
+            scene.as_ref().and_then(|scene| state.selected.as_deref().and_then(|id| scene.city(id).cloned()));
 
         // The composition's rows, from the top: the bar, the map and the panel, the legend.
         let map_height = map_height(&art);
@@ -395,7 +414,10 @@ impl WorldMap {
 
         let mut middle = UiColumns::new().with_spacing(0.0);
         middle.add_column(UiColumnWidth::Fixed(scales.origin.x + scales.pt(MAP_ORIGIN[0])), UiWidgetGroup::new());
-        middle.add_column(UiColumnWidth::Fixed(scales.pt(MAP_WIDTH)), left_group().with_widget(map_view(context, scales, &art, scene.clone())));
+        middle.add_column(
+            UiColumnWidth::Fixed(scales.pt(MAP_WIDTH)),
+            left_group().with_widget(map_view(context, scales, &art, scene.clone())),
+        );
         middle.add_column(UiColumnWidth::Fixed(scales.pt(PANEL_RECT[0] - MAP_ORIGIN[0] - MAP_WIDTH)), UiWidgetGroup::new());
         let side = side_panel(context, scales, panel.as_ref(), selected_city.as_ref());
         middle.add_column(UiColumnWidth::Fixed(scales.pt(PANEL_RECT[2])), left_group().with_widget(side));
@@ -415,7 +437,6 @@ fn map_height(art: &skin::SkinWorldMapDef) -> f32 {
     MAP_WIDTH * art.extent[1] / art.extent[0].max(1.0)
 }
 
-
 // ----------------------------------------------
 // Top bar
 // ----------------------------------------------
@@ -430,14 +451,32 @@ fn top_bar(context: &mut GameUiContext, scales: Scales) -> UiFrame {
     // in the body font, moves down by the difference of the two lines' baselines.
     let title_text = ui::text::get(UiTextCategory::Menu, "world_map.title");
     let title_font = scales.heading_font(TITLE_SIZE);
-    let title = text_line(title_text, "title", title_font, bar_text, text_width(context, title_text, title_font) * 1.06, UiTextAlign::Left).with_heading_font();
+    let title = text_line(
+        title_text,
+        "title",
+        title_font,
+        bar_text,
+        text_width(context, title_text, title_font) * 1.06,
+        UiTextAlign::Left,
+    )
+    .with_heading_font();
     let subtitle_key = format!("realm.{realm}.epithet");
     let subtitle_text = ui::text::get(UiTextCategory::Realm, &subtitle_key);
     let subtitle_font = scales.font(SUBTITLE_SIZE);
-    let subtitle = text_line(subtitle_text, "subtitle", subtitle_font, bar_sub, text_width(context, subtitle_text, subtitle_font), UiTextAlign::Left);
+    let subtitle = text_line(
+        subtitle_text,
+        "subtitle",
+        subtitle_font,
+        bar_sub,
+        text_width(context, subtitle_text, subtitle_font),
+        UiTextAlign::Left,
+    );
     let drop = (title.baseline(context) - subtitle.baseline(context)).max(0.0);
-    let subtitle =
-        UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::zero()).with_widget(spacer(drop)).with_widget(subtitle);
+    let subtitle = UiWidgetGroup::new()
+        .with_center_horizontally(false)
+        .with_widget_spacing(Vec2::zero())
+        .with_widget(spacer(drop))
+        .with_widget(subtitle);
     let titles = UiWidgetGroup::new()
         .with_stack_vertically(false)
         .with_center_horizontally(false)
@@ -449,20 +488,41 @@ fn top_bar(context: &mut GameUiContext, scales: Scales) -> UiFrame {
     let date_width = scales.pt(BAR_DATE_WIDTH);
     let dates = UiWidgetGroup::new()
         .with_center_vertically(true)
-        .with_widget(tight(context, text_line(&date, "date", scales.font(DATE_SIZE), bar_text, date_width, UiTextAlign::Right), scales.font(DATE_SIZE), DATE_SIZE, scales))
-        .with_widget(tight(context, text_line(&season, "season", scales.font(SEASON_SIZE), bar_sub, date_width, UiTextAlign::Right), scales.font(SEASON_SIZE), SEASON_SIZE, scales));
+        .with_widget(tight(
+            context,
+            text_line(&date, "date", scales.font(DATE_SIZE), bar_text, date_width, UiTextAlign::Right),
+            scales.font(DATE_SIZE),
+            DATE_SIZE,
+            scales,
+        ))
+        .with_widget(tight(
+            context,
+            text_line(&season, "season", scales.font(SEASON_SIZE), bar_sub, date_width, UiTextAlign::Right),
+            scales.font(SEASON_SIZE),
+            SEASON_SIZE,
+            scales,
+        ));
 
     let coin = skin::world_map().marks.get("coin").cloned().map(|path| {
         let (texture, size) = skin::sprite_and_size(context, &path);
         UiImage::from_texture(texture, size, size * scales.size).with_label("coin")
     });
-    let treasury_line = text_line(&treasury, "treasury", scales.heading_font(TREASURY_SIZE), bar_text, scales.pt(BAR_TREASURY_WIDTH), UiTextAlign::Left).with_heading_font();
+    let treasury_line = text_line(
+        &treasury,
+        "treasury",
+        scales.heading_font(TREASURY_SIZE),
+        bar_text,
+        scales.pt(BAR_TREASURY_WIDTH),
+        UiTextAlign::Left,
+    )
+    .with_heading_font();
 
-    let button = skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "world_map.return"), |_, context| {
-        super::close(DialogMenuKind::WorldMap, context_as_mut::<GameUiContext>(context));
-    })
-    .with_width(UiTextButtonWidth::Fixed(scales.pt(BAR_BUTTON[1])))
-    .with_min_height(scales.pt(BAR_BUTTON[2]));
+    let button =
+        skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "world_map.return"), |_, context| {
+            super::close(DialogMenuKind::WorldMap, context_as_mut::<GameUiContext>(context));
+        })
+        .with_width(UiTextButtonWidth::Fixed(scales.pt(BAR_BUTTON[1])))
+        .with_min_height(scales.pt(BAR_BUTTON[2]));
     let button = scales.button_text(button, BUTTON_TEXT_SIZE);
 
     let centred = |widget: UiWidgetImpl| left_group().with_center_vertically(true).with_widget(widget);
@@ -471,32 +531,49 @@ fn top_bar(context: &mut GameUiContext, scales: Scales) -> UiFrame {
     columns.add_column(UiColumnWidth::Fixed(scales.pt(BAR_DATE_RIGHT - BAR_DATE_WIDTH - BAR_TITLE_X)), titles);
     columns.add_column(UiColumnWidth::Fixed(date_width), dates);
     columns.add_column(UiColumnWidth::Fixed(scales.pt(BAR_COIN_X - BAR_DATE_RIGHT)), UiWidgetGroup::new());
-    columns.add_column(UiColumnWidth::Fixed(scales.pt(BAR_TREASURY_X - BAR_COIN_X)), coin.map_or_else(UiWidgetGroup::new, |coin| centred(coin.into())));
+    columns.add_column(
+        UiColumnWidth::Fixed(scales.pt(BAR_TREASURY_X - BAR_COIN_X)),
+        coin.map_or_else(UiWidgetGroup::new, |coin| centred(coin.into())),
+    );
     columns.add_column(UiColumnWidth::Fixed(scales.pt(BAR_TREASURY_WIDTH)), centred(treasury_line.into()));
-    columns.add_column(UiColumnWidth::Fixed(scales.pt(BAR_BUTTON[0] - BAR_TREASURY_X - BAR_TREASURY_WIDTH)), UiWidgetGroup::new());
+    columns.add_column(
+        UiColumnWidth::Fixed(scales.pt(BAR_BUTTON[0] - BAR_TREASURY_X - BAR_TREASURY_WIDTH)),
+        UiWidgetGroup::new(),
+    );
     columns.add_column(UiColumnWidth::Fixed(scales.pt(BAR_BUTTON[1])), centred(button.into()));
     columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
 
-    let mut frame = UiFrame::new(UiWidgetGroup::new().with_center_vertically(true).with_widget(columns), Vec2::new(scales.pt(BAR_RECT[2]), scales.pt(BAR_RECT[3])))
-        .with_label("bar");
+    let mut frame = UiFrame::new(
+        UiWidgetGroup::new().with_center_vertically(true).with_widget(columns),
+        Vec2::new(scales.pt(BAR_RECT[2]), scales.pt(BAR_RECT[3])),
+    )
+    .with_label("bar");
     if let SkinPanel::NineSlice { slice, .. } = skin::panel(context, "bar") {
         frame = frame.with_panel(slice);
     }
     frame
 }
 
-
 // ----------------------------------------------
 // Map
 // ----------------------------------------------
 
-fn map_view(context: &mut GameUiContext, scales: Scales, art: &skin::SkinWorldMapDef, scene: Option<Rc<MapScene>>) -> UiMapView {
+fn map_view(
+    context: &mut GameUiContext,
+    scales: Scales,
+    art: &skin::SkinWorldMapDef,
+    scene: Option<Rc<MapScene>>,
+) -> UiMapView {
     let size = Vec2::new(scales.pt(MAP_WIDTH), scales.pt(map_height(art)));
     let (texture, texture_size) = if art.base.is_empty() {
         (None, Vec2::new(1.0, 1.0))
     } else {
         let texture = context.load_texture(PathRef::from_str(&art.base));
-        let texture_size = context.render_sys().texture_cache().texture_size(texture).map_or(Vec2::new(1.0, 1.0), |size| Vec2::new(size.width as f32, size.height as f32));
+        let texture_size = context
+            .render_sys()
+            .texture_cache()
+            .texture_size(texture)
+            .map_or(Vec2::new(1.0, 1.0), |size| Vec2::new(size.width as f32, size.height as f32));
         (Some(texture), texture_size)
     };
     let extent = Vec2::new(art.extent[0], art.extent[1]);
@@ -511,7 +588,11 @@ fn map_view(context: &mut GameUiContext, scales: Scales, art: &skin::SkinWorldMa
     if !art.frame.is_empty() {
         let (frame, frame_size) = {
             let texture = context.load_texture(PathRef::from_str(&art.frame));
-            let size = context.render_sys().texture_cache().texture_size(texture).map_or(Vec2::new(1.0, 1.0), |size| Vec2::new(size.width as f32, size.height as f32));
+            let size = context
+                .render_sys()
+                .texture_cache()
+                .texture_size(texture)
+                .map_or(Vec2::new(1.0, 1.0), |size| Vec2::new(size.width as f32, size.height as f32));
             (texture, size)
         };
         let [x, y, width, height] = art.frame_map_rect;
@@ -522,7 +603,15 @@ fn map_view(context: &mut GameUiContext, scales: Scales, art: &skin::SkinWorldMa
         let look = overlay::MapLook::load(context, scales.size);
         view = view.with_overlay(move |context, painter, transform, pointer| {
             let state = STATE.as_mut();
-            let hit = scene.draw(context.ui_sys(), painter, transform, pointer, &look, state.selected.as_deref(), state.hovered.as_deref());
+            let hit = scene.draw(
+                context.ui_sys(),
+                painter,
+                transform,
+                pointer,
+                &look,
+                state.selected.as_deref(),
+                state.hovered.as_deref(),
+            );
             state.hovered = hit.clone();
             let Some(id) = hit.filter(|_| pointer.clicked) else {
                 return;
@@ -584,8 +673,12 @@ pub(super) fn open_popup(context: &mut GameUiContext, popup: MapPopup) -> bool {
         return false;
     };
     match popup {
-        MapPopup::BeginMission if next.sites.is_empty() && next.open => open_begin_popup(context, campaign, next.mission_index),
-        MapPopup::ChooseSite if next.open && !next.sites.is_empty() => open_choice_popup(context, campaign, next.mission_index, next.sites[0].clone()),
+        MapPopup::BeginMission if next.sites.is_empty() && next.open => {
+            open_begin_popup(context, campaign, next.mission_index)
+        }
+        MapPopup::ChooseSite if next.open && !next.sites.is_empty() => {
+            open_choice_popup(context, campaign, next.mission_index, next.sites[0].clone())
+        }
         MapPopup::FinishFirst if !next.open && !next.sites.is_empty() => open_finish_first_popup(context, campaign),
         _ => return false,
     }
@@ -601,38 +694,58 @@ fn open_choice_popup(context: &mut GameUiContext, campaign: usize, step: usize, 
     if !dialog.menu.is_open() || dialog.menu.is_message_box_open() {
         return;
     }
-    let mission = CampaignConfigs::get().campaign(campaign).and_then(|def| def.mission_display_name(site.mission_index)).unwrap_or_default();
+    let mission = CampaignConfigs::get()
+        .campaign(campaign)
+        .and_then(|def| def.mission_display_name(site.mission_index))
+        .unwrap_or_default();
     dialog.menu.reset_message_box();
     dialog.menu.open_message_box(context, move |context| {
         // A site with a phrase is a common noun mid-sentence ("Settle at the royal port?").
         let (title, body) = if site.phrased {
             (
                 ui::text::format(UiTextCategory::Menu, "popup.choose_site.title.phrase", &[("site", &site.phrase)]),
-                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body.phrase", &[("mission", mission), ("site", &site.phrase)]),
+                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body.phrase", &[
+                    ("mission", mission),
+                    ("site", &site.phrase),
+                ]),
             )
         } else {
             (
                 ui::text::format(UiTextCategory::Menu, "popup.choose_site.title", &[("site", &site.name)]),
-                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body", &[("mission", mission), ("site", &site.name)]),
+                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body", &[
+                    ("mission", mission),
+                    ("site", &site.name),
+                ]),
             )
         };
-        let body = [(UiString::from(body), "ink"), (UiString::key(UiTextCategory::Menu, "popup.choose_site.unsaved"), "sub")];
+        let body =
+            [(UiString::from(body), "ink"), (UiString::key(UiTextCategory::Menu, "popup.choose_site.unsaved"), "sub")];
         let window = ui::screen_size(context.ui_sys());
         let sized = |button: UiTextButton| skin::size_popup_button(button, window);
         let (mission_index, picked) = (site.mission_index, site.site);
         skin::popup_with_colored_body(context, CHOOSE_SITE_POPUP_LABEL, [UiString::from(title)], body).with_buttons([
-            sized(make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), |_, context| {
-                super::find::<WorldMap>().menu.close_message_box(context);
-            })),
-            sized(make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "popup.choose_site.begin"), move |_, context| {
-                // The session switch closes every dialog; a mission that can't start leaves the
-                // screen as it was. A preview's (campaign::preview) starts nothing.
-                if !campaign::preview::is_active() && super::home::start_campaign_mission(campaign, mission_index) {
-                    profile::on_choice_made(campaign, step, picked);
-                } else {
+            sized(make_text_button(
+                context,
+                ButtonRole::Secondary,
+                UiString::key(UiTextCategory::Menu, "button.cancel"),
+                |_, context| {
                     super::find::<WorldMap>().menu.close_message_box(context);
-                }
-            })),
+                },
+            )),
+            sized(make_text_button(
+                context,
+                ButtonRole::Primary,
+                UiString::key(UiTextCategory::Menu, "popup.choose_site.begin"),
+                move |_, context| {
+                    // The session switch closes every dialog; a mission that can't start leaves the
+                    // screen as it was. A preview's (campaign::preview) starts nothing.
+                    if !campaign::preview::is_active() && super::home::start_campaign_mission(campaign, mission_index) {
+                        profile::on_choice_made(campaign, step, picked);
+                    } else {
+                        super::find::<WorldMap>().menu.close_message_box(context);
+                    }
+                },
+            )),
         ])
     });
 }
@@ -646,25 +759,40 @@ fn open_begin_popup(context: &mut GameUiContext, campaign: usize, mission_index:
     if !dialog.menu.is_open() || dialog.menu.is_message_box_open() {
         return;
     }
-    let mission = CampaignConfigs::get().campaign(campaign).and_then(|def| def.mission_display_name(mission_index)).unwrap_or_default().to_string();
+    let mission = CampaignConfigs::get()
+        .campaign(campaign)
+        .and_then(|def| def.mission_display_name(mission_index))
+        .unwrap_or_default()
+        .to_string();
     dialog.menu.reset_message_box();
     dialog.menu.open_message_box(context, move |context| {
         let title = ui::text::format(UiTextCategory::Menu, "popup.begin_mission.title", &[("mission", &mission)]);
         let body = ui::text::format(UiTextCategory::Menu, "popup.begin_mission.body", &[("mission", &mission)]);
-        let body = [(UiString::from(body), "ink"), (UiString::key(UiTextCategory::Menu, "popup.choose_site.unsaved"), "sub")];
+        let body =
+            [(UiString::from(body), "ink"), (UiString::key(UiTextCategory::Menu, "popup.choose_site.unsaved"), "sub")];
         let window = ui::screen_size(context.ui_sys());
         let sized = |button: UiTextButton| skin::size_popup_button(button, window);
         skin::popup_with_colored_body(context, BEGIN_MISSION_POPUP_LABEL, [UiString::from(title)], body).with_buttons([
-            sized(make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), |_, context| {
-                super::find::<WorldMap>().menu.close_message_box(context);
-            })),
-            sized(make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "popup.choose_site.begin"), move |_, context| {
-                // The session switch closes every dialog; a mission that can't start leaves the
-                // screen as it was. A preview's (campaign::preview) starts nothing.
-                if campaign::preview::is_active() || !super::home::start_campaign_mission(campaign, mission_index) {
+            sized(make_text_button(
+                context,
+                ButtonRole::Secondary,
+                UiString::key(UiTextCategory::Menu, "button.cancel"),
+                |_, context| {
                     super::find::<WorldMap>().menu.close_message_box(context);
-                }
-            })),
+                },
+            )),
+            sized(make_text_button(
+                context,
+                ButtonRole::Primary,
+                UiString::key(UiTextCategory::Menu, "popup.choose_site.begin"),
+                move |_, context| {
+                    // The session switch closes every dialog; a mission that can't start leaves the
+                    // screen as it was. A preview's (campaign::preview) starts nothing.
+                    if campaign::preview::is_active() || !super::home::start_campaign_mission(campaign, mission_index) {
+                        super::find::<WorldMap>().menu.close_message_box(context);
+                    }
+                },
+            )),
         ])
     });
 }
@@ -684,16 +812,25 @@ fn open_finish_first_popup(context: &mut GameUiContext, campaign: usize) {
     dialog.menu.reset_message_box();
     dialog.menu.open_message_box(context, move |context| {
         let (title, body_key) = match &playing {
-            Some(playing) => {
-                (ui::text::format(UiTextCategory::Menu, "popup.finish_first.title", &[("mission", playing)]), "popup.finish_first.body")
-            }
-            None => (ui::text::get(UiTextCategory::Menu, "popup.finish_first.other_game.title").to_string(), "popup.finish_first.other_game.body"),
+            Some(playing) => (
+                ui::text::format(UiTextCategory::Menu, "popup.finish_first.title", &[("mission", playing)]),
+                "popup.finish_first.body",
+            ),
+            None => (
+                ui::text::get(UiTextCategory::Menu, "popup.finish_first.other_game.title").to_string(),
+                "popup.finish_first.other_game.body",
+            ),
         };
         let body = [(UiString::key(UiTextCategory::Menu, body_key), "ink")];
         let window = ui::screen_size(context.ui_sys());
-        let ok = make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "button.ok"), |_, context| {
-            super::find::<WorldMap>().menu.close_message_box(context);
-        });
+        let ok = make_text_button(
+            context,
+            ButtonRole::Primary,
+            UiString::key(UiTextCategory::Menu, "button.ok"),
+            |_, context| {
+                super::find::<WorldMap>().menu.close_message_box(context);
+            },
+        );
         let ok = skin::size_popup_button(ok, window);
         skin::popup_with_colored_body(context, FINISH_FIRST_POPUP_LABEL, [UiString::from(title)], body).with_buttons([ok])
     });
@@ -703,7 +840,12 @@ fn open_finish_first_popup(context: &mut GameUiContext, campaign: usize) {
 // Side panel
 // ----------------------------------------------
 
-fn side_panel(context: &mut GameUiContext, scales: Scales, panel: Option<&world_map_data::provider::CityPanel>, city: Option<&world_map_data::provider::MapCity>) -> UiFrame {
+fn side_panel(
+    context: &mut GameUiContext,
+    scales: Scales,
+    panel: Option<&world_map_data::provider::CityPanel>,
+    city: Option<&world_map_data::provider::MapCity>,
+) -> UiFrame {
     let size = Vec2::new(scales.pt(PANEL_RECT[2]), scales.pt(PANEL_RECT[3]));
     let padding = PANEL_PADDING.map(|side| scales.pt(side));
     let inner = Vec2::new(size.x - padding[0] - padding[2], size.y - padding[1] - padding[3]);
@@ -783,10 +925,14 @@ fn panel_parts(
         let height = scales.pt(EMBLEM_SIZE * (0.6 + 0.4 * tightness));
         parts.push(emblem.with_size(Vec2::new(width, height)).with_fit(UiImageFit::Contain).into());
     }
-    let name = text_line(&panel.name, "name", scales.heading_font(NAME_SIZE), text, width, UiTextAlign::Center).with_heading_font();
+    let name =
+        text_line(&panel.name, "name", scales.heading_font(NAME_SIZE), text, width, UiTextAlign::Center).with_heading_font();
     parts.push(tight(context, name, scales.heading_font(NAME_SIZE), NAME_SIZE, scales).into());
     let subtitle = match &panel.role {
-        Some(role) => ui::text::format(UiTextCategory::Menu, "world_map.subtitle_role", &[("subtitle", &panel.subtitle), ("role", role)]),
+        Some(role) => ui::text::format(UiTextCategory::Menu, "world_map.subtitle_role", &[
+            ("subtitle", &panel.subtitle),
+            ("role", role),
+        ]),
         None => panel.subtitle.clone(),
     };
     let subtitle = text_line(&subtitle, "subtitle", scales.font(PANEL_SUB_SIZE), sub, width, UiTextAlign::Center);
@@ -796,7 +942,13 @@ fn panel_parts(
 
     if let Some(relation) = &panel.relation {
         parts.push(gap(8.0).into());
-        let look = UiRowLook { label_color: Some(sub), value_color: Some(text), header_color: None, rule_color: None, padding: scales.pt(2.0) * tightness };
+        let look = UiRowLook {
+            label_color: Some(sub),
+            value_color: Some(text),
+            header_color: None,
+            rule_color: None,
+            padding: scales.pt(2.0) * tightness,
+        };
         let relations = skin::key_values()
             .with_label("relations")
             .with_look(look)
@@ -838,14 +990,27 @@ fn panel_parts(
         // The goods' names in the body size, smaller if the longest wouldn't fit its column.
         let half = (width - scales.pt(GOODS_COLUMN_GAP)) * 0.5;
         let name_room = half - scales.pt(BULLET_SIZE) * 2.4 - scales.pt(PRICE_WIDTH) - scales.pt(GOODS_CELL_GAP);
-        let widest = panel.sells.iter().chain(&panel.buys).map(|good| context.calc_text_size(scales.font(GOODS_SIZE), &good.good).x).fold(0.0, f32::max);
-        let font = UiFontScale(scales.font(GOODS_SIZE).0 * if widest > name_room && widest > 0.0 { name_room / widest } else { 1.0 });
+        let widest = panel
+            .sells
+            .iter()
+            .chain(&panel.buys)
+            .map(|good| context.calc_text_size(scales.font(GOODS_SIZE), &good.good).x)
+            .fold(0.0, f32::max);
+        let font = UiFontScale(
+            scales.font(GOODS_SIZE).0 * if widest > name_room && widest > 0.0 { name_room / widest } else { 1.0 },
+        );
         // Rows as far apart as the mockup's, else as close as their text allows.
         let line = context.calc_text_size(font, "Ag").y;
         let padding = ((scales.pt(GOODS_ROW_HEIGHT) - line) * 0.5 * tightness).max(scales.pt(1.0));
         let mut goods = UiColumns::new().with_spacing(scales.pt(GOODS_COLUMN_GAP)).with_width(width);
-        goods.add_column(UiColumnWidth::Fixed(half), left_group().with_widget(goods_table(scales, "world_map.they_sell", &panel.sells, half, padding, font)));
-        goods.add_column(UiColumnWidth::Fixed(half), left_group().with_widget(goods_table(scales, "world_map.they_buy", &panel.buys, half, padding, font)));
+        goods.add_column(
+            UiColumnWidth::Fixed(half),
+            left_group().with_widget(goods_table(scales, "world_map.they_sell", &panel.sells, half, padding, font)),
+        );
+        goods.add_column(
+            UiColumnWidth::Fixed(half),
+            left_group().with_widget(goods_table(scales, "world_map.they_buy", &panel.buys, half, padding, font)),
+        );
         parts.push(goods.into());
     }
 
@@ -857,7 +1022,17 @@ fn panel_parts(
     if panel.relation.is_none() && panel.route_line.is_none() {
         parts.push(gap(16.0).into());
         let note_key = if city.player_owned { "world_map.note.your_city" } else { "world_map.note.no_trade" };
-        parts.push(text_line(ui::text::get(UiTextCategory::Menu, note_key), "note", scales.font(ROUTE_DETAIL_SIZE), sub, width, UiTextAlign::Center).into());
+        parts.push(
+            text_line(
+                ui::text::get(UiTextCategory::Menu, note_key),
+                "note",
+                scales.font(ROUTE_DETAIL_SIZE),
+                sub,
+                width,
+                UiTextAlign::Center,
+            )
+            .into(),
+        );
     }
     parts
 }
@@ -878,7 +1053,14 @@ fn city_emblem(context: &mut GameUiContext, city: &world_map_data::provider::Map
 }
 
 // "They sell" or "They buy": a header in the section colour, a row per good with its price.
-fn goods_table(scales: Scales, title_key: &'static str, goods: &[world_map_data::provider::TradeOffer], width: f32, padding: f32, font: UiFontScale) -> UiTable {
+fn goods_table(
+    scales: Scales,
+    title_key: &'static str,
+    goods: &[world_map_data::provider::TradeOffer],
+    width: f32,
+    padding: f32,
+    font: UiFontScale,
+) -> UiTable {
     let mut look = skin::row_look();
     look.header_color = Some(map_color_or("section", "accent"));
     look.label_color = Some(map_color_or("panel_text", "ink"));
@@ -906,28 +1088,56 @@ fn goods_table(scales: Scales, title_key: &'static str, goods: &[world_map_data:
 }
 
 // The court's request: a box with its title and the goods asked for, within so long.
-fn request_box(context: &mut GameUiContext, scales: Scales, width: f32, request: &world_map_data::provider::CourtRequest) -> UiFrame {
+fn request_box(
+    context: &mut GameUiContext,
+    scales: Scales,
+    width: f32,
+    request: &world_map_data::provider::CourtRequest,
+) -> UiFrame {
     let padding = REQUEST_PADDING.map(|side| scales.pt(side));
     let inner_width = width - padding[0] - padding[2];
 
     // Đại Long's box ends in a seal marked "!" (the skin's `request_seal`): the city seal's sprite,
     // REQUEST_SEAL_SIZE points large, its centre REQUEST_SEAL_INSET in from the box's right edge.
     let art = skin::world_map();
-    let seal = art
-        .request_seal
-        .then(|| art.marks.get("city").cloned())
-        .flatten()
-        .map(|path| (skin::sprite_and_size(context, &path), art.places.get("city").map_or(24.0, |place| place.seal).max(1.0), art.seal_letter.clone()));
+    let seal = art.request_seal.then(|| art.marks.get("city").cloned()).flatten().map(|path| {
+        (
+            skin::sprite_and_size(context, &path),
+            art.places.get("city").map_or(24.0, |place| place.seal).max(1.0),
+            art.seal_letter.clone(),
+        )
+    });
     let seal_room = if seal.is_some() { scales.pt(REQUEST_SEAL_INSET + REQUEST_SEAL_SIZE * 0.5) - padding[2] } else { 0.0 };
     let text_width = inner_width - seal_room;
 
     let title = ui::text::get(UiTextCategory::Menu, "world_map.request.title").to_uppercase();
-    let goods = ui::text::format(UiTextCategory::Menu, "world_map.request.line", &[("goods", &request.goods), ("within", &request.within)]);
+    let goods = ui::text::format(UiTextCategory::Menu, "world_map.request.line", &[
+        ("goods", &request.goods),
+        ("within", &request.within),
+    ]);
     let text = UiWidgetGroup::new()
         .with_center_horizontally(false)
         .with_widget_spacing(Vec2::new(0.0, scales.pt(6.0)))
-        .with_widget(text_line(&title, "title", scales.heading_font(REQUEST_TITLE_SIZE), map_color_or("request_title", "accent"), text_width, UiTextAlign::Left).with_heading_font().with_letter_spacing(scales.pt(1.5)))
-        .with_widget(text_line(&goods, "goods", scales.font(REQUEST_SIZE), map_color_or("request_text", "ink"), text_width, UiTextAlign::Left));
+        .with_widget(
+            text_line(
+                &title,
+                "title",
+                scales.heading_font(REQUEST_TITLE_SIZE),
+                map_color_or("request_title", "accent"),
+                text_width,
+                UiTextAlign::Left,
+            )
+            .with_heading_font()
+            .with_letter_spacing(scales.pt(1.5)),
+        )
+        .with_widget(text_line(
+            &goods,
+            "goods",
+            scales.font(REQUEST_SIZE),
+            map_color_or("request_text", "ink"),
+            text_width,
+            UiTextAlign::Left,
+        ));
 
     // The mockup's height, or more for a realm font's taller lines.
     let height = scales.pt(REQUEST_HEIGHT).max((text.measure(context).y + padding[1] + padding[3]).ceil());
@@ -936,17 +1146,18 @@ fn request_box(context: &mut GameUiContext, scales: Scales, width: f32, request:
         Some(((texture, sprite_size), seal_points, letter_def)) => {
             // The sprite's size at 1080p is for a seal `seal_points` large: drawn REQUEST_SEAL_SIZE.
             let draw_size = sprite_size * (REQUEST_SEAL_SIZE / seal_points * scales.size);
-            let canvas = UiCanvas::new(Vec2::new(seal_room, (height - padding[1] - padding[3]).max(1.0)), move |_, painter, rect| {
-                // The canvas reaches from the seal's left edge to the box's padding.
-                let centre = Vec2::new(rect.min.x + scales.pt(REQUEST_SEAL_SIZE * 0.5), rect.center().y);
-                painter.image(texture, Rect::from_pos_and_size(centre - draw_size * 0.5, draw_size), Color::white());
-                if let Some(def) = &letter_def {
-                    let seal = scales.pt(REQUEST_SEAL_SIZE);
-                    let look = overlay::map_label_look(def, REQUEST_SEAL_SIZE * def.size, scales.size);
-                    painter.label(centre + Vec2::new(0.0, seal * 0.2), UiTextAnchor::Middle, "!", &look);
-                }
-            })
-            .with_label("seal", None);
+            let canvas =
+                UiCanvas::new(Vec2::new(seal_room, (height - padding[1] - padding[3]).max(1.0)), move |_, painter, rect| {
+                    // The canvas reaches from the seal's left edge to the box's padding.
+                    let centre = Vec2::new(rect.min.x + scales.pt(REQUEST_SEAL_SIZE * 0.5), rect.center().y);
+                    painter.image(texture, Rect::from_pos_and_size(centre - draw_size * 0.5, draw_size), Color::white());
+                    if let Some(def) = &letter_def {
+                        let seal = scales.pt(REQUEST_SEAL_SIZE);
+                        let look = overlay::map_label_look(def, REQUEST_SEAL_SIZE * def.size, scales.size);
+                        painter.label(centre + Vec2::new(0.0, seal * 0.2), UiTextAnchor::Middle, "!", &look);
+                    }
+                })
+                .with_label("seal", None);
             UiWidgetGroup::new()
                 .with_stack_vertically(false)
                 .with_center_horizontally(false)
@@ -965,7 +1176,12 @@ fn request_box(context: &mut GameUiContext, scales: Scales, width: f32, request:
         frame = frame.with_outline(UiFrameOutline { color: border, width: scales.pt(1.5).max(1.0), inset: 0.0, dash });
     }
     if let Some(inner) = map_color("request_inner") {
-        frame = frame.with_outline(UiFrameOutline { color: inner, width: scales.pt(1.5).max(1.0), inset: scales.pt(4.0), dash: None });
+        frame = frame.with_outline(UiFrameOutline {
+            color: inner,
+            width: scales.pt(1.5).max(1.0),
+            inset: scales.pt(4.0),
+            dash: None,
+        });
     }
     frame
 }
@@ -1007,7 +1223,11 @@ fn legend(context: &mut GameUiContext, scales: Scales) -> UiCanvas {
     let size = Vec2::new(scales.pt(LEGEND_RECT[2]), scales.pt(LEGEND_RECT[3]));
     let look = overlay::MapLook::load(context, scales.size);
     let fill = map_color("legend_fill").unwrap_or(Color::new(0.0, 0.0, 0.0, 0.45));
-    let text_look = UiLabelLook { size: scales.pt(LEGEND_SIZE) / skin::font_em(false), color: map_color_or("legend_text", "light"), ..UiLabelLook::default() };
+    let text_look = UiLabelLook {
+        size: scales.pt(LEGEND_SIZE) / skin::font_em(false),
+        color: map_color_or("legend_text", "light"),
+        ..UiLabelLook::default()
+    };
     let texts: Vec<&'static str> = LegendEntry::ALL.iter().map(|entry| entry.text()).collect();
     let value = serde_json::json!(texts);
     let k = scales.size;

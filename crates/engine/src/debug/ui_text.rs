@@ -1,7 +1,9 @@
 use strum::IntoEnumIterator;
 
 use crate::ui::{
-    self, DrawDebugUi, UiSystem,
+    self,
+    DrawDebugUi,
+    UiSystem,
     text::{self, UiTextCategory, UiTextDebug},
 };
 
@@ -37,32 +39,35 @@ impl DrawDebugUi for UiTextDebug {
         }
 
         for (language_index, language) in store.languages.iter().enumerate() {
-            let Some(_path) = ui::collapsing_header_scope(ui_sys, &common::format_small!("Language '{}'", language.name), false)
+            let Some(_path) =
+                ui::collapsing_header_scope(ui_sys, &common::format_small!("Language '{}'", language.name), false)
             else {
                 continue;
             };
 
             // Each language's category headers keep their own open state: sibling indents share
             // an egui id salt, so give each language its own scope.
-            ui::id_scope(ui_sys, language_index, |ui_sys| ui::indent(ui_sys, 10.0, |ui_sys| {
-                for category in UiTextCategory::iter() {
-                    let strings = language.strings(category);
-                    if let Some(_path) = ui::collapsing_header_scope(ui_sys, category.into(), false) {
-                        ui::indent(ui_sys, 10.0, |ui_sys| {
-                            ui::text(ui_sys, format_args!("Keys: {}", strings.entries.len()));
-                            for (key, entry) in &strings.entries {
-                                for (form, text) in entry.forms() {
-                                    if form.is_empty() {
-                                        ui::text(ui_sys, format_args!("{key}: '{text}'"));
-                                    } else {
-                                        ui::text(ui_sys, format_args!("{key} [{form}]: '{text}'"));
+            ui::id_scope(ui_sys, language_index, |ui_sys| {
+                ui::indent(ui_sys, 10.0, |ui_sys| {
+                    for category in UiTextCategory::iter() {
+                        let strings = language.strings(category);
+                        if let Some(_path) = ui::collapsing_header_scope(ui_sys, category.into(), false) {
+                            ui::indent(ui_sys, 10.0, |ui_sys| {
+                                ui::text(ui_sys, format_args!("Keys: {}", strings.entries.len()));
+                                for (key, entry) in &strings.entries {
+                                    for (form, text) in entry.forms() {
+                                        if form.is_empty() {
+                                            ui::text(ui_sys, format_args!("{key}: '{text}'"));
+                                        } else {
+                                            ui::text(ui_sys, format_args!("{key} [{form}]: '{text}'"));
+                                        }
                                     }
                                 }
-                            }
-                        });
+                            });
+                        }
                     }
-                }
-            }));
+                })
+            });
         }
     }
 }

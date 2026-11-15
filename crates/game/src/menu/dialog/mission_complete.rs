@@ -27,8 +27,10 @@
 // per row), stats (kind key_values), note/joins, Keep playing, and the Continue button (Continue to
 // the world map, Continue to the next mission, or Continue).
 
-use super::*;
-use super::screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight, tight_row};
+use super::{
+    screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight, tight_row},
+    *,
+};
 use crate::{
     campaign::{
         self,
@@ -190,7 +192,9 @@ impl Debrief {
         let continue_label = match continue_to() {
             ContinueTo::WorldMap => UiString::key(UiTextCategory::Menu, "debrief.continue.world_map"),
             ContinueTo::NextMission => UiString::key(UiTextCategory::Menu, "debrief.continue.next_mission"),
-            ContinueTo::CampaignComplete | ContinueTo::Close => UiString::key(UiTextCategory::Menu, "debrief.continue.campaign_complete"),
+            ContinueTo::CampaignComplete | ContinueTo::Close => {
+                UiString::key(UiTextCategory::Menu, "debrief.continue.campaign_complete")
+            }
         };
         let plain = || Self {
             kicker: ui::text::get(UiTextCategory::Menu, "debrief.mission_complete.plain").to_uppercase(),
@@ -206,12 +210,15 @@ impl Debrief {
         let Some(active) = campaign::preview::shown_mission() else {
             return plain();
         };
-        let (Some(campaign), Some(mission)) = (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index)) else {
+        let (Some(campaign), Some(mission)) =
+            (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index))
+        else {
             return plain();
         };
 
         let number = campaign.mission_number(active.mission_index).to_string();
-        let kicker = ui::text::format(UiTextCategory::Menu, "debrief.mission_complete", &[("number", &number)]).to_uppercase();
+        let kicker =
+            ui::text::format(UiTextCategory::Menu, "debrief.mission_complete", &[("number", &number)]).to_uppercase();
         let name = campaign.mission_display_name(active.mission_index).map(str::to_string);
         let year = realm::date_text(realm::ui_realm_for(false).realm, context.sim.calendar());
         let city = mission.city_display_name();
@@ -239,8 +246,14 @@ impl Debrief {
         // the mission may have charged month-end wages and upkeep after the count (the balance
         // then reads lower), and the simulation stays paused under the debrief.
         let stats = vec![
-            (ui::text::get(UiTextCategory::Menu, "debrief.stat.population").to_string(), digits(i64::from(stats.population.total))),
-            (ui::text::get(UiTextCategory::Menu, "debrief.stat.treasury").to_string(), digits(stats.treasury.gold_units_total)),
+            (
+                ui::text::get(UiTextCategory::Menu, "debrief.stat.population").to_string(),
+                digits(i64::from(stats.population.total)),
+            ),
+            (
+                ui::text::get(UiTextCategory::Menu, "debrief.stat.treasury").to_string(),
+                digits(stats.treasury.gold_units_total),
+            ),
             (ui::text::get(UiTextCategory::Menu, "debrief.stat.years").to_string(), years.to_string()),
         ];
         let joins = city.map(|city| ui::text::format(UiTextCategory::Menu, "debrief.joins", &[("city", city)]));
@@ -265,15 +278,21 @@ impl Debrief {
 // debrief's and the briefing's goals.
 pub(crate) fn goal_line(goal: &MissionGoal, stats: &WorldStats) -> (String, i64, i64) {
     match goal {
-        MissionGoal::Population { min } => {
-            (ui::text::get(UiTextCategory::Menu, "debrief.goal.population").to_string(), i64::from(*min), i64::from(stats.population.total))
-        }
-        MissionGoal::Employment { min_employed } => {
-            (ui::text::get(UiTextCategory::Menu, "debrief.goal.employment").to_string(), i64::from(*min_employed), i64::from(stats.population.employed))
-        }
-        MissionGoal::Treasury { min_gold } => {
-            (ui::text::get(UiTextCategory::Menu, "debrief.goal.treasury").to_string(), i64::from(*min_gold), stats.treasury.gold_units_total)
-        }
+        MissionGoal::Population { min } => (
+            ui::text::get(UiTextCategory::Menu, "debrief.goal.population").to_string(),
+            i64::from(*min),
+            i64::from(stats.population.total),
+        ),
+        MissionGoal::Employment { min_employed } => (
+            ui::text::get(UiTextCategory::Menu, "debrief.goal.employment").to_string(),
+            i64::from(*min_employed),
+            i64::from(stats.population.employed),
+        ),
+        MissionGoal::Treasury { min_gold } => (
+            ui::text::get(UiTextCategory::Menu, "debrief.goal.treasury").to_string(),
+            i64::from(*min_gold),
+            stats.treasury.gold_units_total,
+        ),
         MissionGoal::Resource { kind, min } => (
             ui::text::format(UiTextCategory::Menu, "debrief.goal.resource", &[("good", &kind.display_name())]),
             i64::from(*min),
@@ -288,7 +307,11 @@ impl MissionComplete {
         let window = ui::screen_size(context.ui_sys);
         let scales = Scales::new(window);
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
-        let mut menu = UiMenu::new(kind).with_flags(flags).with_size(window).with_content_insets(UiMenuInsets::same(0.0)).with_widget_spacing(Vec2::zero());
+        let mut menu = UiMenu::new(kind)
+            .with_flags(flags)
+            .with_size(window)
+            .with_content_insets(UiMenuInsets::same(0.0))
+            .with_widget_spacing(Vec2::zero());
 
         // Built at boot and on every rebuild for every dialog kind, but shown only once prepared
         // for opening: until then an empty menu, so its textures load only when needed.
@@ -305,8 +328,14 @@ impl MissionComplete {
         menu.add_widget(spacer(scales.origin.y));
         let mut columns = UiColumns::new().with_spacing(0.0);
         columns.add_column(UiColumnWidth::Fixed(scales.origin.x), UiWidgetGroup::new());
-        columns.add_column(UiColumnWidth::Fixed(scales.pt(STELE_WIDTH)), left_group().with_widget(stele_canvas(context, scales, debrief.stele.clone())));
-        let panel = left_group().with_widget_spacing(Vec2::zero()).with_widget(spacer(scales.pt(PANEL_RECT[1]))).with_widget(panel(context, scales, &debrief));
+        columns.add_column(
+            UiColumnWidth::Fixed(scales.pt(STELE_WIDTH)),
+            left_group().with_widget(stele_canvas(context, scales, debrief.stele.clone())),
+        );
+        let panel = left_group()
+            .with_widget_spacing(Vec2::zero())
+            .with_widget(spacer(scales.pt(PANEL_RECT[1])))
+            .with_widget(panel(context, scales, &debrief));
         columns.add_column(UiColumnWidth::Fixed(scales.pt(PANEL_RECT[2])), panel);
         columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
         menu.add_widget(columns);
@@ -486,7 +515,13 @@ fn panel(context: &mut GameUiContext, scales: Scales, debrief: &Debrief) -> UiFr
 // The panel's parts above its buttons, `width` points wide, their gaps at `tightness` (1: as the
 // mockup spaces them; 0: closest): the top ones (the heading, the goals) and the bottom ones (the
 // stats, the note), which keep to the buttons.
-fn panel_parts(context: &mut GameUiContext, scales: Scales, debrief: &Debrief, width: f32, tightness: f32) -> (Vec<UiWidgetImpl>, Vec<UiWidgetImpl>) {
+fn panel_parts(
+    context: &mut GameUiContext,
+    scales: Scales,
+    debrief: &Debrief,
+    width: f32,
+    tightness: f32,
+) -> (Vec<UiWidgetImpl>, Vec<UiWidgetImpl>) {
     let color = skin::intermission_color;
     let text = color("text", "ink");
     let sub = color("sub", "sub");
@@ -577,15 +612,40 @@ fn goals_table(context: &GameUiContext, scales: Scales, debrief: &Debrief, width
         .with_width(width)
         .with_font_scale(font)
         .with_column_spacing(scales.pt(GOAL_COLUMN_GAP))
-        .with_header(UiTableHeader { font_scale: Some(scales.heading_font(HEADER_SIZE)), heading_font: true, rule: false, over_status: true, letter_spacing: scales.pt(HEADER_LETTER_SPACING), hidden: false })
+        .with_header(UiTableHeader {
+            font_scale: Some(scales.heading_font(HEADER_SIZE)),
+            heading_font: true,
+            rule: false,
+            over_status: true,
+            letter_spacing: scales.pt(HEADER_LETTER_SPACING),
+            hidden: false,
+        })
         .with_status_column(UiTableStatusLook::Badges {
             done: color("check", "accent"),
             mark: color("check_mark", "on_accent"),
             open: color("check_open", "sub"),
         })
-        .with_column(UiTableColumn::new(ui::text::get(UiTextCategory::Menu, "debrief.goals").to_uppercase(), UiColumnWidth::Fraction(1.0), UiColumnAlign::Left).with_title_color(color("section", "accent")))
-        .with_column(UiTableColumn::new(ui::text::get(UiTextCategory::Menu, "debrief.target").to_uppercase(), UiColumnWidth::Fixed(scales.pt(TARGET_WIDTH)), UiColumnAlign::Right).with_color(color("sub", "sub")))
-        .with_column(UiTableColumn::new(ui::text::get(UiTextCategory::Menu, "debrief.achieved").to_uppercase(), UiColumnWidth::Fixed(scales.pt(ACHIEVED_WIDTH)), UiColumnAlign::Right));
+        .with_column(
+            UiTableColumn::new(
+                ui::text::get(UiTextCategory::Menu, "debrief.goals").to_uppercase(),
+                UiColumnWidth::Fraction(1.0),
+                UiColumnAlign::Left,
+            )
+            .with_title_color(color("section", "accent")),
+        )
+        .with_column(
+            UiTableColumn::new(
+                ui::text::get(UiTextCategory::Menu, "debrief.target").to_uppercase(),
+                UiColumnWidth::Fixed(scales.pt(TARGET_WIDTH)),
+                UiColumnAlign::Right,
+            )
+            .with_color(color("sub", "sub")),
+        )
+        .with_column(UiTableColumn::new(
+            ui::text::get(UiTextCategory::Menu, "debrief.achieved").to_uppercase(),
+            UiColumnWidth::Fixed(scales.pt(ACHIEVED_WIDTH)),
+            UiColumnAlign::Right,
+        ));
     for (goal, target, achieved, met) in &debrief.goals {
         let status = if *met { UiTableStatus::Done } else { UiTableStatus::Pending };
         table = table.with_row(UiTableRow::new([goal.clone(), target.clone(), achieved.clone()]).with_status(status));
@@ -606,7 +666,17 @@ fn note_box(context: &GameUiContext, scales: Scales, joins: &str, width: f32) ->
         // The generator's "map" icon: a map folded in three.
         let centre = Vec2::new(rect.min.x + NOTE_ICON[0] * k, rect.center().y);
         let at = |x: f32, y: f32| centre + Vec2::new(x * k, y * k);
-        let outline = [at(-16.0, -10.0), at(-6.0, -14.0), at(6.0, -10.0), at(16.0, -14.0), at(16.0, 10.0), at(6.0, 14.0), at(-6.0, 10.0), at(-16.0, 14.0), at(-16.0, -10.0)];
+        let outline = [
+            at(-16.0, -10.0),
+            at(-6.0, -14.0),
+            at(6.0, -10.0),
+            at(16.0, -14.0),
+            at(16.0, 10.0),
+            at(6.0, 14.0),
+            at(-6.0, 10.0),
+            at(-16.0, 14.0),
+            at(-16.0, -10.0),
+        ];
         let stroke = (1.6 * k).max(1.0);
         for pair in outline.windows(2) {
             painter.line(pair[0], pair[1], stroke, border);
@@ -626,17 +696,26 @@ fn note_box(context: &GameUiContext, scales: Scales, joins: &str, width: f32) ->
         .with_widget_spacing(Vec2::zero())
         .with_widget(icon)
         .with_widget(text);
-    UiFrame::new(row, Vec2::new(width, height))
-        .with_label("note")
-        .with_fill(color("note_fill", "light"), 0.0)
-        .with_outline(UiFrameOutline { color: border, width: scales.pt(1.5).max(1.0), inset: 0.0, dash: Some([scales.pt(6.0), scales.pt(3.0)]) })
+    UiFrame::new(row, Vec2::new(width, height)).with_label("note").with_fill(color("note_fill", "light"), 0.0).with_outline(
+        UiFrameOutline {
+            color: border,
+            width: scales.pt(1.5).max(1.0),
+            inset: 0.0,
+            dash: Some([scales.pt(6.0), scales.pt(3.0)]),
+        },
+    )
 }
 
 // Keep playing at the left, Continue at the right.
 fn buttons(context: &mut GameUiContext, scales: Scales, debrief: &Debrief, width: f32) -> UiColumns {
-    let keep = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "debrief.keep_playing"), |_, context| {
-        MissionComplete::on_keep_playing(context_as_mut::<GameUiContext>(context));
-    })
+    let keep = skin::button(
+        context,
+        ButtonRole::Secondary,
+        UiString::key(UiTextCategory::Menu, "debrief.keep_playing"),
+        |_, context| {
+            MissionComplete::on_keep_playing(context_as_mut::<GameUiContext>(context));
+        },
+    )
     .with_width(UiTextButtonWidth::Fixed(scales.pt(KEEP_WIDTH)))
     .with_min_height(scales.pt(BUTTON_HEIGHT));
     let next = skin::button(context, ButtonRole::Primary, debrief.continue_label.clone(), |_, context| {
@@ -645,8 +724,14 @@ fn buttons(context: &mut GameUiContext, scales: Scales, debrief: &Debrief, width
     .with_width(UiTextButtonWidth::Fixed(scales.pt(CONTINUE_WIDTH)))
     .with_min_height(scales.pt(BUTTON_HEIGHT));
     let mut columns = UiColumns::new().with_spacing(0.0).with_width(width);
-    columns.add_column(UiColumnWidth::Fixed(scales.pt(KEEP_WIDTH)), left_group().with_widget(scales.button_text(keep, BUTTON_TEXT_SIZE)));
+    columns.add_column(
+        UiColumnWidth::Fixed(scales.pt(KEEP_WIDTH)),
+        left_group().with_widget(scales.button_text(keep, BUTTON_TEXT_SIZE)),
+    );
     columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
-    columns.add_column(UiColumnWidth::Fixed(scales.pt(CONTINUE_WIDTH)), left_group().with_widget(scales.button_text(next, BUTTON_TEXT_SIZE)));
+    columns.add_column(
+        UiColumnWidth::Fixed(scales.pt(CONTINUE_WIDTH)),
+        left_group().with_widget(scales.button_text(next, BUTTON_TEXT_SIZE)),
+    );
     columns
 }

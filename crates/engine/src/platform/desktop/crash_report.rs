@@ -39,11 +39,10 @@ impl DebugBacktrace {
         for (i, frame) in frames[start..end].iter().enumerate() {
             // Each frame can contain multiple symbols (e.g., inlined functions).
             for symbol in frame.symbols() {
-                let name = symbol.name()
-                    .map(|n| n.to_string())
-                    .unwrap_or_else(|| "<unknown>".into());
+                let name = symbol.name().map(|n| n.to_string()).unwrap_or_else(|| "<unknown>".into());
 
-                let file = symbol.filename()
+                let file = symbol
+                    .filename()
                     .and_then(Path::file_name)
                     .map(|f| f.to_string_lossy().into_owned())
                     .unwrap_or_else(|| "<unknown>".into());
@@ -65,8 +64,8 @@ impl DebugBacktrace {
 pub struct PanicReport<'a> {
     pub message: &'a str,
     pub location: &'a str,
-    pub frame: u64,                    // Frame the panic happened on.
-    pub crash_file: Option<&'a Path>,  // logs/crash-<timestamp>.txt, if it could be written.
+    pub frame: u64,                   // Frame the panic happened on.
+    pub crash_file: Option<&'a Path>, // logs/crash-<timestamp>.txt, if it could be written.
 }
 
 type PanicListenerFn = Box<dyn Fn(&PanicReport) + Send + Sync>;
@@ -149,10 +148,7 @@ pub fn initialize(log_panics: bool) {
 fn write_crash_file(message: &str, location: &str, frame: u64, backtrace: &str) -> Option<PathBuf> {
     let stamp = platform::local_date_time()
         .map(|now| {
-            format!(
-                "{:04}-{:02}-{:02}-{:02}-{:02}-{:02}",
-                now.year, now.month, now.day, now.hour, now.minute, now.second
-            )
+            format!("{:04}-{:02}-{:02}-{:02}-{:02}-{:02}", now.year, now.month, now.day, now.hour, now.minute, now.second)
         })
         .unwrap_or_else(|| "unknown-time".to_string());
 

@@ -1,29 +1,17 @@
 use std::any::Any;
-use serde::{Deserialize, Serialize};
 
 use common::callback::Callback;
 use engine::ui::{DrawDebugUi, UiSystem};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
 
-use super::{
-    UnitTaskContext,
-    UnitTaskState,
-    UnitTaskTransition,
-    UnitTask,
-    UnitTaskId,
-    UnitTaskPool,
-    with_task,
-};
+use super::{UnitTask, UnitTaskContext, UnitTaskId, UnitTaskPool, UnitTaskState, UnitTaskTransition, with_task};
 use crate::{
-    pathfind::{
-        NodeKind as PathNodeKind,
-        RandomDirectionalBias,
-        SearchResult,
-    },
+    building::{BuildingKind, BuildingTileInfo, BuildingVisitResult},
+    pathfind::{NodeKind as PathNodeKind, RandomDirectionalBias, SearchResult},
+    sim::{SimCmdQueue, SimContext, SimContextMut},
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
     unit::{Unit, navigation::UnitNavGoal},
-    building::{BuildingKind, BuildingTileInfo, BuildingVisitResult},
-    sim::{SimCmdQueue, SimContext, SimContextMut},
     world::object::GameObject,
 };
 
@@ -98,8 +86,7 @@ impl UnitTaskSettler {
         if !self.emigrate {
             // First try to find an empty lot we can settle:
             {
-                let result =
-                    sim_context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::VacantLot);
+                let result = sim_context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::VacantLot);
 
                 if let SearchResult::PathFound(path) = result {
                     ctx.unit.move_to_goal(path, UnitNavGoal::tile(start, path));
@@ -204,7 +191,11 @@ impl UnitTaskSettler {
         }
     }
 
-    fn update_moving(&mut self, goal: UnitTaskSettlerGoal, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskSettlerState> {
+    fn update_moving(
+        &mut self,
+        goal: UnitTaskSettlerGoal,
+        ctx: &mut UnitTaskContext,
+    ) -> UnitTaskTransition<UnitTaskSettlerState> {
         if ctx.unit.goal().is_none() {
             // Lost the path to the destination; search again.
             return UnitTaskTransition::Goto(UnitTaskSettlerState::Searching);
@@ -215,9 +206,7 @@ impl UnitTaskSettler {
         }
 
         match goal {
-            UnitTaskSettlerGoal::VacantLot | UnitTaskSettlerGoal::SpawnPointExit => {
-                self.finish_at_tile(ctx)
-            }
+            UnitTaskSettlerGoal::VacantLot | UnitTaskSettlerGoal::SpawnPointExit => self.finish_at_tile(ctx),
             UnitTaskSettlerGoal::House => {
                 if self.try_visit_house(ctx) {
                     UnitTaskTransition::Goto(UnitTaskSettlerState::VisitingHouse)
@@ -233,9 +222,7 @@ impl UnitTaskSettler {
     fn finish_at_tile(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskSettlerState> {
         let sim_context = ctx.sim_context;
 
-        let destination_cell = ctx.unit.goal()
-            .expect("Expected unit to have an active goal!")
-            .tile_destination();
+        let destination_cell = ctx.unit.goal().expect("Expected unit to have an active goal!").tile_destination();
         debug_assert!(destination_cell.is_valid());
 
         if let Some(tile) = sim_context.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain)
@@ -256,10 +243,8 @@ impl UnitTaskSettler {
             Some(true) => {
                 // House accepted the settler.
                 let sim_context = ctx.sim_context;
-                let destination_cell = ctx.unit.goal()
-                    .expect("Expected unit to have an active goal!")
-                    .building_destination()
-                    .1;
+                let destination_cell =
+                    ctx.unit.goal().expect("Expected unit to have an active goal!").building_destination().1;
 
                 if let Some(house_tile) = sim_context.find_tile(destination_cell, TileKind::Building) {
                     self.notify_completion(ctx.unit, sim_context, house_tile);
@@ -280,10 +265,10 @@ impl UnitTaskState for UnitTaskSettlerState {
 
     fn update(self, task: &mut UnitTaskSettler, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
-            Self::Searching      => task.update_searching(ctx),
+            Self::Searching => task.update_searching(ctx),
             Self::MovingTo(goal) => task.update_moving(goal, ctx),
-            Self::VisitingHouse  => task.update_visiting_house(ctx),
-            Self::Done           => UnitTaskTransition::Done,
+            Self::VisitingHouse => task.update_visiting_house(ctx),
+            Self::Done => UnitTaskTransition::Done,
         }
     }
 }
@@ -298,10 +283,10 @@ impl UnitTask for UnitTaskSettler {
         let current_node_kinds = ctx.unit.traversable_node_kinds();
         ctx.unit.set_traversable_node_kinds(
             current_node_kinds
-            | PathNodeKind::EmptyLand
-            | PathNodeKind::Road
-            | PathNodeKind::VacantLot
-            | PathNodeKind::SettlersSpawnPoint
+                | PathNodeKind::EmptyLand
+                | PathNodeKind::Road
+                | PathNodeKind::VacantLot
+                | PathNodeKind::SettlersSpawnPoint,
         );
     }
 

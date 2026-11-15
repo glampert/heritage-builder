@@ -2,16 +2,18 @@
 // selector (UiStepSelector). Their art comes from the caller (a skin's sprites or colours).
 
 use std::any::Any;
-use smallbox::smallbox;
-use egui::{Align2, Color32, Sense, Stroke, StrokeKind, pos2, vec2};
 
 use common::{Color, Rect, Vec2};
+use egui::{Align2, Color32, Sense, Stroke, StrokeKind, pos2, vec2};
+use smallbox::smallbox;
 
 use super::{UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext, list_index, widget_id};
 use crate::{
     render::texture::TextureHandle,
     ui::{
-        UiFontScale, UiString, UiSystem,
+        UiFontScale,
+        UiString,
+        UiSystem,
         immediate::{self, color32, egui_rect, to_rect, uv_full},
         internal,
         renderer::egui_texture,
@@ -120,16 +122,34 @@ impl UiWidget for UiToggle {
                 let state_color = fade(self.state_text_color.map_or(text_color, color32));
 
                 let pill_size = self.look.size();
-                let pill = egui::Rect::from_min_size(pos2(rect.right() - pill_size.x, rect.center().y - pill_size.y * 0.5), vec2(pill_size.x, pill_size.y));
+                let pill = egui::Rect::from_min_size(
+                    pos2(rect.right() - pill_size.x, rect.center().y - pill_size.y * 0.5),
+                    vec2(pill_size.x, pill_size.y),
+                );
                 self.paint_pill(ui, pill, value, enabled);
 
                 let state = if value { self.on_text.resolve() } else { self.off_text.resolve() };
-                ui.painter().text(pos2(pill.left() - CONTROL_GAP, rect.center().y), Align2::RIGHT_CENTER, state, font.clone(), state_color);
+                ui.painter().text(
+                    pos2(pill.left() - CONTROL_GAP, rect.center().y),
+                    Align2::RIGHT_CENTER,
+                    state,
+                    font.clone(),
+                    state_color,
+                );
                 ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, self.label.resolve(), font.clone(), text_color);
             }
 
             let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
-            let set_value = immediate::record(ui_sys, ui, &response, "toggle", self.label.resolve(), tooltip, enabled, Some(serde_json::Value::Bool(value)));
+            let set_value = immediate::record(
+                ui_sys,
+                ui,
+                &response,
+                "toggle",
+                self.label.resolve(),
+                tooltip,
+                enabled,
+                Some(serde_json::Value::Bool(value)),
+            );
             (response.clicked() && enabled, set_value, response.hovered())
         });
 
@@ -376,8 +396,8 @@ pub struct UiStepSelector {
     font_scale: UiFontScale,
     text_color: Option<Color>,
     value_color: Option<Color>,
-    width: Option<f32>, // The menu's width if None.
-    hide_label: bool,   // The label is only in paths (Buttons never draw it).
+    width: Option<f32>,     // The menu's width if None.
+    hide_label: bool,       // The label is only in paths (Buttons never draw it).
     sounds: UiWidgetSounds, // Changed: SliderChanged.
     on_changed: UiStepSelectorChanged,
 }
@@ -417,31 +437,59 @@ impl UiWidget for UiStepSelector {
             let value_color = self.value_color.map_or(text_color, color32);
             let label_rect = egui::Rect::from_min_size(rect.min, vec2(width, line));
             if self.style != UiStepSelectorStyle::Buttons && !self.hide_label {
-                ui.painter().text(label_rect.left_center(), Align2::LEFT_CENTER, self.label.resolve(), font.clone(), text_color);
+                ui.painter().text(
+                    label_rect.left_center(),
+                    Align2::LEFT_CENTER,
+                    self.label.resolve(),
+                    font.clone(),
+                    text_color,
+                );
             }
 
             let _path = immediate::path_scope(ui_sys, self.label.resolve());
             let mut picked = None;
             match self.style {
                 UiStepSelectorStyle::Segments => {
-                    ui.painter().text(label_rect.right_center(), Align2::RIGHT_CENTER, current_label, font.clone(), value_color);
+                    ui.painter().text(
+                        label_rect.right_center(),
+                        Align2::RIGHT_CENTER,
+                        current_label,
+                        font.clone(),
+                        value_color,
+                    );
 
                     let count = labels.len().max(1);
                     let gap = 6.0;
                     let segment_width = ((width - gap * (count - 1) as f32) / count as f32).max(1.0);
                     let top = rect.top() + line + 4.0;
                     for (index, label) in labels.iter().enumerate() {
-                        let segment = egui::Rect::from_min_size(pos2(rect.left() + (segment_width + gap) * index as f32, top), vec2(segment_width, self.look.segment_height));
+                        let segment = egui::Rect::from_min_size(
+                            pos2(rect.left() + (segment_width + gap) * index as f32, top),
+                            vec2(segment_width, self.look.segment_height),
+                        );
                         // Clicks land on the segment and a little round it.
                         let hit = segment.expand2(vec2(gap * 0.5, 3.0)).intersect(rect.expand2(vec2(0.0, 3.0)));
                         let response = ui.interact(hit, id.with(index), Sense::click());
                         let color = if index <= current { self.look.fill } else { self.look.track };
-                        let fill = if response.hovered() && index != current { color32(color).gamma_multiply(0.85) } else { color32(color) };
+                        let fill = if response.hovered() && index != current {
+                            color32(color).gamma_multiply(0.85)
+                        } else {
+                            color32(color)
+                        };
                         ui.painter().rect_filled(segment, 2.0, fill);
                         if let Some(outline) = self.look.outline {
                             ui.painter().rect_stroke(segment, 2.0, Stroke::new(1.0, color32(outline)), StrokeKind::Inside);
                         }
-                        immediate::record(ui_sys, ui, &response, "step", label, None, true, Some(serde_json::Value::Bool(index == current)));
+                        immediate::record(
+                            ui_sys,
+                            ui,
+                            &response,
+                            "step",
+                            label,
+                            None,
+                            true,
+                            Some(serde_json::Value::Bool(index == current)),
+                        );
                         if response.clicked() {
                             picked = Some(index);
                         }
@@ -453,18 +501,45 @@ impl UiWidget for UiStepSelector {
                     let button_width = ((width - gap * (count - 1) as f32) / count as f32).max(1.0);
                     let selected_text = self.look.selected_text.map_or(value_color, color32);
                     for (index, label) in labels.iter().enumerate() {
-                        let button = egui::Rect::from_min_size(pos2(rect.left() + (button_width + gap) * index as f32, rect.top()), vec2(button_width, rect.height()));
+                        let button = egui::Rect::from_min_size(
+                            pos2(rect.left() + (button_width + gap) * index as f32, rect.top()),
+                            vec2(button_width, rect.height()),
+                        );
                         let response = ui.interact(button, id.with(index), Sense::click());
                         let is_current = index == current;
                         let color = if is_current { self.look.fill } else { self.look.track };
-                        let fill = if response.hovered() && !is_current { color32(color).gamma_multiply(0.85) } else { color32(color) };
+                        let fill = if response.hovered() && !is_current {
+                            color32(color).gamma_multiply(0.85)
+                        } else {
+                            color32(color)
+                        };
                         ui.painter().rect_filled(button, self.look.rounding, fill);
                         if let Some(outline) = self.look.outline {
-                            ui.painter().rect_stroke(button, self.look.rounding, Stroke::new(1.5, color32(outline)), StrokeKind::Inside);
+                            ui.painter().rect_stroke(
+                                button,
+                                self.look.rounding,
+                                Stroke::new(1.5, color32(outline)),
+                                StrokeKind::Inside,
+                            );
                         }
                         let color = if is_current { selected_text } else { text_color };
-                        ui.painter().with_clip_rect(button.intersect(ui.clip_rect())).text(button.center(), Align2::CENTER_CENTER, *label, font.clone(), color);
-                        immediate::record(ui_sys, ui, &response, "step", label, None, true, Some(serde_json::Value::Bool(is_current)));
+                        ui.painter().with_clip_rect(button.intersect(ui.clip_rect())).text(
+                            button.center(),
+                            Align2::CENTER_CENTER,
+                            *label,
+                            font.clone(),
+                            color,
+                        );
+                        immediate::record(
+                            ui_sys,
+                            ui,
+                            &response,
+                            "step",
+                            label,
+                            None,
+                            true,
+                            Some(serde_json::Value::Bool(is_current)),
+                        );
                         if response.clicked() {
                             picked = Some(index);
                         }
@@ -474,15 +549,23 @@ impl UiWidget for UiStepSelector {
                     let arrow = vec2(line, line);
                     let value_width = self.value_width(ui_sys);
                     let next = egui::Rect::from_min_size(pos2(rect.right() - arrow.x, rect.top()), arrow);
-                    let value = egui::Rect::from_min_size(pos2(next.left() - CONTROL_GAP - value_width, rect.top()), vec2(value_width, line));
+                    let value = egui::Rect::from_min_size(
+                        pos2(next.left() - CONTROL_GAP - value_width, rect.top()),
+                        vec2(value_width, line),
+                    );
                     let previous = egui::Rect::from_min_size(pos2(value.left() - CONTROL_GAP - arrow.x, rect.top()), arrow);
                     ui.painter().text(value.center(), Align2::CENTER_CENTER, current_label, font.clone(), value_color);
 
                     for (arrow_rect, delta, name) in [(previous, -1, "Previous"), (next, 1, "Next")] {
                         let target = step_index(current, delta, labels.len(), self.wrap);
                         let enabled = target != current;
-                        let response = ui.interact(arrow_rect, id.with(name), if enabled { Sense::click() } else { Sense::hover() });
-                        let mut color = if response.hovered() && enabled { self.look.fill } else { self.look.outline.unwrap_or(self.look.fill) };
+                        let response =
+                            ui.interact(arrow_rect, id.with(name), if enabled { Sense::click() } else { Sense::hover() });
+                        let mut color = if response.hovered() && enabled {
+                            self.look.fill
+                        } else {
+                            self.look.outline.unwrap_or(self.look.fill)
+                        };
                         if !enabled {
                             color.a *= 0.35;
                         }
@@ -509,7 +592,8 @@ impl UiWidget for UiStepSelector {
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         let ui_sys = context.ui_sys();
         let line = internal::calc_text_line_height(ui_sys, self.font_scale);
-        let label = if self.hide_label { 0.0 } else { internal::calc_text_size(ui_sys, self.font_scale, self.label.resolve()).0.x };
+        let label =
+            if self.hide_label { 0.0 } else { internal::calc_text_size(ui_sys, self.font_scale, self.label.resolve()).0.x };
         let width = self.width.unwrap_or_else(|| internal::available_size(ui_sys).x);
         match self.style {
             UiStepSelectorStyle::Segments => {
@@ -654,7 +738,10 @@ impl UiStepSelector {
 
     // The widest step label.
     fn value_width(&self, ui_sys: &UiSystem) -> f32 {
-        self.steps.iter().map(|step| internal::calc_text_size(ui_sys, self.font_scale, step.resolve()).0.x).fold(0.0, f32::max)
+        self.steps
+            .iter()
+            .map(|step| internal::calc_text_size(ui_sys, self.font_scale, step.resolve()).0.x)
+            .fold(0.0, f32::max)
     }
 }
 

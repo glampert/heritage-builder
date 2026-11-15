@@ -12,13 +12,16 @@
 // The roles played are recorded, with their frame, whether there's an audio device or not:
 // recent() and clear_recent(), which automation reads (ui.sounds).
 
-use std::{collections::{BTreeMap, VecDeque}, str::FromStr};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    str::FromStr,
+};
+
 use arrayvec::ArrayVec;
 use bitflags::bitflags;
+use common::{singleton_late_init, time::Seconds};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
-
-use common::{singleton_late_init, time::Seconds};
 
 use super::widgets::UiWidgetContext;
 use crate::{
@@ -35,8 +38,21 @@ pub const UI_SOUND_DEFAULT_COOLDOWN: Seconds = 0.2;
 // What a sound is for. Mappings and automation name a role in snake_case ("dialog_opened").
 // New roles can go anywhere in the list; give each a file in Đại Long's skin's `sounds` block.
 #[derive(
-    Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug,
-    EnumCount, EnumIter, Display, EnumString, IntoStaticStr, Serialize, Deserialize,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Debug,
+    EnumCount,
+    EnumIter,
+    Display,
+    EnumString,
+    IntoStaticStr,
+    Serialize,
+    Deserialize,
 )]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -396,7 +412,13 @@ impl UiSoundManagerSingleton {
         self.started_this_frame.clear();
     }
 
-    fn play_with_opts(&mut self, sound_sys: &mut SoundSystem, sound_key: UiSoundKey, cooldown: Seconds, flags: UiPlaySoundFlags) {
+    fn play_with_opts(
+        &mut self,
+        sound_sys: &mut SoundSystem,
+        sound_key: UiSoundKey,
+        cooldown: Seconds,
+        flags: UiPlaySoundFlags,
+    ) {
         if flags.intersects(UiPlaySoundFlags::GloballyExclusive) && self.is_any_playing(sound_sys) {
             return;
         }
@@ -409,7 +431,8 @@ impl UiSoundManagerSingleton {
             return;
         }
 
-        let cooldown_elapsed = sound.last_play_time.is_none_or(|last_play_time| time_now - last_play_time >= f64::from(cooldown));
+        let cooldown_elapsed =
+            sound.last_play_time.is_none_or(|last_play_time| time_now - last_play_time >= f64::from(cooldown));
         if !cooldown_elapsed {
             return;
         }
@@ -498,7 +521,10 @@ mod tests {
 
         assert_eq!(mapped_file(&defaults, &overrides, UiSoundKey::ButtonPressed), Some("buttons/kambara/pressed.wav"));
         assert_eq!(mapped_file(&defaults, &overrides, UiSoundKey::Alert), None); // Silenced.
-        assert_eq!(mapped_file(&defaults, &UiSoundMapping::new(), UiSoundKey::Alert), Some("misc/default/tile_placement_failed.wav"));
+        assert_eq!(
+            mapped_file(&defaults, &UiSoundMapping::new(), UiSoundKey::Alert),
+            Some("misc/default/tile_placement_failed.wav")
+        );
         assert_eq!(mapped_file(&defaults, &overrides, UiSoundKey::Toggled), None); // Nobody names it.
     }
 

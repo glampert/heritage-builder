@@ -1,9 +1,8 @@
 // Meta commands: discovery, liveness and quitting.
 
+use engine::platform;
 use serde::Deserialize;
 use serde_json::{Value, json};
-
-use engine::platform;
 
 use crate::automation::{
     CommandContext,
@@ -29,7 +28,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "quit",
         help: "Quit the game after this frame. Ends a script.",
-        params: &[ParamDef { name: "exit_code", kind: "int", required: false, help: "Process exit status (desktop). Default 0." }],
+        params: &[ParamDef {
+            name: "exit_code",
+            kind: "int",
+            required: false,
+            help: "Process exit status (desktop). Default 0.",
+        }],
         run: cmd_quit,
     },
 ];

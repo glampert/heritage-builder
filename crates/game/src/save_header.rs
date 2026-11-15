@@ -23,8 +23,6 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
-use serde::{Deserialize, Serialize, de};
-
 use common::mem::SingleThreadStatic;
 use engine::{
     Engine,
@@ -34,6 +32,7 @@ use engine::{
     save::storage,
     screenshot::{ScreenshotFormat, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
 };
+use serde::{Deserialize, Serialize, de};
 
 use crate::{config::GameConfigs, custom_game::CustomGameRecord, realm::Realm};
 
@@ -254,7 +253,8 @@ pub fn parse_saved_at(text: &str) -> Option<(i32, u32, u32, u32, u32)> {
     let mut time = time.split(':');
     let hour = time.next()?.parse().ok()?;
     let minute = time.next()?.parse().ok()?;
-    ((1..=12).contains(&month) && (1..=31).contains(&day) && hour < 24 && minute < 60).then_some((year, month, day, hour, minute))
+    ((1..=12).contains(&month) && (1..=31).contains(&day) && hour < 24 && minute < 60)
+        .then_some((year, month, day, hour, minute))
 }
 
 // ----------------------------------------------
@@ -383,18 +383,23 @@ mod tests {
     #[test]
     fn head_of_an_old_save() {
         // No header; the version first, as GameSession writes it.
-        assert_eq!(parse_head(r#"{"save_version": 6, "tile_map": {"#).unwrap(), (SaveHead { save_version: 6, header: None }, Some(6)));
+        assert_eq!(
+            parse_head(r#"{"save_version": 6, "tile_map": {"#).unwrap(),
+            (SaveHead { save_version: 6, header: None }, Some(6))
+        );
         // Not at the start: before versions, or at the end, where the migration scripts put it.
         assert_eq!(parse_head(r#"{"tile_map": {"#).unwrap(), (SaveHead { save_version: 0, header: None }, None));
         assert_eq!(version_in_tail("  \"is_zooming\": false\n  },\n  \"save_version\": 7\n}\n"), Some(7));
         assert_eq!(version_in_tail("\"save_version\":12}"), Some(12));
         assert_eq!(version_in_tail("\"camera\": {}}"), None);
         // A header of fields this game doesn't know, and missing ones.
-        let (head, _) = parse_head(r#"{"save_header": {"population": 5, "from_the_future": true}, "save_version": 8}"#).unwrap();
+        let (head, _) =
+            parse_head(r#"{"save_header": {"population": 5, "from_the_future": true}, "save_version": 8}"#).unwrap();
         assert_eq!(head.save_version, 8);
         assert_eq!(head.header.unwrap(), SaveHeader { population: Some(5), ..SaveHeader::default() });
         // A header of another shape: blank, the version still read.
-        let (head, version) = parse_head(r#"{"save_header": {"population": -1, "realm": "elsewhere"}, "save_version": 7, "x": 1}"#).unwrap();
+        let (head, version) =
+            parse_head(r#"{"save_header": {"population": -1, "realm": "elsewhere"}, "save_version": 7, "x": 1}"#).unwrap();
         assert_eq!((head.header, version), (Some(SaveHeader::default()), Some(7)));
         let (head, version) = parse_head(r#"{"save_header": [1], "save_version": 7}"#).unwrap();
         assert_eq!((head.header, version), (Some(SaveHeader::default()), Some(7)));

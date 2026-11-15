@@ -6,10 +6,9 @@
 // step finds rubble, as after a demolition between steps.
 
 use arrayvec::ArrayVec;
-use strum::Display;
-
 use common::{Color, mem::SingleThreadStatic};
 use engine::log;
+use strum::Display;
 
 use super::{BuildingKindAndId, risks};
 use crate::{

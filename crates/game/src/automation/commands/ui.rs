@@ -3,10 +3,6 @@
 // (engine::ui::registry), which records what the retained widgets drew each frame. These commands
 // turn it on; the first one waits a frame for it to fill.
 
-use serde::Deserialize;
-use serde_json::{Map, Value, json};
-use strum::IntoEnumIterator;
-
 use common::{Rect, Vec2};
 use engine::{
     app::input::MouseButton,
@@ -16,9 +12,22 @@ use engine::{
         sound::{self, UiSoundKey},
     },
 };
+use serde::Deserialize;
+use serde_json::{Map, Value, json};
+use strum::IntoEnumIterator;
 
 use crate::{
-    automation::{CommandContext, CommandDef, CommandError, CommandResult, ErrorCode, ParamDef, done, parse_params, pending},
+    automation::{
+        CommandContext,
+        CommandDef,
+        CommandError,
+        CommandResult,
+        ErrorCode,
+        ParamDef,
+        done,
+        parse_params,
+        pending,
+    },
     menu::{
         GameMenusMode,
         dialog::{self, DialogMenuKind},
@@ -33,8 +42,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "The game's widgets drawn last frame: path, kind, label, rect [x, y, width, height] in window points, \
                enabled, value, and visible: false if scrolled out of view. Use the paths with ui.click and ui.set.",
         params: &[
-            ParamDef { name: "filter", kind: "string", required: false, help: "Only widgets whose path contains this (any case)." },
-            ParamDef { name: "kind", kind: "string", required: false, help: "Only this kind, e.g. text_button, sprite_button." },
+            ParamDef {
+                name: "filter",
+                kind: "string",
+                required: false,
+                help: "Only widgets whose path contains this (any case).",
+            },
+            ParamDef {
+                name: "kind",
+                kind: "string",
+                required: false,
+                help: "Only this kind, e.g. text_button, sprite_button.",
+            },
             ParamDef {
                 name: "fields",
                 kind: "array",
@@ -150,7 +169,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                 required: false,
                 help: "Only these roles, e.g. [\"dialog_opened\", \"dialog_closed\"].",
             },
-            ParamDef { name: "clear", kind: "bool", required: false, help: "Empty the list, every role's, after reading it." },
+            ParamDef {
+                name: "clear",
+                kind: "bool",
+                required: false,
+                help: "Empty the list, every role's, after reading it.",
+            },
             ParamDef {
                 name: "mapping",
                 kind: "bool",
@@ -180,7 +204,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "dialog.close",
         help: "Close a dialog, or the one on top.",
-        params: &[ParamDef { name: "name", kind: "string", required: false, help: "Dialog name. Default: the current one." }],
+        params: &[ParamDef {
+            name: "name",
+            kind: "string",
+            required: false,
+            help: "Dialog name. Default: the current one.",
+        }],
         run: cmd_dialog_close,
     },
 ];
@@ -293,7 +322,10 @@ fn find_widget(context: &CommandContext, query: &str) -> Result<UiWidgetInfo, Co
         [] => Err(CommandError::not_found(format!("No widget matches '{query}'. ui.tree lists them."))),
         _ => {
             let paths: Vec<&str> = matches.iter().take(10).map(|widget| widget.path.as_str()).collect();
-            Err(CommandError::invalid_params(format!("'{query}' matches several widgets: {}. Give a full path.", paths.join(", "))))
+            Err(CommandError::invalid_params(format!(
+                "'{query}' matches several widgets: {}. Give a full path.",
+                paths.join(", ")
+            )))
         }
     }
 }
@@ -313,7 +345,10 @@ fn cmd_tree(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let params: Params = parse_params(params)?;
     if let Some(unknown) = params.fields.iter().flatten().find(|field| !WIDGET_FIELDS.contains(&field.as_str())) {
-        return Err(CommandError::invalid_params(format!("No widget field '{unknown}'. Fields: {}.", WIDGET_FIELDS.join(", "))));
+        return Err(CommandError::invalid_params(format!(
+            "No widget field '{unknown}'. Fields: {}.",
+            WIDGET_FIELDS.join(", ")
+        )));
     }
 
     let ready_frame = registry_ready_frame(context);
@@ -551,7 +586,13 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
                 return None;
             }
             // Read the value back: the widget records it on the frame after applying it.
-            let value = context.engine.ui_system().widgets().iter().find(|widget| widget.path == *path).and_then(|widget| widget.value.clone());
+            let value = context
+                .engine
+                .ui_system()
+                .widgets()
+                .iter()
+                .find(|widget| widget.path == *path)
+                .and_then(|widget| widget.value.clone());
             return Some(Ok(json!({ "path": path, "value": value })));
         }
         if context.frame() < ready_frame {
@@ -707,7 +748,10 @@ fn cmd_sounds(_context: &mut CommandContext, params: Value) -> CommandResult {
         Some(names) => Some(
             names
                 .iter()
-                .map(|name| UiSoundKey::parse(name).ok_or_else(|| CommandError::invalid_params(format!("Unknown UI sound role '{name}'."))))
+                .map(|name| {
+                    UiSoundKey::parse(name)
+                        .ok_or_else(|| CommandError::invalid_params(format!("Unknown UI sound role '{name}'.")))
+                })
                 .collect::<Result<Vec<_>, _>>()?,
         ),
         None => None,
@@ -727,7 +771,8 @@ fn cmd_sounds(_context: &mut CommandContext, params: Value) -> CommandResult {
         "sounds": played,
     });
     if params.mapping {
-        let mapping: Map<String, Value> = UiSoundKey::iter().map(|role| (role.name().to_string(), json!(sound::file(role)))).collect();
+        let mapping: Map<String, Value> =
+            UiSoundKey::iter().map(|role| (role.name().to_string(), json!(sound::file(role)))).collect();
         result["mapping"] = Value::Object(mapping);
     }
 
@@ -761,7 +806,11 @@ fn layout_issues(widgets: &[UiWidgetInfo]) -> Vec<Value> {
         menus
             .iter()
             .copied()
-            .filter(|menu| widget.path.len() > menu.path.len() && widget.path.starts_with(&menu.path) && widget.path.as_bytes()[menu.path.len()] == b'/')
+            .filter(|menu| {
+                widget.path.len() > menu.path.len()
+                    && widget.path.starts_with(&menu.path)
+                    && widget.path.as_bytes()[menu.path.len()] == b'/'
+            })
             .max_by_key(|menu| menu.path.len())
     };
 
@@ -808,7 +857,8 @@ fn layout_issues(widgets: &[UiWidgetInfo]) -> Vec<Value> {
                 continue;
             }
             let shrunk = widget.rect.expanded(Vec2::new(-LAYOUT_TOLERANCE, -LAYOUT_TOLERANCE));
-            if shrunk.is_valid() && shrunk.intersects(&other.rect.expanded(Vec2::new(-LAYOUT_TOLERANCE, -LAYOUT_TOLERANCE))) {
+            if shrunk.is_valid() && shrunk.intersects(&other.rect.expanded(Vec2::new(-LAYOUT_TOLERANCE, -LAYOUT_TOLERANCE)))
+            {
                 issues.push(json!({
                     "problem": "overlap",
                     "path": widget.path,
@@ -932,24 +982,28 @@ mod tests {
     fn test_layout_issues() {
         let widgets = [
             widget_at("menu_content", "Home", 0.0, 0.0, 100.0, 100.0),
-            widget_at("heading", "Home/Title", 10.0, 0.5, 80.0, 20.0),   // Within tolerance.
+            widget_at("heading", "Home/Title", 10.0, 0.5, 80.0, 20.0), // Within tolerance.
             widget_at("text_button", "Home/Ok", 10.0, 90.0, 40.0, 20.0), // Past the bottom.
             widget_at("checkbox", "Home/A", 10.0, 30.0, 20.0, 20.0),
-            widget_at("checkbox", "Home/B", 25.0, 40.0, 20.0, 20.0),     // Over A.
+            widget_at("checkbox", "Home/B", 25.0, 40.0, 20.0, 20.0), // Over A.
             widget_at("item_list", "Home/item_list", 10.0, 60.0, 80.0, 20.0),
             widget_at("list_item", "Home/autosave", 10.0, 60.0, 80.0, 10.0), // Held by the list.
             widget_at("dropdown", "Home/Kind", 50.0, 30.0, 40.0, 20.0),
             widget_at("list_item", "Home/Kind/Grass", 50.0, 50.0, 40.0, 60.0), // A popup: may leave the menu.
             UiWidgetInfo { visible: false, ..widget_at("list_item", "Home/scrolled", 10.0, 85.0, 80.0, 30.0) }, // Clipped.
-            widget_at("window", "Debug", 200.0, 200.0, 50.0, 50.0),           // No menu: not checked.
-            UiWidgetInfo { value: Some(json!({ "scrolls": true })), ..widget_at("menu_content", "Gallery", 0.0, 0.0, 100.0, 100.0) },
-            widget_at("image", "Gallery/cut", 10.0, 90.0, 80.0, 20.0),       // Cut by its edge as it scrolls.
-            widget_at("image", "Gallery/wide", 10.0, 50.0, 120.0, 20.0),     // Too wide all the same.
+            widget_at("window", "Debug", 200.0, 200.0, 50.0, 50.0),            // No menu: not checked.
+            UiWidgetInfo {
+                value: Some(json!({ "scrolls": true })),
+                ..widget_at("menu_content", "Gallery", 0.0, 0.0, 100.0, 100.0)
+            },
+            widget_at("image", "Gallery/cut", 10.0, 90.0, 80.0, 20.0), // Cut by its edge as it scrolls.
+            widget_at("image", "Gallery/wide", 10.0, 50.0, 120.0, 20.0), // Too wide all the same.
             widget_at("button", "Debug/Close", 300.0, 300.0, 10.0, 10.0),
         ];
 
         let issues = layout_issues(&widgets);
-        let problems: Vec<(&str, &str)> = issues.iter().map(|issue| (issue["problem"].as_str().unwrap(), issue["path"].as_str().unwrap())).collect();
+        let problems: Vec<(&str, &str)> =
+            issues.iter().map(|issue| (issue["problem"].as_str().unwrap(), issue["path"].as_str().unwrap())).collect();
         assert_eq!(problems, [("outside", "Home/Ok"), ("outside", "Gallery/wide"), ("overlap", "Home/A")]);
         assert_eq!(issues[2]["other"], "Home/B");
     }

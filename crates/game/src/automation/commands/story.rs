@@ -1,10 +1,9 @@
 // Story commands (docs/plans/realm-ui.md, Phase 4): a campaign's story sequences, read from the
 // configs and the player's profile.
 
+use engine::ui::text::{self, UiTextCategory};
 use serde::Deserialize;
 use serde_json::{Value, json};
-
-use engine::ui::text::{self, UiTextCategory};
 
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},

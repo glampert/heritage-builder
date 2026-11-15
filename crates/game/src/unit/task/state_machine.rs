@@ -1,15 +1,10 @@
 use std::any::Any;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use common::callback::Callback;
 use engine::ui::UiSystem;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use super::{
-    UnitTaskArgs,
-    UnitTaskId,
-    UnitTaskPool,
-    despawn::UnitTaskPostDespawnCallback,
-};
+use super::{UnitTaskArgs, UnitTaskId, UnitTaskPool, despawn::UnitTaskPostDespawnCallback};
 use crate::{
     sim::{SimCmds, SimContext, SimContextMut},
     unit::Unit,
@@ -104,7 +99,9 @@ pub trait UnitTask: Sized + 'static {
     fn state(&mut self) -> &mut Self::State;
 
     // Optional task to run after this one; taken when the task reaches `Done`.
-    fn completion_task(&mut self) -> Option<UnitTaskId> { None }
+    fn completion_task(&mut self) -> Option<UnitTaskId> {
+        None
+    }
 
     // Optional post-deserialization fixups (e.g. callback pointers).
     fn post_load(&mut self) {}

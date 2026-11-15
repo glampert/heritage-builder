@@ -1,19 +1,22 @@
 use std::any::Any;
-use serde::{Deserialize, Serialize};
 
 use common::callback::Callback;
-use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use engine::{
+    log,
+    ui::{DrawDebugUi, UiSystem},
+};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
 
 use super::{
     PathFindResult,
-    UnitTaskOriginBuildingDebug,
+    UnitTask,
     UnitTaskContext,
+    UnitTaskId,
+    UnitTaskOriginBuildingDebug,
+    UnitTaskPool,
     UnitTaskState,
     UnitTaskTransition,
-    UnitTask,
-    UnitTaskId,
-    UnitTaskPool,
     find_delivery_candidate,
     find_storage_fetch_candidate,
     invoke_completion_callback_deferred,
@@ -21,10 +24,10 @@ use super::{
     with_task,
 };
 use crate::{
-    pathfind::SearchResult,
-    unit::{Unit, navigation::UnitNavGoal},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
+    pathfind::SearchResult,
     sim::{SimContextMut, resources::ShoppingList},
+    unit::{Unit, navigation::UnitNavGoal},
 };
 
 // ----------------------------------------------
@@ -132,7 +135,10 @@ impl UnitTaskFetchFromStorage {
         let sim_context = ctx.sim_context;
 
         if sim_context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
-            log::info!(log::channel!("task"), "Origin building no longer valid; TaskFetchFromStorage will attempt surplus recovery.");
+            log::info!(
+                log::channel!("task"),
+                "Origin building no longer valid; TaskFetchFromStorage will attempt surplus recovery."
+            );
             return false;
         }
 
@@ -163,7 +169,9 @@ impl UnitTaskFetchFromStorage {
 
     // Recovery: look for any storage that will receive the surplus cargo.
     fn try_route_surplus_to_storage(&mut self, ctx: &mut UnitTaskContext) -> bool {
-        let Some(item) = ctx.unit.peek_inventory() else { return false; };
+        let Some(item) = ctx.unit.peek_inventory() else {
+            return false;
+        };
         let item_kind = item.kind;
 
         let origin_cell = ctx.unit.cell();
@@ -254,9 +262,9 @@ impl UnitTaskFetchFromStorage {
 
     fn update_visiting_storage(&mut self, _ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskFetchState> {
         match self.visit_outcome.take() {
-            None        => UnitTaskTransition::Stay,                                        // Deferred visit not resolved yet.
-            Some(true)  => UnitTaskTransition::Goto(UnitTaskFetchState::ReturningToOrigin), // Collected a resource.
-            Some(false) => UnitTaskTransition::Goto(UnitTaskFetchState::Searching),         // Nothing here; try elsewhere.
+            None => UnitTaskTransition::Stay, // Deferred visit not resolved yet.
+            Some(true) => UnitTaskTransition::Goto(UnitTaskFetchState::ReturningToOrigin), // Collected a resource.
+            Some(false) => UnitTaskTransition::Goto(UnitTaskFetchState::Searching), // Nothing here; try elsewhere.
         }
     }
 
@@ -336,8 +344,8 @@ impl UnitTaskFetchFromStorage {
 
     fn update_unloading_surplus(&mut self, _ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskFetchState> {
         match self.visit_outcome.take() {
-            None        => UnitTaskTransition::Stay,                                     // Deferred visit not resolved yet.
-            Some(true)  => UnitTaskTransition::Goto(UnitTaskFetchState::Done),           // Surplus deposited.
+            None => UnitTaskTransition::Stay, // Deferred visit not resolved yet.
+            Some(true) => UnitTaskTransition::Goto(UnitTaskFetchState::Done), // Surplus deposited.
             Some(false) => UnitTaskTransition::Goto(UnitTaskFetchState::RoutingSurplus), // Refused; try another storage.
         }
     }
@@ -356,14 +364,14 @@ impl UnitTaskState for UnitTaskFetchState {
 
     fn update(self, task: &mut UnitTaskFetchFromStorage, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
-            Self::Searching          => task.update_searching(ctx),
-            Self::MovingToStorage    => task.update_moving_to_storage(ctx),
-            Self::VisitingStorage    => task.update_visiting_storage(ctx),
-            Self::ReturningToOrigin  => task.update_returning(ctx),
+            Self::Searching => task.update_searching(ctx),
+            Self::MovingToStorage => task.update_moving_to_storage(ctx),
+            Self::VisitingStorage => task.update_visiting_storage(ctx),
+            Self::ReturningToOrigin => task.update_returning(ctx),
             Self::DeliveringToOrigin => task.update_delivering(ctx),
-            Self::RoutingSurplus     => task.update_routing_surplus(ctx),
-            Self::UnloadingSurplus   => task.update_unloading_surplus(ctx),
-            Self::Done               => task.update_done(ctx),
+            Self::RoutingSurplus => task.update_routing_surplus(ctx),
+            Self::UnloadingSurplus => task.update_unloading_surplus(ctx),
+            Self::Done => task.update_done(ctx),
         }
     }
 }

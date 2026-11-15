@@ -1,35 +1,38 @@
 #![allow(clippy::too_many_arguments)]
 
-use rand::Rng;
-use serde::{Deserialize, Serialize};
-
 use common::{
-    coords::Cell,
     callback::{self, Callback},
+    coords::Cell,
     time::{CountdownTimer, Seconds, UpdateTimer},
 };
 use proc_macros::DrawDebugUi;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 use super::{
+    SpawnedUnitWithTask,
     Unit,
     UnitId,
-    UnitTaskHelper,
     UnitSpawnState,
-    SpawnedUnitWithTask,
+    UnitTaskHelper,
     config::UnitConfigKey,
     task::{
-        UnitTaskDespawn,
         UnitPatrolPathRecord,
+        UnitTaskDespawn,
         UnitTaskPatrolCompletionCallback,
         UnitTaskPatrolState,
         UnitTaskRandomizedPatrol,
     },
 };
 use crate::{
-    save_context::PostLoadContext,
-    world::object::GameObject,
     building::{Building, BuildingContext, BuildingKind},
-    sim::{RandomGenerator, SimContextMut, commands::{SimCmds, SpawnPromise}},
+    save_context::PostLoadContext,
+    sim::{
+        RandomGenerator,
+        SimContextMut,
+        commands::{SimCmds, SpawnPromise},
+    },
+    world::object::GameObject,
 };
 
 // ----------------------------------------------
@@ -124,7 +127,12 @@ impl Patrol {
             (state.max_distance, state.path_bias_min, state.path_bias_max, state.path_record.clone())
         };
 
-        self.try_spawn_with_task(context.debug_name(), cmds, context.sim_ctx, unit_origin, unit_config,
+        self.try_spawn_with_task(
+            context.debug_name(),
+            cmds,
+            context.sim_ctx,
+            unit_origin,
+            unit_config,
             UnitTaskRandomizedPatrol {
                 origin_building: context.kind_and_id(),
                 origin_building_tile: context.tile_info(),
@@ -139,12 +147,12 @@ impl Patrol {
                 state: UnitTaskPatrolState::default(),
                 completion_callback_done: false,
                 visited_buildings: None,
-            });
+            },
+        );
     }
 
     pub fn register_callbacks() {
-        let _: Callback<UnitTaskPatrolCompletionCallback> =
-            callback::register!(Patrol::on_randomized_patrol_completed);
+        let _: Callback<UnitTaskPatrolCompletionCallback> = callback::register!(Patrol::on_randomized_patrol_completed);
 
         let _: Callback<UnitTaskPatrolCompletionCallback> =
             callback::register!(TimedAmbientPatrol::on_timed_patrol_completed);

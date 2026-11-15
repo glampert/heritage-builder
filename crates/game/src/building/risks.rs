@@ -15,9 +15,6 @@
 // the risk. A sick house spreads disease risk to the houses around it and loses residents to
 // death after a grace period, until a medic's visit cures it or no one is left.
 
-use serde::{Deserialize, Serialize};
-use strum::{Display, EnumCount, EnumIter, EnumString};
-
 use common::{
     coords::Cell,
     hash,
@@ -26,6 +23,8 @@ use common::{
 };
 use engine::log;
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+use strum::{Display, EnumCount, EnumIter, EnumString};
 
 use super::{BuildingKind, BuildingKindAndId};
 use crate::{
@@ -492,8 +491,8 @@ pub struct RiskSummary {
     pub buildings: usize,
     high: [usize; RiskKind::COUNT],
     highest: [f32; RiskKind::COUNT],
-    pub riskiest: Vec<RiskEntry>,  // Highest risk first, ties by cell; at most the count asked for.
-    pub fires: Vec<RiskEntry>,     // By cell.
+    pub riskiest: Vec<RiskEntry>, // Highest risk first, ties by cell; at most the count asked for.
+    pub fires: Vec<RiskEntry>,    // By cell.
     pub outbreaks: Vec<RiskEntry>, // By cell.
 }
 

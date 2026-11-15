@@ -1,13 +1,18 @@
 use std::any::Any;
-use egui::Sense;
 
 use common::{Rect, Vec2};
+use egui::Sense;
 use serde_json::{Value, json};
 
 use super::{UiTooltipText, UiWidget, UiWidgetContext};
 use crate::{
     render::texture::TextureHandle,
-    ui::{UiPainter, UiString, UiSystem, immediate::{self, egui_vec2, to_rect}},
+    ui::{
+        UiPainter,
+        UiString,
+        UiSystem,
+        immediate::{self, egui_vec2, to_rect},
+    },
 };
 
 // ----------------------------------------------
@@ -81,18 +86,32 @@ pub fn clamp_map_view(state: UiMapViewState, rect: Rect, extent: Vec2, max_zoom:
     let clamp_axis = |centre: f32, half: f32, extent: f32| {
         if half * 2.0 >= extent || !centre.is_finite() { extent * 0.5 } else { centre.clamp(half, extent - half) }
     };
-    UiMapViewState { zoom, centre: Vec2::new(clamp_axis(state.centre.x, half.x, extent.x), clamp_axis(state.centre.y, half.y, extent.y)) }
+    UiMapViewState {
+        zoom,
+        centre: Vec2::new(clamp_axis(state.centre.x, half.x, extent.x), clamp_axis(state.centre.y, half.y, extent.y)),
+    }
 }
 
 // The transform of a view of `state` in `rect`.
 pub fn map_view_transform(state: UiMapViewState, rect: Rect, extent: Vec2) -> UiMapViewTransform {
     let ppu = map_fit_points_per_unit(rect, extent) * state.zoom;
     let center = rect.center();
-    UiMapViewTransform { rect, origin: Vec2::new(center.x - state.centre.x * ppu, center.y - state.centre.y * ppu), points_per_unit: ppu }
+    UiMapViewTransform {
+        rect,
+        origin: Vec2::new(center.x - state.centre.x * ppu, center.y - state.centre.y * ppu),
+        points_per_unit: ppu,
+    }
 }
 
 // `state` zoomed to `zoom` about the window point `anchor`: the map point under it stays there.
-pub fn zoom_map_view_about(state: UiMapViewState, zoom: f32, anchor: Vec2, rect: Rect, extent: Vec2, max_zoom: f32) -> UiMapViewState {
+pub fn zoom_map_view_about(
+    state: UiMapViewState,
+    zoom: f32,
+    anchor: Vec2,
+    rect: Rect,
+    extent: Vec2,
+    max_zoom: f32,
+) -> UiMapViewState {
     let before = map_view_transform(state, rect, extent).to_map(anchor);
     let zoomed = clamp_map_view(UiMapViewState { zoom, centre: state.centre }, rect, extent, max_zoom);
     let ppu = map_fit_points_per_unit(rect, extent) * zoomed.zoom;
@@ -119,7 +138,15 @@ pub fn record_map_marker(ui_sys: &UiSystem, label: &str, rect: Rect, view_rect: 
 
 // As record_map_marker, for something else an overlay draws and the pointer acts on, of `kind`
 // (the world map's choice box and its sites' names in it).
-pub fn record_map_item(ui_sys: &UiSystem, kind: &'static str, label: &str, rect: Rect, view_rect: Rect, hovered: bool, value: Option<Value>) {
+pub fn record_map_item(
+    ui_sys: &UiSystem,
+    kind: &'static str,
+    label: &str,
+    rect: Rect,
+    view_rect: Rect,
+    hovered: bool,
+    value: Option<Value>,
+) {
     if ui_sys.is_widget_registry_enabled() {
         let visible = view_rect.contains_rect(&rect);
         immediate::record_rect_visible(ui_sys, kind, label, immediate::egui_rect(rect), hovered, visible, value);
@@ -201,7 +228,10 @@ impl UiWidget for UiMapView {
         let painter = UiPainter::from_egui(painter, ui_sys);
 
         if let Some(texture) = self.texture {
-            let map_rect = Rect::from_pos_and_size(transform.origin, Vec2::new(self.extent.x * transform.points_per_unit, self.extent.y * transform.points_per_unit));
+            let map_rect = Rect::from_pos_and_size(
+                transform.origin,
+                Vec2::new(self.extent.x * transform.points_per_unit, self.extent.y * transform.points_per_unit),
+            );
             let uv_size = Vec2::new(
                 (self.extent.x * self.pixels_per_unit / self.texture_size.x).min(1.0),
                 (self.extent.y * self.pixels_per_unit / self.texture_size.y).min(1.0),
@@ -217,12 +247,15 @@ impl UiWidget for UiMapView {
         if let Some(frame) = self.frame {
             let scale = rect.width() / frame.map_rect.width().max(1.0);
             let min = Vec2::new(rect.min.x - frame.map_rect.min.x * scale, rect.min.y - frame.map_rect.min.y * scale);
-            let frame_rect = Rect::from_pos_and_size(min, Vec2::new(frame.texture_size.x * scale, frame.texture_size.y * scale));
+            let frame_rect =
+                Rect::from_pos_and_size(min, Vec2::new(frame.texture_size.x * scale, frame.texture_size.y * scale));
             painter.unclipped(window_rect).image(frame.texture, frame_rect, common::Color::white());
         }
 
         let value = || Some(self.value());
-        let pending = ui_sys.with_ui(|ui| immediate::record_lazy(ui_sys, ui, &response, "map_view", self.label.resolve(), None, true, value));
+        let pending = ui_sys.with_ui(|ui| {
+            immediate::record_lazy(ui_sys, ui, &response, "map_view", self.label.resolve(), None, true, value)
+        });
         if let Some(pending) = pending {
             self.apply_value(&pending, rect);
         }
@@ -366,7 +399,12 @@ impl UiMapView {
         if let Some(zoom) = value.get("zoom").and_then(Value::as_f64) {
             state.zoom = zoom as f32;
         }
-        if let Some([x, y]) = value.get("centre").and_then(Value::as_array).map(|centre| centre.iter().filter_map(Value::as_f64).collect::<Vec<_>>()).and_then(|centre| <[f64; 2]>::try_from(centre).ok()) {
+        if let Some([x, y]) = value
+            .get("centre")
+            .and_then(Value::as_array)
+            .map(|centre| centre.iter().filter_map(Value::as_f64).collect::<Vec<_>>())
+            .and_then(|centre| <[f64; 2]>::try_from(centre).ok())
+        {
             state.centre = Vec2::new(x as f32, y as f32);
         }
         self.state = clamp_map_view(state, rect, self.extent, self.max_zoom);
@@ -432,7 +470,11 @@ impl UiWidget for UiCanvas {
         if !self.label.is_empty() {
             let value = &self.value;
             let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
-            ui_sys.with_ui(|ui| immediate::record_lazy(ui_sys, ui, &response, "canvas", self.label.resolve(), tooltip, true, || value.clone()));
+            ui_sys.with_ui(|ui| {
+                immediate::record_lazy(ui_sys, ui, &response, "canvas", self.label.resolve(), tooltip, true, || {
+                    value.clone()
+                })
+            });
         } else {
             ui_sys.set_last_response(&response);
         }

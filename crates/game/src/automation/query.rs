@@ -48,8 +48,8 @@ pub struct Check {
 }
 
 pub enum CheckResult {
-    Passed(Value),          // The value that passed, null if missing.
-    NotYet(String),         // Why it didn't pass.
+    Passed(Value),  // The value that passed, null if missing.
+    NotYet(String), // Why it didn't pass.
 }
 
 impl Check {

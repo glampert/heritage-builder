@@ -1,37 +1,36 @@
 use std::cmp::Reverse;
 
 use arrayvec::ArrayVec;
-use serde::{Deserialize, Serialize};
-
 use common::hash::{self, StringHash};
 use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
 
 use super::{
-    risks::RiskRates,
-    BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
     BuildingContextMut,
     BuildingKind,
+    BuildingVisitResult,
     config::{BuildingConfig, BuildingConfigs, building_config},
+    risks::RiskRates,
 };
 use crate::{
-    inspect::StorageOrder,
     cheats,
-    tile::Tile,
-    save_context::PostLoadContext,
-    world::stats::WorldStats,
-    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, game_object_debug_options},
+    inspect::StorageOrder,
+    save_context::PostLoadContext,
     sim::{
         SimCmds,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers, per_kind_map},
     },
+    tile::Tile,
+    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
         task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage},
     },
+    world::stats::WorldStats,
 };
 
 // ----------------------------------------------
@@ -239,11 +238,9 @@ impl BuildingBehavior for StorageBuilding {
     // One item per kind held, its units summed over the slots holding it.
     fn stock(&self) -> ArrayVec<StockItem, RESOURCE_KIND_COUNT> {
         let mut items: ArrayVec<StockItem, RESOURCE_KIND_COUNT> = ArrayVec::new();
-        self.storage_slots.for_each_resource(|item| {
-            match items.iter_mut().find(|held| held.kind == item.kind) {
-                Some(held) => held.count += item.count,
-                None => items.push(*item),
-            }
+        self.storage_slots.for_each_resource(|item| match items.iter_mut().find(|held| held.kind == item.kind) {
+            Some(held) => held.count += item.count,
+            None => items.push(*item),
         });
         items
     }
@@ -629,7 +626,8 @@ impl StorageSlots {
         // See if this resource kind is already being stored somewhere:
         for (slot_index, slot) in self.slots.iter().enumerate() {
             if let Some(allocated_kind) = slot.allocated_resource_kind
-                && allocated_kind == kind && !self.is_slot_full(slot_index)
+                && allocated_kind == kind
+                && !self.is_slot_full(slot_index)
             {
                 return Some(slot_index);
             }
@@ -669,11 +667,7 @@ impl StorageSlots {
         // Should be a single kind, never multiple ORed flags.
         debug_assert!(kind.is_single_resource());
 
-        self.slots
-            .iter()
-            .filter(|slot| slot.allocated_resource_kind == Some(kind))
-            .map(|slot| slot.stock.count(kind))
-            .sum()
+        self.slots.iter().filter(|slot| slot.allocated_resource_kind == Some(kind)).map(|slot| slot.stock.count(kind)).sum()
     }
 
     // Room for `kind`: what's left in the slots holding it, plus every free slot. None for a kind

@@ -6,16 +6,15 @@
 // from outside tools through the engine's request queue (see engine::automation). See
 // docs/plans/agent-automation.md.
 
-use serde::de::DeserializeOwned;
-use serde_json::Value;
-use strum::Display;
-
 use common::coords::Cell;
 use engine::{
     Engine,
     automation::{Responder, Response, ResponseError},
     log,
 };
+use serde::de::DeserializeOwned;
+use serde_json::Value;
+use strum::Display;
 
 use crate::{
     config::GameConfigs,

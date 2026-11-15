@@ -12,8 +12,6 @@
 
 use std::collections::VecDeque;
 
-use strum::{EnumCount, EnumIter};
-
 use common::{
     Color,
     Size,
@@ -27,6 +25,7 @@ use engine::{
     ui::{self, UiSystem},
 };
 use minimap_bake::{CellRect, Cover, Terrain};
+use strum::{EnumCount, EnumIter};
 
 use super::{TileFlags, TileKind, TileMap, sets::TileDef};
 use crate::{
@@ -42,11 +41,10 @@ pub mod widget;
 
 mod render;
 
-pub use lens::MinimapLens;
-pub use render::{DevUiMinimapRenderer, InGameUiMinimapRenderer, MinimapRenderer, MinimapTool};
-
 use lens::LensData;
+pub use lens::MinimapLens;
 use model::{FeatureState, LandmarkKind, MinimapFeature, MinimapFeatures, MinimapGrid};
+pub use render::{DevUiMinimapRenderer, InGameUiMinimapRenderer, MinimapRenderer, MinimapTool};
 use shapes::ShapeCache;
 use style::MinimapStyle;
 pub use widget::MinimapFrame;
@@ -181,7 +179,11 @@ impl BaseTexture {
             if let Some(mut existing) = tex_cache.find_loaded_texture(Self::TEXTURE_NAME) {
                 tex_cache.release_texture(&mut existing);
             }
-            let settings = TextureSettings { filter: TextureFilter::LinearMipmapLinear, wrap_mode: TextureWrapMode::ClampToEdge, mipmaps: true };
+            let settings = TextureSettings {
+                filter: TextureFilter::LinearMipmapLinear,
+                wrap_mode: TextureWrapMode::ClampToEdge,
+                mipmaps: true,
+            };
             self.handle = tex_cache.new_initialized_texture(Self::TEXTURE_NAME, self.size, &self.pixels, Some(settings));
             self.handle_size = self.size;
             full = true;
@@ -189,11 +191,7 @@ impl BaseTexture {
         }
 
         let px = self.px_per_cell as i32;
-        let region = if full {
-            CellRect::map(self.size.width / px, self.size.height / px)
-        } else {
-            self.pending_upload
-        };
+        let region = if full { CellRect::map(self.size.width / px, self.size.height / px) } else { self.pending_upload };
         self.full_upload = false;
         self.pending_upload = CellRect::default();
         if region.is_empty() {
@@ -225,7 +223,14 @@ impl BaseTexture {
                 let start = row * stride + lx0 as usize * 4;
                 self.upload.extend_from_slice(&source[start..start + width * 4]);
             }
-            tex_cache.update_texture(self.handle, lx0 as u32, ly0 as u32, Size::new(width as i32, ly1 - ly0), level as u32, &self.upload);
+            tex_cache.update_texture(
+                self.handle,
+                lx0 as u32,
+                ly0 as u32,
+                Size::new(width as i32, ly1 - ly0),
+                level as u32,
+                &self.upload,
+            );
         }
     }
 
@@ -252,7 +257,13 @@ impl BaseTexture {
             let parent: &[u8] = if level == 1 { &self.pixels } else { &before[level - 2] };
             let target = &mut after[0];
 
-            minimap_bake::downsample(parent, (parent_size.width, parent_size.height), target, (size.width, size.height), (lx0, ly0, lx1, ly1));
+            minimap_bake::downsample(
+                parent,
+                (parent_size.width, parent_size.height),
+                target,
+                (size.width, size.height),
+                (lx0, ly0, lx1, ly1),
+            );
         }
     }
 
@@ -304,7 +315,8 @@ impl LensTexture {
             if let Some(mut existing) = tex_cache.find_loaded_texture(Self::TEXTURE_NAME) {
                 tex_cache.release_texture(&mut existing);
             }
-            let settings = TextureSettings { filter: TextureFilter::Linear, wrap_mode: TextureWrapMode::ClampToEdge, mipmaps: false };
+            let settings =
+                TextureSettings { filter: TextureFilter::Linear, wrap_mode: TextureWrapMode::ClampToEdge, mipmaps: false };
             self.handle = tex_cache.new_initialized_texture(Self::TEXTURE_NAME, map_size, &self.texels, Some(settings));
             self.size = map_size;
         } else {
@@ -384,7 +396,7 @@ pub struct Minimap {
     layout: MinimapLayout,
     frame: MinimapFrame, // The room its window's frame takes, set by the renderer drawing it.
     is_open: bool,
-    show_landmarks: bool, // The building icons in the City view; alerts show either way.
+    show_landmarks: bool,  // The building icons in the City view; alerts show either way.
     pointer_blocked: bool, // A dialog covers the HUD: no hover tooltip, no click to move the camera.
 }
 
@@ -443,7 +455,14 @@ impl Minimap {
         self.update_alerts(delta_time_secs);
 
         let legend_entries = if self.lens == MinimapLens::City { 0 } else { self.lens_data.legend.len() };
-        self.layout = MinimapLayout::new(ui::screen_size(ui_sys), render::TOOL_COUNT, style.map_size(), legend_entries, style.legend.scale(), self.frame);
+        self.layout = MinimapLayout::new(
+            ui::screen_size(ui_sys),
+            render::TOOL_COUNT,
+            style.map_size(),
+            legend_entries,
+            style.legend.scale(),
+            self.frame,
+        );
         if !self.is_open || !self.grid.size().is_valid() {
             return;
         }
@@ -676,7 +695,12 @@ impl Minimap {
         let lens = minimap.lens;
         lens_data.clear(lens);
         if let Some(provider) = lens::provider(lens) {
-            let context = lens::LensContext { sim, features: &minimap.features, map_size: minimap.grid.size(), style: style::current() };
+            let context = lens::LensContext {
+                sim,
+                features: &minimap.features,
+                map_size: minimap.grid.size(),
+                style: style::current(),
+            };
             provider.compute(&context, &mut lens_data);
         }
 
@@ -816,4 +840,3 @@ fn display_name(name: &str) -> String {
 // Minimap only displays terrain tiles and these object kinds.
 const MINIMAP_OBJECT_TILE_KINDS: TileKind =
     TileKind::from_bits_retain(TileKind::Building.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits());
-

@@ -1,10 +1,5 @@
 #![allow(clippy::needless_range_loop)]
 
-use image::RgbaImage;
-use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "desktop")]
-use rayon::prelude::*;
 use std::cmp::Ordering;
 #[cfg(feature = "desktop")]
 use std::{path::Path, time::UNIX_EPOCH};
@@ -26,6 +21,10 @@ use engine::{
     render::texture::{TextureCache, TextureHandle, TextureSettings},
     save::{self, SaveState},
 };
+use image::RgbaImage;
+#[cfg(feature = "desktop")]
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use super::{TileMapLayerKind, sets::TileTexInfo};
 
@@ -774,7 +773,7 @@ mod packer {
             let packer = TexPacker::new_skyline(TEXTURE_PACKER_CONFIG);
 
             // Allocate a new image/texture with the maximum page dimensions:
-            let img_width  = TEXTURE_PACKER_CONFIG.max_width;
+            let img_width = TEXTURE_PACKER_CONFIG.max_width;
             let img_height = TEXTURE_PACKER_CONFIG.max_height;
             let image = RgbaImage::new(img_width, img_height);
 
@@ -829,9 +828,9 @@ mod packer {
     }
 
     fn rect_tex_coords_from_frame(frame: &Frame<StringHash>) -> RectTexCoords {
-        let atlas_width  = TEXTURE_PACKER_CONFIG.max_width  as f32;
+        let atlas_width = TEXTURE_PACKER_CONFIG.max_width as f32;
         let atlas_height = TEXTURE_PACKER_CONFIG.max_height as f32;
-        let frame_rect  = frame.frame;
+        let frame_rect = frame.frame;
 
         // Compute normalized UV coordinates in [0, 1] range:
         let u0 = frame_rect.x as f32 / atlas_width;
@@ -852,13 +851,13 @@ mod packer {
     // Copy `src` into a sub-rectangle of `dst`, starting at (dst_x, dst_y).
     // Both images must be RGBA8.
     fn blit_rgba_image(dst: &mut RgbaImage, src: &RgbaImage, dst_x: usize, dst_y: usize) {
-        let dst_width  = dst.width()  as usize;
+        let dst_width = dst.width() as usize;
         let dst_height = dst.height() as usize;
 
-        let src_width  = src.width()  as usize;
+        let src_width = src.width() as usize;
         let src_height = src.height() as usize;
 
-        assert!(dst_x + src_width  <= dst_width);
+        assert!(dst_x + src_width <= dst_width);
         assert!(dst_y + src_height <= dst_height);
 
         let dst_stride = dst_width * 4; // 4 bytes per pixel
@@ -873,7 +872,7 @@ mod packer {
         for row in 0..src_height {
             let dst_row_start = ((dst_y + row) * dst_stride) + (dst_x * 4);
             let src_row_start = row * src_stride;
-            let dst_row_end   = dst_row_start + src_stride;
+            let dst_row_end = dst_row_start + src_stride;
 
             dst_buf[dst_row_start..dst_row_end].copy_from_slice(&src_buf[src_row_start..src_row_start + src_stride]);
         }

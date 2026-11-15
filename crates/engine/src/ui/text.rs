@@ -24,14 +24,17 @@ use std::{
     fmt,
     str::FromStr,
     sync::{
-        Mutex, OnceLock, PoisonError,
+        Mutex,
+        OnceLock,
+        PoisonError,
         atomic::{AtomicU32, AtomicUsize, Ordering},
     },
 };
 
 use common::hash::{self, NULL_HASH, PreHashedKeyMap, StringHash};
 use serde::{
-    Deserialize, Serialize,
+    Deserialize,
+    Serialize,
     de::{self, DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor},
 };
 use serde_json::Value;
@@ -55,8 +58,21 @@ pub type UiTextKey = StringHash;
 pub const ENGLISH: &str = "en";
 
 #[derive(
-    Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-    Display, EnumString, EnumIter, EnumCount, IntoStaticStr,
+    Copy,
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    Display,
+    EnumString,
+    EnumIter,
+    EnumCount,
+    IntoStaticStr,
 )]
 pub enum UiTextCategory {
     TileDescription, // By tile def name: the inspector's text.
@@ -102,7 +118,10 @@ pub fn current_language() -> &'static str {
 pub fn set_language(language: &str) -> Result<(), String> {
     let store = store();
     let Some(index) = store.language_index(language) else {
-        return Err(format!("No language '{language}' (assets/configs/ui/text/{language}.json). Languages: {}.", languages().join(", ")));
+        return Err(format!(
+            "No language '{language}' (assets/configs/ui/text/{language}.json). Languages: {}.",
+            languages().join(", ")
+        ));
     };
 
     if CURRENT_LANGUAGE.swap(index, Ordering::Relaxed) != index {
@@ -532,11 +551,8 @@ impl UiLanguage {
             return Err("not a JSON object of categories".to_string());
         };
 
-        let mut language = Self {
-            name: name.to_string(),
-            plural_rule: PluralRule::for_language(name),
-            categories: Default::default(),
-        };
+        let mut language =
+            Self { name: name.to_string(), plural_rule: PluralRule::for_language(name), categories: Default::default() };
         let mut problems: Vec<String> =
             duplicate_keys(json).into_iter().map(|path| format!("{path}: given twice; the last one is used.")).collect();
 
@@ -586,7 +602,9 @@ impl UiLanguage {
     // Every (category, key) it has.
     fn keys(&self) -> BTreeSet<(UiTextCategory, &str)> {
         UiTextCategory::iter()
-            .flat_map(|category| self.categories[category as usize].entries.iter().map(move |(key, _)| (category, key.as_str())))
+            .flat_map(|category| {
+                self.categories[category as usize].entries.iter().map(move |(key, _)| (category, key.as_str()))
+            })
             .collect()
     }
 }
@@ -622,12 +640,24 @@ impl<'de> Visitor<'de> for DuplicateKeys<'_> {
         formatter.write_str("a JSON value")
     }
 
-    fn visit_bool<E>(self, _: bool) -> Result<(), E> { Ok(()) }
-    fn visit_i64<E>(self, _: i64) -> Result<(), E> { Ok(()) }
-    fn visit_u64<E>(self, _: u64) -> Result<(), E> { Ok(()) }
-    fn visit_f64<E>(self, _: f64) -> Result<(), E> { Ok(()) }
-    fn visit_str<E>(self, _: &str) -> Result<(), E> { Ok(()) }
-    fn visit_unit<E>(self) -> Result<(), E> { Ok(()) }
+    fn visit_bool<E>(self, _: bool) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_i64<E>(self, _: i64) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_u64<E>(self, _: u64) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_f64<E>(self, _: f64) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_str<E>(self, _: &str) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_unit<E>(self) -> Result<(), E> {
+        Ok(())
+    }
 
     // No array is valid in a language file, so their contents aren't checked.
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<(), A::Error> {
@@ -669,11 +699,12 @@ impl UiTextStore {
     // its language isn't available; without en.json every key shows as itself.
     fn load() -> Self {
         let dir = text_dir();
-        let files = file_sys::collect_files(&dir, CollectFlags::FilenamesOnly | CollectFlags::ErrorIfPathDoesNotExist, Some("json"))
-            .unwrap_or_else(|err| {
-                log::error!(log::channel!("ui"), "Can't list the language files in {dir}: {err}");
-                Vec::new()
-            });
+        let files =
+            file_sys::collect_files(&dir, CollectFlags::FilenamesOnly | CollectFlags::ErrorIfPathDoesNotExist, Some("json"))
+                .unwrap_or_else(|err| {
+                    log::error!(log::channel!("ui"), "Can't list the language files in {dir}: {err}");
+                    Vec::new()
+                });
 
         let mut languages = Vec::new();
         for file in files {
@@ -714,7 +745,8 @@ impl UiTextStore {
 
     // The key's entry and the language it comes from: `current`, else English.
     fn find(&self, current: Option<usize>, category: UiTextCategory, key: UiTextKey) -> Option<(&UiTextEntry, &UiLanguage)> {
-        let in_language = |index: usize| self.languages[index].entry(category, key).map(|entry| (entry, &self.languages[index]));
+        let in_language =
+            |index: usize| self.languages[index].entry(category, key).map(|entry| (entry, &self.languages[index]));
         current.and_then(in_language).or_else(|| self.english.and_then(in_language))
     }
 
@@ -883,7 +915,9 @@ mod tests {
         assert_eq!(store.english, Some(0));
         let xx = store.language_index("xx");
         let find = |key: &str| {
-            store.find(xx, UiTextCategory::Menu, hash::fnv1a_from_str(key)).map(|(entry, language)| (entry.text(), language.name.as_str()))
+            store
+                .find(xx, UiTextCategory::Menu, hash::fnv1a_from_str(key))
+                .map(|(entry, language)| (entry.text(), language.name.as_str()))
         };
         assert_eq!(find("ok"), Some(("Okay", "xx")));
         assert_eq!(find("cancel"), Some(("Cancel", "en")));
@@ -896,7 +930,10 @@ mod tests {
     fn plural_forms_follow_the_text_language() {
         let store = UiTextStore::new(vec![
             language("vi", r#"{ "Hud": { "days": { "other": "{count} ngày" } } }"#),
-            language("en", r#"{ "Hud": { "days": { "one": "{count} day", "other": "{count} days" }, "months": { "one": "{count} month", "other": "{count} months" } } }"#),
+            language(
+                "en",
+                r#"{ "Hud": { "days": { "one": "{count} day", "other": "{count} days" }, "months": { "one": "{count} month", "other": "{count} months" } } }"#,
+            ),
         ]);
         let vi = store.language_index("vi");
         let format = |key: &str, count: i64, args: &[(&str, &str)]| {
@@ -1041,20 +1078,31 @@ mod tests {
 
         for entry in std::fs::read_dir(&dir).unwrap().flatten() {
             let path = entry.path();
-            assert_eq!(path.extension().and_then(|ext| ext.to_str()), Some("json"), "{}: not a language file", path.display());
+            assert_eq!(
+                path.extension().and_then(|ext| ext.to_str()),
+                Some("json"),
+                "{}: not a language file",
+                path.display()
+            );
             let language = load_language_file(&path);
 
-            let extra: Vec<_> = language.keys().difference(&english_keys).map(|(category, key)| format!("{category}/{key}")).collect();
+            let extra: Vec<_> =
+                language.keys().difference(&english_keys).map(|(category, key)| format!("{category}/{key}")).collect();
             assert!(extra.is_empty(), "{}: keys en.json lacks: {extra:?}", path.display());
 
             for category in UiTextCategory::iter() {
                 for (key, entry) in &language.strings(category).entries {
                     let english_entry = english.entry(category, hash::fnv1a_from_str(key)).unwrap();
-                    let english_names: BTreeSet<&str> = english_entry.forms().iter().flat_map(|(_, text)| placeholder_names(text)).collect();
+                    let english_names: BTreeSet<&str> =
+                        english_entry.forms().iter().flat_map(|(_, text)| placeholder_names(text)).collect();
                     for (form, text) in entry.forms() {
                         let unknown: Vec<_> = placeholder_names(text).difference(&english_names).copied().collect();
                         let form = if form.is_empty() { String::new() } else { format!(" [{form}]") };
-                        assert!(unknown.is_empty(), "{}: {category}/{key}{form}: placeholders English lacks: {unknown:?}", path.display());
+                        assert!(
+                            unknown.is_empty(),
+                            "{}: {category}/{key}{form}: placeholders English lacks: {unknown:?}",
+                            path.display()
+                        );
                     }
                 }
             }

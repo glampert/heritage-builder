@@ -113,7 +113,9 @@ impl CityPage for Population {
         let names: Vec<String> = report
             .housing
             .iter()
-            .map(|row| ui::text::get(UiTextCategory::Realm, &format!("house_level.{}.{}", page.realm, row.level)).to_string())
+            .map(|row| {
+                ui::text::get(UiTextCategory::Realm, &format!("house_level.{}.{}", page.realm, row.level)).to_string()
+            })
             .collect();
         let total_residents: u32 = report.housing.iter().map(|row| row.residents).sum();
         let housing: Vec<(u32, String, u32, u32, f32, String, bool)> = report
@@ -131,13 +133,21 @@ impl CityPage for Population {
             .iter()
             .map(|(level, name, houses, residents, _, needs, _)| json!({ "level": level, "house": name, "houses": houses, "residents": residents, "next_level_needs": needs }))
             .collect::<Vec<_>>());
-        let titles = ["level", "house", "houses", "residents", "share", "needs"].map(|key| get(&format!("book.housing.{key}")));
+        let titles =
+            ["level", "house", "houses", "residents", "share", "needs"].map(|key| get(&format!("book.housing.{key}")));
         let housing_title = get("book.housing");
         let height = BODY.y - HOUSING_TOP;
         let housing_canvas = body_canvas(page, BODY.x, height, "housing", value, move |p: &Paint| {
             p.card(0.0, 0.0, BODY.x, height, Some(&housing_title), None);
             let header = 74.0;
-            let columns = [(24.0, UiTextAnchor::Start), (96.0, UiTextAnchor::Start), (400.0, UiTextAnchor::End), (540.0, UiTextAnchor::End), (580.0, UiTextAnchor::Start), (NEEDS_X, UiTextAnchor::Start)];
+            let columns = [
+                (24.0, UiTextAnchor::Start),
+                (96.0, UiTextAnchor::Start),
+                (400.0, UiTextAnchor::End),
+                (540.0, UiTextAnchor::End),
+                (580.0, UiTextAnchor::Start),
+                (NEEDS_X, UiTextAnchor::Start),
+            ];
             for ((x, anchor), title) in columns.iter().zip(&titles) {
                 p.text(*x, header, title, 17.0, p.c.sub, *anchor, false);
             }

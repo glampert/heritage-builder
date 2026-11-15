@@ -2,7 +2,7 @@ use std::{iter::FusedIterator, ops::RangeInclusive};
 
 use serde::{Deserialize, Serialize};
 
-use super::{constants::*, field_accessor_xy, Color, Rect, Size, Vec2};
+use super::{Color, Rect, Size, Vec2, constants::*, field_accessor_xy};
 
 // ----------------------------------------------
 // IsoPoint
@@ -109,11 +109,7 @@ impl Default for Cell {
 
 impl std::fmt::Display for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if self.is_valid() {
-            write!(f, "[{},{}]", self.x, self.y)
-        } else {
-            write!(f, "[invalid]")
-        }
+        if self.is_valid() { write!(f, "[{},{}]", self.x, self.y) } else { write!(f, "[invalid]") }
     }
 }
 
@@ -368,7 +364,7 @@ impl WorldToScreenTransform {
     pub fn apply_to_rect(&self, iso_position: IsoPointF32, size: Size) -> Rect {
         let screen_position = self.apply_to_iso_point(iso_position);
         // Apply scaling:
-        let screen_width  = (size.width  as f32) * self.scaling;
+        let screen_width = (size.width as f32) * self.scaling;
         let screen_height = (size.height as f32) * self.scaling;
         Rect::from_pos_and_size(screen_position, Vec2::new(screen_width, screen_height))
     }
@@ -378,7 +374,7 @@ impl WorldToScreenTransform {
         let x = rect.x() + (self.offset.x * self.scaling);
         let y = rect.y() + (self.offset.y * self.scaling);
 
-        let width  = rect.width()  * self.scaling;
+        let width = rect.width() * self.scaling;
         let height = rect.height() * self.scaling;
 
         Rect::from_pos_and_size(Vec2::new(x, y), Vec2::new(width, height))
@@ -406,14 +402,14 @@ impl Default for WorldToScreenTransform {
 #[inline]
 pub fn iso_to_cell(iso_point: IsoPoint) -> Cell {
     // Invert Y axis to match top-left origin.
-    let cell_x = (( iso_point.x / HALF_BASE_TILE_WIDTH_I32)  + (-iso_point.y / HALF_BASE_TILE_HEIGHT_I32)) / 2;
-    let cell_y = ((-iso_point.y / HALF_BASE_TILE_HEIGHT_I32) - ( iso_point.x / HALF_BASE_TILE_WIDTH_I32))  / 2;
+    let cell_x = ((iso_point.x / HALF_BASE_TILE_WIDTH_I32) + (-iso_point.y / HALF_BASE_TILE_HEIGHT_I32)) / 2;
+    let cell_y = ((-iso_point.y / HALF_BASE_TILE_HEIGHT_I32) - (iso_point.x / HALF_BASE_TILE_WIDTH_I32)) / 2;
     Cell::new(cell_x, cell_y)
 }
 
 #[inline]
 pub fn cell_to_iso(cell: Cell) -> IsoPoint {
-    let iso_x = (cell.x - cell.y) *  HALF_BASE_TILE_WIDTH_I32;
+    let iso_x = (cell.x - cell.y) * HALF_BASE_TILE_WIDTH_I32;
     let iso_y = (cell.x + cell.y) * -HALF_BASE_TILE_HEIGHT_I32; // flip Y (top-left origin)
     IsoPoint::new(iso_x, iso_y)
 }
@@ -423,8 +419,8 @@ pub fn cell_to_iso(cell: Cell) -> IsoPoint {
 #[inline]
 pub fn iso_to_cell_f32(iso_point: IsoPointF32) -> CellF32 {
     // Invert Y axis to match top-left origin.
-    let cell_x = (( iso_point.0.x / HALF_BASE_TILE_WIDTH_F32)  + (-iso_point.0.y / HALF_BASE_TILE_HEIGHT_F32)) * 0.5;
-    let cell_y = ((-iso_point.0.y / HALF_BASE_TILE_HEIGHT_F32) - ( iso_point.0.x / HALF_BASE_TILE_WIDTH_F32))  * 0.5;
+    let cell_x = ((iso_point.0.x / HALF_BASE_TILE_WIDTH_F32) + (-iso_point.0.y / HALF_BASE_TILE_HEIGHT_F32)) * 0.5;
+    let cell_y = ((-iso_point.0.y / HALF_BASE_TILE_HEIGHT_F32) - (iso_point.0.x / HALF_BASE_TILE_WIDTH_F32)) * 0.5;
     CellF32(Vec2::new(cell_x, cell_y))
 }
 
@@ -432,7 +428,7 @@ pub fn iso_to_cell_f32(iso_point: IsoPointF32) -> CellF32 {
 // NOTE: This is the same as coords::cell_to_iso() but using f32.
 #[inline]
 pub fn cell_to_iso_f32(cell: CellF32) -> IsoPointF32 {
-    let iso_x = (cell.0.x - cell.0.y) *  HALF_BASE_TILE_WIDTH_F32;
+    let iso_x = (cell.0.x - cell.0.y) * HALF_BASE_TILE_WIDTH_F32;
     let iso_y = (cell.0.x + cell.0.y) * -HALF_BASE_TILE_HEIGHT_F32; // flip Y (top-left origin)
     IsoPointF32(Vec2::new(iso_x, iso_y))
 }
@@ -556,19 +552,19 @@ pub fn cell_to_screen_diamond_points(cell: Cell, tile_size: Size, transform: Wor
     let iso_center = cell_to_iso(cell);
     let screen_center = iso_to_screen_point(iso_center, transform);
 
-    let tile_width  = (tile_size.width  as f32) * transform.scaling;
+    let tile_width = (tile_size.width as f32) * transform.scaling;
     let tile_height = (tile_size.height as f32) * transform.scaling;
     let base_height = BASE_TILE_HEIGHT_F32 * transform.scaling;
 
-    let half_tile_w = tile_width  * 0.5;
+    let half_tile_w = tile_width * 0.5;
     let half_tile_h = tile_height * 0.5;
     let half_base_h = base_height * 0.5;
 
     // Build 4 corners of the tile:
-    let top    = Vec2::new(screen_center.x, screen_center.y - tile_height + half_base_h);
+    let top = Vec2::new(screen_center.x, screen_center.y - tile_height + half_base_h);
     let bottom = Vec2::new(screen_center.x, screen_center.y + half_base_h);
-    let right  = Vec2::new(screen_center.x + half_tile_w, screen_center.y - half_tile_h + half_base_h);
-    let left   = Vec2::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
+    let right = Vec2::new(screen_center.x + half_tile_w, screen_center.y - half_tile_h + half_base_h);
+    let left = Vec2::new(screen_center.x - half_tile_w, screen_center.y - half_tile_h + half_base_h);
 
     [top, right, bottom, left]
 }
@@ -594,14 +590,15 @@ pub fn cell_to_screen_diamond_center_y(cell: Cell, tile_size: Size, transform: W
 pub fn inner_rect_from_diamond_points(points: &[Vec2; 4]) -> Rect {
     let rect = Rect::from_points(points);
 
-    let half_width  = rect.width()  * 0.5;
+    let half_width = rect.width() * 0.5;
     let half_height = rect.height() * 0.5;
 
     let inner_rect = rect.shrunk(Vec2::new(half_width * 0.5, half_height * 0.5));
 
-    debug_assert!(inner_rect.min.x < inner_rect.max.x &&
-                  inner_rect.min.y < inner_rect.max.y &&
-                  inner_rect.is_valid(), "Invalid inner diamond rect!");
+    debug_assert!(
+        inner_rect.min.x < inner_rect.max.x && inner_rect.min.y < inner_rect.max.y && inner_rect.is_valid(),
+        "Invalid inner diamond rect!"
+    );
 
     inner_rect
 }
@@ -617,10 +614,10 @@ pub struct IsoDiamond {
 }
 
 impl IsoDiamond {
-    pub const TOP:    usize = 0;
-    pub const RIGHT:  usize = 1;
+    pub const TOP: usize = 0;
+    pub const RIGHT: usize = 1;
     pub const BOTTOM: usize = 2;
-    pub const LEFT:   usize = 3;
+    pub const LEFT: usize = 3;
 
     pub const DEBUG_COLORS: [Color; 4] = [
         Color::white(),  // TOP
@@ -641,7 +638,7 @@ impl IsoDiamond {
     pub fn from_tile_map(map_size_in_cells: Size, transform: WorldToScreenTransform) -> Self {
         let map_origin_cell = Cell::zero();
         let map_size_in_pixels = Size::new(
-            map_size_in_cells.width  * BASE_TILE_SIZE_I32.width,
+            map_size_in_cells.width * BASE_TILE_SIZE_I32.width,
             map_size_in_cells.height * BASE_TILE_SIZE_I32.height,
         );
 
@@ -684,12 +681,7 @@ impl IsoDiamond {
     where
         F: Fn(Vec2) -> Vec2,
     {
-        [
-            f(self.points[Self::TOP]),
-            f(self.points[Self::RIGHT]),
-            f(self.points[Self::BOTTOM]),
-            f(self.points[Self::LEFT]),
-        ]
+        [f(self.points[Self::TOP]), f(self.points[Self::RIGHT]), f(self.points[Self::BOTTOM]), f(self.points[Self::LEFT])]
     }
 
     pub fn map_inner_rect<F>(&self, f: F) -> Rect

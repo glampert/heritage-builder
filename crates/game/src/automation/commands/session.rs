@@ -1,18 +1,20 @@
 // Session commands: game state, new games, preset maps, saves, menus mode.
 
+use common::hash;
+use engine::{file_sys::paths::PathRef, save};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use strum::{Display, EnumString};
 
-use common::hash;
-use engine::{file_sys::paths::PathRef, save};
-
 use super::{SizeParam, validate_save_name, world::find_tile_def};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params, pending},
-    campaign::{self, config::{CampaignConfigs, MissionMap, MissionRef}},
-    custom_game,
+    campaign::{
+        self,
+        config::{CampaignConfigs, MissionMap, MissionRef},
+    },
     config::LoadMapSetting,
+    custom_game,
     debug::preset_maps,
     launch,
     menu::GameMenusMode,
@@ -32,8 +34,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "session.new_map",
         help: "Start a new game on an empty map, seeded like --map: the same seed gives the same game. Ends any campaign.",
         params: &[
-            ParamDef { name: "size", kind: "size", required: true, help: "[width, height] or \"WxH\", from 8 to 512 cells." },
-            ParamDef { name: "terrain", kind: "string", required: false, help: "Terrain tile: grass (default), dirt or water." },
+            ParamDef {
+                name: "size",
+                kind: "size",
+                required: true,
+                help: "[width, height] or \"WxH\", from 8 to 512 cells.",
+            },
+            ParamDef {
+                name: "terrain",
+                kind: "string",
+                required: false,
+                help: "Terrain tile: grass (default), dirt or water.",
+            },
         ],
         run: cmd_new_map,
     },
@@ -41,32 +53,57 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "session.load_preset",
         help: "Start a new game on a debug preset map. Ends any campaign.",
-        params: &[ParamDef { name: "preset", kind: "int", required: true, help: "Preset number, see session.list_presets." }],
+        params: &[ParamDef {
+            name: "preset",
+            kind: "int",
+            required: true,
+            help: "Preset number, see session.list_presets.",
+        }],
         run: cmd_load_preset,
     },
     CommandDef { name: "session.list_saves", help: "List the save games in saves/.", params: &[], run: cmd_list_saves },
     CommandDef {
         name: "session.load_save",
         help: "Load a save game.",
-        params: &[ParamDef { name: "name", kind: "string", required: true, help: "Save name, without folder or extension." }],
+        params: &[ParamDef {
+            name: "name",
+            kind: "string",
+            required: true,
+            help: "Save name, without folder or extension.",
+        }],
         run: cmd_load_save,
     },
     CommandDef {
         name: "session.save_info",
         help: "What a save says about itself without loading it: whether it exists, whether this game can load it, its header (campaign, mission, realm, date, population, treasury, time played, time saved; empty for an old save) and its thumbnail, if any (also for a missing save, so a thumbnail left behind shows).",
-        params: &[ParamDef { name: "name", kind: "string", required: true, help: "Save name, without folder or extension." }],
+        params: &[ParamDef {
+            name: "name",
+            kind: "string",
+            required: true,
+            help: "Save name, without folder or extension.",
+        }],
         run: cmd_save_info,
     },
     CommandDef {
         name: "session.delete_save",
         help: "Delete a save game and its thumbnail.",
-        params: &[ParamDef { name: "name", kind: "string", required: true, help: "Save name, without folder or extension." }],
+        params: &[ParamDef {
+            name: "name",
+            kind: "string",
+            required: true,
+            help: "Save name, without folder or extension.",
+        }],
         run: cmd_delete_save,
     },
     CommandDef {
         name: "session.save",
         help: "Save the game.",
-        params: &[ParamDef { name: "name", kind: "string", required: true, help: "Save name, without folder or extension." }],
+        params: &[ParamDef {
+            name: "name",
+            kind: "string",
+            required: true,
+            help: "Save name, without folder or extension.",
+        }],
         run: cmd_save,
     },
     CommandDef {
@@ -80,7 +117,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Start a campaign mission, as the home menu's Campaign does: any campaign, hidden ones included (test_choices). The mission is the profile's next one unless given.",
         params: &[
             ParamDef { name: "campaign", kind: "string", required: true, help: "The campaign's id, e.g. dragon_legacy." },
-            ParamDef { name: "mission", kind: "any", required: false, help: "Its index from 0 or its id; the profile's next mission if left out." },
+            ParamDef {
+                name: "mission",
+                kind: "any",
+                required: false,
+                help: "Its index from 0 or its id; the profile's next mission if left out.",
+            },
         ],
         run: cmd_start_mission,
     },
@@ -268,7 +310,11 @@ fn cmd_start_mission(context: &mut CommandContext, params: Value) -> CommandResu
     let configs = CampaignConfigs::get();
     let Some(campaign_index) = configs.find_by_id(&params.campaign) else {
         let ids: Vec<&str> = configs.campaigns.iter().map(|campaign| campaign.id.as_str()).collect();
-        return Err(CommandError::not_found(format!("No campaign has the id '{}'. Campaigns: {}.", params.campaign, ids.join(", "))));
+        return Err(CommandError::not_found(format!(
+            "No campaign has the id '{}'. Campaigns: {}.",
+            params.campaign,
+            ids.join(", ")
+        )));
     };
     let campaign = &configs.campaigns[campaign_index];
     let mission_index = match &params.mission {
@@ -276,7 +322,11 @@ fn cmd_start_mission(context: &mut CommandContext, params: Value) -> CommandResu
         None => profile::get().next_mission(configs, campaign_index),
     };
     let Some(mission_index) = mission_index else {
-        return Err(CommandError::not_found(format!("Campaign '{}' has no such mission ({} missions).", campaign.id, campaign.missions.len())));
+        return Err(CommandError::not_found(format!(
+            "Campaign '{}' has no such mission ({} missions).",
+            campaign.id,
+            campaign.missions.len()
+        )));
     };
     // A save map this game can't load would start nothing: refused before the campaign changes.
     let map = campaign::start_mission_if_loadable(campaign_index, mission_index)
@@ -323,7 +373,10 @@ fn cmd_save(context: &mut CommandContext, params: Value) -> CommandResult {
     validate_save_name(&params.name)?;
     context.require_map()?;
 
-    context.session.save_game_with_thumbnail(context.engine, context.configs, PathRef::from_str(&params.name)).map_err(CommandError::failed)?;
+    context
+        .session
+        .save_game_with_thumbnail(context.engine, context.configs, PathRef::from_str(&params.name))
+        .map_err(CommandError::failed)?;
 
     let path = save::storage::save_files_path().join(&params.name).with_extension("json");
     done(json!({ "name": params.name, "path": path.to_string() }))
@@ -341,7 +394,8 @@ fn cmd_save_info(_context: &mut CommandContext, params: Value) -> CommandResult 
     let params: SaveNameParams = parse_params(params)?;
     validate_save_name(&params.name)?;
 
-    let thumbnail = save::storage::save_thumbnail_path(PathRef::from_str(&params.name)).filter(|path| engine::file_sys::exists(path));
+    let thumbnail =
+        save::storage::save_thumbnail_path(PathRef::from_str(&params.name)).filter(|path| engine::file_sys::exists(path));
     if require_save(&params.name).is_err() {
         // No save by that name: report a thumbnail it left behind, which a deletion should take too.
         return done(json!({

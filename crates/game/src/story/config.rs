@@ -18,15 +18,14 @@
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
-use strum::Display;
-
 use engine::{
     config::configs_path,
     file_sys::{self, CollectFlags, paths::PathRef},
     log,
     ui::text::{self, UiTextCategory},
 };
+use serde::{Deserialize, Serialize};
+use strum::Display;
 
 use crate::campaign::config::{CampaignConfigs, CampaignDef, MissionRef};
 

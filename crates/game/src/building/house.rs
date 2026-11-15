@@ -1,60 +1,60 @@
-use rand::Rng;
 use arrayvec::ArrayVec;
-use serde::{Deserialize, Serialize};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use strum::{Display, EnumCount, EnumIter};
-
 use common::{
     Color,
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
 use engine::{log, ui::UiSystem};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use proc_macros::DrawDebugUi;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use strum::{Display, EnumCount, EnumIter};
 
 use super::{
-    risks::RiskRates,
     Building,
-    BuildingVisitResult,
     BuildingBehavior,
-    BuildingContext, BuildingContextMut,
+    BuildingContext,
+    BuildingContextMut,
     BuildingKind,
     BuildingKindAndId,
     BuildingStock,
-    house_upgrade,
+    BuildingVisitResult,
     config::{BuildingConfig, BuildingConfigs, building_config},
+    house_upgrade,
+    risks::RiskRates,
 };
 use crate::{
-    save_context::PostLoadContext,
-    world::stats::WorldStats,
-    system::settlers::Settler,
-    tile::{Tile, TileFlags, TileKind, sets::TileDef},
-    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
+    save_context::PostLoadContext,
     sim::{
-        SimCmds,
-        SimCmdQueue,
-        finance::BASE_TAX_PERCENT,
-        commands::ImmediateModeSimCmds,
         RandomGenerator,
+        SimCmdQueue,
+        SimCmds,
+        commands::ImmediateModeSimCmds,
+        finance::BASE_TAX_PERCENT,
         resources::{
             Population,
             RESOURCE_KIND_COUNT,
-            per_kind_map,
             ResourceKind,
             ResourceKinds,
             ServiceKind,
             ServiceKinds,
             StockItem,
             Workers,
+            per_kind_map,
         },
     },
+    system::settlers::Settler,
+    tile::{Tile, TileFlags, TileKind, sets::TileDef},
+    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
         UnitTaskHelper,
         config::UnitConfigKey,
         patrol::{AmbientPatrolConfig, Patrol, TimedAmbientPatrol},
     },
+    world::stats::WorldStats,
 };
 
 // ----------------------------------------------
@@ -609,11 +609,7 @@ impl HouseBuilding {
         let seconds_per_day = crate::config::GameConfigs::get().sim.seconds_per_day;
 
         // Fraction of a day elapsed since the last stock update.
-        let day_frac = if seconds_per_day > 0.0 {
-            house_config.stock_update_frequency_secs / seconds_per_day
-        } else {
-            0.0
-        };
+        let day_frac = if seconds_per_day > 0.0 { house_config.stock_update_frequency_secs / seconds_per_day } else { 0.0 };
         let population = self.population.count() as f32;
 
         // `iter()` yields combined OR-group flags (e.g. `Meat | Fish`), so we
@@ -826,8 +822,8 @@ impl HouseBuilding {
     // A house has its basic needs met when it has access to both a source of water
     // (a well) and a source of food (a market).
     fn has_basic_needs_access(&self, context: &BuildingContext) -> bool {
-        let has_water = context.has_access_to_service(BuildingKind::SmallWell)
-                           || context.has_access_to_service(BuildingKind::LargeWell);
+        let has_water =
+            context.has_access_to_service(BuildingKind::SmallWell) || context.has_access_to_service(BuildingKind::LargeWell);
         let has_food = context.has_access_to_service(BuildingKind::Market);
         has_water && has_food
     }
@@ -845,12 +841,8 @@ impl HouseBuilding {
 
     pub fn perform_upgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, dir: HouseUpgradeDirection) {
         let success = match dir {
-            HouseUpgradeDirection::Upgrade => {
-                self.upgrade_state.try_upgrade(cmds, context, &mut self.debug)
-            }
-            HouseUpgradeDirection::Downgrade => {
-                self.upgrade_state.try_downgrade(cmds, context, &mut self.debug)
-            }
+            HouseUpgradeDirection::Upgrade => self.upgrade_state.try_upgrade(cmds, context, &mut self.debug),
+            HouseUpgradeDirection::Downgrade => self.upgrade_state.try_downgrade(cmds, context, &mut self.debug),
         };
 
         if success {
@@ -1027,7 +1019,7 @@ impl HouseBuilding {
         let mut cmds = ImmediateModeSimCmds::new(context.sim_ctx);
 
         let population_to_add = unit.settler_population(context.sim_ctx);
-        let population_added  = self.add_population(&mut cmds, context, population_to_add);
+        let population_added = self.add_population(&mut cmds, context, population_to_add);
 
         if population_added != 0 {
             BuildingVisitResult::Accepted
@@ -1108,13 +1100,13 @@ impl HouseBuilding {
     fn adjust_workers_available(&mut self, context: &BuildingContextMut) {
         // Percentage of current household residents that are workers: [0,100].
         let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
-        let curr_population   = self.population.count() as f32;
+        let curr_population = self.population.count() as f32;
         let workers_available = (curr_population * worker_percentage).round() as u32;
 
         let workers = self.workers.as_household_worker_pool_mut().unwrap();
 
-        let curr_employed  = workers.employed_count();
-        let new_employed   = curr_employed.min(workers_available);
+        let curr_employed = workers.employed_count();
+        let new_employed = curr_employed.min(workers_available);
         let new_unemployed = workers_available - new_employed;
 
         if new_employed < curr_employed {
@@ -1333,11 +1325,8 @@ pub struct HouseLevelRequirements {
 
 impl HouseLevelRequirements {
     pub(crate) fn new(context: &BuildingContext, level_config: &'static HouseLevelConfig, stock: &BuildingStock) -> Self {
-        let mut reqs = Self {
-            level_config,
-            services_available: ServiceKind::empty(),
-            resources_available: ResourceKind::empty(),
-        };
+        let mut reqs =
+            Self { level_config, services_available: ServiceKind::empty(), resources_available: ResourceKind::empty() };
 
         level_config.services_required.for_each(|service| {
             // TODO:
@@ -1627,7 +1616,9 @@ impl HouseUpgradeState {
             debug_popup_msg_color!(
                 *debug,
                 Color::yellow(),
-                "[U] {}: No space", self.curr_level_config.unwrap().tile_def_name);
+                "[U] {}: No space",
+                self.curr_level_config.unwrap().tile_def_name
+            );
         }
 
         self.has_room_to_upgrade = upgraded_successfully;
@@ -1758,7 +1749,10 @@ mod tests {
 
     fn run(state: &mut HouseUpgradeState, updates: &[(bool, bool)]) -> Vec<HouseUpgradeEvent> {
         let config = config();
-        updates.iter().map(|&(can_upgrade, can_downgrade)| state.advance_timers(can_upgrade, can_downgrade, &config)).collect()
+        updates
+            .iter()
+            .map(|&(can_upgrade, can_downgrade)| state.advance_timers(can_upgrade, can_downgrade, &config))
+            .collect()
     }
 
     const UP: (bool, bool) = (true, false);

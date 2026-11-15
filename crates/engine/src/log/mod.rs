@@ -48,21 +48,21 @@ impl Level {
 
     pub fn color(self) -> Color {
         match self {
-            Self::Silent  => Color::white(),
+            Self::Silent => Color::white(),
             Self::Verbose => Color::gray(),
-            Self::Info    => Color::green(),
+            Self::Info => Color::green(),
             Self::Warning => Color::yellow(),
-            Self::Error   => Color::red(),
+            Self::Error => Color::red(),
         }
     }
 
     fn tty_color(self) -> (&'static str, &'static str) {
         match self {
-            Self::Silent  => ("", ""),
+            Self::Silent => ("", ""),
             Self::Verbose => ("\x1b[90m", "\x1b[0m"), // gray
-            Self::Info    => ("\x1b[32m", "\x1b[0m"), // green
+            Self::Info => ("\x1b[32m", "\x1b[0m"),    // green
             Self::Warning => ("\x1b[33m", "\x1b[0m"), // yellow
-            Self::Error   => ("\x1b[31m", "\x1b[0m"), // red
+            Self::Error => ("\x1b[31m", "\x1b[0m"),   // red
         }
     }
 }
@@ -205,11 +205,11 @@ fn dispatch_record(level: Level, channel: Option<Channel>, location: &Location, 
 // Global Configs
 // ----------------------------------------------
 
-static MIN_LOG_LEVEL:       AtomicU32  = AtomicU32::new(Level::Verbose as u32);
-static REDIRECT_TO_FILE:    AtomicBool = AtomicBool::new(false);
-static REDIRECT_TO_STDERR:  AtomicBool = AtomicBool::new(false);
+static MIN_LOG_LEVEL: AtomicU32 = AtomicU32::new(Level::Verbose as u32);
+static REDIRECT_TO_FILE: AtomicBool = AtomicBool::new(false);
+static REDIRECT_TO_STDERR: AtomicBool = AtomicBool::new(false);
 static ENABLE_SRC_LOCATION: AtomicBool = AtomicBool::new(false);
-static ENABLE_TTY_COLORS:   AtomicBool = AtomicBool::new(true);
+static ENABLE_TTY_COLORS: AtomicBool = AtomicBool::new(true);
 
 pub fn set_level(level: Level) {
     MIN_LOG_LEVEL.store(level as u32, Ordering::Relaxed);
@@ -332,12 +332,12 @@ macro_rules! log_error {
 // Re-export #[macro_export] macros into this module for scoped usage: log::info!(), log::warning!(), etc.
 #[allow(unused_imports)]
 pub use crate::{
-    log_channel       as channel,
-    log_verbose       as verbose,
-    log_info          as info,
-    log_warning       as warning,
-    log_error         as error,
+    log_channel as channel,
+    log_error as error,
+    log_info as info,
     log_print_message as print_message,
+    log_verbose as verbose,
+    log_warning as warning,
 };
 
 // ----------------------------------------------

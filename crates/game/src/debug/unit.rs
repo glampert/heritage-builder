@@ -1,7 +1,4 @@
-use rand::{self, Rng};
 use bitflags::Flags;
-use smallvec::SmallVec;
-
 use common::{
     Color,
     callback::{self, Callback},
@@ -15,6 +12,8 @@ use engine::{
     ui::{self, DrawDebugUi, UiDPadDirection, UiNumberFormat, UiStaticVar, UiSystem},
 };
 use proc_macros::DrawDebugUi;
+use rand::{self, Rng};
+use smallvec::SmallVec;
 
 use crate::{
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
@@ -25,9 +24,10 @@ use crate::{
     pathfind::{self, NodeKind as PathNodeKind, Path},
     prop::PropId,
     sim::{
-        SimCmds,
         SimCmdQueue,
-        SimContext, SimContextMut,
+        SimCmds,
+        SimContext,
+        SimContextMut,
         commands::ImmediateModeSimCmds,
         resources::{ResourceKind, ShoppingList, StockItem},
     },
@@ -81,7 +81,9 @@ impl Unit {
     }
 
     fn draw_debug_ui_overview(&mut self, context: &SimContext, ui_sys: &UiSystem) {
-        ui::with_font_scale(ui_sys, 1.2, |ui_sys| ui::text(ui_sys, format_small!("{} | ID{} @{}", self.name(), self.id(), self.cell())));
+        ui::with_font_scale(ui_sys, 1.2, |ui_sys| {
+            ui::text(ui_sys, format_small!("{} | ID{} @{}", self.name(), self.id(), self.cell()))
+        });
 
         ui::bullet_text(ui_sys, format_small!("Anim: {} (dir: {})", self.current_anim_name(), self.direction()));
 
@@ -119,9 +121,7 @@ impl Unit {
 
     fn draw_debug_ui_properties(&mut self, ui_sys: &UiSystem) {
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
-        let Some(_path) =
-            ui::collapsing_header_scope(ui_sys, "Properties##_unit_properties", false)
-        else {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Properties##_unit_properties", false) else {
             return; // collapsed.
         };
 
@@ -132,12 +132,8 @@ impl Unit {
             id: UnitId,
             tile_index: TilePoolIndex,
         }
-        let mut debug_vars = DrawDebugUiVariables {
-            name: self.name(),
-            cell: self.cell(),
-            id: self.id(),
-            tile_index: self.tile_index()
-        };
+        let mut debug_vars =
+            DrawDebugUiVariables { name: self.name(), cell: self.cell(), id: self.id(), tile_index: self.tile_index() };
         debug_vars.draw_debug_ui(ui_sys);
     }
 
@@ -156,11 +152,8 @@ impl Unit {
             if let Some((archetype, started)) =
                 context.task_manager_mut().try_get_task_archetype_and_started_mut(current_task_id)
             {
-                let (status_color, status_text) = if started {
-                    (Color::green(), "Status : Running")
-                } else {
-                    (Color::yellow(), "Status : Not started")
-                };
+                let (status_color, status_text) =
+                    if started { (Color::green(), "Status : Running") } else { (Color::yellow(), "Status : Not started") };
 
                 ui::text(ui_sys, format_small!("Task   : {}", archetype));
                 ui::text_colored(ui_sys, status_color, status_text);
@@ -453,7 +446,13 @@ impl Unit {
             if is_near {
                 debug_popup_msg_color!(self.debug_mut(), Color::green(), "{}: Near {}!", self.cell(), search_building_kind);
             } else {
-                debug_popup_msg_color!(self.debug_mut(), Color::red(), "{}: Not near {}!", self.cell(), search_building_kind);
+                debug_popup_msg_color!(
+                    self.debug_mut(),
+                    Color::red(),
+                    "{}: Not near {}!",
+                    self.cell(),
+                    search_building_kind
+                );
             }
         }
 
@@ -576,20 +575,13 @@ fn draw_inventory_debug_ui(inventory: &mut UnitInventory, ui_sys: &UiSystem) {
 
 impl Unit {
     pub(crate) fn register_debug_callbacks() {
-        let _: Callback<UnitTaskDeliveryCompletionCallback> =
-            callback::register!(unit_debug_delivery_task_completed);
-        let _: Callback<UnitTaskFetchCompletionCallback> =
-            callback::register!(unit_debug_fetch_task_completed);
-        let _: Callback<UnitTaskPatrolCompletionCallback> =
-            callback::register!(unit_debug_patrol_task_completed);
-        let _: Callback<UnitTaskSettlerCompletionCallback> =
-            callback::register!(unit_debug_find_vacant_lot_task_completed);
-        let _: Callback<UnitTaskSettlerCompletionCallback> =
-            callback::register!(unit_debug_settle_task_completed);
-        let _: Callback<UnitTaskPostDespawnCallback> =
-            callback::register!(unit_debug_settle_task_post_despawn);
-        let _: Callback<UnitTaskHarvestCompletionCallback> =
-            callback::register!(unit_debug_harvest_wood_task_completed);
+        let _: Callback<UnitTaskDeliveryCompletionCallback> = callback::register!(unit_debug_delivery_task_completed);
+        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(unit_debug_fetch_task_completed);
+        let _: Callback<UnitTaskPatrolCompletionCallback> = callback::register!(unit_debug_patrol_task_completed);
+        let _: Callback<UnitTaskSettlerCompletionCallback> = callback::register!(unit_debug_find_vacant_lot_task_completed);
+        let _: Callback<UnitTaskSettlerCompletionCallback> = callback::register!(unit_debug_settle_task_completed);
+        let _: Callback<UnitTaskPostDespawnCallback> = callback::register!(unit_debug_settle_task_post_despawn);
+        let _: Callback<UnitTaskHarvestCompletionCallback> = callback::register!(unit_debug_harvest_wood_task_completed);
     }
 }
 
@@ -631,8 +623,7 @@ fn unit_debug_settle_task_post_despawn(
     unit_prev_goal: Option<UnitNavGoal>,
     extra_args: &[UnitTaskArg],
 ) {
-    let settle_new_vacant_lot =
-        unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
+    let settle_new_vacant_lot = unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
 
     if settle_new_vacant_lot {
         if let Some(tile_def) = context.find_tile_def(

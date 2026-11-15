@@ -1,15 +1,14 @@
-use serde::{Deserialize, Serialize};
-
 use common::coords::Cell;
 use engine::log;
+use serde::{Deserialize, Serialize};
 
 use super::UnitTask;
 use crate::{
-    pathfind::{NodeKind as PathNodeKind, Path},
-    world::object::{GameObject, GenerationalIndex},
-    sim::{SimCmds, SimCmdQueue, SimContext, SimContextMut, resources::ResourceKind},
-    unit::{Unit, navigation::UnitNavGoal},
     building::{Building, BuildingId, BuildingKind, BuildingVisitResult},
+    pathfind::{NodeKind as PathNodeKind, Path},
+    sim::{SimCmdQueue, SimCmds, SimContext, SimContextMut, resources::ResourceKind},
+    unit::{Unit, navigation::UnitNavGoal},
+    world::object::{GameObject, GenerationalIndex},
 };
 
 // ----------------------------------------------
@@ -107,7 +106,7 @@ pub(super) fn visit_destination_deferred<F>(
     on_post_visit: F,
 ) -> bool
 where
-    F: Fn(&SimContextMut, &mut Building, &mut Unit, BuildingVisitResult) + 'static
+    F: Fn(&SimContextMut, &mut Building, &mut Unit, BuildingVisitResult) + 'static,
 {
     let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
     let (destination_kind, destination_cell) = unit_goal.building_destination();
@@ -145,7 +144,7 @@ pub(super) fn invoke_completion_callback_deferred<F>(
     post_callback: F,
 ) -> bool
 where
-    F: Fn(&SimContextMut, &mut Building, &mut Unit) + 'static
+    F: Fn(&SimContextMut, &mut Building, &mut Unit) + 'static,
 {
     // Deferred execution (non-mutable building access).
     if let Some(origin_building) = context.find_building(origin_building_kind, origin_building_id) {
@@ -154,7 +153,7 @@ where
         // want to accidentally invoke the callback on a different building,
         // even if the type of building there is the same.
         debug_assert!(origin_building.kind() == origin_building_kind);
-        debug_assert!(origin_building.id()   == origin_building_id);
+        debug_assert!(origin_building.id() == origin_building_id);
 
         cmds.defer_task_step_with_completion(origin_building.kind_and_id(), unit.id(), callback, post_callback);
         return true;
@@ -171,13 +170,13 @@ pub(super) fn invoke_completion_callback_immediate<F>(
     callback: F,
 ) -> bool
 where
-    F: Fn(&SimContextMut, &mut Building, &mut Unit) + 'static
+    F: Fn(&SimContextMut, &mut Building, &mut Unit) + 'static,
 {
     // Immediate execution (requires mutable building access).
     if let Some(origin_building) = context.find_building_mut(origin_building_kind, origin_building_id) {
         // See comment above on invoke_completion_callback_deferred.
         debug_assert!(origin_building.kind() == origin_building_kind);
-        debug_assert!(origin_building.id()   == origin_building_id);
+        debug_assert!(origin_building.id() == origin_building_id);
 
         callback(context, origin_building, unit);
         return true;

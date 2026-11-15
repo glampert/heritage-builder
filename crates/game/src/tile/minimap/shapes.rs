@@ -176,7 +176,7 @@ pub type LensColorFn<'a> = dyn Fn(&MinimapFeature) -> Option<Color> + 'a;
 
 pub struct MeshParams<'a> {
     pub transform: CellToMinimap,
-    pub visible: CellBox,             // Cells on the map area, for culling.
+    pub visible: CellBox, // Cells on the map area, for culling.
     pub pixels_per_point: f32,
     pub style: &'a MinimapStyle,
     pub field_texture: TextureHandle,
@@ -244,7 +244,8 @@ pub fn build_meshes(cache: &ShapeCache, params: &MeshParams) -> MinimapMeshes {
         let mut road = |width: f32, color_of: &dyn Fn(&RoadShape) -> Color| {
             let half = width * 0.5;
             for run in &cache.roads {
-                let cells = CellBox { x0: run.from.0 - half, y0: run.from.1 - half, x1: run.to.0 + half, y1: run.to.1 + half };
+                let cells =
+                    CellBox { x0: run.from.0 - half, y0: run.from.1 - half, x1: run.to.0 + half, y1: run.to.1 + half };
                 if cells.overlaps(&params.visible) {
                     quad(&mut meshes.top, &cells, color_of(run));
                 }
@@ -312,10 +313,12 @@ pub fn mix(a: Color, b: Color, t: f32) -> Color {
 // its edges are anti-aliased like egui's own shapes.
 pub fn add_quad(mesh: &mut UiMesh, corners: [Vec2; 4], color: Color, feather: f32) {
     // Outward miter offsets at each corner, whichever way the quad winds.
-    let area = (0..4).map(|i| {
-        let (a, b) = (corners[i], corners[(i + 1) % 4]);
-        a.x * b.y - b.x * a.y
-    }).sum::<f32>();
+    let area = (0..4)
+        .map(|i| {
+            let (a, b) = (corners[i], corners[(i + 1) % 4]);
+            a.x * b.y - b.x * a.y
+        })
+        .sum::<f32>();
     let sign = if area >= 0.0 { 1.0 } else { -1.0 };
 
     let normal = |a: Vec2, b: Vec2| {

@@ -28,8 +28,10 @@
 
 use common::{Color, Rect};
 
-use super::*;
-use super::screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight, tight_row};
+use super::{
+    screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight, tight_row},
+    *,
+};
 use crate::{
     GameLoop,
     campaign::{
@@ -37,10 +39,7 @@ use crate::{
         config::CampaignConfigs,
         stele::{self as stele_data, Stele},
     },
-    menu::{
-        skin::EmblemState,
-        stele::SteleArt,
-    },
+    menu::{skin::EmblemState, stele::SteleArt},
     profile,
     realm::{self, Realm},
 };
@@ -184,16 +183,22 @@ impl Summary {
         };
 
         let number = super::home::campaign_number(active.campaign_id);
-        let kicker = ui::text::format(UiTextCategory::Menu, "campaign_complete.kicker", &[("campaign", &number)]).to_uppercase();
+        let kicker =
+            ui::text::format(UiTextCategory::Menu, "campaign_complete.kicker", &[("campaign", &number)]).to_uppercase();
         let ui_realm = realm::ui_realm_for(false).realm;
         let date = realm::date_text(ui_realm, context.sim.calendar());
         // TODO(realm-ui): the mockup's span of years ("23 years, from year 1 to year 24 of the Thái
         // Ninh era") needs the campaign's first mission's start date kept in the profile.
-        let place = ui::text::format(UiTextCategory::Menu, "campaign_complete.place", &[("realm", campaign.realm.display_name()), ("date", &date)]);
-        let closing = campaign
-            .stele_closing
-            .as_deref()
-            .map(|key| ui::text::format(UiTextCategory::Menu, "campaign_complete.closing", &[("line", ui::text::get(UiTextCategory::Story, key))]));
+        let place = ui::text::format(UiTextCategory::Menu, "campaign_complete.place", &[
+            ("realm", campaign.realm.display_name()),
+            ("date", &date),
+        ]);
+        let closing = campaign.stele_closing.as_deref().map(|key| {
+            ui::text::format(UiTextCategory::Menu, "campaign_complete.closing", &[(
+                "line",
+                ui::text::get(UiTextCategory::Story, key),
+            )])
+        });
 
         // A preview's (campaign::preview): as if the campaign had been played up to its mission.
         let profile = campaign::preview::shown_profile();
@@ -203,14 +208,21 @@ impl Summary {
         let steps = campaign.steps();
         let finished_by = |step: usize| {
             stele.as_ref().and_then(|stele| {
-                stele.lines.iter().find(|line| line.distinction.is_none() && campaign.step_of(line.mission_index) == step).map(|line| line.mission_index)
+                stele
+                    .lines
+                    .iter()
+                    .find(|line| line.distinction.is_none() && campaign.step_of(line.mission_index) == step)
+                    .map(|line| line.mission_index)
             })
         };
         let missions = steps
             .iter()
             .map(|&step| {
                 let mission = finished_by(step).unwrap_or(step);
-                (campaign.mission_number(mission).to_string(), campaign.mission_display_name(mission).unwrap_or_default().to_string())
+                (
+                    campaign.mission_number(mission).to_string(),
+                    campaign.mission_display_name(mission).unwrap_or_default().to_string(),
+                )
             })
             .collect();
 
@@ -220,31 +232,45 @@ impl Summary {
         let done = steps.iter().filter(|&&step| finished_by(step).is_some()).count();
         let mut stats = vec![(
             ui::text::get(UiTextCategory::Menu, "campaign_complete.stat.missions").to_string(),
-            ui::text::format(UiTextCategory::Menu, "campaign_complete.of", &[("done", &done.to_string()), ("total", &steps.len().to_string())]),
+            ui::text::format(UiTextCategory::Menu, "campaign_complete.of", &[
+                ("done", &done.to_string()),
+                ("total", &steps.len().to_string()),
+            ]),
         )];
-        if let Some(city) = configs.mission(active.campaign_id, active.mission_index).and_then(|mission| mission.city_display_name()) {
+        if let Some(city) =
+            configs.mission(active.campaign_id, active.mission_index).and_then(|mission| mission.city_display_name())
+        {
             let population = super::load_save::group_digits(i64::from(context.world.stats().population.total));
             stats.push((
                 ui::text::get(UiTextCategory::Menu, "campaign_complete.stat.city").to_string(),
-                ui::text::format(UiTextCategory::Menu, "campaign_complete.city", &[("city", city), ("population", &population)]),
+                ui::text::format(UiTextCategory::Menu, "campaign_complete.city", &[
+                    ("city", city),
+                    ("population", &population),
+                ]),
             ));
         }
 
         // The next campaign, reached now: open, or coming soon while it has no missions yet (the
         // home menu and the picker can't start it then).
-        let next = Some(match configs.next_visible_after(active.campaign_id).and_then(|index| configs.campaign(index).map(|next| (index, next))) {
-            Some((index, next)) => {
-                let number = super::home::campaign_number(index);
-                let args = [("campaign", number.as_str()), ("name", next.display_name()), ("realm", next.realm.display_name())];
-                let note = if next.missions.is_empty() {
-                    ui::text::format(UiTextCategory::Menu, "campaign_complete.next.coming_soon", &args)
-                } else {
-                    ui::text::format(UiTextCategory::Menu, "campaign_complete.next", &args)
-                };
-                (Some(next.realm), note)
-            }
-            None => (None, ui::text::get(UiTextCategory::Menu, "campaign_complete.next.none").to_string()),
-        });
+        let next = Some(
+            match configs
+                .next_visible_after(active.campaign_id)
+                .and_then(|index| configs.campaign(index).map(|next| (index, next)))
+            {
+                Some((index, next)) => {
+                    let number = super::home::campaign_number(index);
+                    let args =
+                        [("campaign", number.as_str()), ("name", next.display_name()), ("realm", next.realm.display_name())];
+                    let note = if next.missions.is_empty() {
+                        ui::text::format(UiTextCategory::Menu, "campaign_complete.next.coming_soon", &args)
+                    } else {
+                        ui::text::format(UiTextCategory::Menu, "campaign_complete.next", &args)
+                    };
+                    (Some(next.realm), note)
+                }
+                None => (None, ui::text::get(UiTextCategory::Menu, "campaign_complete.next.none").to_string()),
+            },
+        );
 
         Self {
             kicker,
@@ -265,7 +291,11 @@ impl CampaignComplete {
         let window = ui::screen_size(context.ui_sys);
         let scales = Scales::new(window);
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
-        let mut menu = UiMenu::new(kind).with_flags(flags).with_size(window).with_content_insets(UiMenuInsets::same(0.0)).with_widget_spacing(Vec2::zero());
+        let mut menu = UiMenu::new(kind)
+            .with_flags(flags)
+            .with_size(window)
+            .with_content_insets(UiMenuInsets::same(0.0))
+            .with_widget_spacing(Vec2::zero());
 
         // Built at boot and on every rebuild for every dialog kind, but shown only once prepared
         // for opening: until then an empty menu, so its textures load only when needed.
@@ -283,8 +313,14 @@ impl CampaignComplete {
         menu.add_widget(spacer(scales.origin.y));
         let mut columns = UiColumns::new().with_spacing(0.0);
         columns.add_column(UiColumnWidth::Fixed(scales.origin.x), UiWidgetGroup::new());
-        columns.add_column(UiColumnWidth::Fixed(scales.pt(panel_x)), left_group().with_widget(stele_canvas(context, scales, panel_x, summary.stele.clone())));
-        let panel = left_group().with_widget_spacing(Vec2::zero()).with_widget(spacer(scales.pt(panel_y))).with_widget(panel(context, scales, &summary));
+        columns.add_column(
+            UiColumnWidth::Fixed(scales.pt(panel_x)),
+            left_group().with_widget(stele_canvas(context, scales, panel_x, summary.stele.clone())),
+        );
+        let panel = left_group()
+            .with_widget_spacing(Vec2::zero())
+            .with_widget(spacer(scales.pt(panel_y)))
+            .with_widget(panel(context, scales, &summary));
         columns.add_column(UiColumnWidth::Fixed(scales.pt(panel_width)), panel);
         columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
         menu.add_widget(columns);
@@ -337,7 +373,13 @@ impl CampaignComplete {
         let Some(epilogue) = crate::story::epilogue(campaign_index) else {
             return;
         };
-        let request = StoryRequest { campaign_index, sequence_id: epilogue.sequence.id.clone(), panel: 0, records_seen: false, on_end: None };
+        let request = StoryRequest {
+            campaign_index,
+            sequence_id: epilogue.sequence.id.clone(),
+            panel: 0,
+            records_seen: false,
+            on_end: None,
+        };
         if super::play_story(request, context) {
             *EPILOGUE_WATCHED.as_mut() = true;
         }
@@ -420,7 +462,13 @@ fn panel(context: &mut GameUiContext, scales: Scales, summary: &Summary) -> UiFr
 // The panel's parts above its button, `width` points wide, their gaps at `tightness` (1: as the
 // mockup spaces them; 0: closest): the top ones (the heading, the closing line, the missions) and
 // the bottom ones (the stats, the note), which keep to the button.
-fn panel_parts(context: &mut GameUiContext, scales: Scales, summary: &Summary, width: f32, tightness: f32) -> (Vec<UiWidgetImpl>, Vec<UiWidgetImpl>) {
+fn panel_parts(
+    context: &mut GameUiContext,
+    scales: Scales,
+    summary: &Summary,
+    width: f32,
+    tightness: f32,
+) -> (Vec<UiWidgetImpl>, Vec<UiWidgetImpl>) {
     let color = skin::intermission_color;
     let text = color("text", "ink");
     let sub = color("sub", "sub");
@@ -444,7 +492,11 @@ fn panel_parts(context: &mut GameUiContext, scales: Scales, summary: &Summary, w
         parts.push(gap(1).into());
         let font = scales.font(PLACE_SIZE);
         // In italics, as the mockup sets it (egui slants the realm font).
-        let place = UiRichText::from_spans([UiTextSpan::emphasized(place.clone())]).with_label("place").with_font_scale(font).with_width(width).with_text_color(sub);
+        let place = UiRichText::from_spans([UiTextSpan::emphasized(place.clone())])
+            .with_label("place")
+            .with_font_scale(font)
+            .with_width(width)
+            .with_text_color(sub);
         parts.push(tight(context, place, font, PLACE_SIZE, scales).into());
     }
     parts.push(gap(2).into());
@@ -465,9 +517,16 @@ fn panel_parts(context: &mut GameUiContext, scales: Scales, summary: &Summary, w
     if !summary.missions.is_empty() {
         parts.push(gap(4).into());
         let font = scales.heading_font(SECTION_SIZE);
-        let title = text_line(&ui::text::get(UiTextCategory::Menu, "campaign_complete.missions").to_uppercase(), "missions_title", font, color("section", "accent"), width, UiTextAlign::Left)
-            .with_heading_font()
-            .with_letter_spacing(scales.pt(SECTION_LETTER_SPACING));
+        let title = text_line(
+            &ui::text::get(UiTextCategory::Menu, "campaign_complete.missions").to_uppercase(),
+            "missions_title",
+            font,
+            color("section", "accent"),
+            width,
+            UiTextAlign::Left,
+        )
+        .with_heading_font()
+        .with_letter_spacing(scales.pt(SECTION_LETTER_SPACING));
         parts.push(tight(context, title, font, SECTION_SIZE, scales).into());
         parts.push(gap(5).into());
         parts.push(missions(context, scales, summary, width, tightness).into());
@@ -535,7 +594,10 @@ fn missions(context: &GameUiContext, scales: Scales, summary: &Summary, width: f
             .with_font_scale(font)
             .with_column_spacing(0.0)
             .with_header(UiTableHeader { hidden: true, ..UiTableHeader::default() })
-            .with_column(UiTableColumn::new("", UiColumnWidth::Fixed(scales.pt(MISSION_NUMBER_WIDTH)), UiColumnAlign::Left).with_color(color("sub", "sub")))
+            .with_column(
+                UiTableColumn::new("", UiColumnWidth::Fixed(scales.pt(MISSION_NUMBER_WIDTH)), UiColumnAlign::Left)
+                    .with_color(color("sub", "sub")),
+            )
             .with_column(UiTableColumn::new("", UiColumnWidth::Fraction(1.0), UiColumnAlign::Left));
         for (number, name) in chunk.iter() {
             table = table.with_row(UiTableRow::new([number.clone(), name.clone()]));
@@ -596,30 +658,50 @@ fn note_box(context: &mut GameUiContext, scales: Scales, realm: Option<Realm>, n
         .with_widget_spacing(Vec2::zero())
         .with_widget(icon)
         .with_widget(text);
-    UiFrame::new(row, Vec2::new(width, height))
-        .with_label("note")
-        .with_fill(color("note_fill", "light"), 0.0)
-        .with_outline(UiFrameOutline { color: border, width: scales.pt(1.5).max(1.0), inset: 0.0, dash: Some([scales.pt(6.0), scales.pt(3.0)]) })
+    UiFrame::new(row, Vec2::new(width, height)).with_label("note").with_fill(color("note_fill", "light"), 0.0).with_outline(
+        UiFrameOutline {
+            color: border,
+            width: scales.pt(1.5).max(1.0),
+            inset: 0.0,
+            dash: Some([scales.pt(6.0), scales.pt(3.0)]),
+        },
+    )
 }
 
 // Watch the epilogue at the left, when the campaign has one (hidden otherwise), and Return to the
 // menu at the right.
 fn buttons(context: &mut GameUiContext, scales: Scales, width: f32) -> UiColumns {
-    let back = skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "campaign_complete.return"), |_, context| {
-        CampaignComplete::on_return(context_as_mut::<GameUiContext>(context));
-    })
+    let back = skin::button(
+        context,
+        ButtonRole::Primary,
+        UiString::key(UiTextCategory::Menu, "campaign_complete.return"),
+        |_, context| {
+            CampaignComplete::on_return(context_as_mut::<GameUiContext>(context));
+        },
+    )
     .with_width(UiTextButtonWidth::Fixed(scales.pt(RETURN_WIDTH)))
     .with_min_height(scales.pt(BUTTON_HEIGHT));
     let mut columns = UiColumns::new().with_spacing(0.0).with_width(width);
     if epilogue_campaign().is_some() {
-        let watch = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "campaign_complete.epilogue"), |_, context| {
-            CampaignComplete::on_watch_epilogue(context_as_mut::<GameUiContext>(context));
-        })
+        let watch = skin::button(
+            context,
+            ButtonRole::Secondary,
+            UiString::key(UiTextCategory::Menu, "campaign_complete.epilogue"),
+            |_, context| {
+                CampaignComplete::on_watch_epilogue(context_as_mut::<GameUiContext>(context));
+            },
+        )
         .with_width(UiTextButtonWidth::Fixed(scales.pt(EPILOGUE_WIDTH)))
         .with_min_height(scales.pt(BUTTON_HEIGHT));
-        columns.add_column(UiColumnWidth::Fixed(scales.pt(EPILOGUE_WIDTH)), left_group().with_widget(scales.button_text(watch, BUTTON_TEXT_SIZE)));
+        columns.add_column(
+            UiColumnWidth::Fixed(scales.pt(EPILOGUE_WIDTH)),
+            left_group().with_widget(scales.button_text(watch, BUTTON_TEXT_SIZE)),
+        );
     }
     columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
-    columns.add_column(UiColumnWidth::Fixed(scales.pt(RETURN_WIDTH)), left_group().with_widget(scales.button_text(back, BUTTON_TEXT_SIZE)));
+    columns.add_column(
+        UiColumnWidth::Fixed(scales.pt(RETURN_WIDTH)),
+        left_group().with_widget(scales.button_text(back, BUTTON_TEXT_SIZE)),
+    );
     columns
 }

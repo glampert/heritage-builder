@@ -2,14 +2,13 @@
 
 use std::path::PathBuf;
 
-use serde::Deserialize;
-use serde_json::{Value, json};
-
 use engine::{
     cli,
     log,
     screenshot::{self, ScreenshotFormat, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
 };
+use serde::Deserialize;
+use serde_json::{Value, json};
 
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params, pending},
@@ -48,9 +47,19 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Recent log records, oldest first. Pass the last seq you saw as since to get only newer ones.",
         params: &[
             ParamDef { name: "since", kind: "int", required: false, help: "Only records with a larger seq. Default 0." },
-            ParamDef { name: "min_level", kind: "string", required: false, help: "Verbose, Info (default), Warning or Error." },
+            ParamDef {
+                name: "min_level",
+                kind: "string",
+                required: false,
+                help: "Verbose, Info (default), Warning or Error.",
+            },
             ParamDef { name: "channel", kind: "string", required: false, help: "Only this channel, e.g. session." },
-            ParamDef { name: "limit", kind: "int", required: false, help: "Most records to return, the newest. Default 100." },
+            ParamDef {
+                name: "limit",
+                kind: "int",
+                required: false,
+                help: "Most records to return, the newest. Default 100.",
+            },
         ],
         run: cmd_logs_tail,
     },
@@ -150,7 +159,9 @@ fn level_param(level: &str) -> Result<log::Level, CommandError> {
     [log::Level::Verbose, log::Level::Info, log::Level::Warning, log::Level::Error]
         .into_iter()
         .find(|known| known.to_string().eq_ignore_ascii_case(level))
-        .ok_or_else(|| CommandError::invalid_params(format!("min_level must be Verbose, Info, Warning or Error, got '{level}'.")))
+        .ok_or_else(|| {
+            CommandError::invalid_params(format!("min_level must be Verbose, Info, Warning or Error, got '{level}'."))
+        })
 }
 
 fn cmd_logs_tail(_context: &mut CommandContext, params: Value) -> CommandResult {
@@ -177,7 +188,10 @@ fn cmd_logs_tail(_context: &mut CommandContext, params: Value) -> CommandResult 
         .iter()
         .filter(|record| record.level >= min_level)
         .filter(|record| {
-            params.channel.as_deref().is_none_or(|wanted| record.channel.as_ref().is_some_and(|channel| channel_name(channel) == wanted))
+            params
+                .channel
+                .as_deref()
+                .is_none_or(|wanted| record.channel.as_ref().is_some_and(|channel| channel_name(channel) == wanted))
         })
         .map(|record| {
             json!({

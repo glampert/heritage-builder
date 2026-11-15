@@ -10,7 +10,8 @@ use crate::{
         config::{CampaignConfigs, MissionRef},
         stele,
     },
-    profile, world_map,
+    profile,
+    world_map,
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[CommandDef {
@@ -58,7 +59,9 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
     }
     let params: Params = parse_params(params)?;
     if params.full && params.newest.is_some() {
-        return Err(CommandError::invalid_params("newest can't be given with full: a full stele carves its last line freshly."));
+        return Err(CommandError::invalid_params(
+            "newest can't be given with full: a full stele carves its last line freshly.",
+        ));
     }
     let configs = CampaignConfigs::get();
     let campaign_index = match &params.campaign {

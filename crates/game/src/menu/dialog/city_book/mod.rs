@@ -25,8 +25,10 @@ use common::{Color, Rect};
 use engine::ui::{UiLabelLook, UiPainter, UiTextAnchor};
 use serde_json::json;
 
-use super::*;
-use super::screen::{Scales, left_group, spacer, text_line, tight};
+use super::{
+    screen::{Scales, left_group, spacer, text_line, tight},
+    *,
+};
 use crate::{
     city::{self, CityReport},
     realm,
@@ -161,7 +163,8 @@ pub(super) trait CityPage: Sync {
 }
 
 // The pages, in the order the tabs show them.
-static PAGES: [&dyn CityPage; 5] = [&overview::Overview, &population::Population, &goods::Goods, &finances::Finances, &heritage::Heritage];
+static PAGES: [&dyn CityPage; 5] =
+    [&overview::Overview, &population::Population, &goods::Goods, &finances::Finances, &heritage::Heritage];
 
 // ----------------------------------------------
 // CityManagement
@@ -275,18 +278,19 @@ fn header(context: &mut GameUiContext, page: &PageContext) -> UiWidgetGroup {
     let configs = &crate::config::GameConfigs::get().sim;
     let date = calendar.date(configs.days_per_month, configs.seconds_per_month);
     let year = realm::date_text(realm, calendar);
-    let month = ui::text::format(
-        UiTextCategory::City,
-        "book.month_season",
-        &[("month", &date.month.to_string()), ("season", &crate::menu::in_game::season_text(realm, calendar.season()))],
-    );
+    let month = ui::text::format(UiTextCategory::City, "book.month_season", &[
+        ("month", &date.month.to_string()),
+        ("season", &crate::menu::in_game::season_text(realm, calendar.season())),
+    ]);
 
     let city_font = scales.heading_font(CITY_SIZE);
     let date_font = scales.font(DATE_SIZE);
     let c = &page.colors;
     // Rows no taller than the mockup's, where a realm's font draws tall lines (Tampadesa's).
     let city = text_line(&city_name(), "city", city_font, c.title, width, UiTextAlign::Left).with_heading_font();
-    let date_line = |text: &str, label: &str| tight(context, text_line(text, label, date_font, c.sub, width, UiTextAlign::Left), date_font, DATE_SIZE, scales);
+    let date_line = |text: &str, label: &str| {
+        tight(context, text_line(text, label, date_font, c.sub, width, UiTextAlign::Left), date_font, DATE_SIZE, scales)
+    };
     let group = left_group()
         .with_widget_spacing(Vec2::zero())
         .with_margins(page.pt(12.0), 0.0)
@@ -303,12 +307,16 @@ fn header(context: &mut GameUiContext, page: &PageContext) -> UiWidgetGroup {
 // The city's name: the mission's city, else the custom game's map, else "Your city".
 fn city_name() -> String {
     if let Some(active) = crate::campaign::active_mission()
-        && let Some(mission) = crate::campaign::config::CampaignConfigs::get().mission(active.campaign_id, active.mission_index)
+        && let Some(mission) =
+            crate::campaign::config::CampaignConfigs::get().mission(active.campaign_id, active.mission_index)
         && let Some(city) = mission.city_display_name()
     {
         return city.to_string();
     }
-    match crate::custom_game::active().and_then(|game| game.record.map.as_deref()).map(super::load_save::custom_map_display_name) {
+    match crate::custom_game::active()
+        .and_then(|game| game.record.map.as_deref())
+        .map(super::load_save::custom_map_display_name)
+    {
         Some(map) => map,
         None => ui::text::get(UiTextCategory::City, "book.your_city").to_string(),
     }
@@ -446,7 +454,8 @@ impl<'a> Paint<'a> {
 
     // How wide `text` is, in mockup px.
     pub fn width(&self, text: &str, px: f32, heading: bool) -> f32 {
-        self.painter.label_rect(Vec2::zero(), UiTextAnchor::Start, text, &self.look(px, Color::black(), heading)).width() / self.k
+        self.painter.label_rect(Vec2::zero(), UiTextAnchor::Start, text, &self.look(px, Color::black(), heading)).width()
+            / self.k
     }
 
     // A section title: upper case, spaced, in the accent.
@@ -544,7 +553,13 @@ impl<'a> Paint<'a> {
             let step = 10f32.powf(((hi - lo) / 2.0).max(1.0).log10().floor());
             for k in 0..3 {
                 let gy = y + h * k as f32 / 2.0;
-                self.painter.dashed_polyline(&[self.at(x, gy), self.at(x + w, gy)], 1.0 * self.k, self.c.rule, 4.0 * self.k, 5.0 * self.k);
+                self.painter.dashed_polyline(
+                    &[self.at(x, gy), self.at(x + w, gy)],
+                    1.0 * self.k,
+                    self.c.rule,
+                    4.0 * self.k,
+                    5.0 * self.k,
+                );
                 let value = hi - (hi - lo) * k as f32 / 2.0;
                 let rounded = ((value / step).round() * step) as i64;
                 self.text(x - 10.0, gy + 6.0, &number(rounded, false), 15.0, self.c.sub, UiTextAnchor::End, false);
@@ -582,7 +597,14 @@ impl<'a> Paint<'a> {
 
 // A canvas BODY wide (or `width` px of the panel), `height` px tall, painted by `paint` in the
 // page's colours and scale; recorded as `label` with `value`.
-pub(super) fn body_canvas<F>(page: &PageContext, width: f32, height: f32, label: &str, value: serde_json::Value, paint: F) -> UiCanvas
+pub(super) fn body_canvas<F>(
+    page: &PageContext,
+    width: f32,
+    height: f32,
+    label: &str,
+    value: serde_json::Value,
+    paint: F,
+) -> UiCanvas
 where
     F: Fn(&Paint) + 'static,
 {

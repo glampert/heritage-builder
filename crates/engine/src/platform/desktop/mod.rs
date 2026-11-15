@@ -28,14 +28,14 @@ pub fn run_environment() -> RunEnvironment {
         // Example: /Applications/MyGame.app/Contents/MacOS/MyGame
         if let Ok(exe_path) = std::env::current_exe()
             && let Some(exe_dir) = exe_path.parent()
-                && exe_dir
-                    .parent()
-                    .and_then(|contents| contents.parent())
-                    .filter(|p| p.extension().is_some_and(|ext| ext == "app"))
-                    .is_some()
-                {
-                    return RunEnvironment::MacOSAppBundle;
-                }
+            && exe_dir
+                .parent()
+                .and_then(|contents| contents.parent())
+                .filter(|p| p.extension().is_some_and(|ext| ext == "app"))
+                .is_some()
+        {
+            return RunEnvironment::MacOSAppBundle;
+        }
     }
 
     RunEnvironment::Standalone

@@ -8,9 +8,7 @@ fn main() {
     println!("🏠 Running bundler from {:?}", std::env::current_dir().unwrap());
 
     // Two options "debug" or "release".
-    let bundle_kind = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| panic!("❌ Missing 'debug' or 'release' flag!"));
+    let bundle_kind = std::env::args().nth(1).unwrap_or_else(|| panic!("❌ Missing 'debug' or 'release' flag!"));
 
     let release_flag = {
         if bundle_kind == "debug" {
@@ -81,11 +79,8 @@ fn copy_dir_recursive(src: &Path, dst: &Path) {
 
     let _ = fs::create_dir_all(dst);
 
-    for entry in fs::read_dir(src)
-        .unwrap_or_else(|_| panic!("❌ Failed to read dir: {src:?}"))
-    {
-        let entry = entry
-            .unwrap_or_else(|_| panic!("❌ Failed to read dir entry for: {src:?}"));
+    for entry in fs::read_dir(src).unwrap_or_else(|_| panic!("❌ Failed to read dir: {src:?}")) {
+        let entry = entry.unwrap_or_else(|_| panic!("❌ Failed to read dir entry for: {src:?}"));
 
         let file_type = entry.file_type().expect("Failed to query file type!");
         let dst_path = dst.join(entry.file_name());

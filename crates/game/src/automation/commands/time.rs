@@ -1,9 +1,8 @@
 // Time commands: the frame time step, fast-forwarding, waiting, and holding the simulation still.
 
+use common::time::Seconds;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
-
-use common::time::Seconds;
 
 use crate::automation::{
     CommandContext,
@@ -29,9 +28,24 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "time.fast_forward",
         help: "Run the simulation ahead without drawing, in fixed steps. Long runs continue over several frames.",
         params: &[
-            ParamDef { name: "sim_secs", kind: "number", required: true, help: "Simulated seconds to run, as sim_time counts them." },
-            ParamDef { name: "step", kind: "number", required: false, help: "Frame time per step, in seconds. Default 1/60." },
-            ParamDef { name: "resume", kind: "bool", required: false, help: "Resume a paused simulation first. Default false." },
+            ParamDef {
+                name: "sim_secs",
+                kind: "number",
+                required: true,
+                help: "Simulated seconds to run, as sim_time counts them.",
+            },
+            ParamDef {
+                name: "step",
+                kind: "number",
+                required: false,
+                help: "Frame time per step, in seconds. Default 1/60.",
+            },
+            ParamDef {
+                name: "resume",
+                kind: "bool",
+                required: false,
+                help: "Resume a paused simulation first. Default false.",
+            },
         ],
         run: cmd_fast_forward,
     },
@@ -53,10 +67,20 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         params: &[
             ParamDef { name: "query", kind: "string", required: true, help: "Command to run, e.g. session.state." },
             ParamDef { name: "args", kind: "object", required: false, help: "The query's parameters." },
-            ParamDef { name: "path", kind: "string", required: false, help: "JSON pointer into the result, e.g. /population." },
+            ParamDef {
+                name: "path",
+                kind: "string",
+                required: false,
+                help: "JSON pointer into the result, e.g. /population.",
+            },
             ParamDef { name: "op", kind: "string", required: true, help: "eq, ne, gt, ge, lt, le or exists." },
             ParamDef { name: "value", kind: "any", required: false, help: "Value to compare with. Not used by exists." },
-            ParamDef { name: "timeout_frames", kind: "int", required: false, help: "Fail after this many frames. Default 3600." },
+            ParamDef {
+                name: "timeout_frames",
+                kind: "int",
+                required: false,
+                help: "Fail after this many frames. Default 3600.",
+            },
         ],
         run: cmd_wait_until,
     },
@@ -143,7 +167,9 @@ fn cmd_fast_forward(context: &mut CommandContext, params: Value) -> CommandResul
 
     pending(move |context| {
         if context.session.sim().is_paused() {
-            return Some(Err(CommandError::failed(format!("The simulation was paused after {steps_done} of {total_steps} steps."))));
+            return Some(Err(CommandError::failed(format!(
+                "The simulation was paused after {steps_done} of {total_steps} steps."
+            ))));
         }
 
         let steps = FAST_FORWARD_STEPS_PER_FRAME.min(total_steps - steps_done);
@@ -272,8 +298,7 @@ fn cmd_frame_step(context: &mut CommandContext, params: Value) -> CommandResult 
     let target_frame = context.frame() + frames;
 
     pending(move |context| {
-        (context.frame() >= target_frame).then(|| {
-            Ok(json!({ "frame": context.frame(), "sim_time": context.session.sim().elapsed_secs(), "held": true }))
-        })
+        (context.frame() >= target_frame)
+            .then(|| Ok(json!({ "frame": context.frame(), "sim_time": context.session.sim().elapsed_secs(), "held": true })))
     })
 }

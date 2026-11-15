@@ -2,11 +2,10 @@
 
 use std::fmt;
 
+use common::time::Seconds;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use strum::Display;
-
-use common::time::Seconds;
 
 pub const MONTHS_PER_YEAR: u32 = 12;
 

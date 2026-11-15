@@ -34,7 +34,15 @@ use crate::{
     campaign::config::CampaignConfigs,
     config::GameConfigs,
     custom_game::{
-        self, BLANK_MAP_SIZES, BLANK_MAP_TERRAINS, ChosenMap, CustomGameSettings, Difficulty, MapConfigs, MapDef, MapSource,
+        self,
+        BLANK_MAP_SIZES,
+        BLANK_MAP_TERRAINS,
+        ChosenMap,
+        CustomGameSettings,
+        Difficulty,
+        MapConfigs,
+        MapDef,
+        MapSource,
         config::TreasuryDef,
         preview::{self, GridStats, PreviewGrid},
     },
@@ -55,21 +63,21 @@ use crate::{
 // and 450 points, 70 apart).
 const COLUMN_SHARES: [f32; 3] = [500.0, 470.0, 450.0];
 const COLUMN_SPACING: f32 = 70.0;
-const PART_SPACING: f32 = 12.0;     // Between a column's parts.
-const SECTION_GAP: f32 = 30.0;      // Above the Map section.
+const PART_SPACING: f32 = 12.0; // Between a column's parts.
+const SECTION_GAP: f32 = 30.0; // Above the Map section.
 const REALM_ICON_SIZE: f32 = 64.0;
 const REALM_ROW_PADDING: [f32; 2] = [14.0, 10.0];
 const MAP_ROW_PADDING: [f32; 2] = [20.0, 12.0];
 const ROW_SPACING: f32 = 8.0;
 const PREVIEW_ASPECT: f32 = 330.0 / 470.0; // The preview's height over its width.
-const PREVIEW_INSET: f32 = 2.0;     // The preview inside its well: past the well's thin border.
-const EMBLEM_SCALE: f32 = 2.0;      // A save's map shows the realm's emblem this many times its size.
+const PREVIEW_INSET: f32 = 2.0; // The preview inside its well: past the well's thin border.
+const EMBLEM_SCALE: f32 = 2.0; // A save's map shows the realm's emblem this many times its size.
 const CANCEL_WIDTH: f32 = 180.0;
 const START_WIDTH: f32 = 270.0;
 const BUTTON_SPACING: f32 = 20.0;
-const COLUMNS_SLACK: f32 = 24.0;    // Room left under the columns for what measuring misses.
+const COLUMNS_SLACK: f32 = 24.0; // Room left under the columns for what measuring misses.
 const STEP_SEGMENT_HEIGHT: f32 = 16.0;
-const OPTION_GAPS: usize = 5;       // Above the options' parts: date, goals, treasury, difficulty, switches.
+const OPTION_GAPS: usize = 5; // Above the options' parts: date, goals, treasury, difficulty, switches.
 const OPTION_TOGGLES: usize = 4;
 // Sizes on the reference window and on the smallest (1280 × 720), in proportion between them
 // (by_window): the text size over the body font, the buttons' height and the toggles' sprites.
@@ -114,11 +122,11 @@ struct CustomGameDialogState {
     blank_terrain: usize, // In BLANK_MAP_TERRAINS.
     date: usize,          // In custom_game::starting_dates(realm).
     goals: usize,
-    treasury: usize,      // In the starting treasury choices.
+    treasury: usize, // In the starting treasury choices.
     difficulty: Difficulty,
     fires_and_collapses: bool,
     fast_construction: bool,
-    built: (u32, bool, Realm), // build_key() when the dialog was built.
+    built: (u32, bool, Realm),  // build_key() when the dialog was built.
     preview_pixels: (u32, u32), // The bake's size for the well as built (preview::preview_pixels).
     preview: Option<Preview>,
     retired: Vec<TextureHandle>, // Previews replaced, released before the next frame draws.
@@ -203,7 +211,8 @@ pub(super) fn prepare(in_home_menu: bool) {
     let state = STATE.as_mut();
 
     let ui_realm = realm::ui_realm_for(in_home_menu).realm;
-    state.realm = if is_unlocked(ui_realm) { ui_realm } else { Realm::iter().find(|realm| is_unlocked(*realm)).unwrap_or_default() };
+    state.realm =
+        if is_unlocked(ui_realm) { ui_realm } else { Realm::iter().find(|realm| is_unlocked(*realm)).unwrap_or_default() };
 
     state.maps = configs.available_maps();
     state.map_sizes = state
@@ -212,7 +221,9 @@ pub(super) fn prepare(in_home_menu: bool) {
         .map(|map| match &map.source {
             MapSource::Blank { width, height, .. } => Some(Size::new(*width, *height)),
             MapSource::Preset { preset_number } => preset_maps::preset_size(*preset_number),
-            MapSource::SaveGame { save_file } => save_header::read_map_size(engine::file_sys::paths::PathRef::from_str(save_file)),
+            MapSource::SaveGame { save_file } => {
+                save_header::read_map_size(engine::file_sys::paths::PathRef::from_str(save_file))
+            }
         })
         .collect();
     state.map = 0;
@@ -281,11 +292,10 @@ fn chosen_settings() -> Option<CustomGameSettings> {
 
 fn size_text(size: Option<Size>) -> String {
     match size {
-        Some(size) => ui::text::format(
-            UiTextCategory::Menu,
-            "custom_game.map_size",
-            &[("width", &size.width.to_string()), ("height", &size.height.to_string())],
-        ),
+        Some(size) => ui::text::format(UiTextCategory::Menu, "custom_game.map_size", &[
+            ("width", &size.width.to_string()),
+            ("height", &size.height.to_string()),
+        ]),
         None => ui::text::get(UiTextCategory::Menu, "load_save.none").to_string(),
     }
 }
@@ -300,7 +310,10 @@ fn terrain_label(terrain: PresetTiles) -> UiString {
 
 // The starting dates of `realm`, as its calendar writes them: "Long Thái era, year 1".
 fn date_texts(realm: Realm) -> Vec<String> {
-    custom_game::starting_dates(realm).into_iter().map(|settings| realm::date_text(realm, &GameCalendar::new(settings))).collect()
+    custom_game::starting_dates(realm)
+        .into_iter()
+        .map(|settings| realm::date_text(realm, &GameCalendar::new(settings)))
+        .collect()
 }
 
 // The starting treasury's choices: maps.json's, or the defaults before it's loaded (the dialogs are
@@ -313,7 +326,12 @@ fn treasury_texts() -> Vec<String> {
     treasury_choices()
         .choices
         .iter()
-        .map(|gold| ui::text::format(UiTextCategory::Menu, "custom_game.gold", &[("gold", &super::load_save::group_digits(i64::from(*gold)))]))
+        .map(|gold| {
+            ui::text::format(UiTextCategory::Menu, "custom_game.gold", &[(
+                "gold",
+                &super::load_save::group_digits(i64::from(*gold)),
+            )])
+        })
         .collect()
 }
 
@@ -322,7 +340,10 @@ fn details(state: &CustomGameDialogState) -> Vec<(UiString, UiString)> {
     let none = ui::text::get(UiTextCategory::Menu, "load_save.none").to_string();
     let stats = state.preview.as_ref().and_then(|preview| preview.stats);
     let percent = |value: Option<u32>| {
-        value.map_or_else(|| none.clone(), |value| ui::text::format(UiTextCategory::Menu, "custom_game.percent", &[("value", &value.to_string())]))
+        value.map_or_else(
+            || none.clone(),
+            |value| ui::text::format(UiTextCategory::Menu, "custom_game.percent", &[("value", &value.to_string())]),
+        )
     };
     let hazards = if state.fires_and_collapses {
         ui::text::get(UiTextCategory::Menu, "custom_game.hazards.fire").to_string()
@@ -330,9 +351,18 @@ fn details(state: &CustomGameDialogState) -> Vec<(UiString, UiString)> {
         ui::text::get(UiTextCategory::Menu, "custom_game.hazards.none").to_string()
     };
     vec![
-        (UiString::key(UiTextCategory::Menu, "custom_game.details.size"), UiString::from(size_text(state.map_size(state.map)))),
-        (UiString::key(UiTextCategory::Menu, "custom_game.details.water"), UiString::from(percent(stats.map(|stats| stats.water_percent)))),
-        (UiString::key(UiTextCategory::Menu, "custom_game.details.woodland"), UiString::from(percent(stats.map(|stats| stats.woodland_percent)))),
+        (
+            UiString::key(UiTextCategory::Menu, "custom_game.details.size"),
+            UiString::from(size_text(state.map_size(state.map))),
+        ),
+        (
+            UiString::key(UiTextCategory::Menu, "custom_game.details.water"),
+            UiString::from(percent(stats.map(|stats| stats.water_percent))),
+        ),
+        (
+            UiString::key(UiTextCategory::Menu, "custom_game.details.woodland"),
+            UiString::from(percent(stats.map(|stats| stats.woodland_percent))),
+        ),
         // TODO(realm-ui): the map's trade partners, once M10 brings trade.
         (UiString::key(UiTextCategory::Menu, "custom_game.details.trade_partners"), UiString::from(none.clone())),
         (UiString::key(UiTextCategory::Menu, "custom_game.details.hazards"), UiString::from(hazards)),
@@ -412,7 +442,8 @@ impl CustomGame {
         let text_scale = by_window(TEXT_SCALES, window_scale) * fit;
         let spacing = (PART_SPACING * scale).round();
 
-        let title = skin::heading_at(context, [UiString::key(UiTextCategory::Menu, "custom_game.title")], HeadingLevel::Dialog, fit);
+        let title =
+            skin::heading_at(context, [UiString::key(UiTextCategory::Menu, "custom_game.title")], HeadingLevel::Dialog, fit);
         let (buttons_row, actions) = buttons(context, scale, fit);
 
         // The columns: their widths share the content's, and their height is what the title and
@@ -421,7 +452,8 @@ impl CustomGame {
         let column_spacing = (COLUMN_SPACING * scale).round();
         let shares: f32 = COLUMN_SHARES.iter().sum();
         let widths = COLUMN_SHARES.map(|share| ((content.x - column_spacing * 2.0) * share / shares).floor());
-        let columns_height = content.y - title.measure(context).y - buttons_row.measure(context).y - spacing * 2.0 - COLUMNS_SLACK * scale;
+        let columns_height =
+            content.y - title.measure(context).y - buttons_row.measure(context).y - spacing * 2.0 - COLUMNS_SLACK * scale;
 
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
         let mut menu = skin::dialog(context, &kind, flags).with_widget_spacing(Vec2::new(0.0, spacing));
@@ -429,28 +461,40 @@ impl CustomGame {
 
         // Realm and Map.
         let mut left = UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::new(0.0, spacing));
-        left.add_widget(section_label(UiString::key(UiTextCategory::Menu, "custom_game.section.realm"), text_scale, "realm_heading"));
+        left.add_widget(section_label(
+            UiString::key(UiTextCategory::Menu, "custom_game.section.realm"),
+            text_scale,
+            "realm_heading",
+        ));
         let realm_list = realm_list(context, scale, text_scale);
         let realms_height = realm_list.measure(context).y;
         let realms = left.add_widget(realm_list);
         left.add_widget(UiSeparator::new().with_size(Vec2::new(1.0, (SECTION_GAP * scale).round())));
-        let map_heading = section_label(UiString::key(UiTextCategory::Menu, "custom_game.section.map"), text_scale, "map_heading");
-        let maps_height = (columns_height - realms_height - map_heading.measure(context).y * 2.0 - spacing * 4.0 - SECTION_GAP * scale).floor();
+        let map_heading =
+            section_label(UiString::key(UiTextCategory::Menu, "custom_game.section.map"), text_scale, "map_heading");
+        let maps_height =
+            (columns_height - realms_height - map_heading.measure(context).y * 2.0 - spacing * 4.0 - SECTION_GAP * scale)
+                .floor();
         left.add_widget(map_heading);
         let maps = left.add_widget(map_list(context, scale, text_scale, maps_height.max(60.0 * scale)));
 
         // Preview: the image as large as the column's width, or as the heading, the details and
         // the Blank map's options leave under it.
         let mut middle = UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::new(0.0, spacing));
-        let preview_heading = section_label(UiString::key(UiTextCategory::Menu, "custom_game.section.preview"), text_scale, "preview_heading");
+        let preview_heading =
+            section_label(UiString::key(UiTextCategory::Menu, "custom_game.section.preview"), text_scale, "preview_heading");
         let look = UiRowLook { padding: DETAILS_ROW_PADDING * scale, ..skin::row_look() };
-        let mut key_values = skin::key_values().with_label("details").with_look(look).with_font_scale(UiFontScale(text_scale * DETAILS_FONT_SCALE));
+        let mut key_values = skin::key_values()
+            .with_label("details")
+            .with_look(look)
+            .with_font_scale(UiFontScale(text_scale * DETAILS_FONT_SCALE));
         key_values.set_pairs(details(state));
         let blank_options = if state.is_blank() { blank_map_options(text_scale, widths[1]) } else { Vec::new() };
         let mut below_image = preview_heading.measure(context).y + key_values.measure(context).y + spacing * 2.0;
         if !blank_options.is_empty() {
             // A separator, then the options, each a spacing below the widget before it.
-            below_image += blank_options.iter().map(|widget| widget.measure(context).y + spacing).sum::<f32>() + spacing * 2.0;
+            below_image +=
+                blank_options.iter().map(|widget| widget.measure(context).y + spacing).sum::<f32>() + spacing * 2.0;
         }
         // The frame round the image takes room of its own.
         let framed = |context: &mut GameUiContext, height: f32| {
@@ -538,7 +582,11 @@ impl CustomGame {
                 None => image.clear_texture(),
             }
             // A bake fills the preview; an emblem shows at its size, in the middle.
-            image.set_fit(if state.preview.as_ref().is_some_and(|preview| preview.owned) { UiImageFit::Contain } else { UiImageFit::Center });
+            image.set_fit(if state.preview.as_ref().is_some_and(|preview| preview.owned) {
+                UiImageFit::Contain
+            } else {
+                UiImageFit::Center
+            });
             middle.widget_as_mut::<UiKeyValues>(parts.details).unwrap().set_pairs(details(state));
         }
 
@@ -586,12 +634,23 @@ fn update_preview(context: &mut GameUiContext, state: &mut CustomGameDialogState
             let pixels = grid.render(style, (width, height));
             let size = Size::new(width as i32, height as i32);
             let name = format!("custom_game_preview#{}", PREVIEW_COUNTER.fetch_add(1, Ordering::Relaxed));
-            let texture = context.render_sys().texture_cache_mut().new_initialized_texture(&name, size, &pixels, Some(ui::texture_settings()));
-            Preview { key, texture: Some((texture, Vec2::new(width as f32, height as f32))), owned: true, stats: Some(grid.stats()) }
+            let texture = context.render_sys().texture_cache_mut().new_initialized_texture(
+                &name,
+                size,
+                &pixels,
+                Some(ui::texture_settings()),
+            );
+            Preview {
+                key,
+                texture: Some((texture, Vec2::new(width as f32, height as f32))),
+                owned: true,
+                stats: Some(grid.stats()),
+            }
         }
         // TODO(realm-ui): a save's map previewed from its tile map (custom_game::preview).
         None => {
-            let emblem = skin::emblem(context, state.realm, EmblemState::Current).map(|(texture, size)| (texture, size * EMBLEM_SCALE));
+            let emblem = skin::emblem(context, state.realm, EmblemState::Current)
+                .map(|(texture, size)| (texture, size * EMBLEM_SCALE));
             Preview { key, texture: emblem, owned: false, stats: None }
         }
     });
@@ -608,7 +667,9 @@ fn section_label(text: UiString, text_scale: f32, label: &str) -> UiRichText {
 
 // A caption over an option's control: "Starting date".
 fn caption(text: UiString, text_scale: f32, label: &str) -> UiRichText {
-    let caption = skin::rich_text(text.resolve().to_string()).with_label(label).with_font_scale(UiFontScale(text_scale * CAPTION_FONT_SCALE));
+    let caption = skin::rich_text(text.resolve().to_string())
+        .with_label(label)
+        .with_font_scale(UiFontScale(text_scale * CAPTION_FONT_SCALE));
     match skin::color("sub") {
         Some(color) => caption.with_text_color(color),
         None => caption,
@@ -624,7 +685,10 @@ fn realm_list(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiIte
             let unlocked = is_unlocked(realm);
             let campaign = realm_campaign(realm);
             let subtitle = if unlocked {
-                campaign.and_then(|index| configs.campaign(index)).map(|campaign| campaign.display_name().to_string()).unwrap_or_default()
+                campaign
+                    .and_then(|index| configs.campaign(index))
+                    .map(|campaign| campaign.display_name().to_string())
+                    .unwrap_or_default()
             } else {
                 let number = campaign.map(super::home::campaign_number).unwrap_or_default();
                 ui::text::format(UiTextCategory::Menu, "custom_game.realm.unlock", &[("campaign", &number)])
@@ -651,7 +715,8 @@ fn realm_list(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiIte
 
     let font_scale = UiFontScale(text_scale);
     let count = Realm::iter().count() as f32;
-    let height = (look.row_height(context.ui_sys, font_scale, true, true) * count + look.spacing * (count - 1.0)).ceil() + 2.0;
+    let height =
+        (look.row_height(context.ui_sys, font_scale, true, true) * count + look.spacing * (count - 1.0)).ceil() + 2.0;
     let current = Realm::iter().position(|realm| realm == state.realm);
 
     let mut list = UiItemList::new()
@@ -663,7 +728,8 @@ fn realm_list(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiIte
         .on_selection_changed(|list, _| {
             let state = STATE.as_mut();
             if let Some(realm) = list.current_selection_index().and_then(|index| Realm::iter().nth(index))
-                && realm != state.realm && is_unlocked(realm)
+                && realm != state.realm
+                && is_unlocked(realm)
             {
                 state.realm = realm;
                 state.date = 0;
@@ -714,31 +780,48 @@ fn blank_map_options(text_scale: f32, width: f32) -> Vec<UiWidgetImpl> {
     let sizes = || BLANK_MAP_SIZES.map(|size| UiString::from(size.to_string()));
     let size_index = |size: i32| BLANK_MAP_SIZES.iter().position(|choice| *choice == size).unwrap_or(0);
     let selector = |label: UiString, steps: Vec<UiString>, current: usize| {
-        skin::step_selector(label, steps).with_style(UiStepSelectorStyle::Arrows).with_font_scale(font_scale).with_width(width).with_current(current)
+        skin::step_selector(label, steps)
+            .with_style(UiStepSelectorStyle::Arrows)
+            .with_font_scale(font_scale)
+            .with_width(width)
+            .with_current(current)
     };
     vec![
         UiWidgetImpl::from(
-            selector(UiString::key(UiTextCategory::Menu, "custom_game.width"), sizes().to_vec(), size_index(state.blank_width)).on_changed(|selector, _, _| {
+            selector(
+                UiString::key(UiTextCategory::Menu, "custom_game.width"),
+                sizes().to_vec(),
+                size_index(state.blank_width),
+            )
+            .on_changed(|selector, _, _| {
                 let state = STATE.as_mut();
                 state.blank_width = BLANK_MAP_SIZES[selector.current().min(BLANK_MAP_SIZES.len() - 1)];
                 state.synced = false;
             }),
         ),
         UiWidgetImpl::from(
-            selector(UiString::key(UiTextCategory::Menu, "custom_game.height"), sizes().to_vec(), size_index(state.blank_height)).on_changed(|selector, _, _| {
+            selector(
+                UiString::key(UiTextCategory::Menu, "custom_game.height"),
+                sizes().to_vec(),
+                size_index(state.blank_height),
+            )
+            .on_changed(|selector, _, _| {
                 let state = STATE.as_mut();
                 state.blank_height = BLANK_MAP_SIZES[selector.current().min(BLANK_MAP_SIZES.len() - 1)];
                 state.synced = false;
             }),
         ),
         UiWidgetImpl::from(
-            selector(UiString::key(UiTextCategory::Menu, "custom_game.terrain"), BLANK_MAP_TERRAINS.map(terrain_label).to_vec(), state.blank_terrain).on_changed(
-                |selector, _, _| {
-                    let state = STATE.as_mut();
-                    state.blank_terrain = selector.current().min(BLANK_MAP_TERRAINS.len() - 1);
-                    state.synced = false;
-                },
-            ),
+            selector(
+                UiString::key(UiTextCategory::Menu, "custom_game.terrain"),
+                BLANK_MAP_TERRAINS.map(terrain_label).to_vec(),
+                state.blank_terrain,
+            )
+            .on_changed(|selector, _, _| {
+                let state = STATE.as_mut();
+                state.blank_terrain = selector.current().min(BLANK_MAP_TERRAINS.len() - 1);
+                state.synced = false;
+            }),
         ),
     ]
 }
@@ -746,18 +829,33 @@ fn blank_map_options(text_scale: f32, width: f32) -> Vec<UiWidgetImpl> {
 // The options column: the starting date, goals and treasury under their captions, the difficulty
 // and the switches.
 // `gap`: the room above each part (OPTION_GAPS of them); `toggle_height`: each switch's row's.
-fn options(context: &mut GameUiContext, scale: f32, text_scale: f32, width: f32, gap: f32, toggle_height: f32) -> UiWidgetGroup {
+fn options(
+    context: &mut GameUiContext,
+    scale: f32,
+    text_scale: f32,
+    width: f32,
+    gap: f32,
+    toggle_height: f32,
+) -> UiWidgetGroup {
     let state = STATE.as_ref();
     let spacing = (PART_SPACING * scale).round();
     let font_scale = UiFontScale(text_scale);
     let mut group = UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::new(0.0, spacing * 0.5));
-    group.add_widget(section_label(UiString::key(UiTextCategory::Menu, "custom_game.section.options"), text_scale, "options_heading"));
+    group.add_widget(section_label(
+        UiString::key(UiTextCategory::Menu, "custom_game.section.options"),
+        text_scale,
+        "options_heading",
+    ));
 
     let gap = || UiSeparator::new().with_size(Vec2::new(1.0, gap.max(1.0)));
 
     // The starting date, in the realm's eras.
     group.add_widget(gap());
-    group.add_widget(caption(UiString::key(UiTextCategory::Menu, "custom_game.starting_date"), text_scale, "starting_date_caption"));
+    group.add_widget(caption(
+        UiString::key(UiTextCategory::Menu, "custom_game.starting_date"),
+        text_scale,
+        "starting_date_caption",
+    ));
     group.add_widget(
         skin::dropdown(context, "", date_texts(state.realm))
             .with_hidden_label(UiString::key(UiTextCategory::Menu, "custom_game.starting_date"))
@@ -781,7 +879,11 @@ fn options(context: &mut GameUiContext, scale: f32, text_scale: f32, width: f32,
     );
 
     group.add_widget(gap());
-    group.add_widget(caption(UiString::key(UiTextCategory::Menu, "custom_game.starting_treasury"), text_scale, "starting_treasury_caption"));
+    group.add_widget(caption(
+        UiString::key(UiTextCategory::Menu, "custom_game.starting_treasury"),
+        text_scale,
+        "starting_treasury_caption",
+    ));
     group.add_widget(
         skin::dropdown(context, "", treasury_texts())
             .with_hidden_label(UiString::key(UiTextCategory::Menu, "custom_game.starting_treasury"))
@@ -797,12 +899,15 @@ fn options(context: &mut GameUiContext, scale: f32, text_scale: f32, width: f32,
     let mut step_look = skin::step_look();
     step_look.segment_height = (STEP_SEGMENT_HEIGHT * scale).round();
     group.add_widget(
-        skin::step_selector(UiString::key(UiTextCategory::Menu, "custom_game.difficulty"), Difficulty::iter().map(|step| UiString::from(step.label())))
-            .with_look(step_look)
-            .with_font_scale(UiFontScale(text_scale * CAPTION_FONT_SCALE))
-            .with_width(width)
-            .with_current(state.difficulty as usize)
-            .on_changed(|selector, _, _| STATE.as_mut().difficulty = Difficulty::from_index(selector.current())),
+        skin::step_selector(
+            UiString::key(UiTextCategory::Menu, "custom_game.difficulty"),
+            Difficulty::iter().map(|step| UiString::from(step.label())),
+        )
+        .with_look(step_look)
+        .with_font_scale(UiFontScale(text_scale * CAPTION_FONT_SCALE))
+        .with_width(width)
+        .with_current(state.difficulty as usize)
+        .on_changed(|selector, _, _| STATE.as_mut().difficulty = Difficulty::from_index(selector.current())),
     );
 
     // The switches.
@@ -853,20 +958,33 @@ fn buttons(context: &mut GameUiContext, scale: f32, fit: f32) -> (UiColumns, UiC
         let font_scale = button.font_scale().0 * fit;
         button.with_font_scale(UiFontScale(font_scale))
     };
-    let cancel = fitted(make_dialog_close_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel")))
-        .with_width(width(CANCEL_WIDTH))
-        .with_min_height(height);
-    let start = fitted(make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "custom_game.start"), |_, _| {
-        if let Some(settings) = chosen_settings().filter(|settings| is_unlocked(settings.realm)) {
-            custom_game::start(settings);
-        }
-    }))
+    let cancel = fitted(make_dialog_close_button(
+        context,
+        ButtonRole::Secondary,
+        UiString::key(UiTextCategory::Menu, "button.cancel"),
+    ))
+    .with_width(width(CANCEL_WIDTH))
+    .with_min_height(height);
+    let start = fitted(make_text_button(
+        context,
+        ButtonRole::Primary,
+        UiString::key(UiTextCategory::Menu, "custom_game.start"),
+        |_, _| {
+            if let Some(settings) = chosen_settings().filter(|settings| is_unlocked(settings.realm)) {
+                custom_game::start(settings);
+            }
+        },
+    ))
     .with_width(width(START_WIDTH))
     .with_min_height(height);
 
     let spacing = (BUTTON_SPACING * scale).round();
     let actions_width = ((CANCEL_WIDTH + START_WIDTH) * scale).round() + spacing;
-    let actions = UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::new(spacing, 0.0)).with_widget(cancel).with_widget(start);
+    let actions = UiWidgetGroup::new()
+        .with_stack_vertically(false)
+        .with_widget_spacing(Vec2::new(spacing, 0.0))
+        .with_widget(cancel)
+        .with_widget(start);
     let mut columns = UiColumns::new().with_spacing(spacing);
     columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
     let actions = columns.add_column(UiColumnWidth::Fixed(actions_width), UiWidgetGroup::new().with_widget(actions));

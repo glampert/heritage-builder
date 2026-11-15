@@ -73,12 +73,12 @@ impl TileInspector for TileInspectorDevMenu {
 
 impl TileInspectorDevMenu {
     pub fn open(&mut self, selected_tile: &Tile) {
-        self.is_open  = true;
+        self.is_open = true;
         self.selected = Some(TileWeakRef::new(selected_tile));
     }
 
     pub fn close(&mut self) {
-        self.is_open  = false;
+        self.is_open = false;
         self.selected = None;
     }
 
@@ -213,9 +213,7 @@ impl TileInspectorDevMenu {
         let ui_sys = context.ui_sys;
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
-        let Some(_path) =
-            ui::collapsing_header_scope(context.ui_sys, "Properties##_tile_properties", false)
-        else {
+        let Some(_path) = ui::collapsing_header_scope(context.ui_sys, "Properties##_tile_properties", false) else {
             return; // collapsed.
         };
 
@@ -328,12 +326,7 @@ impl TileInspectorDevMenu {
             ($tile:ident, $flag_name:ident) => {
                 let mut value = $tile.has_flags(TileFlags::$flag_name);
                 if ui::checkbox(context.ui_sys, stringify!($flag_name), &mut value) {
-                    context.tile_map.set_tile_flags_at_index(
-                        tile.index(),
-                        tile.layer_kind(),
-                        TileFlags::$flag_name,
-                        value,
-                    );
+                    context.tile_map.set_tile_flags_at_index(tile.index(), tile.layer_kind(), TileFlags::$flag_name, value);
                 }
             };
         }
@@ -428,9 +421,7 @@ impl TileInspectorDevMenu {
     fn tile_debug_opts_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
         // NOTE: Use the special ##id here so we don't collide with Building/Debug
         // Options.
-        let Some(_path) =
-            ui::collapsing_header_scope(context.ui_sys, "Debug Options##_tile_debug_opts", false)
-        else {
+        let Some(_path) = ui::collapsing_header_scope(context.ui_sys, "Debug Options##_tile_debug_opts", false) else {
             return; // collapsed.
         };
 
@@ -439,32 +430,17 @@ impl TileInspectorDevMenu {
 
         let mut hide_tile = tile.has_flags(TileFlags::Hidden);
         if ui::checkbox(context.ui_sys, "Hide tile", &mut hide_tile) {
-            context.tile_map.set_tile_flags_at_index(
-                tile_index,
-                tile_layer,
-                TileFlags::Hidden,
-                hide_tile,
-            );
+            context.tile_map.set_tile_flags_at_index(tile_index, tile_layer, TileFlags::Hidden, hide_tile);
         }
 
         let mut show_tile_debug = tile.has_flags(TileFlags::DrawDebugInfo);
         if ui::checkbox(context.ui_sys, "Show debug overlay", &mut show_tile_debug) {
-            context.tile_map.set_tile_flags_at_index(
-                tile_index,
-                tile_layer,
-                TileFlags::DrawDebugInfo,
-                show_tile_debug,
-            );
+            context.tile_map.set_tile_flags_at_index(tile_index, tile_layer, TileFlags::DrawDebugInfo, show_tile_debug);
         }
 
         let mut show_tile_bounds = tile.has_flags(TileFlags::DrawDebugBounds);
         if ui::checkbox(context.ui_sys, "Show tile bounds", &mut show_tile_bounds) {
-            context.tile_map.set_tile_flags_at_index(
-                tile_index,
-                tile_layer,
-                TileFlags::DrawDebugBounds,
-                show_tile_bounds,
-            );
+            context.tile_map.set_tile_flags_at_index(tile_index, tile_layer, TileFlags::DrawDebugBounds, show_tile_bounds);
         }
 
         if tile.is(TileKind::Building) {
@@ -530,7 +506,7 @@ impl TileInspectorDevMenu {
         let mut draw_size = tile.draw_size();
         if ui::input_i32_xy(context.ui_sys, "Draw Size:", &mut draw_size, false, None, Some(["W", "H"]))
             && let Some(editable_def) = tile.try_get_editable_tile_def()
-                && draw_size.is_valid()
+            && draw_size.is_valid()
         {
             editable_def.draw_size = draw_size;
             context.tile_map.on_tile_def_edited(tile);
@@ -556,10 +532,10 @@ impl TileInspectorDevMenu {
                 && logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
                     && (logical_size.width  % BASE_TILE_WIDTH_I32)  == 0
                     && (logical_size.height % BASE_TILE_HEIGHT_I32) == 0
-                {
-                    editable_def.logical_size = logical_size;
-                    context.tile_map.on_tile_def_edited(tile);
-                }
+        {
+            editable_def.logical_size = logical_size;
+            context.tile_map.on_tile_def_edited(tile);
+        }
 
         ui::separator(ui_sys);
 
@@ -570,12 +546,7 @@ impl TileInspectorDevMenu {
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 editable_def.occludes_terrain = occludes_terrain;
             }
-            context.tile_map.set_tile_flags_at_index(
-                tile_index,
-                tile_layer,
-                TileFlags::OccludesTerrain,
-                occludes_terrain,
-            );
+            context.tile_map.set_tile_flags_at_index(tile_index, tile_layer, TileFlags::OccludesTerrain, occludes_terrain);
         }
     }
 }

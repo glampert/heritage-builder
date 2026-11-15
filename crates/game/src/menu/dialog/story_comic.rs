@@ -40,8 +40,10 @@ use engine::{
 };
 use serde_json::{Value, json};
 
-use super::*;
-use super::screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight};
+use super::{
+    screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight},
+    *,
+};
 use crate::{
     campaign::{config::CampaignConfigs, stele as stele_data},
     menu::skin::{SkinMapTextDef, SkinPanel, SkinStoryBubbleDef},
@@ -334,7 +336,11 @@ impl StoryComic {
         let window = ui::screen_size(context.ui_sys);
         let scales = Scales::new(window);
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
-        let mut menu = UiMenu::new(kind).with_flags(flags).with_size(window).with_content_insets(UiMenuInsets::same(0.0)).with_widget_spacing(Vec2::zero());
+        let mut menu = UiMenu::new(kind)
+            .with_flags(flags)
+            .with_size(window)
+            .with_content_insets(UiMenuInsets::same(0.0))
+            .with_widget_spacing(Vec2::zero());
 
         // Built at boot and on every rebuild for every dialog kind, but shown only once prepared
         // for opening: until then an empty menu, so its textures load only when needed.
@@ -373,11 +379,10 @@ fn read(context: &mut GameUiContext) -> Option<Shown> {
 
     // "CAMPAIGN I · THE DRAGON LEGACY"; a hidden campaign has no number, only its name.
     let campaign_line = match configs.campaign_number(campaign_index) {
-        Some(_) => ui::text::format(
-            UiTextCategory::Menu,
-            "story.campaign",
-            &[("campaign", &super::home::campaign_number(campaign_index)), ("name", campaign.display_name())],
-        ),
+        Some(_) => ui::text::format(UiTextCategory::Menu, "story.campaign", &[
+            ("campaign", &super::home::campaign_number(campaign_index)),
+            ("name", campaign.display_name()),
+        ]),
         None => campaign.display_name().to_string(),
     }
     .to_uppercase();
@@ -387,7 +392,8 @@ fn read(context: &mut GameUiContext) -> Option<Shown> {
         // A preview's as its other screens show it (campaign::preview::shown_profile).
         let stele = stele_data::stele(configs, crate::campaign::preview::shown_profile(), campaign_index, None);
         let title = stele.as_ref().map_or_else(|| campaign.display_name().to_string(), |stele| stele.title.clone());
-        let lines: Vec<String> = stele.map_or_else(Vec::new, |stele| stele.lines.into_iter().map(|line| line.text).collect());
+        let lines: Vec<String> =
+            stele.map_or_else(Vec::new, |stele| stele.lines.into_iter().map(|line| line.text).collect());
         (title, lines)
     });
     let art = PanelArt::load(context, panel, stele.clone());
@@ -495,7 +501,8 @@ fn panel_canvas(scales: Scales, art: PanelArt, value: Value) -> UiCanvas {
         // The frame round it, its ornaments over the picture's edges.
         if let Some(frame) = art.frame {
             let [left, top, right, bottom] = story.frame_bleed;
-            let frame_rect = Rect::from_extents(panel.min - Vec2::new(left, top) * k, panel.max + Vec2::new(right, bottom) * k);
+            let frame_rect =
+                Rect::from_extents(panel.min - Vec2::new(left, top) * k, panel.max + Vec2::new(right, bottom) * k);
             painter.image(frame, frame_rect, Color::white());
         }
 
@@ -553,7 +560,14 @@ fn paint_box(painter: &UiPainter, rect: Rect, k: f32, panel: Option<&UiNineSlice
 
 // A dynamic panel's list of the player's stele lines (the epilogue's): the stele's title and its
 // lines, on the caption's panel in the panel's middle.
-fn paint_stele_lines(painter: &UiPainter, panel: Rect, k: f32, box_panel: Option<&UiNineSlice>, title: &str, lines: &[String]) {
+fn paint_stele_lines(
+    painter: &UiPainter,
+    panel: Rect,
+    k: f32,
+    box_panel: Option<&UiNineSlice>,
+    title: &str,
+    lines: &[String],
+) {
     let story = skin::story();
     let default_look = SkinMapTextDef::default();
     let title_def = story.stele.get("title").unwrap_or(&default_look);
@@ -563,13 +577,17 @@ fn paint_stele_lines(painter: &UiPainter, panel: Rect, k: f32, box_panel: Option
     let width = (STELE_BOX[0] - STELE_PADDING * 2.0) * k;
 
     let title_lines = painter.wrap_label(&cased(title_def, title), &title_look, width);
-    let wrapped: Vec<Vec<String>> = lines.iter().map(|line| painter.wrap_label(&cased(line_def, line), &line_look, width - 24.0 * k)).collect();
+    let wrapped: Vec<Vec<String>> =
+        lines.iter().map(|line| painter.wrap_label(&cased(line_def, line), &line_look, width - 24.0 * k)).collect();
     let title_height = title_def.size * 1.3 * k;
     let line_height = line_def.size * 1.3 * k;
     let body: f32 = wrapped.iter().map(|lines| lines.len() as f32 * line_height + STELE_LINE_GAP * k).sum();
     let height = STELE_PADDING * 2.0 * k + title_lines.len() as f32 * title_height + STELE_TITLE_GAP * k + body;
     let height = height.min(panel.height() - STELE_BOX[1] * k);
-    let rect = Rect::from_pos_and_size(Vec2::new(panel.center().x - STELE_BOX[0] * 0.5 * k, panel.min.y + STELE_BOX[1] * k), Vec2::new(STELE_BOX[0] * k, height));
+    let rect = Rect::from_pos_and_size(
+        Vec2::new(panel.center().x - STELE_BOX[0] * 0.5 * k, panel.min.y + STELE_BOX[1] * k),
+        Vec2::new(STELE_BOX[0] * k, height),
+    );
     paint_box(painter, rect, k, box_panel);
 
     let mut y = rect.min.y + STELE_PADDING * k + title_def.size * k;
@@ -640,7 +658,12 @@ fn paint_bubble(painter: &UiPainter, bubble: &BubbleArt, at: &impl Fn(Vec2) -> V
 
     let x = rect.min.x + def.inset * k;
     if let Some(speaker) = &bubble.speaker {
-        painter.label(Vec2::new(x, rect.min.y + def.name_baseline * k), UiTextAnchor::Start, &cased(&def.name, speaker), &name_look);
+        painter.label(
+            Vec2::new(x, rect.min.y + def.name_baseline * k),
+            UiTextAnchor::Start,
+            &cased(&def.name, speaker),
+            &name_look,
+        );
     }
     for (index, line) in lines.iter().enumerate() {
         let y = rect.min.y + (first + line_height * index as f32) * k;
@@ -717,11 +740,10 @@ fn bar(context: &mut GameUiContext, scales: Scales, shown: &Shown) -> UiFrame {
 
     // The dots and the count, in the middle.
     let count_font = scales.font(COUNT_SIZE);
-    let count_text = ui::text::format(
-        UiTextCategory::Menu,
-        "story.count",
-        &[("panel", &(shown.panel + 1).to_string()), ("count", &shown.count.to_string())],
-    );
+    let count_text = ui::text::format(UiTextCategory::Menu, "story.count", &[
+        ("panel", &(shown.panel + 1).to_string()),
+        ("count", &shown.count.to_string()),
+    ]);
     let count = text_line(&count_text, "count", count_font, bar_sub, scales.pt(DOTS_WIDTH), UiTextAlign::Center);
     let middle = UiWidgetGroup::new()
         .with_center_vertically(true)
@@ -731,13 +753,15 @@ fn bar(context: &mut GameUiContext, scales: Scales, shown: &Shown) -> UiFrame {
 
     // Back, Skip and Next (Continue on the last panel).
     let last = shown.panel + 1 >= shown.count;
-    let back = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "story.back"), |_, context| {
-        step(context_as_mut::<GameUiContext>(context), -1);
-    })
-    .with_enabled(shown.panel > 0);
-    let skip = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "story.skip"), |_, context| {
-        super::close(DialogMenuKind::StoryComic, context_as_mut::<GameUiContext>(context));
-    });
+    let back =
+        skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "story.back"), |_, context| {
+            step(context_as_mut::<GameUiContext>(context), -1);
+        })
+        .with_enabled(shown.panel > 0);
+    let skip =
+        skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "story.skip"), |_, context| {
+            super::close(DialogMenuKind::StoryComic, context_as_mut::<GameUiContext>(context));
+        });
     let next_key = if last { "story.continue" } else { "story.next" };
     let next = skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, next_key), |_, context| {
         step(context_as_mut::<GameUiContext>(context), 1);
@@ -751,16 +775,22 @@ fn bar(context: &mut GameUiContext, scales: Scales, shown: &Shown) -> UiFrame {
     columns.add_column(UiColumnWidth::Fixed(scales.pt(BAR_TEXT_X - bar_x)), UiWidgetGroup::new());
     columns.add_column(UiColumnWidth::Fixed(scales.pt(DOTS_CENTRE - DOTS_WIDTH * 0.5 - BAR_TEXT_X)), titles);
     columns.add_column(UiColumnWidth::Fixed(scales.pt(DOTS_WIDTH)), middle);
-    columns.add_column(UiColumnWidth::Fixed(scales.pt(BACK_BUTTON[0] - DOTS_CENTRE - DOTS_WIDTH * 0.5)), UiWidgetGroup::new());
+    columns
+        .add_column(UiColumnWidth::Fixed(scales.pt(BACK_BUTTON[0] - DOTS_CENTRE - DOTS_WIDTH * 0.5)), UiWidgetGroup::new());
     columns.add_column(UiColumnWidth::Fixed(scales.pt(BACK_BUTTON[1])), sized(back, BACK_BUTTON[1]));
-    columns.add_column(UiColumnWidth::Fixed(scales.pt(SKIP_BUTTON[0] - BACK_BUTTON[0] - BACK_BUTTON[1])), UiWidgetGroup::new());
+    columns
+        .add_column(UiColumnWidth::Fixed(scales.pt(SKIP_BUTTON[0] - BACK_BUTTON[0] - BACK_BUTTON[1])), UiWidgetGroup::new());
     columns.add_column(UiColumnWidth::Fixed(scales.pt(SKIP_BUTTON[1])), sized(skip, SKIP_BUTTON[1]));
-    columns.add_column(UiColumnWidth::Fixed(scales.pt(NEXT_BUTTON[0] - SKIP_BUTTON[0] - SKIP_BUTTON[1])), UiWidgetGroup::new());
+    columns
+        .add_column(UiColumnWidth::Fixed(scales.pt(NEXT_BUTTON[0] - SKIP_BUTTON[0] - SKIP_BUTTON[1])), UiWidgetGroup::new());
     columns.add_column(UiColumnWidth::Fixed(scales.pt(NEXT_BUTTON[1])), sized(next, NEXT_BUTTON[1]));
     columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
 
-    let mut frame = UiFrame::new(UiWidgetGroup::new().with_center_vertically(true).with_widget(columns), Vec2::new(scales.pt(bar_width), scales.pt(bar_height)))
-        .with_label("bar");
+    let mut frame = UiFrame::new(
+        UiWidgetGroup::new().with_center_vertically(true).with_widget(columns),
+        Vec2::new(scales.pt(bar_width), scales.pt(bar_height)),
+    )
+    .with_label("bar");
     if let SkinPanel::NineSlice { slice, .. } = skin::panel(context, "bar") {
         frame = frame.with_panel(slice);
     }

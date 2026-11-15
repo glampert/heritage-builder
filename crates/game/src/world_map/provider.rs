@@ -4,6 +4,20 @@
 // values without touching the screen; ConfigWorldMapProvider reads them from the world map file,
 // campaigns.json and the player's profile.
 
+use engine::ui::text::{self, UiTextCategory};
+
+use super::config::{
+    CityKind,
+    CityRole,
+    LabelSide,
+    MAX_RELATION_LEVEL,
+    RouteDef,
+    RouteKind,
+    RouteState,
+    WorldCityDef,
+    WorldMapConfigs,
+    WorldMapDef,
+};
 use crate::{
     campaign::{
         ActiveMission,
@@ -11,12 +25,6 @@ use crate::{
     },
     profile::Profile,
     realm::Realm,
-};
-use engine::ui::text::{self, UiTextCategory};
-
-use super::config::{
-    CityKind, CityRole, LabelSide, MAX_RELATION_LEVEL, RouteDef, RouteKind, RouteState, WorldCityDef, WorldMapConfigs,
-    WorldMapDef,
 };
 
 // ----------------------------------------------
@@ -378,11 +386,10 @@ impl WorldMapProvider for ConfigWorldMapProvider<'_> {
         panel.request = trade.request.as_ref().map(|request| {
             let good = text::get(UiTextCategory::Menu, &request.good);
             CourtRequest {
-                goods: text::format(
-                    UiTextCategory::Menu,
-                    "world_map.request.goods",
-                    &[("good", good), ("amount", &request.amount.to_string())],
-                ),
+                goods: text::format(UiTextCategory::Menu, "world_map.request.goods", &[
+                    ("good", good),
+                    ("amount", &request.amount.to_string()),
+                ]),
                 within: text::format_count(
                     UiTextCategory::Menu,
                     "world_map.request.within",

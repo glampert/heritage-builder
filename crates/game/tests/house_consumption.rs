@@ -1,8 +1,8 @@
-use common::{coords::Cell, Size};
+use common::{Size, coords::Cell};
 use game::{
     building::{BuildingKindAndId, HouseLevel, config::BuildingConfigs},
     debug::game_object_debug::GameObjectDebugVarRef,
-    sim::{resources::ResourceKind, SimCmdQueue},
+    sim::{SimCmdQueue, resources::ResourceKind},
     tile::{TileFlags, TileKind},
     unit::config::UnitConfigKey,
 };
@@ -50,9 +50,7 @@ fn add_workers(env: &mut TestEnvironment, handle: BuildingKindAndId, count: u32,
 // Toggle one of the house debug `freeze_*` flags via the public debug-options API.
 fn set_house_freeze(env: &mut TestEnvironment, handle: BuildingKindAndId, option_name: &str, mut value: bool) {
     let building = test_utils::find_building_mut(env, handle);
-    let applied = building
-        .debug_options()
-        .set_debug_option_by_name(option_name, GameObjectDebugVarRef::Bool(&mut value));
+    let applied = building.debug_options().set_debug_option_by_name(option_name, GameObjectDebugVarRef::Bool(&mut value));
     assert!(applied, "debug option '{option_name}' should exist");
 }
 
@@ -61,10 +59,7 @@ fn set_house_freeze(env: &mut TestEnvironment, handle: BuildingKindAndId, option
 fn add_house_population(env: &mut TestEnvironment, handle: BuildingKindAndId, count: u32) {
     let context = env.new_sim_context(0.0);
     let cmds = context.cmds_mut();
-    let building = context
-        .world_mut()
-        .find_building_mut(handle.kind, handle.id)
-        .expect("house should exist");
+    let building = context.world_mut().find_building_mut(handle.kind, handle.id).expect("house should exist");
     building.add_population(cmds, &context, count);
     cmds.execute(&context);
 }
@@ -85,10 +80,7 @@ fn rice_in_stock(env: &TestEnvironment, handle: BuildingKindAndId) -> u32 {
 }
 
 fn house_level_name(env: &TestEnvironment, cell: Cell) -> &'static str {
-    env.world
-        .find_building_for_cell(cell, &env.tile_map)
-        .expect("a house should occupy this cell")
-        .name()
+    env.world.find_building_for_cell(cell, &env.tile_map).expect("a house should occupy this cell").name()
 }
 
 // ----------------------------------------------
@@ -132,8 +124,8 @@ fn test_house_consumption_scales_with_occupancy() {
 
     // Three Level 1 houses (which require food) at increasing occupancy.
     let crowded = test_utils::spawn_building(&mut env, Cell::new(1, 1), "house1");
-    let sparse  = test_utils::spawn_building(&mut env, Cell::new(4, 4), "house1");
-    let empty   = test_utils::spawn_building(&mut env, Cell::new(7, 7), "house1");
+    let sparse = test_utils::spawn_building(&mut env, Cell::new(4, 4), "house1");
+    let empty = test_utils::spawn_building(&mut env, Cell::new(7, 7), "house1");
 
     // Freeze upgrade (which would otherwise downgrade these service-less houses)
     // and population growth so occupancy stays fixed and the test is deterministic.
@@ -238,7 +230,8 @@ fn test_deprived_level0_house_loses_population_to_emigration() {
 fn test_houses_need_pottery_from_level_2() {
     let configs = BuildingConfigs::get();
     for level in [HouseLevel::Level1, HouseLevel::Level2, HouseLevel::Level3, HouseLevel::Level4] {
-        let needs_pottery = configs.find_house_level_config(level).resources_required.iter().any(|kinds| *kinds == ResourceKind::Pottery);
+        let needs_pottery =
+            configs.find_house_level_config(level).resources_required.iter().any(|kinds| *kinds == ResourceKind::Pottery);
         assert_eq!(needs_pottery, level != HouseLevel::Level1, "{level}");
     }
 }

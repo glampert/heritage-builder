@@ -14,10 +14,9 @@
 // automation can't leave a profile behind. A replay uses the profile its recording holds, unless
 // --fresh-profile is given.
 
+use engine::{file_sys::paths::PathRef, log, save::storage};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-use engine::{file_sys::paths::PathRef, log, save::storage};
 
 use crate::{
     campaign::config::{CampaignConfigs, ChoiceSite},
@@ -60,12 +59,12 @@ pub struct Profile {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CampaignRecord {
-    pub id: String,                    // CampaignDef::id.
-    pub reached: bool,                 // Playable: the first campaign, or the one before it finished.
+    pub id: String,                     // CampaignDef::id.
+    pub reached: bool,                  // Playable: the first campaign, or the one before it finished.
     pub current_mission: Option<usize>, // The mission last started, by index in the campaign.
-    pub missions_finished: Vec<usize>, // Indices of the missions finished, ascending.
-    pub distinctions: Vec<String>,     // TODO(realm-ui): the distinctions earned, once M9 awards them.
-    pub finished: bool,                // Its last mission is finished.
+    pub missions_finished: Vec<usize>,  // Indices of the missions finished, ascending.
+    pub distinctions: Vec<String>,      // TODO(realm-ui): the distinctions earned, once M9 awards them.
+    pub finished: bool,                 // Its last mission is finished.
     // The site picked at each choice point started (the world map's choice box), by step: the
     // campaign resumes there (next_mission). Left out of the file while empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -187,14 +186,21 @@ impl Profile {
     // The realm of the latest campaign reached, in campaigns.json order, hidden ones aside. None if
     // none is.
     pub fn latest_reached_realm(&self, configs: &CampaignConfigs) -> Option<Realm> {
-        configs.visible().map(|(_, campaign)| campaign).filter(|campaign| self.is_reached(&campaign.id)).last().map(|campaign| campaign.realm)
+        configs
+            .visible()
+            .map(|(_, campaign)| campaign)
+            .filter(|campaign| self.is_reached(&campaign.id))
+            .last()
+            .map(|campaign| campaign.realm)
     }
 
     // Whether the campaign at `campaign_index` in `configs` can be played: the first one always
     // (a new player starts it), the others once reached (the one before them finished, or
     // profile.set for a hidden one).
     pub fn is_playable(&self, configs: &CampaignConfigs, campaign_index: usize) -> bool {
-        configs.campaign(campaign_index).is_some_and(|campaign| (campaign_index == 0 && !campaign.hidden) || self.is_reached(&campaign.id))
+        configs
+            .campaign(campaign_index)
+            .is_some_and(|campaign| (campaign_index == 0 && !campaign.hidden) || self.is_reached(&campaign.id))
     }
 
     // The campaigns the menus offer, by index in `configs`, in order: the playable ones, hidden
@@ -313,7 +319,8 @@ impl Profile {
     // Replaces every campaign record with `records`, each a record's JSON over the defaults (its
     // fields left out take theirs), naming a campaign of `configs` once, its missions in range.
     pub fn set_campaign_records(&mut self, configs: &CampaignConfigs, records: Vec<Value>) -> Result<(), String> {
-        let records: Vec<CampaignRecord> = records.into_iter().map(|record| campaign_record_from_json(configs, record)).collect::<Result<_, _>>()?;
+        let records: Vec<CampaignRecord> =
+            records.into_iter().map(|record| campaign_record_from_json(configs, record)).collect::<Result<_, _>>()?;
         for (index, record) in records.iter().enumerate() {
             if records[..index].iter().any(|other| other.id == record.id) {
                 return Err(format!("Campaign '{}' has two records.", record.id));
@@ -367,7 +374,8 @@ fn campaign_record_from_json(configs: &CampaignConfigs, record: Value) -> Result
         (other, _) => return Err(format!("A campaign record is an object, not {other}.")),
     }
 
-    let mut record: CampaignRecord = serde_json::from_value(merged).map_err(|err| format!("Invalid campaign record: {err}"))?;
+    let mut record: CampaignRecord =
+        serde_json::from_value(merged).map_err(|err| format!("Invalid campaign record: {err}"))?;
 
     let campaign = &configs.campaigns[campaign_index(configs, &record.id)?];
     let missions = campaign.missions.len();
@@ -376,8 +384,15 @@ fn campaign_record_from_json(configs: &CampaignConfigs, record: Value) -> Result
         return Err(format!("Campaign '{}' has {missions} missions: there's no mission {index}.", record.id));
     }
     for (index, choice) in record.choices.iter().enumerate() {
-        if !campaign.missions.get(choice.step).is_some_and(|mission| mission.choices.iter().any(|offered| offered.site == choice.site)) {
-            return Err(format!("Campaign '{}': mission {} offers no site {} to choose.", record.id, choice.step, choice.site));
+        if !campaign
+            .missions
+            .get(choice.step)
+            .is_some_and(|mission| mission.choices.iter().any(|offered| offered.site == choice.site))
+        {
+            return Err(format!(
+                "Campaign '{}': mission {} offers no site {} to choose.",
+                record.id, choice.step, choice.site
+            ));
         }
         if record.choices[..index].iter().any(|other| other.step == choice.step) {
             return Err(format!("Campaign '{}': mission {} has two choices.", record.id, choice.step));
@@ -418,8 +433,8 @@ impl ProfileStore {
 common::singleton! { PROFILE_STORE, ProfileStore }
 
 pub struct ProfileOptions {
-    pub read_file: bool,          // False: start from a fresh profile (--fresh-profile), even in a replay.
-    pub write_file: bool,         // False: keep every change in memory.
+    pub read_file: bool,           // False: start from a fresh profile (--fresh-profile), even in a replay.
+    pub write_file: bool,          // False: keep every change in memory.
     pub recorded: Option<Profile>, // A replay's: used instead of the file, unless read_file is false.
 }
 
@@ -478,7 +493,10 @@ pub fn initialize(options: ProfileOptions) {
                     }
                 }
             }
-            (Some(err), _) => log::warning!(log::channel!("profile"), "Starting a fresh profile: {file_path} {err}. The file is left as it is."),
+            (Some(err), _) => log::warning!(
+                log::channel!("profile"),
+                "Starting a fresh profile: {file_path} {err}. The file is left as it is."
+            ),
             (None, Some(_)) => log::info!(log::channel!("profile"), "Loaded the profile from {file_path}."),
             (None, None) => {}
         }

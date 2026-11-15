@@ -1,18 +1,19 @@
 use std::any::{Any, TypeId};
 
 use common::mem;
-use engine::{
-    Engine,
-    log,
-    save::*,
-};
+use engine::{Engine, log, save::*};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, IntoEnumIterator, VariantNames};
 
 use super::{
     constants::*,
-    sim::{SimCmds, SimContext, SimContextMut, calendar::{CalendarDate, CalendarEvent, Season}},
+    sim::{
+        SimCmds,
+        SimContext,
+        SimContextMut,
+        calendar::{CalendarDate, CalendarEvent, Season},
+    },
     world::object::GenerationalIndex,
 };
 use crate::save_context::*;
@@ -167,11 +168,22 @@ impl GameSystems {
     }
 
     // Broadcasts the calendar events of a world step to every system, in order.
-    pub fn on_calendar_events(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext, events: &[CalendarEvent]) {
+    pub fn on_calendar_events(
+        &mut self,
+        engine: &mut Engine,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        events: &[CalendarEvent],
+    ) {
         for event in events {
             match *event {
                 CalendarEvent::NewMonth(date) => {
-                    log::verbose!(log::channel!("calendar"), "New month: {}, {}.", date.month, context.calendar().year_name());
+                    log::verbose!(
+                        log::channel!("calendar"),
+                        "New month: {}, {}.",
+                        date.month,
+                        context.calendar().year_name()
+                    );
                     for entry in &mut self.systems {
                         entry.system.on_new_month(engine, cmds, context, date);
                     }
@@ -183,7 +195,11 @@ impl GameSystems {
                     }
                 }
                 CalendarEvent::NewYear(year) => {
-                    log::info!(log::channel!("calendar"), "New year: {} (World Year {year}).", context.calendar().year_name());
+                    log::info!(
+                        log::channel!("calendar"),
+                        "New year: {} (World Year {year}).",
+                        context.calendar().year_name()
+                    );
                     for entry in &mut self.systems {
                         entry.system.on_new_year(engine, cmds, context, year);
                     }

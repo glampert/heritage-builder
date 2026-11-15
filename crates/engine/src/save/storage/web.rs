@@ -160,9 +160,7 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
 
         let key = super::user_file_path(user_file);
 
-        storage
-            .get_item(key.as_str())
-            .map_err(|_| format!("Failed to read user file '{key}' from Browser Local Storage."))
+        storage.get_item(key.as_str()).map_err(|_| format!("Failed to read user file '{key}' from Browser Local Storage."))
     }
 
     fn write_user_file(&self, user_file: PathRef, contents: &str) -> SaveResult {

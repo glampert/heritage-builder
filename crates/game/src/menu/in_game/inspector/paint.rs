@@ -90,7 +90,15 @@ pub(super) fn flow(p: Option<&Paint>, icons: Icons, items: &[Item], w: f32) -> f
                         p.text(w, ry, &format!("{} / {}", row.have, row.capacity), BODY, p.c.text, UiTextAnchor::End, false);
                     }
                     let ry = cy + 38.0 + rows.len() as f32 * 38.0;
-                    p.text(0.0, ry, engine::ui::text::get(UiTextCategory::Hud, "inspect.production.next_batch"), BODY, p.c.sub, UiTextAnchor::Start, false);
+                    p.text(
+                        0.0,
+                        ry,
+                        engine::ui::text::get(UiTextCategory::Hud, "inspect.production.next_batch"),
+                        BODY,
+                        p.c.sub,
+                        UiTextAnchor::Start,
+                        false,
+                    );
                     p.bar(mx, ry - 12.0, mw, 10.0, *progress);
                     p.text(w, ry, &format!("{}%", (progress * 100.0).round()), BODY, p.c.text, UiTextAnchor::End, false);
                 }
@@ -161,7 +169,15 @@ pub(super) fn flow(p: Option<&Paint>, icons: Icons, items: &[Item], w: f32) -> f
                     p.section(0.0, cy, title);
                     p.text(w, cy, note, NOTE, p.c.sub, UiTextAnchor::End, false);
                     p.bar(0.0, cy + 28.0, w - 70.0, 14.0, *value);
-                    p.text(w, cy + 40.0, &format!("{}%", (value * 100.0).round()), VALUE, p.c.text, UiTextAnchor::End, false);
+                    p.text(
+                        w,
+                        cy + 40.0,
+                        &format!("{}%", (value * 100.0).round()),
+                        VALUE,
+                        p.c.text,
+                        UiTextAnchor::End,
+                        false,
+                    );
                 }
                 cy += 82.0;
             }

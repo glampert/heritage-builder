@@ -108,11 +108,7 @@ impl Default for WorldStats {
             population: PopulationStats::default(),
             workers: WorkerStats::default(),
             treasury: TreasuryStats::default(),
-            houses: HousingStats {
-                total: 0,
-                lowest_level: HouseLevel::max(),
-                highest_level: HouseLevel::min(),
-            },
+            houses: HousingStats { total: 0, lowest_level: HouseLevel::max(), highest_level: HouseLevel::min() },
             resources: GlobalResourceCounts {
                 all: ResourceStock::accept_all(),
                 units: ResourceStock::accept_all(),
@@ -192,7 +188,6 @@ impl WorldStats {
         }
         self.houses.total += 1;
     }
-
 }
 
 // ----------------------------------------------
@@ -205,11 +200,7 @@ mod tests {
 
     #[test]
     fn employment_rate_basic() {
-        let stats = PopulationStats {
-            total: 100,
-            employed: 75,
-            unemployed: 25,
-        };
+        let stats = PopulationStats { total: 100, employed: 75, unemployed: 25 };
 
         assert!((stats.employment_ratio() - 0.75).abs() < f32::EPSILON);
         assert!((stats.unemployment_ratio() - 0.25).abs() < f32::EPSILON);
@@ -217,11 +208,7 @@ mod tests {
 
     #[test]
     fn employment_rate_zero_population() {
-        let stats = PopulationStats {
-            total: 0,
-            employed: 0,
-            unemployed: 0,
-        };
+        let stats = PopulationStats { total: 0, employed: 0, unemployed: 0 };
 
         assert_eq!(stats.employment_ratio(), 0.0);
         assert_eq!(stats.unemployment_ratio(), 0.0);

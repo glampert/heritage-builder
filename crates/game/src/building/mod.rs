@@ -1,11 +1,5 @@
 use arrayvec::ArrayVec;
 use bitflags::Flags;
-use enum_dispatch::enum_dispatch;
-use rand::Rng;
-use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
-use strum::{Display, EnumCount, EnumDiscriminants, EnumIter, IntoDiscriminant};
-
 use common::{
     Color,
     bitflags_with_display,
@@ -14,54 +8,52 @@ use common::{
     mem::Mutable,
     time::{Seconds, UpdateTimer},
 };
-use engine::{
-    log,
-    ui::UiSystem,
-};
+use config::{BuildingConfig, BuildingConfigs};
+use engine::{log, ui::UiSystem};
+use enum_dispatch::enum_dispatch;
 use house::HouseBuilding;
 use producer::ProducerBuilding;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 use service::ServiceBuilding;
+use smallvec::SmallVec;
 use storage::StorageBuilding;
-use config::{BuildingConfig, BuildingConfigs};
+use strum::{Display, EnumCount, EnumDiscriminants, EnumIter, IntoDiscriminant};
 
 use super::{
-    undo_redo::GameObjectSavedState,
     sim::{
-        SimContext, SimContextMut,
-        SimCmds,
         SimCmdQueue,
+        SimCmds,
+        SimContext,
+        SimContextMut,
         commands::ImmediateModeSimCmds,
         resources::{
             Population,
             RESOURCE_KIND_COUNT,
-            per_kind_map,
             ResourceKind,
             ResourceKinds,
             ResourceStock,
             ServiceKind,
             StockItem,
             Workers,
+            per_kind_map,
         },
     },
-    unit::{
-        Unit,
-        patrol::Patrol,
-        runner::Runner,
-        harvester::Harvester,
-    },
+    undo_redo::GameObjectSavedState,
+    unit::{Unit, harvester::Harvester, patrol::Patrol, runner::Runner},
     world::{
         object::{GameObject, GenerationalIndex},
         stats::WorldStats,
     },
 };
 use crate::{
-    save_context::*,
     config::GameConfigs,
     debug::{
         DebugUiMode,
         game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color},
     },
     pathfind::{self, NodeKind as PathNodeKind},
+    save_context::*,
     tile::{
         Tile,
         TileFlags,
@@ -402,9 +394,13 @@ impl GameObject for Building {
     ) {
         debug_assert!(self.is_spawned());
         let tile = self.find_tile(context);
-        self.archetype_mut()
-            .debug_options()
-            .draw_popup_messages(tile, ui_sys, transform, visible_range, context.delta_time_secs());
+        self.archetype_mut().debug_options().draw_popup_messages(
+            tile,
+            ui_sys,
+            transform,
+            visible_range,
+            context.delta_time_secs(),
+        );
     }
 }
 
@@ -684,7 +680,8 @@ impl Building {
         let dying = ((population as f32 * fraction).round() as u32).clamp(1, population);
 
         outbreak.next_death_secs += configs.death_interval_secs.max(0.1);
-        outbreak.fraction = (outbreak.fraction + configs.death_fraction_step).min(configs.death_fraction_max.max(configs.death_fraction));
+        outbreak.fraction =
+            (outbreak.fraction + configs.death_fraction_step).min(configs.death_fraction_max.max(configs.death_fraction));
 
         let building_context = self.new_context(context);
         let died = self.as_house_mut().lose_residents_to_disease(cmds, &building_context, dying);
@@ -1293,11 +1290,7 @@ impl Building {
             }
 
             if workers_added != 0 {
-                debug_popup_msg_color!(
-                    self.archetype_mut().debug_options(),
-                    Color::cyan(),
-                    "+{workers_added} workers"
-                );
+                debug_popup_msg_color!(self.archetype_mut().debug_options(), Color::cyan(), "+{workers_added} workers");
             }
         }
         workers_added
@@ -1312,11 +1305,7 @@ impl Building {
             }
 
             if workers_removed != 0 {
-                debug_popup_msg_color!(
-                    self.archetype_mut().debug_options(),
-                    Color::magenta(),
-                    "-{workers_removed} workers"
-                );
+                debug_popup_msg_color!(self.archetype_mut().debug_options(), Color::magenta(), "-{workers_removed} workers");
             }
         }
         workers_removed
@@ -1354,7 +1343,7 @@ impl Building {
         // Search for employees if we're an Employer and not already at max capacity.
         if let Some(workers) = self.archetype().workers()
             && let Some(employer) = workers.as_employer()
-                && !employer.is_at_max_capacity()
+            && !employer.is_at_max_capacity()
         {
             cmds.defer_building_update(self.kind_and_id(), |context, building| {
                 if let Some(house) = building.find_house_with_available_workers_mut(context) {
@@ -1405,11 +1394,7 @@ impl Building {
     #[inline]
     pub fn road_link(&self) -> Option<Cell> {
         debug_assert!(self.is_spawned());
-        if self.road_link.is_valid() {
-            Some(self.road_link)
-        } else {
-            None
-        }
+        if self.road_link.is_valid() { Some(self.road_link) } else { None }
     }
 
     pub fn is_showing_road_link_debug(&self, context: &SimContext) -> bool {
@@ -1756,15 +1741,7 @@ impl<'game> BuildingContext<'game> {
         has_outbreak: bool,
         sim_ctx: &'game SimContext<'game>,
     ) -> Self {
-        Self {
-            map_cells: Mutable::new(map_cells),
-            id,
-            kind,
-            archetype_kind,
-            road_link,
-            has_outbreak,
-            sim_ctx,
-        }
+        Self { map_cells: Mutable::new(map_cells), id, kind, archetype_kind, road_link, has_outbreak, sim_ctx }
     }
 
     #[inline]
@@ -2061,7 +2038,6 @@ pub fn construction_stage_from_tile_flags(flags: TileFlags) -> Option<u8> {
     let high = u8::from(flags.intersects(TileFlags::ConstructionStage1));
     Some(low | (high << 1))
 }
-
 
 #[cfg(test)]
 mod tests {

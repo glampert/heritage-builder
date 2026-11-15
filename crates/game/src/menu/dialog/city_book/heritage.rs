@@ -41,11 +41,12 @@ impl CityPage for Heritage {
             let empty = ui::text::get(UiTextCategory::City, &format!("book.heritage.{tab}.none")).to_string();
             let later = ui::text::get(UiTextCategory::City, &format!("book.heritage.{tab}.later")).to_string();
             let card_title = title.clone();
-            let canvas = body_canvas(page, BODY.x, height, tab, json!({ "empty": true, "text": empty }), move |p: &Paint| {
-                p.card(0.0, 0.0, BODY.x, height, Some(&card_title), None);
-                p.text(BODY.x * 0.5, height * 0.45, &empty, 24.0, p.c.text, UiTextAnchor::Middle, true);
-                p.text(BODY.x * 0.5, height * 0.45 + 40.0, &later, 18.0, p.c.sub, UiTextAnchor::Middle, false);
-            });
+            let canvas =
+                body_canvas(page, BODY.x, height, tab, json!({ "empty": true, "text": empty }), move |p: &Paint| {
+                    p.card(0.0, 0.0, BODY.x, height, Some(&card_title), None);
+                    p.text(BODY.x * 0.5, height * 0.45, &empty, 24.0, p.c.text, UiTextAnchor::Middle, true);
+                    p.text(BODY.x * 0.5, height * 0.45 + 40.0, &later, 18.0, p.c.sub, UiTextAnchor::Middle, false);
+                });
             tabs = tabs.with_tab_contents(title, super::left_group().with_widget(canvas));
         }
         super::left_group().with_widget_spacing(Vec2::zero()).with_widget(tabs)

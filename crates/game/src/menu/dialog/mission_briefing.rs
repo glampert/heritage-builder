@@ -31,8 +31,10 @@
 
 use common::{Color, Rect};
 
-use super::*;
-use super::screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight};
+use super::{
+    screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight},
+    *,
+};
 use crate::{
     campaign::{
         self,
@@ -246,16 +248,17 @@ impl Briefing {
         let Some(active) = campaign::preview::shown_mission() else {
             return plain();
         };
-        let (Some(campaign), Some(mission)) = (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index)) else {
+        let (Some(campaign), Some(mission)) =
+            (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index))
+        else {
             return plain();
         };
 
         let number = campaign.mission_number(active.mission_index).to_string();
-        let kicker = ui::text::format(
-            UiTextCategory::Menu,
-            "briefing.kicker",
-            &[("campaign", &super::home::campaign_number(active.campaign_id)), ("number", &number)],
-        )
+        let kicker = ui::text::format(UiTextCategory::Menu, "briefing.kicker", &[
+            ("campaign", &super::home::campaign_number(active.campaign_id)),
+            ("number", &number),
+        ])
         .to_uppercase();
         let name = campaign.mission_display_name(active.mission_index).unwrap_or_default().to_string();
         let year = realm::date_text(realm::ui_realm_for(false).realm, context.sim.calendar());
@@ -271,8 +274,15 @@ impl Briefing {
         };
 
         let story = |key: &String| ui::text::get(UiTextCategory::Story, key).to_string();
-        let lead_in = mission.lead_in_text().map(|line| ui::text::format(UiTextCategory::Menu, "briefing.lead_in", &[("line", line)]));
-        let paragraphs = mission.briefing_text().split("\n\n").map(str::trim).filter(|paragraph| !paragraph.is_empty()).map(str::to_string).collect();
+        let lead_in =
+            mission.lead_in_text().map(|line| ui::text::format(UiTextCategory::Menu, "briefing.lead_in", &[("line", line)]));
+        let paragraphs = mission
+            .briefing_text()
+            .split("\n\n")
+            .map(str::trim)
+            .filter(|paragraph| !paragraph.is_empty())
+            .map(str::to_string)
+            .collect();
 
         let stats = context.world.stats();
         let digits = super::load_save::group_digits;
@@ -431,17 +441,24 @@ fn contents(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, wi
 
     if !briefing.kicker.is_empty() {
         let font = scales.heading_font(KICKER_SIZE);
-        let kicker = text_line(&briefing.kicker, "kicker", font, accent, width, UiTextAlign::Left).with_heading_font().with_letter_spacing(scales.pt(LETTER_SPACING));
+        let kicker = text_line(&briefing.kicker, "kicker", font, accent, width, UiTextAlign::Left)
+            .with_heading_font()
+            .with_letter_spacing(scales.pt(LETTER_SPACING));
         parts.push(tight(context, kicker, font, KICKER_SIZE, scales).into());
         parts.push(gap(HEAD_GAPS[0]).into());
     }
     let font = scales.heading_font(NAME_SIZE);
-    let name = text_line(&briefing.name, "name", font, color("heading", "title"), width, UiTextAlign::Left).with_heading_font();
+    let name =
+        text_line(&briefing.name, "name", font, color("heading", "title"), width, UiTextAlign::Left).with_heading_font();
     parts.push(tight(context, name, font, NAME_SIZE, scales).into());
     if !briefing.place.is_empty() {
         parts.push(gap(HEAD_GAPS[1]).into());
         let font = scales.font(PLACE_SIZE);
-        let place = UiRichText::from_spans([UiTextSpan::emphasized(briefing.place.clone())]).with_label("place").with_font_scale(font).with_width(width).with_text_color(sub);
+        let place = UiRichText::from_spans([UiTextSpan::emphasized(briefing.place.clone())])
+            .with_label("place")
+            .with_font_scale(font)
+            .with_width(width)
+            .with_text_color(sub);
         parts.push(tight(context, place, font, PLACE_SIZE, scales).into());
     }
     parts.push(gap(HEAD_GAPS[2]).into());
@@ -496,7 +513,11 @@ fn left_column(context: &mut GameUiContext, scales: Scales, briefing: &Briefing,
             .with_width(width)
             .with_font_scale(font)
             .with_header(UiTableHeader { hidden: true, ..UiTableHeader::default() })
-            .with_bullets(def.bullet.bullet(), skin::color(&def.bullet_color).unwrap_or(color("accent", "accent")), scales.pt(10.0).max(3.0))
+            .with_bullets(
+                def.bullet.bullet(),
+                skin::color(&def.bullet_color).unwrap_or(color("accent", "accent")),
+                scales.pt(10.0).max(3.0),
+            )
             .with_column(UiTableColumn::new("", UiColumnWidth::Fraction(1.0), UiColumnAlign::Left));
         for item in &briefing.new {
             table = table.with_row(UiTableRow::new([item.clone()]));
@@ -516,9 +537,16 @@ fn left_column(context: &mut GameUiContext, scales: Scales, briefing: &Briefing,
 // A section's title in capitals: "NEW IN THIS MISSION", "GOALS".
 fn section_title(context: &GameUiContext, scales: Scales, key: &str, label: &str, width: f32) -> UiRichText {
     let font = scales.heading_font(SECTION_SIZE);
-    let title = text_line(&ui::text::get(UiTextCategory::Menu, key).to_uppercase(), label, font, skin::intermission_color("section", "accent"), width, UiTextAlign::Left)
-        .with_heading_font()
-        .with_letter_spacing(scales.pt(LETTER_SPACING));
+    let title = text_line(
+        &ui::text::get(UiTextCategory::Menu, key).to_uppercase(),
+        label,
+        font,
+        skin::intermission_color("section", "accent"),
+        width,
+        UiTextAlign::Left,
+    )
+    .with_heading_font()
+    .with_letter_spacing(scales.pt(LETTER_SPACING));
     tight(context, title, font, SECTION_SIZE, scales)
 }
 
@@ -558,7 +586,13 @@ fn threats_line(context: &GameUiContext, scales: Scales, threats: &str, width: f
 
 // The lead-in, the briefing's text, the goals, and Begin (or the choice's sites), kept level with
 // the bottom of the left column when it's the taller (`left_height`).
-fn right_column(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, width: f32, left_height: f32) -> UiWidgetGroup {
+fn right_column(
+    context: &mut GameUiContext,
+    scales: Scales,
+    briefing: &Briefing,
+    width: f32,
+    left_height: f32,
+) -> UiWidgetGroup {
     let color = skin::intermission_color;
     let gap = |points: f32| spacer(scales.pt(points));
     let mut parts: Vec<UiWidgetImpl> = Vec::new();
@@ -578,7 +612,10 @@ fn right_column(context: &mut GameUiContext, scales: Scales, briefing: &Briefing
         if index > 0 {
             parts.push(gap(RIGHT_GAPS[1]).into());
         }
-        parts.push(text_line(paragraph, &format!("text_{}", index + 1), font, color("text", "ink"), width, UiTextAlign::Left).into());
+        parts.push(
+            text_line(paragraph, &format!("text_{}", index + 1), font, color("text", "ink"), width, UiTextAlign::Left)
+                .into(),
+        );
     }
     if !briefing.goals.is_empty() {
         parts.push(gap(RIGHT_GAPS[2]).into());
@@ -624,8 +661,19 @@ fn goals_table(context: &GameUiContext, scales: Scales, briefing: &Briefing, wid
             hidden: false,
         })
         .with_status_column(UiTableStatusLook::Badges { done: accent, mark: color("check_mark", "on_accent"), open: accent })
-        .with_column(UiTableColumn::new(ui::text::get(UiTextCategory::Menu, "debrief.goals").to_uppercase(), UiColumnWidth::Fraction(1.0), UiColumnAlign::Left).with_title_color(color("section", "accent")))
-        .with_column(UiTableColumn::new(ui::text::get(UiTextCategory::Menu, "debrief.target").to_uppercase(), UiColumnWidth::Fixed(scales.pt(TARGET_WIDTH)), UiColumnAlign::Right));
+        .with_column(
+            UiTableColumn::new(
+                ui::text::get(UiTextCategory::Menu, "debrief.goals").to_uppercase(),
+                UiColumnWidth::Fraction(1.0),
+                UiColumnAlign::Left,
+            )
+            .with_title_color(color("section", "accent")),
+        )
+        .with_column(UiTableColumn::new(
+            ui::text::get(UiTextCategory::Menu, "debrief.target").to_uppercase(),
+            UiColumnWidth::Fixed(scales.pt(TARGET_WIDTH)),
+            UiColumnAlign::Right,
+        ));
     for (goal, target) in &briefing.goals {
         table = table.with_row(UiTableRow::new([goal.clone(), target.clone()]).with_status(UiTableStatus::Pending));
     }
@@ -637,7 +685,10 @@ fn goals_table(context: &GameUiContext, scales: Scales, briefing: &Briefing, wid
 // sequence before a choice point is its step's, which just played).
 fn buttons(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, width: f32) -> UiWidgetGroup {
     let sized = |button: UiTextButton, button_width: f32| {
-        scales.button_text(button.with_width(UiTextButtonWidth::Fixed(scales.pt(button_width))).with_min_height(scales.pt(BUTTON_HEIGHT)), BUTTON_TEXT_SIZE)
+        scales.button_text(
+            button.with_width(UiTextButtonWidth::Fixed(scales.pt(button_width))).with_min_height(scales.pt(BUTTON_HEIGHT)),
+            BUTTON_TEXT_SIZE,
+        )
     };
     let mut group = left_group().with_widget_spacing(Vec2::zero());
     let mut columns = UiColumns::new().with_spacing(scales.pt(BUTTON_GAP)).with_width(width);
@@ -645,15 +696,31 @@ fn buttons(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, wid
     match &briefing.choice {
         None => {
             if replay_sequence().is_some() {
-                let replay = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "briefing.replay"), |_, context| {
-                    MissionBriefing::on_replay(context_as_mut::<GameUiContext>(context));
-                });
-                columns.add_column(UiColumnWidth::Fixed(scales.pt(REPLAY_WIDTH)), left_group().with_widget(sized(replay, REPLAY_WIDTH)));
+                let replay = skin::button(
+                    context,
+                    ButtonRole::Secondary,
+                    UiString::key(UiTextCategory::Menu, "briefing.replay"),
+                    |_, context| {
+                        MissionBriefing::on_replay(context_as_mut::<GameUiContext>(context));
+                    },
+                );
+                columns.add_column(
+                    UiColumnWidth::Fixed(scales.pt(REPLAY_WIDTH)),
+                    left_group().with_widget(sized(replay, REPLAY_WIDTH)),
+                );
             }
-            let begin = skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "briefing.begin"), |_, context| {
-                MissionBriefing::on_begin(context_as_mut::<GameUiContext>(context));
-            });
-            columns.add_column(UiColumnWidth::Fixed(scales.pt(BEGIN_WIDTH)), left_group().with_widget(sized(begin, BEGIN_WIDTH)));
+            let begin = skin::button(
+                context,
+                ButtonRole::Primary,
+                UiString::key(UiTextCategory::Menu, "briefing.begin"),
+                |_, context| {
+                    MissionBriefing::on_begin(context_as_mut::<GameUiContext>(context));
+                },
+            );
+            columns.add_column(
+                UiColumnWidth::Fixed(scales.pt(BEGIN_WIDTH)),
+                left_group().with_widget(sized(begin, BEGIN_WIDTH)),
+            );
         }
         Some(choice) => {
             let font = scales.font(TEXT_SIZE);
@@ -670,7 +737,10 @@ fn buttons(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, wid
                 let button = skin::button(context, ButtonRole::Primary, name, move |_, context| {
                     MissionBriefing::on_site(context_as_mut::<GameUiContext>(context), &choice, mission);
                 });
-                columns.add_column(UiColumnWidth::Fixed(scales.pt(SITE_WIDTH)), left_group().with_widget(sized(button, SITE_WIDTH)));
+                columns.add_column(
+                    UiColumnWidth::Fixed(scales.pt(SITE_WIDTH)),
+                    left_group().with_widget(sized(button, SITE_WIDTH)),
+                );
             }
         }
     }
@@ -708,8 +778,14 @@ fn image(context: &mut GameUiContext, scales: Scales, briefing: &Briefing) -> Ui
     // The part of the base shown, in its pixels, kept on the map.
     let span = Vec2::new(IMAGE_SPAN_PIXELS, IMAGE_SPAN_PIXELS * IMAGE.y / IMAGE.x);
     let span = Vec2::new(span.x.min(map_size.x), span.y.min(map_size.y));
-    let min = Vec2::new((centre.x - span.x * 0.5).clamp(0.0, (map_size.x - span.x).max(0.0)), (centre.y - span.y * 0.5).clamp(0.0, (map_size.y - span.y).max(0.0)));
-    let uv = Rect::from_pos_and_size(Vec2::new(min.x / texture_size.x, min.y / texture_size.y), Vec2::new(span.x / texture_size.x, span.y / texture_size.y));
+    let min = Vec2::new(
+        (centre.x - span.x * 0.5).clamp(0.0, (map_size.x - span.x).max(0.0)),
+        (centre.y - span.y * 0.5).clamp(0.0, (map_size.y - span.y).max(0.0)),
+    );
+    let uv = Rect::from_pos_and_size(
+        Vec2::new(min.x / texture_size.x, min.y / texture_size.y),
+        Vec2::new(span.x / texture_size.x, span.y / texture_size.y),
+    );
     let ring = briefing.city.as_ref().map(|_| Vec2::new((centre.x - min.x) / span.x, (centre.y - min.y) / span.y));
 
     let def = skin::briefing();

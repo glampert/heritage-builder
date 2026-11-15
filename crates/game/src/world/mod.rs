@@ -1,33 +1,32 @@
-use smallvec::SmallVec;
-use strum::IntoDiscriminant;
-use serde::{Deserialize, Serialize};
-
 use common::coords::{Cell, CellRange, WorldToScreenTransform};
 use engine::{log, save::*, ui::UiSystem};
 use object::*;
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use stats::*;
+use strum::IntoDiscriminant;
 
 use crate::{
     building::{
         BUILDING_ARCHETYPE_COUNT,
         Building,
+        BuildingArchetypeKind,
         BuildingId,
         BuildingKind,
-        BuildingArchetypeKind,
         config::BuildingConfigs,
     },
     constants::*,
-    save_context::*,
     debug::DebugUiMode,
     prop::{Prop, PropId, config::PropConfigs},
+    save_context::*,
     sim::{Finance, SimCmds, SimContext, SimContextMut},
     tile::{
         Tile,
+        TileGameObjectHandle,
         TileKind,
         TileMap,
         TileMapLayerKind,
         TilePoolIndex,
-        TileGameObjectHandle,
         placement::{self, Clearing, Placement, TileClearingErr, TilePlacementErr},
         sets::{OBJECTS_UNITS_CATEGORY, TileDef, TileSets},
     },
@@ -87,10 +86,7 @@ impl World {
                     BuildingArchetypeKind::ServiceBuilding,
                     SpawnPool::new(SERVICE_BUILDINGS_POOL_CAPACITY, INITIAL_GENERATION),
                 ),
-                (
-                    BuildingArchetypeKind::HouseBuilding,
-                    SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY, INITIAL_GENERATION),
-                ),
+                (BuildingArchetypeKind::HouseBuilding, SpawnPool::new(HOUSE_BUILDINGS_POOL_CAPACITY, INITIAL_GENERATION)),
             ],
             // Units:
             unit_spawn_pool: SpawnPool::new(UNIT_SPAWN_POOL_CAPACITY, INITIAL_GENERATION),
@@ -302,11 +298,7 @@ impl World {
         }
     }
 
-    fn despawn_building(
-        &mut self,
-        context: &SimContextMut,
-        building: &mut Building,
-    ) -> Result<(), TileClearingErr> {
+    fn despawn_building(&mut self, context: &SimContextMut, building: &mut Building) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn buildings while world is locked!");
 
         let tile_base_cell = building.base_cell();
@@ -347,17 +339,11 @@ impl World {
         Ok(())
     }
 
-    fn despawn_building_at_cell(
-        &mut self,
-        context: &SimContextMut,
-        tile_base_cell: Cell,
-    ) -> Result<(), TileClearingErr> {
+    fn despawn_building_at_cell(&mut self, context: &SimContextMut, tile_base_cell: Cell) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn buildings while world is locked!");
         debug_assert!(tile_base_cell.is_valid());
 
-        let building = context
-            .find_building_for_cell_mut(tile_base_cell)
-            .expect("Tile cell does not contain a Building!");
+        let building = context.find_building_for_cell_mut(tile_base_cell).expect("Tile cell does not contain a Building!");
 
         self.despawn_building(context, building)
     }
@@ -511,7 +497,14 @@ impl World {
         }
     }
 
-    pub fn draw_building_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem, tile: &Tile, mode: DebugUiMode) {
+    pub fn draw_building_debug_ui(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContextMut,
+        ui_sys: &UiSystem,
+        tile: &Tile,
+        mode: DebugUiMode,
+    ) {
         if let Some(building) = self.find_building_for_tile_mut(tile) {
             building.draw_debug_ui(cmds, context, ui_sys, mode);
         }
@@ -614,11 +607,7 @@ impl World {
         }
     }
 
-    fn despawn_unit(
-        &mut self,
-        context: &SimContextMut,
-        unit: &mut Unit,
-    ) -> Result<(), TileClearingErr> {
+    fn despawn_unit(&mut self, context: &SimContextMut, unit: &mut Unit) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn units while world is locked!");
 
         debug_assert!(unit.is_spawned());
@@ -688,11 +677,7 @@ impl World {
         }
     }
 
-    fn despawn_unit_at_cell(
-        &mut self,
-        context: &SimContextMut,
-        tile_base_cell: Cell,
-    ) -> Result<(), TileClearingErr> {
+    fn despawn_unit_at_cell(&mut self, context: &SimContextMut, tile_base_cell: Cell) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn units while world is locked!");
         debug_assert!(tile_base_cell.is_valid());
 
@@ -835,7 +820,14 @@ impl World {
         }
     }
 
-    pub fn draw_unit_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem, tile: &Tile, mode: DebugUiMode) {
+    pub fn draw_unit_debug_ui(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContextMut,
+        ui_sys: &UiSystem,
+        tile: &Tile,
+        mode: DebugUiMode,
+    ) {
         if let Some(unit) = self.find_unit_for_tile_mut(tile) {
             unit.draw_debug_ui(cmds, context, ui_sys, mode);
         }
@@ -885,11 +877,7 @@ impl World {
         }
     }
 
-    fn despawn_prop(
-        &mut self,
-        context: &SimContextMut,
-        prop: &mut Prop,
-    ) -> Result<(), TileClearingErr> {
+    fn despawn_prop(&mut self, context: &SimContextMut, prop: &mut Prop) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn props while world is locked!");
 
         let tile_base_cell = prop.cell();
@@ -924,17 +912,11 @@ impl World {
         Ok(())
     }
 
-    fn despawn_prop_at_cell(
-        &mut self,
-        context: &SimContextMut,
-        tile_base_cell: Cell,
-    ) -> Result<(), TileClearingErr> {
+    fn despawn_prop_at_cell(&mut self, context: &SimContextMut, tile_base_cell: Cell) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn props while world is locked!");
         debug_assert!(tile_base_cell.is_valid());
 
-        let prop = context
-            .find_prop_for_cell_mut(tile_base_cell)
-            .expect("Tile cell does not contain a Prop!");
+        let prop = context.find_prop_for_cell_mut(tile_base_cell).expect("Tile cell does not contain a Prop!");
 
         self.despawn_prop(context, prop)
     }
@@ -1041,12 +1023,18 @@ impl World {
         }
     }
 
-    pub fn draw_prop_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem, tile: &Tile, mode: DebugUiMode) {
+    pub fn draw_prop_debug_ui(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContextMut,
+        ui_sys: &UiSystem,
+        tile: &Tile,
+        mode: DebugUiMode,
+    ) {
         if let Some(prop) = self.find_prop_for_tile_mut(tile) {
             prop.draw_debug_ui(cmds, context, ui_sys, mode);
         }
     }
-
 }
 
 impl Default for World {

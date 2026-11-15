@@ -1,10 +1,10 @@
 use common::coords::Cell;
 use game::{
-    campaign::config::MissionFinanceDef,
     building::{BuildingKind, construction::ConstructionMode},
+    campaign::config::MissionFinanceDef,
     cheats,
-    menu::{PlaceOrClearResult, TilePlacement},
     config::GameConfigs,
+    menu::{PlaceOrClearResult, TilePlacement},
     sim::{
         calendar::{CalendarDate, CalendarEvent},
         finance::{self, Finance, LedgerCategory, TaxLevel},
@@ -201,7 +201,10 @@ fn test_sites_pay_no_upkeep() {
     assert_eq!(finance::yearly_upkeep(&env.world, &env.tile_map), 0);
 
     test_utils::spawn_building(&mut env, Cell::new(12, 12), "tax_office");
-    assert_eq!(finance::yearly_upkeep(&env.world, &env.tile_map), u64::from(test_utils::find_building_def("tax_office").upkeep));
+    assert_eq!(
+        finance::yearly_upkeep(&env.world, &env.tile_map),
+        u64::from(test_utils::find_building_def("tax_office").upkeep)
+    );
 
     cheats::get_mut().instant_construction = true;
     undo_redo::clear();
@@ -235,7 +238,10 @@ fn test_debt_blocks_gold_placements() {
 
         assert!(!finance(&env).can_afford(cost));
         assert_eq!(finance(&env).shortfall(cost), cost, "debt doesn't add to what's missing");
-        assert!(matches!(place(&mut env, Cell::new(4, 4), "small_well", ConstructionMode::Finished), PlaceOrClearResult::Failed { .. }));
+        assert!(matches!(
+            place(&mut env, Cell::new(4, 4), "small_well", ConstructionMode::Finished),
+            PlaceOrClearResult::Failed { .. }
+        ));
         assert_eq!(finance(&env).balance(), -10, "a refused placement charges nothing");
 
         // Back out of debt with enough for it, and it can be built.

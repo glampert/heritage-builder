@@ -6,32 +6,29 @@ use std::{
 
 use common::{Size, Vec2, coords::CellRange, hash, mem::RcMut, time::Seconds};
 use engine::{
-    log,
     Engine,
-    ui::UiInputEvent,
-    file_sys::paths::PathRef,
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
+    file_sys::paths::PathRef,
+    log,
     save::{self, LoadResult, SaveResult, SaveState, SaveStateImpl},
+    ui::UiInputEvent,
 };
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     camera::*,
-    launch::{self, LaunchOptions},
+    campaign::{self, CampaignProgress, config::MissionFinanceDef},
     cheats,
+    config::{GameConfigs, LoadMapSetting},
+    custom_game::{self, ActiveCustomGame, CustomGameSettings},
+    debug::{DevEditorMenus, preset_maps},
+    launch::{self, LaunchOptions},
+    menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
     profile,
     realm::{self, Realm},
-    save_header::{self, SaveFileContents, SaveHeader},
-    undo_redo,
-    world::World,
-    campaign::{self, CampaignProgress, config::MissionFinanceDef},
-    custom_game::{self, ActiveCustomGame, CustomGameSettings},
-    config::{GameConfigs, LoadMapSetting},
-    debug::{DevEditorMenus, preset_maps},
-    menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
-    ui_context::GameUiContext,
     save_context::*,
+    save_header::{self, SaveFileContents, SaveHeader},
     sim::{RandomGenerator, SimContextMut, Simulation},
     system::GameSystems,
     tile::{
@@ -42,6 +39,9 @@ use crate::{
         selection::TileSelection,
         sets::TileDef,
     },
+    ui_context::GameUiContext,
+    undo_redo,
+    world::World,
 };
 
 // ----------------------------------------------
@@ -218,7 +218,11 @@ impl GameSessionCmdQueue {
         cheats::get_mut().restore(&cheats);
 
         if !session.tile_map().size_in_cells().is_valid() {
-            log::error!(log::channel!("session"), "Custom game: the map '{}' didn't load. Back to the home menu.", settings.map_id);
+            log::error!(
+                log::channel!("session"),
+                "Custom game: the map '{}' didn't load. Back to the home menu.",
+                settings.map_id
+            );
             destroy(session, engine, configs);
             *session = create(engine, configs, None);
             return;
@@ -241,7 +245,13 @@ impl GameSessionCmdQueue {
         let _ = session.load_save_game(engine, configs, save_file); // Failures are logged.
     }
 
-    fn cmd_save_game(&mut self, session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs, save_file: PathRef) {
+    fn cmd_save_game(
+        &mut self,
+        session: &mut GameSession,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        save_file: PathRef,
+    ) {
         debug_assert!(!save_file.is_empty());
         let _ = session.save_game_with_thumbnail(engine, configs, save_file); // Failures are logged.
     }
@@ -543,11 +553,19 @@ impl GameSession {
         let systems = engine.systems_mut_refs();
         let tex_cache = systems.render_sys.texture_cache_mut();
 
-        self.tile_map.minimap_mut().update(&mut self.camera, tex_cache, systems.input_sys, systems.ui_sys, covers_hud, delta_time_secs);
+        self.tile_map.minimap_mut().update(
+            &mut self.camera,
+            tex_cache,
+            systems.input_sys,
+            systems.ui_sys,
+            covers_hud,
+            delta_time_secs,
+        );
 
         // Under a full-screen dialog (the world map) the city can't be seen: it's drawn only for a
         // capture of the scene without the UI this frame (a save's thumbnail).
-        let covered = self.menus.as_ref().is_some_and(|menus| menus.covers_window()) && !systems.render_sys.has_pending_scene_capture();
+        let covered = self.menus.as_ref().is_some_and(|menus| menus.covers_window())
+            && !systems.render_sys.has_pending_scene_capture();
 
         if self.tile_map.size_in_cells().is_valid() && !covered {
             self.tile_map_renderer.draw_map(
@@ -825,9 +843,7 @@ impl GameSession {
 
                 tile_map
             }
-            LoadMapSetting::Preset { preset_number } => {
-                preset_maps::create_preset_tile_map(world, *preset_number)
-            }
+            LoadMapSetting::Preset { preset_number } => preset_maps::create_preset_tile_map(world, *preset_number),
             LoadMapSetting::SaveGame { save_file } => {
                 if save_file.to_str().unwrap().is_empty() {
                     log::error!(log::channel!("session"), "LoadMapSetting::SaveGame: No save file path provided!");
@@ -1010,7 +1026,8 @@ impl GameSession {
         self.pre_save(&mut PreSaveContext::new(self.sim.cmds().clone()));
         // After pre_save: it captures the campaign's progress the header reads.
         let header = self.save_header();
-        let save_result = save::storage::write_save_file(save_file, &SaveFileContents { save_header: &header, session: &*self });
+        let save_result =
+            save::storage::write_save_file(save_file, &SaveFileContents { save_header: &header, session: &*self });
         self.post_save(&mut PostSaveContext::new());
 
         // What Continue loads: every save goes through here, the autosave and session.save included.

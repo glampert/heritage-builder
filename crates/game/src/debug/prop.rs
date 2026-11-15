@@ -36,7 +36,9 @@ impl Prop {
     }
 
     fn draw_debug_ui_overview(&mut self, _context: &SimContext, ui_sys: &UiSystem) {
-        ui::with_font_scale(ui_sys, 1.2, |ui_sys| ui::text(ui_sys, format_small!("{} | ID{} @{}", self.name(), self.id(), self.cell())));
+        ui::with_font_scale(ui_sys, 1.2, |ui_sys| {
+            ui::text(ui_sys, format_small!("{} | ID{} @{}", self.name(), self.id(), self.cell()))
+        });
 
         let color_bullet_text = |label: &str, value: u32| {
             ui::horizontal(ui_sys, |ui_sys| {
@@ -58,9 +60,7 @@ impl Prop {
         config.draw_debug_ui_with_header("Config", ui_sys);
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
-        let Some(_path) =
-            ui::collapsing_header_scope(ui_sys, "Properties##_prop_properties", false)
-        else {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Properties##_prop_properties", false) else {
             return; // collapsed.
         };
 

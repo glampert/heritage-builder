@@ -6,14 +6,16 @@
 
 use std::collections::BTreeMap;
 
+use common::Color;
+use engine::{config, file_sys, log};
 use serde::{Deserialize, Deserializer};
 use strum::IntoEnumIterator;
 
-use common::Color;
-use engine::{config, file_sys, log};
-
 use super::model::LandmarkKind;
-use crate::{realm::{self, Realm}, tile::sets::TileSector};
+use crate::{
+    realm::{self, Realm},
+    tile::sets::TileSector,
+};
 
 // ----------------------------------------------
 // HexColor
@@ -61,7 +63,9 @@ impl HexColor {
 impl<'de> Deserialize<'de> for HexColor {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
-        Self::parse(&text).ok_or_else(|| serde::de::Error::custom(format!("expected a colour as \"#RRGGBB\" or \"#RRGGBBAA\", got \"{text}\"")))
+        Self::parse(&text).ok_or_else(|| {
+            serde::de::Error::custom(format!("expected a colour as \"#RRGGBB\" or \"#RRGGBBAA\", got \"{text}\""))
+        })
     }
 }
 
@@ -107,14 +111,14 @@ pub struct MinimapStyle {
     // Sprites, under assets/ui.
     pub field_texture: String,
     pub tooltip_frame: String, // Behind the map's hover tooltip; empty for the UI skin's tooltip panel.
-    pub buttons: String, // Folder of the tool and lens buttons under buttons/, e.g. "minimap".
+    pub buttons: String,       // Folder of the tool and lens buttons under buttons/, e.g. "minimap".
     pub landmark_icons: BTreeMap<LandmarkKind, String>,
     pub alert_icon: String,
 
     pub landmark: LandmarkStyle,
     pub camera: CameraStyle,
     pub ping: HexColor,
-    pub ping_opacity: f32,    // Of alert pings: their rings and icon, 1 opaque.
+    pub ping_opacity: f32, // Of alert pings: their rings and icon, 1 opaque.
     // The tooltip naming what's under the cursor on the map (not the buttons', which follow the
     // rest of the HUD): its opacity (1 opaque), and whether it has a background at all.
     pub tooltip_opacity: f32,
@@ -200,9 +204,9 @@ pub struct BlurCells {
 pub struct LandmarkStyle {
     pub fill: HexColor,
     pub ink: HexColor,
-    pub size: f32,         // Diameter in points.
-    pub min_cell_px: f32,  // Shown once a cell is this many points across.
-    pub opacity: f32,      // 1 opaque.
+    pub size: f32,        // Diameter in points.
+    pub min_cell_px: f32, // Shown once a cell is this many points across.
+    pub opacity: f32,     // 1 opaque.
 }
 
 // The lens legend under the map.
@@ -238,8 +242,8 @@ pub struct CameraStyle {
 #[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct LensStyle {
-    pub veil: HexColor,          // Over the base, to dim it under a lens.
-    pub neutral: HexColor,       // Buildings a lens says nothing about.
+    pub veil: HexColor,    // Over the base, to dim it under a lens.
+    pub neutral: HexColor, // Buildings a lens says nothing about.
     pub sector_colors: SectorColors,
     pub water_ramp: [HexColor; 2], // The heat field, from no value to full.
     pub water_access: HexColor,
@@ -260,7 +264,8 @@ pub struct LensStyle {
 
 impl Default for MinimapStyle {
     fn default() -> Self {
-        let landmark_icons = LandmarkKind::iter().map(|kind| (kind, format!("minimap/icons/{}.png", kind.file_stem()))).collect();
+        let landmark_icons =
+            LandmarkKind::iter().map(|kind| (kind, format!("minimap/icons/{}.png", kind.file_stem()))).collect();
         Self {
             max_texture_side: 1024,
             bake_budget_cells: 4096,
@@ -489,7 +494,12 @@ impl MinimapStyles {
     // copy from the last read. One that can't be read or doesn't parse is an error, except that
     // the web build, which can read an asset only once, rereads the copy.
     // `read` gives a realm's file's text (read_style_file).
-    fn file_json(&mut self, realm: Realm, reread: bool, read: &mut impl FnMut(Realm) -> Result<String, String>) -> Result<serde_json::Value, String> {
+    fn file_json(
+        &mut self,
+        realm: Realm,
+        reread: bool,
+        read: &mut impl FnMut(Realm) -> Result<String, String>,
+    ) -> Result<serde_json::Value, String> {
         let cached = self.files.iter().position(|(file_realm, _)| *file_realm == realm);
         if let Some(index) = cached
             && !reread
@@ -513,7 +523,12 @@ impl MinimapStyles {
 
     // Loads `realm`'s style. If it fails, the current style and realm stay (the defaults, if
     // there's no style yet).
-    fn load(&mut self, realm: Realm, reread: bool, read: &mut impl FnMut(Realm) -> Result<String, String>) -> Result<(), String> {
+    fn load(
+        &mut self,
+        realm: Realm,
+        reread: bool,
+        read: &mut impl FnMut(Realm) -> Result<String, String>,
+    ) -> Result<(), String> {
         match MinimapStyle::load_with(realm, |realm| self.file_json(realm, reread, read)) {
             Ok(style) => {
                 self.current = Some(style);
@@ -544,7 +559,11 @@ impl MinimapStyles {
     }
 
     // reload() on these styles.
-    fn reload_with(&mut self, realm: Realm, read: &mut impl FnMut(Realm) -> Result<String, String>) -> Result<Realm, String> {
+    fn reload_with(
+        &mut self,
+        realm: Realm,
+        read: &mut impl FnMut(Realm) -> Result<String, String>,
+    ) -> Result<Realm, String> {
         self.load(realm, true, read)?;
         self.followed = Some(realm);
         log::info!(log::channel!("minimap"), "Loaded minimap style '{realm}'.");
@@ -643,7 +662,10 @@ mod tests {
     // A realm's file merges over Đại Long's, and each file is read once, then taken from the copy.
     #[test]
     fn follow_merges_and_caches_the_files() {
-        let files = Files::new(&[(Realm::DaiLong, r#"{ "map_size": [300, 150] }"#), (Realm::Kambara, r#"{ "map_size": [320, 150] }"#)]);
+        let files = Files::new(&[
+            (Realm::DaiLong, r#"{ "map_size": [300, 150] }"#),
+            (Realm::Kambara, r#"{ "map_size": [320, 150] }"#),
+        ]);
         let mut styles = MinimapStyles::new();
 
         assert_eq!(styles.follow_with(Realm::DaiLong, &mut files.reader()).map_size().x, 300.0);
@@ -708,6 +730,10 @@ mod tests {
         } else {
             assert_eq!(reread.unwrap_err(), "asset consumed");
         }
-        assert_eq!(styles.file_json(Realm::DaiLong, false, &mut files.reader()).unwrap()["map_size"][0], 300, "the copy stays");
+        assert_eq!(
+            styles.file_json(Realm::DaiLong, false, &mut files.reader()).unwrap()["map_size"][0],
+            300,
+            "the copy stays"
+        );
     }
 }

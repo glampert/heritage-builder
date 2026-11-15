@@ -1,20 +1,13 @@
-use slab::Slab;
-use serde::{Deserialize, Serialize};
-
 use common::mem;
 use engine::log;
+use serde::{Deserialize, Serialize};
+use slab::Slab;
 
-use super::{
-    UnitTaskContext,
-    UnitTaskFlow,
-    UnitTask,
-    UnitTaskArchetype,
-    UnitTaskId,
-};
+use super::{UnitTask, UnitTaskArchetype, UnitTaskContext, UnitTaskFlow, UnitTaskId};
 use crate::{
     constants::*,
+    sim::{SimCmdQueue, SimCmds, SimContext},
     unit::Unit,
-    sim::{SimCmds, SimCmdQueue, SimContext},
     world::object::GameObject,
 };
 
@@ -103,9 +96,7 @@ impl UnitTaskPool {
         // Remove before terminate: `terminate()` may recursively call `self.free()`
         // on a completion task, so the entry we are freeing must already be out of
         // the slab to avoid aliasing through `&mut self`.
-        let mut task = self.tasks
-            .try_remove(index)
-            .expect("Task slot was just verified to be occupied!");
+        let mut task = self.tasks.try_remove(index).expect("Task slot was just verified to be occupied!");
 
         task.archetype.terminate(self);
     }
@@ -160,11 +151,7 @@ impl UnitTaskPool {
         if cfg!(debug_assertions) {
             panic!("UnitTaskPool dropped with {} remaining tasks (generation: {}).", self.tasks.len(), self.generation);
         } else {
-            log::error!(
-                "UnitTaskPool dropped with {} remaining tasks (generation: {}).",
-                self.tasks.len(),
-                self.generation
-            );
+            log::error!("UnitTaskPool dropped with {} remaining tasks (generation: {}).", self.tasks.len(), self.generation);
         }
     }
 }

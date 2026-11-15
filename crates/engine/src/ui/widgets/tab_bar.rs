@@ -1,17 +1,26 @@
 use std::any::Any;
-use smallbox::smallbox;
-use egui::{Align2, Sense, StrokeKind, pos2, vec2};
 
 use common::{Color, Rect, Vec2};
+use egui::{Align2, Sense, StrokeKind, pos2, vec2};
+use smallbox::smallbox;
 
 use super::{
-    UiSpriteButtonState, UiTextButtonFrame, UiWidget, UiWidgetCallback, UiWidgetContext, UiWidgetGroup, UiWidgetImpl, list_index,
+    UiSpriteButtonState,
+    UiTextButtonFrame,
+    UiWidget,
+    UiWidgetCallback,
+    UiWidgetContext,
+    UiWidgetGroup,
+    UiWidgetImpl,
+    list_index,
     widget_id,
 };
 use crate::{
     render::texture::TextureHandle,
     ui::{
-        UiFontScale, UiString, UiSystem,
+        UiFontScale,
+        UiString,
+        UiSystem,
         immediate::{self, UiLabelLook, UiPainter, UiTextAnchor, color32, nine_slice_shape, to_rect},
         internal,
         sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
@@ -189,7 +198,16 @@ impl UiWidget for UiTabBar {
                 if ui.is_rect_visible(tab_rect) {
                     self.paint_tab(ui, tab_rect, &response, label, &font, is_selected);
                 }
-                immediate::record(ui_sys, ui, &response, "tab", label, None, true, Some(serde_json::Value::Bool(is_selected)));
+                immediate::record(
+                    ui_sys,
+                    ui,
+                    &response,
+                    "tab",
+                    label,
+                    None,
+                    true,
+                    Some(serde_json::Value::Bool(is_selected)),
+                );
                 if response.clicked() {
                     clicked = Some(index);
                 }
@@ -285,7 +303,12 @@ impl UiTabBar {
     }
 
     // A side tab with an icon before its label (white art, tinted by the look), and its contents.
-    pub fn with_icon_tab_contents(mut self, label: impl Into<UiString>, icon: TextureHandle, contents: impl Into<UiWidgetImpl>) -> Self {
+    pub fn with_icon_tab_contents(
+        mut self,
+        label: impl Into<UiString>,
+        icon: TextureHandle,
+        contents: impl Into<UiWidgetImpl>,
+    ) -> Self {
         self.tabs.push((label.into(), Some(contents.into())));
         self.icons.push(Some(icon));
         self
@@ -362,7 +385,8 @@ impl UiTabBar {
         let (_, header_rect) = ui_sys.draw_at(column, |_| side.header.draw(context));
         let tabs_top = if side.header.is_empty() { column.top() } else { header_rect.bottom() };
         let footer_height = ui_sys.draw_at(column, |_| side.footer.measure(context)).0.y;
-        let footer_rect = egui::Rect::from_min_size(pos2(column.left(), column.bottom() - footer_height), vec2(look.width, footer_height));
+        let footer_rect =
+            egui::Rect::from_min_size(pos2(column.left(), column.bottom() - footer_height), vec2(look.width, footer_height));
         ui_sys.draw_at(footer_rect, |_| side.footer.draw(context));
 
         let id = widget_id(self, self.label.id_source());
@@ -371,7 +395,11 @@ impl UiTabBar {
         let tabs_rect = egui::Rect::from_min_size(
             pos2(column.left(), tabs_top),
             // To the last tab's foot, reckoned as the tabs are placed.
-            vec2(look.width, labels.len().saturating_sub(1) as f32 * (look.height + look.spacing) + if labels.is_empty() { 0.0 } else { look.height }),
+            vec2(
+                look.width,
+                labels.len().saturating_sub(1) as f32 * (look.height + look.spacing)
+                    + if labels.is_empty() { 0.0 } else { look.height },
+            ),
         );
 
         let (clicked, hovered, set_value) = ui_sys.with_ui(|ui| {
@@ -397,9 +425,26 @@ impl UiTabBar {
                 let response = ui.interact(tab_rect, id.with(index), Sense::click());
                 let is_selected = index == selected;
                 if ui.is_rect_visible(tab_rect) {
-                    paint_side_tab(&painter, &look, to_rect(tab_rect), label, self.icons.get(index).copied().flatten(), is_selected, response.hovered());
+                    paint_side_tab(
+                        &painter,
+                        &look,
+                        to_rect(tab_rect),
+                        label,
+                        self.icons.get(index).copied().flatten(),
+                        is_selected,
+                        response.hovered(),
+                    );
                 }
-                immediate::record(ui_sys, ui, &response, "tab", label, None, true, Some(serde_json::Value::Bool(is_selected)));
+                immediate::record(
+                    ui_sys,
+                    ui,
+                    &response,
+                    "tab",
+                    label,
+                    None,
+                    true,
+                    Some(serde_json::Value::Bool(is_selected)),
+                );
                 if response.clicked() {
                     clicked = Some(index);
                 }
@@ -426,8 +471,10 @@ impl UiTabBar {
         }
 
         // The selected tab's contents, beside the column, under its label.
-        let contents_rect =
-            egui::Rect::from_min_size(pos2(column.right() + look.gap, origin.y), vec2(width - look.width - look.gap, height));
+        let contents_rect = egui::Rect::from_min_size(
+            pos2(column.right() + look.gap, origin.y),
+            vec2(width - look.width - look.gap, height),
+        );
         let selected = self.selected;
         if let Some((label, Some(contents))) = self.tabs.get_mut(selected) {
             let _path = immediate::path_scope(ui_sys, label.resolve());
@@ -477,7 +524,15 @@ impl UiTabBar {
         (width, height)
     }
 
-    fn paint_tab(&self, ui: &egui::Ui, rect: egui::Rect, response: &egui::Response, label: &str, font: &egui::FontId, selected: bool) {
+    fn paint_tab(
+        &self,
+        ui: &egui::Ui,
+        rect: egui::Rect,
+        response: &egui::Response,
+        label: &str,
+        font: &egui::FontId,
+        selected: bool,
+    ) {
         let state = if response.is_pointer_button_down_on() {
             UiSpriteButtonState::Pressed
         } else if response.hovered() {
@@ -505,10 +560,17 @@ impl UiTabBar {
     }
 }
 
-
 // A side tab: filled while selected (or lightly while hovered), else a rule under it; its icon
 // and label from its left edge.
-fn paint_side_tab(painter: &UiPainter, look: &UiSideTabLook, rect: Rect, label: &str, icon: Option<TextureHandle>, selected: bool, hovered: bool) {
+fn paint_side_tab(
+    painter: &UiPainter,
+    look: &UiSideTabLook,
+    rect: Rect,
+    label: &str,
+    icon: Option<TextureHandle>,
+    selected: bool,
+    hovered: bool,
+) {
     if selected {
         painter.rect_filled(rect, look.selected_fill, look.rounding);
     } else {

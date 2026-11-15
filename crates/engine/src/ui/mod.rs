@@ -21,10 +21,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use common::{Color, Vec2, time::Seconds};
 use egui::Color32;
 use smallvec::SmallVec;
-
-use common::{Color, Vec2, time::Seconds};
 
 use crate::{
     app::{
@@ -48,11 +47,10 @@ pub mod widgets;
 
 pub use debug_ui::DrawDebugUi;
 pub use decorated_panel::{UiDecoratedPanel, UiDecorationAnchor, UiPanelDecoration};
+pub use immediate::*;
 pub use nine_slice::{UiNineSlice, UiNineSliceCenter, UiNineSliceQuad, UiNineSliceQuads};
 pub use style::{DEV_UI_THEME, GLYPH_TEST_ICONS, GLYPH_TEST_TEXTS, UiStyleSource, UiThemeId, check_glyph_coverage};
 pub use text::UiString;
-
-pub use immediate::*;
 
 // Internal implementation.
 mod backend;
@@ -65,11 +63,11 @@ mod renderer;
 mod style;
 mod toast;
 use backend::UiBackend;
-use registry::UiWidgetRegistry;
 pub use registry::UiWidgetInfo;
+use registry::UiWidgetRegistry;
 use style::{UiStyle, UiStyles};
-use toast::UiToasts;
 pub use toast::UiToastLook;
+use toast::UiToasts;
 
 // ----------------------------------------------
 // UiInputEvent
@@ -105,8 +103,8 @@ pub struct UiSystem {
     text_scale: f32,                   // Of every theme's text but the developer UI's (set_text_scale).
     theme: Cell<UiThemeId>,
     modal_backdrop: Cell<Option<Color32>>, // Replaces the style's, from set_modal_backdrop_color.
-    font_scale: Cell<Option<UiFontScale>>,   // For the text drawn next, until reset.
-    item_width: Cell<Option<f32>>,           // For the slider, input or dropdown drawn next, from its group.
+    font_scale: Cell<Option<UiFontScale>>, // For the text drawn next, until reset.
+    item_width: Cell<Option<f32>>,         // For the slider, input or dropdown drawn next, from its group.
     show_debug_window: Cell<bool>,
     delta_time_secs: Seconds,
     toasts: RefCell<UiToasts>,
@@ -267,7 +265,11 @@ impl UiSystem {
     // screen, such as automation's.
     // Draws `shapes` over everything else in `layer` drawn this frame: painted once the menu
     // drawing them has drawn its contents, so a widget's badge isn't covered by the widget after it.
-    pub(crate) fn add_overlay_shapes(&self, layer: egui::LayerId, shapes: impl IntoIterator<Item = egui::epaint::ClippedShape>) {
+    pub(crate) fn add_overlay_shapes(
+        &self,
+        layer: egui::LayerId,
+        shapes: impl IntoIterator<Item = egui::epaint::ClippedShape>,
+    ) {
         self.overlay_shapes.borrow_mut().extend(shapes.into_iter().map(|shape| (layer, shape)));
     }
 
@@ -278,7 +280,8 @@ impl UiSystem {
             if queued.is_empty() {
                 return;
             }
-            let (flush, keep): (Vec<_>, Vec<_>) = queued.drain(..).partition(|(id, _)| layer.is_none_or(|layer| *id == layer));
+            let (flush, keep): (Vec<_>, Vec<_>) =
+                queued.drain(..).partition(|(id, _)| layer.is_none_or(|layer| *id == layer));
             *queued = keep;
             flush
         };
@@ -636,8 +639,11 @@ impl UiSystem {
     // Runs an egui container on the innermost open container's Ui. That Ui is off the stack while
     // `f` runs, so the container's contents can push their own (ui_scope).
     pub(crate) fn with_parent_ui<R>(&self, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
-        let mut parent =
-            self.ui_stack.borrow_mut().pop().expect("No open UI container: draw widgets inside a window, a menu or a tooltip.");
+        let mut parent = self
+            .ui_stack
+            .borrow_mut()
+            .pop()
+            .expect("No open UI container: draw widgets inside a window, a menu or a tooltip.");
         let result = f(&mut parent);
         self.ui_stack.borrow_mut().push(parent);
         result

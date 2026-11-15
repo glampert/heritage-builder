@@ -1,13 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use arrayvec::ArrayVec;
-use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
 use batch::*;
+use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
 use target::*;
+pub use texture::WgpuTexture;
 use texture::*;
 use vertex::*;
-
-pub use texture::WgpuTexture;
 
 use super::{
     RenderStats,
@@ -466,7 +465,8 @@ impl WgpuRenderSystemBackend {
         );
         let lines_pipeline = pipeline::create_lines_pipeline(&device, surface_format, &uniform_bind_group_layout);
         let points_pipeline = pipeline::create_points_pipeline(&device, surface_format, &uniform_bind_group_layout);
-        let ui_pipeline = pipeline::create_ui_pipeline(&device, surface_format, &uniform_bind_group_layout, &texture_bind_group_layout);
+        let ui_pipeline =
+            pipeline::create_ui_pipeline(&device, surface_format, &uniform_bind_group_layout, &texture_bind_group_layout);
         let blit_pipeline = pipeline::create_blit_pipeline(&device, surface_format, &blit_texture_layout);
 
         // Uniform buffer.
@@ -590,11 +590,11 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
 
         s.frame_started = true;
 
-        s.stats.triangles_drawn       = 0;
-        s.stats.lines_drawn           = 0;
-        s.stats.points_drawn          = 0;
-        s.stats.texture_changes       = 0;
-        s.stats.draw_calls            = 0;
+        s.stats.triangles_drawn = 0;
+        s.stats.lines_drawn = 0;
+        s.stats.points_drawn = 0;
+        s.stats.texture_changes = 0;
+        s.stats.draw_calls = 0;
         s.stats.render_submit_time_ms = 0.0;
     }
 
@@ -745,11 +745,11 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         s.frame_started = false;
 
         s.stats.render_submit_time_ms = render_submit_timer.end();
-        s.stats.peak_triangles_drawn  = s.stats.triangles_drawn.max(s.stats.peak_triangles_drawn);
-        s.stats.peak_lines_drawn      = s.stats.lines_drawn.max(s.stats.peak_lines_drawn);
-        s.stats.peak_points_drawn     = s.stats.points_drawn.max(s.stats.peak_points_drawn);
-        s.stats.peak_texture_changes  = s.stats.texture_changes.max(s.stats.peak_texture_changes);
-        s.stats.peak_draw_calls       = s.stats.draw_calls.max(s.stats.peak_draw_calls);
+        s.stats.peak_triangles_drawn = s.stats.triangles_drawn.max(s.stats.peak_triangles_drawn);
+        s.stats.peak_lines_drawn = s.stats.lines_drawn.max(s.stats.peak_lines_drawn);
+        s.stats.peak_points_drawn = s.stats.points_drawn.max(s.stats.peak_points_drawn);
+        s.stats.peak_texture_changes = s.stats.texture_changes.max(s.stats.peak_texture_changes);
+        s.stats.peak_draw_calls = s.stats.draw_calls.max(s.stats.peak_draw_calls);
 
         s.stats
     }
@@ -807,9 +807,9 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         }
 
         let vertices = [
-            SpriteVertex2D::new(rect.bottom_left(),  tex_coords.bottom_left(),  color),
-            SpriteVertex2D::new(rect.top_left(),     tex_coords.top_left(),     color),
-            SpriteVertex2D::new(rect.top_right(),    tex_coords.top_right(),    color),
+            SpriteVertex2D::new(rect.bottom_left(), tex_coords.bottom_left(), color),
+            SpriteVertex2D::new(rect.top_left(), tex_coords.top_left(), color),
+            SpriteVertex2D::new(rect.top_right(), tex_coords.top_right(), color),
             SpriteVertex2D::new(rect.bottom_right(), tex_coords.bottom_right(), color),
         ];
 
@@ -831,10 +831,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             return;
         }
 
-        let vertices = [
-            LineVertex2D::new(from_pos, from_color),
-            LineVertex2D::new(to_pos,   to_color),
-        ];
+        let vertices = [LineVertex2D::new(from_pos, from_color), LineVertex2D::new(to_pos, to_color)];
         const INDICES: [LineIndex2D; 2] = [0, 1];
 
         s.lines_batch.add_fast(&vertices, &INDICES);

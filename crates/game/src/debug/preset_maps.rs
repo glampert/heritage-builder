@@ -3,17 +3,20 @@ use common::{Size, coords::Cell};
 use engine::log;
 
 use crate::{
-    sim::Simulation,
-    config::GameConfigs,
     cheats::{self, Cheats},
-    world::{World, object::{Spawner, SpawnerResult}},
+    config::GameConfigs,
+    sim::Simulation,
     tile::{
         self,
         TileFlags,
         TileMap,
         TileMapLayerKind,
-        sets::{TileDef, TileSets},
         road,
+        sets::{TileDef, TileSets},
+    },
+    world::{
+        World,
+        object::{Spawner, SpawnerResult},
     },
 };
 
@@ -28,9 +31,7 @@ pub fn preset_tile_maps_list() -> ArrayVec<&'static str, PRESET_TILE_MAP_COUNT> 
 pub fn create_preset_tile_map(world: &mut World, mut preset_number: usize) -> TileMap {
     preset_number = preset_number.min(PRESET_TILE_MAP_COUNT - 1);
 
-    log::info!(log::channel!("debug"),
-                "Creating debug tile map - PRESET: {} ...",
-                preset_number);
+    log::info!(log::channel!("debug"), "Creating debug tile map - PRESET: {} ...", preset_number);
 
     let preset = PRESET_TILES[preset_number];
 
@@ -79,7 +80,8 @@ pub fn preset_layout(preset_number: usize) -> Option<PresetLayout> {
         .enumerate()
         .filter_map(|(index, tile)| find_building_tile(*tile).map(|tile_def| (cell_of(index), tile_def)))
         .collect();
-    let trees = preset.prop_tiles.iter().enumerate().filter(|(_, tile)| **tile == T).map(|(index, _)| cell_of(index)).collect();
+    let trees =
+        preset.prop_tiles.iter().enumerate().filter(|(_, tile)| **tile == T).map(|(index, _)| cell_of(index)).collect();
     Some(PresetLayout { size, ground, buildings, trees })
 }
 
@@ -110,41 +112,25 @@ const G: i32 = 0; // grass
 const D: i32 = 1; // dirt
 const R: i32 = 2; // dirt road
 const V: i32 = 3; // vacant_lot
-const TERRAIN_TILE_NAMES: [&str; 4] = [
-    "grass",
-    "dirt",
-    road::tile_name(road::RoadKind::Dirt).string,
-    "vacant_lot",
-];
+const TERRAIN_TILE_NAMES: [&str; 4] = ["grass", "dirt", road::tile_name(road::RoadKind::Dirt).string, "vacant_lot"];
 
 // BUILDINGS:
 const X: i32 = -1; // empty (dummy value, also used by prop_tiles)
-const H: i32 = 0;  // house0
-const W: i32 = 1;  // small_well
-const B: i32 = 2;  // large_well
-const M: i32 = 3;  // market
-const F: i32 = 4;  // rice_farm
-const S: i32 = 5;  // granary
-const Y: i32 = 6;  // storage_yard
-const A: i32 = 7;  // distillery
-const L: i32 = 8;  // lumberyard
-const BUILDING_TILE_NAMES: [&str; 9] = [
-    "house0",
-    "small_well",
-    "large_well",
-    "market",
-    "rice_farm",
-    "granary",
-    "storage_yard",
-    "distillery",
-    "lumberyard",
-];
+const H: i32 = 0; // house0
+const W: i32 = 1; // small_well
+const B: i32 = 2; // large_well
+const M: i32 = 3; // market
+const F: i32 = 4; // rice_farm
+const S: i32 = 5; // granary
+const Y: i32 = 6; // storage_yard
+const A: i32 = 7; // distillery
+const L: i32 = 8; // lumberyard
+const BUILDING_TILE_NAMES: [&str; 9] =
+    ["house0", "small_well", "large_well", "market", "rice_farm", "granary", "storage_yard", "distillery", "lumberyard"];
 
 // PROPS (Objects layer, vegetation category):
 const T: i32 = 0; // tree
-const PROP_TILE_NAMES: [&str; 1] = [
-    "tree",
-];
+const PROP_TILE_NAMES: [&str; 1] = ["tree"];
 
 // Empty 9x9 map. Ring road around the whole map.
 pub const PRESET_EMPTY_MAP_WITH_RING_ROAD: usize = 0;
@@ -152,32 +138,18 @@ const PRESET_TILES_0: PresetTiles = PresetTiles {
     preset_name: "[0] - empty | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R, // <-- start, tile zero is the leftmost (top-left)
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, // <-- start, tile zero is the leftmost (top-left)
+        R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G,
+        G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, R, R, R, R, R, R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X, // <-- start, tile zero is the leftmost (top-left)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, // <-- start, tile zero is the leftmost (top-left)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // 1 farm, 1 storage (granary)
@@ -186,32 +158,18 @@ const PRESET_TILES_1: PresetTiles = PresetTiles {
     preset_name: "[1] - 1 farm, 1 granary | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G,
+        G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, R, R, R, R, R,
+        R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,S,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,F,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, S, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, F, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // 1 farm, 1 storage (granary), 1 house, 2 wells (big & small), 1 market
@@ -220,32 +178,18 @@ const PRESET_TILES_2: PresetTiles = PresetTiles {
     preset_name: "[2] - 1 farm, 1 granary, 1 house, 2 wells, 1 market | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,R,G,G,R,R,R,R,R,
-        R,G,G,G,R,G,G,G,R,
-        R,G,G,G,R,G,G,G,R,
-        R,G,G,G,R,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, R, G,
+        G, R, R, R, R, R, R, G, G, G, R, G, G, G, R, R, G, G, G, R, G, G, G, R, R, G, G, G, R, G, G, G, R, R, R, R, R, R, R,
+        R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,
-        X,H,X,X,B,X,M,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,W,X,X,X,X,X,X,
-        X,F,X,X,X,S,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, H, X, X, B, X, M, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, W,
+        X, X, X, X, X, X, X, F, X, X, X, S, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // 1 farm, 2 storages (granary, storage yard), 1 factory (distillery)
@@ -254,38 +198,20 @@ const PRESET_TILES_3: PresetTiles = PresetTiles {
     preset_name: "[3] - 1 farm, 2 storages (G|Y), 1 distillery | 12x12",
     map_size_in_cells: Size::new(12, 12),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R,R,R,R,
-        R,G,G,G,G,G,G,R,G,G,G,R,
-        R,G,G,G,G,G,G,R,G,G,G,R,
-        R,G,G,G,G,G,G,R,G,G,G,R,
-        R,G,G,G,G,G,G,R,G,G,G,R,
-        R,G,G,G,G,G,G,R,G,G,G,R,
-        R,G,G,G,G,G,G,R,G,G,G,R,
-        R,R,R,R,R,R,R,R,G,G,G,R,
-        R,G,G,G,G,G,G,R,G,G,G,R,
-        R,G,G,G,G,G,G,R,G,G,G,R,
-        R,G,G,G,G,G,G,R,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, R, G, G, G, R, R, G, G, G, G, G, G, R, G, G, G, R, R, G, G,
+        G, G, G, G, R, G, G, G, R, R, G, G, G, G, G, G, R, G, G, G, R, R, G, G, G, G, G, G, R, G, G, G, R, R, G, G, G, G, G,
+        G, R, G, G, G, R, R, R, R, R, R, R, R, R, G, G, G, R, R, G, G, G, G, G, G, R, G, G, G, R, R, G, G, G, G, G, G, R, G,
+        G, G, R, R, G, G, G, G, G, G, R, G, G, G, R, R, R, R, R, R, R, R, R, R, R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,A,X,X,X,X,X,X,S,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,F,X,X,X,X,X,X,Y,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, A, X, X, X, X, X, X, S, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, F, X, X, X, X, X, X, Y, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // 1 lumberyard + 1 storage yard, ring road for connectivity (delivery test scenarios).
@@ -294,32 +220,18 @@ const PRESET_TILES_4: PresetTiles = PresetTiles {
     preset_name: "[4] - 1 lumberyard, 1 storage yard | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G,
+        G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, R, R, R, R, R,
+        R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,L,X,X,X,X,X,X,X, // lumberyard 2x2 at (1,2)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,Y,X,X,X,X, // storage_yard 3x3 at (4,5)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, L, X, X, X, X, X, X, X, // lumberyard 2x2 at (1,2)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, Y, X, X, X, X, // storage_yard 3x3 at (4,5)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // 1 rice farm + 1 distillery, ring road (no storage on map).
@@ -329,32 +241,19 @@ const PRESET_TILES_5: PresetTiles = PresetTiles {
     preset_name: "[5] - 1 rice farm, 1 distillery | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G,
+        G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, R, R, R, R, R,
+        R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,
-        X,F,X,X,X,X,X,X,X, // rice_farm 3x3 at (1,1)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,A,X,X, // distillery 2x2 at (6,5)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, F, X, X, X, X, X, X, X, // rice_farm 3x3 at (1,1)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, A, X,
+        X, // distillery 2x2 at (6,5)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // 1 market + 1 granary, ring road (fetch test scenarios).
@@ -363,32 +262,19 @@ const PRESET_TILES_6: PresetTiles = PresetTiles {
     preset_name: "[6] - 1 market, 1 granary | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G,
+        G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, R, R, R, R, R,
+        R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,
-        X,M,X,X,X,X,X,X,X, // market 2x2 at (1,1)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,S,X,X,X,X, // granary 3x3 at (4,5)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, M, X, X, X, X, X, X, X, // market 2x2 at (1,1)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, S, X, X, X,
+        X, // granary 3x3 at (4,5)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // 1 lumberyard + 1 storage yard + a few tree props (harvest test scenarios).
@@ -398,51 +284,26 @@ const PRESET_TILES_7: PresetTiles = PresetTiles {
     preset_name: "[7] - 1 lumberyard, 1 storage yard, trees | 12x12",
     map_size_in_cells: Size::new(12, 12),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R,R,R,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G,
+        G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G,
+        G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G,
+        G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, R, R, R, R, R, R, R, R, R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,L,X,X,X,X,X,X,X,X,X,X, // lumberyard 2x2 at (1,1)
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,Y,X,X,X, // storage_yard 3x3 at (8,8)
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, L, X, X, X, X, X, X, X, X, X, X, // lumberyard 2x2 at (1,1)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, Y, X, X, X, // storage_yard 3x3 at (8,8)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,T,X,X,X,X,X,X,
-        X,X,X,X,X,X,T,X,X,X,X,X,
-        X,X,X,X,T,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, T, X, X, X, X, X, X, X, X, X, X, X, X, T, X, X, X, X, X, X, X, X, X, T, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // 2 lumberyards + 2 trees, roughly equidistant. Used to exercise the
@@ -453,51 +314,28 @@ const PRESET_TILES_8: PresetTiles = PresetTiles {
     preset_name: "[8] - 2 lumberyards, 2 trees | 12x12",
     map_size_in_cells: Size::new(12, 12),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R,R,R,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G,
+        G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G,
+        G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, G,
+        G, G, R, R, G, G, G, G, G, G, G, G, G, G, R, R, R, R, R, R, R, R, R, R, R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,L,X,X,X,X,X,X,X,L,X,X, // lumberyards 2x2 at (1,1) and (9,1)
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, L, X, X, X, X, X, X, X, L, X, X, // lumberyards 2x2 at (1,1) and (9,1)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X,
     ],
     prop_tiles: &[
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,T,X,X,X,X,X,X, // tree at (5,5)
-        X,X,X,X,X,X,T,X,X,X,X,X, // tree at (6,6)
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, T, X, X, X, X, X,
+        X, // tree at (5,5)
+        X, X, X, X, X, X, T, X, X, X, X, X, // tree at (6,6)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // EmptyLand (grass) terrain + 1 vacant lot + 1 spawn point + 1 house0.
@@ -507,32 +345,20 @@ const PRESET_TILES_9: PresetTiles = PresetTiles {
     preset_name: "[9] - settler: vacant lot + house0 | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        G,G,G,G,G,G,G,G,G, // spawn point flagged at (4,0) below
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,V,G,G,G,G, // vacant_lot at (4,3)
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
+        G, G, G, G, G, G, G, G, G, // spawn point flagged at (4,0) below
+        G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, V, G, G, G, G, // vacant_lot at (4,3)
+        G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G,
+        G, G, G, G, G, G,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,H,X,X,X,X, // house0 at (4,7)
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, H, X, X, X,
+        X, // house0 at (4,7)
+        X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[Cell::new(4, 0)],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // EmptyLand (grass) terrain + 1 spawn point + 1 house0 (no vacant lot).
@@ -542,32 +368,18 @@ const PRESET_TILES_10: PresetTiles = PresetTiles {
     preset_name: "[10] - settler: house0 only | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        G,G,G,G,G,G,G,G,G, // spawn point flagged at (4,0) below
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
+        G, G, G, G, G, G, G, G, G, // spawn point flagged at (4,0) below
+        G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G,
+        G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,H,X,X,X,X, // house0 at (4,4)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, H, X, X, X, X, // house0 at (4,4)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[Cell::new(4, 0)],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // EmptyLand (grass) terrain + 1 spawn point only (no vacant lots, no houses).
@@ -577,32 +389,18 @@ const PRESET_TILES_11: PresetTiles = PresetTiles {
     preset_name: "[11] - settler: spawn point only | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        G,G,G,G,G,G,G,G,G, // spawn point flagged at (4,0) below
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,G,G,
+        G, G, G, G, G, G, G, G, G, // spawn point flagged at (4,0) below
+        G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G,
+        G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[Cell::new(4, 0)],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // Patrol crossroads: N-S road at col 7, E-W road at row 7. Market 2x2 at (8,8)
@@ -612,44 +410,25 @@ const PRESET_TILES_12: PresetTiles = PresetTiles {
     preset_name: "[12] - patrol: crossroads + market | 15x15",
     map_size_in_cells: Size::new(15, 15),
     terrain_tiles: &[
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
+        G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G,
+        G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G,
+        G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, R, R, R, R, R, R, R, R, R, R, R, R,
+        R, R, R, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G,
+        G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G,
+        G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,M,X,X,X,X,X,X, // market 2x2 at (8,8)
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, M, X, X, X, X, X, X, // market 2x2 at (8,8)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // Same crossroads as above + house0s along the road for visit-target tests.
@@ -658,44 +437,28 @@ const PRESET_TILES_13: PresetTiles = PresetTiles {
     preset_name: "[13] - patrol: crossroads + market + houses | 15x15",
     map_size_in_cells: Size::new(15, 15),
     terrain_tiles: &[
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
-        G,G,G,G,G,G,G,R,G,G,G,G,G,G,G,
+        G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G,
+        G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G,
+        G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, R, R, R, R, R, R, R, R, R, R, R, R,
+        R, R, R, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G,
+        G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G,
+        G, G, G, G, G, G, G, R, G, G, G, G, G, G, G, G, G, G, G, G, G, G, R, G, G, G, G, G, G, G,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,H,X,H,X,X,X,X,X,X, // houses bracketing N arm of road
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,H,X,H,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,H,X,H,X,X,X,X,X,X,
-        X,H,X,H,X,H,X,X,X,H,X,H,X,H,X, // houses bracketing W & E arms of road row 6
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,M,X,X,X,X,X,X, // market 2x2 at (8,8)
-        X,H,X,H,X,H,X,X,X,X,X,H,X,H,X, // houses bracketing W & E arms of road row 9
-        X,X,X,X,X,X,H,X,H,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,H,X,H,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,H,X,H,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, H, X, H, X, X, X, X, X,
+        X, // houses bracketing N arm of road
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, H, X, H, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, H, X, H, X, X, X, X, X, X, X, H, X, H, X, H, X, X, X, H, X, H, X, H,
+        X, // houses bracketing W & E arms of road row 6
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, M, X, X, X, X, X,
+        X, // market 2x2 at (8,8)
+        X, H, X, H, X, H, X, X, X, X, X, H, X, H, X, // houses bracketing W & E arms of road row 9
+        X, X, X, X, X, X, H, X, H, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, H, X, H,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, H, X, H, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 // 1 market + 1 granary (source) + 1 storage yard (recovery sink).
@@ -708,32 +471,19 @@ const PRESET_TILES_14: PresetTiles = PresetTiles {
     preset_name: "[14] - 1 market, 1 granary (src), 1 storage yard (sink) | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
-        R,R,R,R,R,R,R,R,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,G,G,G,G,G,G,G,R,
-        R,R,R,R,R,R,R,R,R,
+        R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G,
+        G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, R, R, R, R, R,
+        R, R, R,
     ],
     building_tiles: &[
-        X,X,X,X,X,X,X,X,X,
-        X,M,X,X,X,S,X,X,X, // market 2x2 at (1,1); granary 3x3 at (5,1)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,Y,X,X,X, // storage_yard 3x3 at (5,5)
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
-        X,X,X,X,X,X,X,X,X,
+        X, X, X, X, X, X, X, X, X, X, M, X, X, X, S, X, X, X, // market 2x2 at (1,1); granary 3x3 at (5,1)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, Y, X, X,
+        X, // storage_yard 3x3 at (5,5)
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
-    enable_cheats_fn: Some(|cheats| {
-        cheats.ignore_worker_requirements = true
-    })
+    enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
 const PRESET_TILES: [&PresetTiles; 15] = [
@@ -761,11 +511,7 @@ fn find_terrain_tile(tile_id: i32) -> Option<&'static TileDef> {
         return None;
     }
     let tile_name = TERRAIN_TILE_NAMES[tile_id as usize];
-    TileSets::get().find_tile_def_by_name(
-        TileMapLayerKind::Terrain,
-        tile::sets::TERRAIN_LAND_CATEGORY.string,
-        tile_name,
-    )
+    TileSets::get().find_tile_def_by_name(TileMapLayerKind::Terrain, tile::sets::TERRAIN_LAND_CATEGORY.string, tile_name)
 }
 
 fn find_building_tile(tile_id: i32) -> Option<&'static TileDef> {
@@ -821,9 +567,14 @@ fn build_tile_map(preset: &'static PresetTiles, world: &mut World) -> TileMap {
                         if tile.has_flags(TileFlags::RandomizePlacement) {
                             tile.set_random_variation_index(context.rng_mut());
                         }
-                    },
+                    }
                     SpawnerResult::Err(err) => {
-                        log::error!(log::channel!("debug"), "Preset: Failed to place Terrain tile: {} - {}", err.reason, err.message);
+                        log::error!(
+                            log::channel!("debug"),
+                            "Preset: Failed to place Terrain tile: {} - {}",
+                            err.reason,
+                            err.message
+                        );
                     }
                     _ => unreachable!(),
                 }
@@ -838,7 +589,12 @@ fn build_tile_map(preset: &'static PresetTiles, world: &mut World) -> TileMap {
             if let Some(tile_def) = find_building_tile(tile_id)
                 && let Err(err) = spawner.try_spawn_building_with_tile_def(Cell::new(x, y), tile_def)
             {
-                log::error!(log::channel!("debug"), "Preset: Failed to place Building tile: {} - {}", err.reason, err.message);
+                log::error!(
+                    log::channel!("debug"),
+                    "Preset: Failed to place Building tile: {} - {}",
+                    err.reason,
+                    err.message
+                );
             }
         }
     }
@@ -852,7 +608,12 @@ fn build_tile_map(preset: &'static PresetTiles, world: &mut World) -> TileMap {
                     match spawner.try_spawn_tile_with_def(Cell::new(x, y), tile_def) {
                         SpawnerResult::Prop(_) => {}
                         SpawnerResult::Err(err) => {
-                            log::error!(log::channel!("debug"), "Preset: Failed to place Prop tile: {} - {}", err.reason, err.message);
+                            log::error!(
+                                log::channel!("debug"),
+                                "Preset: Failed to place Prop tile: {} - {}",
+                                err.reason,
+                                err.message
+                            );
                         }
                         _ => unreachable!(),
                     }
@@ -864,12 +625,7 @@ fn build_tile_map(preset: &'static PresetTiles, world: &mut World) -> TileMap {
     // Settler spawn points: flag the underlying terrain tiles. The graph picks
     // up `PathNodeKind::SettlersSpawnPoint` from the flag during the recalc.
     for &spawn_point in preset.settler_spawn_points {
-        tile_map.set_tile_flags(
-            spawn_point,
-            tile::TileKind::Terrain,
-            TileFlags::SettlersSpawnPoint,
-            true,
-        );
+        tile_map.set_tile_flags(spawn_point, tile::TileKind::Terrain, TileFlags::SettlersSpawnPoint, true);
     }
 
     super::utils::refresh_cached_tile_visuals(&mut tile_map);

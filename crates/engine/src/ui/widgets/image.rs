@@ -1,14 +1,16 @@
 use std::any::Any;
-use egui::{Color32, Sense, Stroke, StrokeKind, vec2};
 
 use common::{Color, Rect, RectTexCoords, Vec2, bitflags_with_display, time::Seconds};
+use egui::{Color32, Sense, Stroke, StrokeKind, vec2};
 
 use super::{UiTooltipText, UiWidget, UiWidgetContext, tex_coords_uv};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
     ui::{
-        UiNineSlice, UiString, UiSystem,
+        UiNineSlice,
+        UiString,
+        UiSystem,
         immediate::{self, color32, egui_rect, egui_vec2, nine_slice_shape, to_rect, uv_full},
         internal,
         renderer::egui_texture,
@@ -181,7 +183,7 @@ bitflags_with_display! {
 #[derive(Copy, Clone, Default)]
 pub enum UiSlideshowLoopMode {
     #[default]
-    None,               // Doesn't loop.
+    None, // Doesn't loop.
     WholeAnim,          // Loop whole anim from start to finish.
     FramesFromEnd(u32), // Loop between these many frames from the end (frame count - N).
 }
@@ -621,8 +623,14 @@ mod tests {
         let target = rect(0.0, 0.0, 30.0, 40.0);
         assert_eq!(fit_image(target, Vec2::new(7.0, 3.0), UiImageFit::Stretch), (target, rect(0.0, 0.0, 1.0, 1.0)));
         // Centered at its own size, or scaled down to fit.
-        assert_eq!(fit_image(rect(0.0, 0.0, 100.0, 60.0), Vec2::new(20.0, 10.0), UiImageFit::Center).0, rect(40.0, 25.0, 20.0, 10.0));
-        assert_eq!(fit_image(rect(0.0, 0.0, 100.0, 60.0), Vec2::new(200.0, 60.0), UiImageFit::Center).0, rect(0.0, 15.0, 100.0, 30.0));
+        assert_eq!(
+            fit_image(rect(0.0, 0.0, 100.0, 60.0), Vec2::new(20.0, 10.0), UiImageFit::Center).0,
+            rect(40.0, 25.0, 20.0, 10.0)
+        );
+        assert_eq!(
+            fit_image(rect(0.0, 0.0, 100.0, 60.0), Vec2::new(200.0, 60.0), UiImageFit::Center).0,
+            rect(0.0, 15.0, 100.0, 30.0)
+        );
         assert_eq!(fit_image(target, Vec2::new(0.0, 3.0), UiImageFit::Contain), (target, rect(0.0, 0.0, 1.0, 1.0)));
     }
 }

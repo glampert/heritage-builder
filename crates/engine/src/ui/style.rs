@@ -112,8 +112,8 @@ impl UiStyleSource {
         match &self.data {
             UiStyleData::File(path) => {
                 let file_path = config::configs_path().join(PathRef::from_str(path));
-                let json =
-                    file_sys::load_string(&file_path).map_err(|err| format!("Can't read UI style '{}' ({file_path}): {err}", self.name))?;
+                let json = file_sys::load_string(&file_path)
+                    .map_err(|err| format!("Can't read UI style '{}' ({file_path}): {err}", self.name))?;
                 UiStyleDef::from_json_str(&json).map_err(|err| self.error(&err))
             }
             UiStyleData::Json(json) => UiStyleDef::from_json_value(json).map_err(|err| self.error(&err)),
@@ -426,10 +426,10 @@ struct UiColorsDef {
     panel_fill: UiColor,  // The main menu bar.
     border: UiColor,      // Windows and popups.
     separator: UiColor,
-    faint_fill: UiColor,  // Striped rows.
+    faint_fill: UiColor,   // Striped rows.
     extreme_fill: UiColor, // Scroll bar tracks.
     text_edit_fill: UiColor,
-    selection: UiColor,   // Selected text, items and the filled part of sliders.
+    selection: UiColor, // Selected text, items and the filled part of sliders.
     selection_text: UiColor,
     hyperlink: UiColor,
     warning: UiColor,
@@ -492,10 +492,10 @@ struct UiWidgetDef {
     weak_fill: UiColor, // Buttons, combo boxes, selected tabs: widgets with an optional background.
     stroke: UiColor,    // Their outline.
     stroke_width: f32,
-    text: UiColor,      // Their text, check marks and arrows.
-    text_width: f32,    // The line width of check marks and arrows.
+    text: UiColor,   // Their text, check marks and arrows.
+    text_width: f32, // The line width of check marks and arrows.
     corner_radius: f32,
-    expansion: f32,     // How much larger than its rect it's drawn.
+    expansion: f32, // How much larger than its rect it's drawn.
 }
 
 impl UiWidgetDef {
@@ -538,9 +538,9 @@ struct UiSpacingDef {
     window_margin: f32,       // Between a window's border and its contents.
     menu_margin: f32,         // Between a popup's border and its contents.
     indent: f32,
-    interact_size: [f32; 2],  // The smallest a widget is.
-    icon_width: f32,          // Check boxes and radio buttons.
-    icon_spacing: f32,        // Between such an icon and its label.
+    interact_size: [f32; 2], // The smallest a widget is.
+    icon_width: f32,         // Check boxes and radio buttons.
+    icon_spacing: f32,       // Between such an icon and its label.
     slider_width: f32,
     slider_rail_height: f32, // The bar the handle slides on.
     combo_width: f32,
@@ -640,7 +640,8 @@ impl UiStyleDef {
                 Some(bytes) => bytes.clone(),
                 None => {
                     let path = crate::file_sys::paths::assets_path().join("fonts").join(&font.file);
-                    let bytes = Arc::new(file_sys::load_bytes(&path).map_err(|err| format!("Can't read font {path}: {err}"))?);
+                    let bytes =
+                        Arc::new(file_sys::load_bytes(&path).map_err(|err| format!("Can't read font {path}: {err}"))?);
                     font_files.insert(font.file.clone(), bytes.clone());
                     bytes
                 }
@@ -654,7 +655,8 @@ impl UiStyleDef {
         let mut font_ids = BTreeMap::new();
 
         for (key, text_style, def) in self.text_styles() {
-            let family_fonts = std::iter::once(&def.font).chain(&def.fallbacks).map(|font_name| format!("{name}/{font_name}")).collect();
+            let family_fonts =
+                std::iter::once(&def.font).chain(&def.fallbacks).map(|font_name| format!("{name}/{font_name}")).collect();
             fonts.families.insert(family(name, key), family_fonts);
             font_ids.insert(text_style, FontId::new(def.size, family(name, key)));
         }
@@ -685,10 +687,8 @@ impl UiStyleDef {
         visuals.widgets.hovered = self.widgets.hovered.to_egui();
         visuals.widgets.active = self.widgets.active.to_egui();
         visuals.widgets.open = self.widgets.open.to_egui();
-        visuals.selection = egui::style::Selection {
-            bg_fill: colors.selection.0,
-            stroke: Stroke::new(1.0, colors.selection_text.0),
-        };
+        visuals.selection =
+            egui::style::Selection { bg_fill: colors.selection.0, stroke: Stroke::new(1.0, colors.selection_text.0) };
         visuals.hyperlink_color = colors.hyperlink.0;
         visuals.faint_bg_color = colors.faint_fill.0;
         visuals.extreme_bg_color = colors.extreme_fill.0;
@@ -723,7 +723,8 @@ impl UiStyleDef {
         egui_spacing.slider_rail_height = spacing.slider_rail_height;
         egui_spacing.combo_width = spacing.combo_width;
         egui_spacing.text_edit_width = spacing.text_edit_width;
-        egui_spacing.scroll = egui::style::ScrollStyle { bar_width: spacing.scroll_bar_width, ..egui::style::ScrollStyle::solid() };
+        egui_spacing.scroll =
+            egui::style::ScrollStyle { bar_width: spacing.scroll_bar_width, ..egui::style::ScrollStyle::solid() };
 
         style.interaction.tooltip_delay = self.tooltip_delay;
         style.interaction.resize_grab_radius_side = self.resize_grab_radius_side;
@@ -956,12 +957,18 @@ mod tests {
         let error = |sources: &[UiStyleSource]| UiStyles::load(sources).err().unwrap();
 
         assert_eq!(error(&[]), "The first UI style must be 'dev', the developer UI's.");
-        assert_eq!(error(&[UiStyleSource::json("game", style_json(20.0))]), "The first UI style must be 'dev', the developer UI's.");
+        assert_eq!(
+            error(&[UiStyleSource::json("game", style_json(20.0))]),
+            "The first UI style must be 'dev', the developer UI's."
+        );
         assert_eq!(
             error(&[UiStyleSource::json("dev", style_json(14.0)), UiStyleSource::json("dev", style_json(20.0))]),
             "Two UI styles are named 'dev'."
         );
-        assert!(error(&[UiStyleSource::json("dev", style_json(14.0)), UiStyleSource::json("a/b", style_json(20.0))]).starts_with("Invalid UI style name"));
+        assert!(
+            error(&[UiStyleSource::json("dev", style_json(14.0)), UiStyleSource::json("a/b", style_json(20.0))])
+                .starts_with("Invalid UI style name")
+        );
         assert_eq!(
             error(&[UiStyleSource::json("dev", style_json(14.0)), UiStyleSource::json("game", style_json(0.0))]),
             "UI style 'game': Text style 'body' needs a size."

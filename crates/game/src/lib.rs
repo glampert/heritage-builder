@@ -7,14 +7,14 @@
 pub mod automation;
 pub mod building;
 pub mod camera;
-pub mod city;
 pub mod campaign;
 pub mod cheats;
+pub mod city;
 pub mod config;
 pub mod constants;
 pub mod custom_game;
-pub mod inspect;
 pub mod debug;
+pub mod inspect;
 pub mod launch;
 pub mod menu;
 pub mod messages;

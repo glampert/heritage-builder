@@ -131,7 +131,10 @@ where
     T: Serialize,
 {
     let Some(defaults) = remembered_defaults(user_file_name) else {
-        log::error!(log::channel!("config"), "Can't save the user configs '{user_file_name}': their configs weren't loaded.");
+        log::error!(
+            log::channel!("config"),
+            "Can't save the user configs '{user_file_name}': their configs weren't loaded."
+        );
         return false;
     };
 
@@ -284,7 +287,7 @@ macro_rules! configurations {
             }
         }
     };
-    ($configs_singleton:ident, $configs_type:ty, $configs_path:literal, user_configs: $user_file:literal) => {
+    ($configs_singleton:ident, $configs_type:ty, $configs_path:literal,user_configs: $user_file:literal) => {
         ::common::singleton_late_init! { $configs_singleton, $configs_type }
         impl $crate::config::Configs for $configs_type {}
         impl $configs_type {
@@ -423,8 +426,12 @@ mod tests {
 
     #[test]
     fn merge_json_merges_objects_and_replaces_the_rest() {
-        let mut base = json!({ "sounds": { "pressed": "a.wav" }, "size": [1, 2], "fonts": { "body": { "file": "x", "scale": 0.8 } } });
-        merge_json(&mut base, json!({ "sounds": { "alert": null }, "size": [3], "fonts": { "body": { "file": "y" } }, "new": 1 }));
+        let mut base =
+            json!({ "sounds": { "pressed": "a.wav" }, "size": [1, 2], "fonts": { "body": { "file": "x", "scale": 0.8 } } });
+        merge_json(
+            &mut base,
+            json!({ "sounds": { "alert": null }, "size": [3], "fonts": { "body": { "file": "y" } }, "new": 1 }),
+        );
         assert_eq!(
             base,
             json!({

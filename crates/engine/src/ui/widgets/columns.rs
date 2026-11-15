@@ -1,7 +1,7 @@
 use std::any::Any;
-use egui::{pos2, vec2};
 
 use common::Vec2;
+use egui::{pos2, vec2};
 
 use super::{UiWidget, UiWidgetContext, UiWidgetGroup};
 use crate::ui::{UiSystem, immediate};
@@ -27,8 +27,10 @@ pub fn split_column_widths(total: f32, columns: &[UiColumnWidth], spacing: f32) 
     }
 
     let room = (total - spacing * (columns.len() - 1) as f32).max(0.0);
-    let fixed: f32 = columns.iter().map(|column| if let UiColumnWidth::Fixed(width) = column { width.max(0.0) } else { 0.0 }).sum();
-    let weights: f32 = columns.iter().map(|column| if let UiColumnWidth::Fraction(weight) = column { weight.max(0.0) } else { 0.0 }).sum();
+    let fixed: f32 =
+        columns.iter().map(|column| if let UiColumnWidth::Fixed(width) = column { width.max(0.0) } else { 0.0 }).sum();
+    let weights: f32 =
+        columns.iter().map(|column| if let UiColumnWidth::Fraction(weight) = column { weight.max(0.0) } else { 0.0 }).sum();
 
     let fixed_scale = if fixed > room && fixed > 0.0 { room / fixed } else { 1.0 };
     let rest = (room - fixed * fixed_scale).max(0.0);
@@ -179,8 +181,9 @@ impl UiColumns {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use UiColumnWidth::{Fixed, Fraction};
+
+    use super::*;
 
     #[test]
     fn fractions_share_what_fixed_columns_leave() {

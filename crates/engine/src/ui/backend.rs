@@ -10,9 +10,8 @@
 // - Time comes from the engine's frame clock, so --fixed-dt also fixes tooltips and animations.
 // - Copy and paste use a buffer of the game's own, not the system clipboard.
 
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, RawInput, TexturesDelta, TouchPhase, ViewportId, pos2, vec2};
-
 use common::{Size, Vec2, time::Seconds};
+use egui::{Event, Key, Modifiers, PointerButton, Pos2, RawInput, TexturesDelta, TouchPhase, ViewportId, pos2, vec2};
 
 use super::renderer::UiRenderer;
 use crate::{
@@ -88,7 +87,8 @@ impl UiBackend {
     pub fn warm_up(&mut self, pixels_per_point: f32) {
         debug_assert!(!self.frame_started);
 
-        let mut raw_input = RawInput { max_texture_side: Some(MAX_TEXTURE_SIDE), time: Some(self.time), ..Default::default() };
+        let mut raw_input =
+            RawInput { max_texture_side: Some(MAX_TEXTURE_SIDE), time: Some(self.time), ..Default::default() };
         raw_input.viewports.entry(ViewportId::ROOT).or_default().native_pixels_per_point = Some(pixels_per_point);
 
         self.ctx.begin_pass(raw_input);
@@ -271,7 +271,12 @@ impl UiBackend {
             let down = input_sys.mouse_button_state(button) == InputAction::Press;
             if down != self.buttons_down[index] {
                 self.buttons_down[index] = down;
-                self.events.push(Event::PointerButton { pos, button: egui_button, pressed: down, modifiers: self.modifiers });
+                self.events.push(Event::PointerButton {
+                    pos,
+                    button: egui_button,
+                    pressed: down,
+                    modifiers: self.modifiers,
+                });
             }
         }
     }

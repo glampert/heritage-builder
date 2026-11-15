@@ -1,15 +1,14 @@
 use std::ffi::{CStr, c_char};
 
 use arrayvec::ArrayVec;
-use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
 use batch::*;
+use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
 use context::*;
 use shader::*;
 use target::*;
+pub use texture::OpenGlTexture;
 use texture::*;
 use vertex::*;
-
-pub use texture::OpenGlTexture;
 
 use super::{
     RenderApi,
@@ -264,11 +263,11 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
         s.render_context.begin_frame();
         s.frame_started = true;
 
-        s.stats.triangles_drawn  = 0;
-        s.stats.lines_drawn      = 0;
-        s.stats.points_drawn     = 0;
-        s.stats.texture_changes  = 0;
-        s.stats.draw_calls       = 0;
+        s.stats.triangles_drawn = 0;
+        s.stats.lines_drawn = 0;
+        s.stats.points_drawn = 0;
+        s.stats.texture_changes = 0;
+        s.stats.draw_calls = 0;
 
         s.stats.render_submit_time_ms = 0.0;
     }
@@ -312,13 +311,13 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
 
         s.stats.render_submit_time_ms = render_submit_timer.end();
 
-        s.stats.texture_changes      = s.render_context.texture_changes();
-        s.stats.draw_calls           = s.render_context.draw_calls();
+        s.stats.texture_changes = s.render_context.texture_changes();
+        s.stats.draw_calls = s.render_context.draw_calls();
         s.stats.peak_triangles_drawn = s.stats.triangles_drawn.max(s.stats.peak_triangles_drawn);
-        s.stats.peak_lines_drawn     = s.stats.lines_drawn.max(s.stats.peak_lines_drawn);
-        s.stats.peak_points_drawn    = s.stats.points_drawn.max(s.stats.peak_points_drawn);
+        s.stats.peak_lines_drawn = s.stats.lines_drawn.max(s.stats.peak_lines_drawn);
+        s.stats.peak_points_drawn = s.stats.points_drawn.max(s.stats.peak_points_drawn);
         s.stats.peak_texture_changes = s.stats.texture_changes.max(s.stats.peak_texture_changes);
-        s.stats.peak_draw_calls      = s.stats.draw_calls.max(s.stats.peak_draw_calls);
+        s.stats.peak_draw_calls = s.stats.draw_calls.max(s.stats.peak_draw_calls);
 
         s.stats
     }
@@ -379,9 +378,9 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
         }
 
         let vertices = [
-            SpriteVertex2D { position: rect.bottom_left(),  tex_coords: tex_coords.bottom_left()  },
-            SpriteVertex2D { position: rect.top_left(),     tex_coords: tex_coords.top_left()     },
-            SpriteVertex2D { position: rect.top_right(),    tex_coords: tex_coords.top_right()    },
+            SpriteVertex2D { position: rect.bottom_left(), tex_coords: tex_coords.bottom_left() },
+            SpriteVertex2D { position: rect.top_left(), tex_coords: tex_coords.top_left() },
+            SpriteVertex2D { position: rect.top_right(), tex_coords: tex_coords.top_right() },
             SpriteVertex2D { position: rect.bottom_right(), tex_coords: tex_coords.bottom_right() },
         ];
 
@@ -406,10 +405,8 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
             return; // Cull if fully offscreen.
         }
 
-        let vertices = [
-            LineVertex2D { position: from_pos, color: from_color },
-            LineVertex2D { position: to_pos,   color: to_color   },
-        ];
+        let vertices =
+            [LineVertex2D { position: from_pos, color: from_color }, LineVertex2D { position: to_pos, color: to_color }];
 
         const INDICES: [LineIndex2D; 2] = [0, 1];
 

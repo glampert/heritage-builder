@@ -47,13 +47,16 @@ fn draw_household_worker_pool_debug_ui(pool: &HouseholdWorkerPool, world: &World
         ui::indent(ui_sys, 10.0, |ui_sys| {
             for (employer_info, employed_count) in employers {
                 if let Some(employer) = world.find_building(employer_info.kind, employer_info.id) {
-                    ui::text(ui_sys, format_small!(
-                        "- {} cell={} id={}: {}",
-                        employer.name(),
-                        employer.base_cell(),
-                        employer.id(),
-                        employed_count
-                    ));
+                    ui::text(
+                        ui_sys,
+                        format_small!(
+                            "- {} cell={} id={}: {}",
+                            employer.name(),
+                            employer.base_cell(),
+                            employer.id(),
+                            employed_count
+                        ),
+                    );
                 } else {
                     ui::text_colored(ui_sys, Color::red(), "<unknown employer record>");
                 }
@@ -82,7 +85,10 @@ fn draw_employer_debug_ui(employer: &Employer, world: &World, ui_sys: &UiSystem)
         ui::indent(ui_sys, 10.0, |ui_sys| {
             for (house_id, employee_count) in households {
                 if let Some(house) = world.find_building(BuildingKind::House, house_id) {
-                    ui::text(ui_sys, format_small!("- {} cell={} id={}: {}", house.name(), house.base_cell(), house.id(), employee_count));
+                    ui::text(
+                        ui_sys,
+                        format_small!("- {} cell={} id={}: {}", house.name(), house.base_cell(), house.id(), employee_count),
+                    );
                 } else {
                     ui::text_colored(ui_sys, Color::red(), "<unknown employee household>");
                 }

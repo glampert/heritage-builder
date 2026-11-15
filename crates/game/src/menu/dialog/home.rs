@@ -36,14 +36,14 @@ use crate::{
 // Layout (points on a 1920 × 1080 window, scaled with the content area: dialog_content_scale)
 // ----------------------------------------------
 
-const HOME_WIDGET_SPACING: f32 = 6.0;  // Between the panel's parts.
-const HOME_ITEM_SPACING: f32 = 4.0;    // Between the menu items.
-const HOME_ITEM_SCALE: f32 = 1.1;      // The items' fonts, padding and marker, over the skin's menu_item role.
+const HOME_WIDGET_SPACING: f32 = 6.0; // Between the panel's parts.
+const HOME_ITEM_SPACING: f32 = 4.0; // Between the menu items.
+const HOME_ITEM_SCALE: f32 = 1.1; // The items' fonts, padding and marker, over the skin's menu_item role.
 const HOME_ITEM_SCALE_EIGHT: f32 = 0.88; // Times that with Replay the story's eighth item, so the panel still fits.
 const HOME_EMBLEM_SIZE: f32 = 72.0;
 const HOME_EMBLEM_LABEL_FONT_SCALE: f32 = 0.85;
 const HOME_VERSION_FONT_SCALE: f32 = 0.8;
-const HOME_CREST_HEIGHT: f32 = 76.0;   // The crest is drawn this tall at most, keeping its shape.
+const HOME_CREST_HEIGHT: f32 = 76.0; // The crest is drawn this tall at most, keeping its shape.
 
 // ----------------------------------------------
 // HomeItem
@@ -64,7 +64,16 @@ enum HomeItem {
 }
 
 impl HomeItem {
-    const ALL: [Self; 8] = [Self::Continue, Self::Campaign, Self::ReplayStory, Self::CustomGame, Self::LoadGame, Self::Settings, Self::About, Self::Quit];
+    const ALL: [Self; 8] = [
+        Self::Continue,
+        Self::Campaign,
+        Self::ReplayStory,
+        Self::CustomGame,
+        Self::LoadGame,
+        Self::Settings,
+        Self::About,
+        Self::Quit,
+    ];
 
     fn label(self) -> UiString {
         match self {
@@ -104,10 +113,10 @@ impl HomeItem {
 // What the last save is, as Continue shows it.
 #[derive(Clone)]
 enum LastSave {
-    None,                 // Nothing saved yet.
-    Missing(String),      // The profile names a save that's gone.
-    Unreadable(String),   // One that can't be read.
-    Incompatible(String), // One of another save version.
+    None,                                                       // Nothing saved yet.
+    Missing(String),                                            // The profile names a save that's gone.
+    Unreadable(String),                                         // One that can't be read.
+    Incompatible(String),                                       // One of another save version.
     Loadable { save: String, mission: Option<(usize, usize)> }, // Its campaign and mission, if any.
 }
 
@@ -195,11 +204,11 @@ fn continue_info() -> ContinueInfo {
                 Some((mission.to_string(), campaign_number(campaign_index)))
             });
             let subline = match mission {
-                Some((mission, campaign)) => ui::text::format(
-                    UiTextCategory::Menu,
-                    "home.continue.subline",
-                    &[("mission", &mission), ("campaign", &campaign), ("save", &name)],
-                ),
+                Some((mission, campaign)) => ui::text::format(UiTextCategory::Menu, "home.continue.subline", &[
+                    ("mission", &mission),
+                    ("campaign", &campaign),
+                    ("save", &name),
+                ]),
                 None => name,
             };
             ContinueInfo { save: Some(save), subline: Some(subline), tooltip: None }
@@ -234,7 +243,19 @@ pub(super) fn campaign_number(campaign_index: usize) -> String {
 // 1 → "I", 4 → "IV", 12 → "XII".
 pub(super) fn roman_numeral(mut number: usize) -> String {
     const NUMERALS: [(usize, &str); 13] = [
-        (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"), (90, "XC"), (50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
     ];
     let mut text = String::new();
     for (value, numeral) in NUMERALS {
@@ -267,7 +288,8 @@ pub(super) fn emblem_state(campaign_index: usize) -> EmblemState {
 // What unlocks the campaign at `campaign_index`: "Finish Campaign I to unlock".
 pub(super) fn unlock_text(campaign_index: usize) -> String {
     let configs = CampaignConfigs::get();
-    let previous_index = configs.visible().map(|(index, _)| index).filter(|&index| index < campaign_index).last().unwrap_or(0);
+    let previous_index =
+        configs.visible().map(|(index, _)| index).filter(|&index| index < campaign_index).last().unwrap_or(0);
     let previous = campaign_number(previous_index);
     ui::text::format(UiTextCategory::Menu, "campaign.unlock", &[("campaign", &previous)])
 }
@@ -282,11 +304,11 @@ fn campaign_progress_text(campaign_index: usize) -> String {
     };
     let count = campaign.mission_count();
     match profile::get().next_mission(configs, campaign_index) {
-        Some(mission) => ui::text::format(
-            UiTextCategory::Menu,
-            "home.campaign.subline",
-            &[("campaign", &number), ("mission", &campaign.mission_number(mission).to_string()), ("count", &count.to_string())],
-        ),
+        Some(mission) => ui::text::format(UiTextCategory::Menu, "home.campaign.subline", &[
+            ("campaign", &number),
+            ("mission", &campaign.mission_number(mission).to_string()),
+            ("count", &count.to_string()),
+        ]),
         None => ui::text::format(UiTextCategory::Menu, "home.campaign.subline.soon", &[("campaign", &number)]),
     }
 }
@@ -343,7 +365,8 @@ fn replay_subline() -> Option<String> {
 }
 
 fn start_replay(context: &mut GameUiContext) -> bool {
-    *REPLAY.as_mut() = crate::story::seen().into_iter().map(|sequence| (sequence.campaign_index, sequence.sequence.id.clone())).collect();
+    *REPLAY.as_mut() =
+        crate::story::seen().into_iter().map(|sequence| (sequence.campaign_index, sequence.sequence.id.clone())).collect();
     play_next_replay(context)
 }
 
@@ -447,7 +470,9 @@ fn campaign_row(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiC
 
         let mut group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, 4.0 * scale));
         if let Some((texture, size)) = skin::emblem(context, campaign.realm, state) {
-            let image = UiImage::from_texture(texture, size, emblem_size).with_label(campaign_number(index)).with_tooltip(skin::tooltip(context, tooltip));
+            let image = UiImage::from_texture(texture, size, emblem_size)
+                .with_label(campaign_number(index))
+                .with_tooltip(skin::tooltip(context, tooltip));
             group.add_widget(image);
         }
         let label = UiText::new(name, UiFontScale(HOME_EMBLEM_LABEL_FONT_SCALE * text_scale));
@@ -486,11 +511,17 @@ fn menu_items(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiWid
             _ => (None, true, None),
         };
 
-        let mut item = skin::menu_item_scaled(context, item_kind.label(), subline.map(UiString::from), scale * item_scale, text_scale * item_scale)
-            .with_enabled(enabled)
-            .on_pressed(move |_, context| {
-                item_kind.on_pressed(context_as_mut::<GameUiContext>(context));
-            });
+        let mut item = skin::menu_item_scaled(
+            context,
+            item_kind.label(),
+            subline.map(UiString::from),
+            scale * item_scale,
+            text_scale * item_scale,
+        )
+        .with_enabled(enabled)
+        .on_pressed(move |_, context| {
+            item_kind.on_pressed(context_as_mut::<GameUiContext>(context));
+        });
         if let Some(tooltip) = tooltip {
             item = item.with_tooltip(skin::tooltip(context, tooltip));
         }
@@ -532,7 +563,18 @@ mod tests {
 
     #[test]
     fn roman_numerals() {
-        let cases = [(1, "I"), (2, "II"), (3, "III"), (4, "IV"), (9, "IX"), (10, "X"), (12, "XII"), (14, "XIV"), (40, "XL"), (1999, "MCMXCIX")];
+        let cases = [
+            (1, "I"),
+            (2, "II"),
+            (3, "III"),
+            (4, "IV"),
+            (9, "IX"),
+            (10, "X"),
+            (12, "XII"),
+            (14, "XIV"),
+            (40, "XL"),
+            (1999, "MCMXCIX"),
+        ];
         for (number, numeral) in cases {
             assert_eq!(roman_numeral(number), numeral);
         }

@@ -3,13 +3,27 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, config_patches, done, parse_params};
+use crate::automation::{
+    CommandContext,
+    CommandDef,
+    CommandError,
+    CommandResult,
+    ParamDef,
+    config_patches,
+    done,
+    parse_params,
+};
 
 pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "config.get",
         help: "The game configs (defaults with the user configs over them) as JSON, or the value at a JSON pointer.",
-        params: &[ParamDef { name: "path", kind: "string", required: false, help: "JSON pointer, e.g. /sim/starting_gold_units." }],
+        params: &[ParamDef {
+            name: "path",
+            kind: "string",
+            required: false,
+            help: "JSON pointer, e.g. /sim/starting_gold_units.",
+        }],
         run: cmd_get,
     },
     CommandDef {
@@ -44,8 +58,9 @@ fn cmd_get(_context: &mut CommandContext, params: Value) -> CommandResult {
         Some(path) => pointer_param(path)?,
     };
 
-    let value = config_patches::get(&pointer)
-        .ok_or_else(|| CommandError::not_found(format!("No config at '{pointer}'. config.get with no path lists them all.")))?;
+    let value = config_patches::get(&pointer).ok_or_else(|| {
+        CommandError::not_found(format!("No config at '{pointer}'. config.get with no path lists them all."))
+    })?;
 
     done(value)
 }

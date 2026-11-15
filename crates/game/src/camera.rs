@@ -22,44 +22,42 @@ use crate::{config::GameConfigs, save_context::*};
 // Camera Coordinates and Conventions
 // ----------------------------------------------
 
-/*
-Screen origin (0,0): Top-left corner.
- +X : points towards right-hand-side
- -X : points towards left-hand-side
- +Y : points towards bottom
- -Y : points towards top
-
-Camera Scroll Directions:
- +X offset : scrolls left
- -X offset : scrolls right
- +Y offset : scrolls up
- -Y offset : scrolls down
-
-Camera Scroll Offsets:
- Offset = (0,0) : Only tile (0,0) is half visible at the screen origin (top-left corner).
- Y < 0 : Map fully offscreen at the top of the screen.
- Y > map_height_pixels : Map fully offscreen at the bottom of the screen.
- X < 0 : Scrolling right, past the middle of the map.
- X > 0 : Scrolling left, past the middle of the map.
-
-Camera Iso Position:
- Scroll up    : -iso Y
- Scroll down  : +iso Y
- Scroll right : +iso X
- Scroll left  : -iso X
-
-Map Bounds Clamping:
- Axis-aligned bounding box of the rotated isometric world map.
- Always clamp camera offsets to these limits. Void corners can
- be seen when near the bounding box limits. All tiles are accessible.
-
-Map Playable Area Clamping:
- Inner isometric diamond playable area. Clamp the camera so that
- it always stays inside the map diamond, preventing void corners
- from being visible. The top/bottom, left/right edge tiles of the
- map are not accessible/visible when this is enabled.
- See `CameraConstraint` for details.
-*/
+// Screen origin (0,0): Top-left corner.
+// +X : points towards right-hand-side
+// -X : points towards left-hand-side
+// +Y : points towards bottom
+// -Y : points towards top
+//
+// Camera Scroll Directions:
+// +X offset : scrolls left
+// -X offset : scrolls right
+// +Y offset : scrolls up
+// -Y offset : scrolls down
+//
+// Camera Scroll Offsets:
+// Offset = (0,0) : Only tile (0,0) is half visible at the screen origin (top-left corner).
+// Y < 0 : Map fully offscreen at the top of the screen.
+// Y > map_height_pixels : Map fully offscreen at the bottom of the screen.
+// X < 0 : Scrolling right, past the middle of the map.
+// X > 0 : Scrolling left, past the middle of the map.
+//
+// Camera Iso Position:
+// Scroll up    : -iso Y
+// Scroll down  : +iso Y
+// Scroll right : +iso X
+// Scroll left  : -iso X
+//
+// Map Bounds Clamping:
+// Axis-aligned bounding box of the rotated isometric world map.
+// Always clamp camera offsets to these limits. Void corners can
+// be seen when near the bounding box limits. All tiles are accessible.
+//
+// Map Playable Area Clamping:
+// Inner isometric diamond playable area. Clamp the camera so that
+// it always stays inside the map diamond, preventing void corners
+// from being visible. The top/bottom, left/right edge tiles of the
+// map are not accessible/visible when this is enabled.
+// See `CameraConstraint` for details.
 
 // ----------------------------------------------
 // Camera Helpers
@@ -162,12 +160,9 @@ impl Camera {
     #[inline]
     pub fn camera_screen_rect(&self) -> Rect {
         let camera_screen_center = self.viewport_center();
-        let camera_half_extents  = camera_screen_center;
+        let camera_half_extents = camera_screen_center;
 
-        Rect::from_extents(
-            camera_screen_center - camera_half_extents,
-            camera_screen_center + camera_half_extents
-        )
+        Rect::from_extents(camera_screen_center - camera_half_extents, camera_screen_center + camera_half_extents)
     }
 
     #[inline]
@@ -195,9 +190,9 @@ impl Camera {
     #[inline]
     pub fn iso_bounds(&self) -> (IsoPointF32, IsoPointF32) {
         let center_iso = self.iso_world_position();
-        let half_iso   = self.iso_viewport_center();
+        let half_iso = self.iso_viewport_center();
 
-        let top_left     = IsoPointF32(center_iso.0 - half_iso.0);
+        let top_left = IsoPointF32(center_iso.0 - half_iso.0);
         let bottom_right = IsoPointF32(center_iso.0 + half_iso.0);
 
         (top_left, bottom_right)
@@ -206,12 +201,12 @@ impl Camera {
     #[inline]
     pub fn iso_corners(&self) -> [IsoPointF32; 4] {
         let center_iso = self.iso_world_position();
-        let half_iso   = self.iso_viewport_center();
+        let half_iso = self.iso_viewport_center();
 
-        let top_left     = IsoPointF32(center_iso.0 - half_iso.0);
+        let top_left = IsoPointF32(center_iso.0 - half_iso.0);
         let bottom_right = IsoPointF32(center_iso.0 + half_iso.0);
-        let top_right    = IsoPointF32(Vec2::new(center_iso.0.x + half_iso.0.x, center_iso.0.y - half_iso.0.y));
-        let bottom_left  = IsoPointF32(Vec2::new(center_iso.0.x - half_iso.0.x, center_iso.0.y + half_iso.0.y));
+        let top_right = IsoPointF32(Vec2::new(center_iso.0.x + half_iso.0.x, center_iso.0.y - half_iso.0.y));
+        let bottom_left = IsoPointF32(Vec2::new(center_iso.0.x - half_iso.0.x, center_iso.0.y + half_iso.0.y));
 
         [top_left, top_right, bottom_right, bottom_left]
     }
@@ -232,7 +227,7 @@ impl Camera {
         let cell_y_max = cell_min.0.y.max(cell_max.0.y);
 
         // Build cell rect corners in fractional cell coords (CellF32).
-        let cell_top_left     = CellF32(Vec2::new(cell_x_min, cell_y_min));
+        let cell_top_left = CellF32(Vec2::new(cell_x_min, cell_y_min));
         let cell_bottom_right = CellF32(Vec2::new(cell_x_max, cell_y_max));
 
         (cell_top_left, cell_bottom_right)
@@ -281,13 +276,11 @@ impl Camera {
     // and allow access to the maximum number of tiles for the camera viewport and
     // zoom without exposing any void areas. The camera can smoothly slide along each
     // diagonal of the map's diamond.
-    /*
-    fn build_constraints(&self, camera_relative: bool) -> CameraConstraintsIsoDiamond {
-        let diamond = self.map_diamond(camera_relative);
-        let camera_half_extents = self.viewport_center();
-        CameraConstraintsIsoDiamond::new(&diamond, camera_half_extents)
-    }
-    */
+    // fn build_constraints(&self, camera_relative: bool) -> CameraConstraintsIsoDiamond {
+    // let diamond = self.map_diamond(camera_relative);
+    // let camera_half_extents = self.viewport_center();
+    // CameraConstraintsIsoDiamond::new(&diamond, camera_half_extents)
+    // }
 
     // ----------------------
     // Zoom/scaling:
@@ -780,7 +773,7 @@ impl CameraConstraintsIsoDiamond {
             plane_a.p + (plane_a_tangent * distance_along_tangent)
         }
 
-        let mut planes  = [ConstraintPlane::default(); 4];
+        let mut planes = [ConstraintPlane::default(); 4];
         let mut normals = [Vec2::zero(); 4];
 
         // Shrink diamond polygon in half:
@@ -848,7 +841,7 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
                 // normal_velocity = 0 -> motion parallel to edge
                 let normal_velocity = delta.dot(normal);
 
-                const ZERO_EPSILON:   f32 = 1e-6;
+                const ZERO_EPSILON: f32 = 1e-6;
                 const DIST_TOLERANCE: f32 = 1e-4;
 
                 // Moving outward?
@@ -882,11 +875,7 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
             t_max = 0.0;
         }
 
-        if t_max <= 0.0 {
-            Vec2::zero()
-        } else {
-            delta * t_max.clamp(0.0, 1.0)
-        }
+        if t_max <= 0.0 { Vec2::zero() } else { delta * t_max.clamp(0.0, 1.0) }
     }
 
     fn clamp_point(&self, mut p: Vec2) -> Vec2 {
@@ -943,7 +932,7 @@ fn draw_diamond_edges_and_normals(debug_draw: &mut DebugDraw, diamond: &IsoDiamo
         let b = points[(i + 1) % points.len()];
 
         let edge = b - a;
-        let mid  = (a + b) * 0.5;
+        let mid = (a + b) * 0.5;
         let normal = inward_normal(edge);
 
         // Edge:
@@ -963,10 +952,10 @@ fn calc_visible_cells_range(map_size_in_cells: Size, viewport_size: Size, transf
     }
 
     // Add one extra row of tiles on each end to avoid any visual popping while scrolling.
-    let tile_width  = BASE_TILE_WIDTH_F32  * transform.scaling;
+    let tile_width = BASE_TILE_WIDTH_F32 * transform.scaling;
     let tile_height = BASE_TILE_HEIGHT_F32 * transform.scaling;
 
-    let pos  = Vec2::new(-tile_width, -tile_height);
+    let pos = Vec2::new(-tile_width, -tile_height);
     let size = Vec2::new((viewport_size.width as f32) + tile_width, (viewport_size.height as f32) + tile_height);
     let screen_rect = Rect::from_pos_and_size(pos, size);
 
@@ -1041,14 +1030,14 @@ fn calc_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -
         return Rect::from_pos_and_size(Vec2::zero(), viewport_size.to_vec2());
     }
 
-    let tile_width_pixels  = BASE_TILE_WIDTH_F32  * scaling;
+    let tile_width_pixels = BASE_TILE_WIDTH_F32 * scaling;
     let tile_height_pixels = BASE_TILE_HEIGHT_F32 * scaling;
 
-    let map_width_pixels  = (map_size_in_cells.width  as f32) * tile_width_pixels;
+    let map_width_pixels = (map_size_in_cells.width as f32) * tile_width_pixels;
     let map_height_pixels = (map_size_in_cells.height as f32) * tile_height_pixels;
 
     let half_tile_width_pixels = tile_width_pixels * 0.5;
-    let half_map_width_pixels  = map_width_pixels  * 0.5;
+    let half_map_width_pixels = map_width_pixels * 0.5;
 
     let min_pt = Vec2::new(
         -(half_map_width_pixels + half_tile_width_pixels - (viewport_size.width as f32)),

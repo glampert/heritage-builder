@@ -180,7 +180,9 @@ impl Client {
         let mut line = String::new();
         match self.reader.read_line(&mut line) {
             Ok(0) => Err(RpcError::transport("The game closed the connection.")),
-            Ok(_) => serde_json::from_str(&line).map_err(|err| RpcError::transport(format!("Bad message from the game: {err}"))),
+            Ok(_) => {
+                serde_json::from_str(&line).map_err(|err| RpcError::transport(format!("Bad message from the game: {err}")))
+            }
             Err(err) if matches!(err.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {
                 Err(RpcError { code: "Timeout".into(), message: "The game didn't answer in time.".into() })
             }

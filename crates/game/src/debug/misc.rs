@@ -211,9 +211,7 @@ impl CampaignConfigs {
                             mission.requirements.goals.len()
                         );
 
-                        if let Some(_path) =
-                            ui::collapsing_header_scope(ui_sys, &mission_header, false)
-                        {
+                        if let Some(_path) = ui::collapsing_header_scope(ui_sys, &mission_header, false) {
                             ui::indent(ui_sys, 10.0, |ui_sys| {
                                 Self::draw_mission_def_debug_ui(ui_sys, mission);
                             });
@@ -230,8 +228,8 @@ impl CampaignConfigs {
         ui::text(ui_sys, format_small!("Description: {}", mission.description));
 
         match &mission.map {
-            MissionMap::SaveGame { save_file }     => ui::text(ui_sys, format_small!("Map: save game '{save_file}'")),
-            MissionMap::Preset   { preset_number } => ui::text(ui_sys, format_small!("Map: preset #{preset_number}")),
+            MissionMap::SaveGame { save_file } => ui::text(ui_sys, format_small!("Map: save game '{save_file}'")),
+            MissionMap::Preset { preset_number } => ui::text(ui_sys, format_small!("Map: preset #{preset_number}")),
         }
 
         if mission.requirements.goals.is_empty() {
@@ -240,10 +238,16 @@ impl CampaignConfigs {
             ui::text(ui_sys, "Requirements:");
             for goal in &mission.requirements.goals {
                 match goal {
-                    MissionGoal::Population { min }          => ui::bullet_text(ui_sys, format_small!("Population >= {min}")),
-                    MissionGoal::Employment { min_employed } => ui::bullet_text(ui_sys, format_small!("Employment >= {min_employed}")),
-                    MissionGoal::Treasury   { min_gold }     => ui::bullet_text(ui_sys, format_small!("Treasury >= {min_gold} gold")),
-                    MissionGoal::Resource   { kind, min }    => ui::bullet_text(ui_sys, format_small!("Resource {kind} >= {min}")),
+                    MissionGoal::Population { min } => ui::bullet_text(ui_sys, format_small!("Population >= {min}")),
+                    MissionGoal::Employment { min_employed } => {
+                        ui::bullet_text(ui_sys, format_small!("Employment >= {min_employed}"))
+                    }
+                    MissionGoal::Treasury { min_gold } => {
+                        ui::bullet_text(ui_sys, format_small!("Treasury >= {min_gold} gold"))
+                    }
+                    MissionGoal::Resource { kind, min } => {
+                        ui::bullet_text(ui_sys, format_small!("Resource {kind} >= {min}"))
+                    }
                 }
             }
         }

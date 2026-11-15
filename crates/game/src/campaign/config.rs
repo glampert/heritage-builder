@@ -1,7 +1,9 @@
-use serde::{Deserialize, Serialize};
-
 use common::hash;
-use engine::{log, ui::text::{self, UiTextCategory}};
+use engine::{
+    log,
+    ui::text::{self, UiTextCategory},
+};
+use serde::{Deserialize, Serialize};
 
 pub use crate::world_map::config::{CityKind, LabelSide};
 use crate::{
@@ -152,7 +154,8 @@ impl CampaignDef {
     // Whether the step at `step` is finished, given the missions finished: it, or a mission one of
     // its sites starts.
     pub fn is_step_finished(&self, step: usize, missions_finished: &[usize]) -> bool {
-        missions_finished.contains(&step) || self.choice_targets(step).iter().any(|target| missions_finished.contains(target))
+        missions_finished.contains(&step)
+            || self.choice_targets(step).iter().any(|target| missions_finished.contains(target))
     }
 
     // The first step after the step of `mission_index`. None after the last.
@@ -386,8 +389,8 @@ pub struct MissionRequirements {
 pub enum MissionGoal {
     Population { min: u32 },
     Employment { min_employed: u32 },
-    Treasury   { min_gold: u32 },
-    Resource   { kind: ResourceKind, min: u32 },
+    Treasury { min_gold: u32 },
+    Resource { kind: ResourceKind, min: u32 },
 }
 
 impl MissionGoal {
@@ -397,8 +400,8 @@ impl MissionGoal {
         match self {
             Self::Population { min } => stats.population.total >= *min,
             Self::Employment { min_employed } => stats.population.employed >= *min_employed,
-            Self::Treasury   { min_gold } => stats.treasury.gold_units_total >= i64::from(*min_gold),
-            Self::Resource   { kind, min } => stats.resources.all.count(*kind) >= *min,
+            Self::Treasury { min_gold } => stats.treasury.gold_units_total >= i64::from(*min_gold),
+            Self::Resource { kind, min } => stats.resources.all.count(*kind) >= *min,
         }
     }
 }
@@ -480,7 +483,9 @@ impl CampaignConfigs {
                     errors.push(format!("Campaign '{name}' has two missions with the id '{}'.", mission.id));
                 }
                 if let Some(city) = &mission.city
-                    && campaign.missions[..index].iter().any(|other| other.city.as_ref().is_some_and(|other| other.id == city.id))
+                    && campaign.missions[..index]
+                        .iter()
+                        .any(|other| other.city.as_ref().is_some_and(|other| other.id == city.id))
                 {
                     errors.push(format!("Campaign '{name}': two missions found the city '{}'.", city.id));
                 }
@@ -489,14 +494,19 @@ impl CampaignConfigs {
                 }
                 let sites: Vec<ChoiceSite> = mission.choices.iter().map(|choice| choice.site).collect();
                 if sites != [ChoiceSite::A, ChoiceSite::B] {
-                    errors.push(format!("Campaign '{name}', mission {index}: a choice offers two sites, A then B, not {sites:?}."));
+                    errors.push(format!(
+                        "Campaign '{name}', mission {index}: a choice offers two sites, A then B, not {sites:?}."
+                    ));
                 }
                 if !campaign.choice_targets(index).contains(&index) {
                     errors.push(format!("Campaign '{name}', mission {index}: no site starts the choice point itself, which the campaign resumes at while no site is picked."));
                 }
                 for choice in &mission.choices {
                     match campaign.resolve_mission(&choice.mission) {
-                        None => errors.push(format!("Campaign '{name}', mission {index}: site {} names no mission ({:?}).", choice.site, choice.mission)),
+                        None => errors.push(format!(
+                            "Campaign '{name}', mission {index}: site {} names no mission ({:?}).",
+                            choice.site, choice.mission
+                        )),
                         Some(target) if target != index && !campaign.missions[target].choices.is_empty() => {
                             errors.push(format!("Campaign '{name}', mission {index}: site {} starts mission {target}, a choice point itself.", choice.site));
                         }
@@ -532,7 +542,9 @@ impl CampaignConfigs {
                 }
             }
             for target in 0..campaign.missions.len() {
-                let points = (0..campaign.missions.len()).filter(|&step| step != target && campaign.choice_targets(step).contains(&target)).count();
+                let points = (0..campaign.missions.len())
+                    .filter(|&step| step != target && campaign.choice_targets(step).contains(&target))
+                    .count();
                 if points > 1 {
                     errors.push(format!("Campaign '{name}': mission {target} is a site of {points} choice points."));
                 }

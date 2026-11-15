@@ -52,14 +52,24 @@
 //   (record_map_marker), and UiCanvas, a rect painted by a callback.
 
 use std::{any::Any, cell::RefMut};
-use smallbox::SmallBox;
-use enum_dispatch::enum_dispatch;
-use egui::pos2;
 
 use common::{RectTexCoords, Size, Vec2, hash::FNV1aHash, mem, time::Seconds};
+use egui::pos2;
+use enum_dispatch::enum_dispatch;
+use smallbox::SmallBox;
 
-use super::{UiFontScale, UiNineSlice, UiSystem, immediate::{self, rich_text}, internal};
-use crate::{file_sys::paths::PathRef, render::{RenderSystem, texture::TextureHandle}, sound::SoundSystem};
+use super::{
+    UiFontScale,
+    UiNineSlice,
+    UiSystem,
+    immediate::{self, rich_text},
+    internal,
+};
+use crate::{
+    file_sys::paths::PathRef,
+    render::{RenderSystem, texture::TextureHandle},
+    sound::SoundSystem,
+};
 
 mod button;
 mod card;

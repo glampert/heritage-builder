@@ -22,9 +22,9 @@ pub const fn size_to_index_format<T>() -> wgpu::IndexFormat {
 #[repr(C)]
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SpriteVertex2D {
-    pub position:   [f32; 2],
+    pub position: [f32; 2],
     pub tex_coords: [f32; 2],
-    pub color:      [f32; 4],
+    pub color: [f32; 4],
 }
 
 pub type SpriteIndex2D = u16;
@@ -43,9 +43,9 @@ impl SpriteVertex2D {
     #[inline]
     pub fn new(position: Vec2, tex_coords: Vec2, color: Color) -> Self {
         Self {
-            position:   [position.x, position.y],
+            position: [position.x, position.y],
             tex_coords: [tex_coords.x, tex_coords.y],
-            color:      [color.r, color.g, color.b, color.a],
+            color: [color.r, color.g, color.b, color.a],
         }
     }
 }
@@ -59,7 +59,7 @@ impl SpriteVertex2D {
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct LineVertex2D {
     pub position: [f32; 2],
-    pub color:    [f32; 4],
+    pub color: [f32; 4],
 }
 
 pub type LineIndex2D = u16;
@@ -76,10 +76,7 @@ impl LineVertex2D {
 
     #[inline]
     pub fn new(position: Vec2, color: Color) -> Self {
-        Self {
-            position: [position.x, position.y],
-            color:    [color.r, color.g, color.b, color.a],
-        }
+        Self { position: [position.x, position.y], color: [color.r, color.g, color.b, color.a] }
     }
 }
 
@@ -88,7 +85,7 @@ impl LineVertex2D {
 // ----------------------------------------------
 
 pub type PointVertex2D = LineVertex2D;
-pub type PointIndex2D  = u16;
+pub type PointIndex2D = u16;
 
 // ----------------------------------------------
 // UI Vertex

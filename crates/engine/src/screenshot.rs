@@ -16,7 +16,8 @@ use std::{
 
 use common::{Size, Vec2};
 use image::{
-    ExtendedColorType, ImageEncoder,
+    ExtendedColorType,
+    ImageEncoder,
     codecs::{jpeg::JpegEncoder, png::PngEncoder},
 };
 
@@ -46,11 +47,11 @@ pub enum ScreenshotOutput {
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub enum ScreenshotScale {
     #[default]
-    Pixels,      // Framebuffer resolution.
+    Pixels, // Framebuffer resolution.
     Points,      // Window points: half the pixels each way on a 2x HiDPI screen. Matches input coordinates.
     Factor(f32), // Framebuffer resolution times this, from 0 (exclusive) to 1.
-    Cover(Size), // Exactly this size: scaled to cover it, keeping the frame's shape, and its middle cut out
-                 // (a save's thumbnail). Never scaled up: a smaller frame is only cut to the size's shape.
+    Cover(Size), /* Exactly this size: scaled to cover it, keeping the frame's shape, and its middle cut out
+                  * (a save's thumbnail). Never scaled up: a smaller frame is only cut to the size's shape. */
 }
 
 // How the image is encoded.
@@ -78,7 +79,7 @@ pub struct Screenshot {
     pub size: Size,            // In image pixels.
     pub scale: Vec2,           // Image pixels per window point. Above 1 on HiDPI screens, unless scaled down.
     pub path: Option<PathBuf>, // Set for ScreenshotOutput::File.
-    pub png: Option<Vec<u8>>,  // Set for ScreenshotOutput::Memory: the image, PNG unless the request's format says otherwise.
+    pub png: Option<Vec<u8>>, /* Set for ScreenshotOutput::Memory: the image, PNG unless the request's format says otherwise. */
 }
 
 pub type ScreenshotResult = Result<Screenshot, String>;
@@ -190,7 +191,10 @@ pub fn encode_image(image: &CapturedImage, format: ScreenshotFormat) -> Result<V
 
 #[derive(Debug)]
 pub enum ImageComparison {
-    SizeMismatch { actual: Size, expected: Size },
+    SizeMismatch {
+        actual: Size,
+        expected: Size,
+    },
     Compared {
         diff_pixels: u64,          // Pixels with a channel off by more than the tolerance.
         max_channel_diff: u8,      // The largest channel difference anywhere.
@@ -302,10 +306,19 @@ fn cover_image(image: CapturedImage, size: Size) -> Result<CapturedImage, String
         .into_rgba8();
 
     let scale = new_width as f32 / width as f32 * image.scale.x.max(image.scale.y);
-    Ok(CapturedImage { size: Size::new(new_width as i32, new_height as i32), scale: Vec2::new(scale, scale), pixels: scaled.into_raw() })
+    Ok(CapturedImage {
+        size: Size::new(new_width as i32, new_height as i32),
+        scale: Vec2::new(scale, scale),
+        pixels: scaled.into_raw(),
+    })
 }
 
-fn save_screenshot(image: CapturedImage, scale: ScreenshotScale, format: ScreenshotFormat, output: ScreenshotOutput) -> ScreenshotResult {
+fn save_screenshot(
+    image: CapturedImage,
+    scale: ScreenshotScale,
+    format: ScreenshotFormat,
+    output: ScreenshotOutput,
+) -> ScreenshotResult {
     let image = scale_image(image, scale)?;
     let bytes = encode_image(&image, format)?;
     let CapturedImage { size, scale, .. } = image;
@@ -395,7 +408,14 @@ impl ScreenshotSystem {
     }
 
     #[cfg(feature = "desktop")]
-    fn save(&mut self, id: ScreenshotId, image: CapturedImage, scale: ScreenshotScale, format: ScreenshotFormat, output: ScreenshotOutput) {
+    fn save(
+        &mut self,
+        id: ScreenshotId,
+        image: CapturedImage,
+        scale: ScreenshotScale,
+        format: ScreenshotFormat,
+        output: ScreenshotOutput,
+    ) {
         let results_sender = self.results_sender.clone();
         let spawn_result = std::thread::Builder::new().name("screenshot".into()).spawn(move || {
             // The receiver only goes away when the engine shuts down, after joining this thread.
@@ -409,7 +429,14 @@ impl ScreenshotSystem {
     }
 
     #[cfg(not(feature = "desktop"))]
-    fn save(&mut self, id: ScreenshotId, image: CapturedImage, scale: ScreenshotScale, format: ScreenshotFormat, output: ScreenshotOutput) {
+    fn save(
+        &mut self,
+        id: ScreenshotId,
+        image: CapturedImage,
+        scale: ScreenshotScale,
+        format: ScreenshotFormat,
+        output: ScreenshotOutput,
+    ) {
         let result = save_screenshot(image, scale, format, output);
         self.finish(id, result);
     }
@@ -493,7 +520,13 @@ mod tests {
     }
 
     fn request(output: ScreenshotOutput, encode_in_frame: bool) -> ScreenshotRequest {
-        ScreenshotRequest { include_ui: true, scale: ScreenshotScale::Pixels, format: ScreenshotFormat::Png, output, encode_in_frame }
+        ScreenshotRequest {
+            include_ui: true,
+            scale: ScreenshotScale::Pixels,
+            format: ScreenshotFormat::Png,
+            output,
+            encode_in_frame,
+        }
     }
 
     #[test]
@@ -537,7 +570,8 @@ mod tests {
         let image = test_image(3, 2);
         let png = encode_png(&image).unwrap();
 
-        let Ok(ImageComparison::Compared { diff_pixels: 0, max_channel_diff: 0, diff_png: None }) = compare_png(&png, &png, 0)
+        let Ok(ImageComparison::Compared { diff_pixels: 0, max_channel_diff: 0, diff_png: None }) =
+            compare_png(&png, &png, 0)
         else {
             panic!("An image should match itself.");
         };
@@ -589,7 +623,10 @@ mod tests {
         assert_eq!(cover.pixels.len(), 16 * 9 * 4);
 
         // From a taller frame too.
-        assert_eq!(scale_image(test_image(32, 40), ScreenshotScale::Cover(Size::new(16, 9))).unwrap().size, Size::new(16, 9));
+        assert_eq!(
+            scale_image(test_image(32, 40), ScreenshotScale::Cover(Size::new(16, 9))).unwrap().size,
+            Size::new(16, 9)
+        );
 
         // A frame smaller than the target isn't scaled up, only cut to its shape.
         assert_eq!(scale_image(test_image(8, 8), ScreenshotScale::Cover(Size::new(16, 9))).unwrap().size, Size::new(8, 4));
@@ -617,15 +654,22 @@ mod tests {
 
     #[test]
     fn test_save_to_memory_and_file() {
-        let screenshot = save_screenshot(test_image(2, 2), ScreenshotScale::Pixels, ScreenshotFormat::Png, ScreenshotOutput::Memory).unwrap();
+        let screenshot =
+            save_screenshot(test_image(2, 2), ScreenshotScale::Pixels, ScreenshotFormat::Png, ScreenshotOutput::Memory)
+                .unwrap();
         assert_eq!(screenshot.size, Size::new(2, 2));
         assert!(screenshot.path.is_none() && screenshot.png.is_some());
 
         let dir = std::env::temp_dir().join(format!("heritage_screenshot_test_{}", std::process::id()));
         let path = dir.join("nested").join("shot.png");
 
-        let screenshot =
-            save_screenshot(test_image(4, 1), ScreenshotScale::Pixels, ScreenshotFormat::Png, ScreenshotOutput::File(path.clone())).unwrap();
+        let screenshot = save_screenshot(
+            test_image(4, 1),
+            ScreenshotScale::Pixels,
+            ScreenshotFormat::Png,
+            ScreenshotOutput::File(path.clone()),
+        )
+        .unwrap();
         assert_eq!(screenshot.path.as_deref(), Some(path.as_path()));
         assert_eq!(image::open(&path).unwrap().to_rgba8().dimensions(), (4, 1));
 

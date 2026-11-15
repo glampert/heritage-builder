@@ -3,26 +3,18 @@
 
 use std::str::FromStr;
 
+use common::{Color, Vec2};
+use engine::{cli, render::capture::CapturedImage, screenshot};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use strum::IntoEnumIterator;
-
-use common::{Color, Vec2};
-use engine::{cli, render::capture::CapturedImage, screenshot};
 
 use super::{CellParam, cell_json};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     menu::GameMenusMode,
     realm::{self, Realm},
-    tile::minimap::{
-        MINIMAP_ICON_DEFAULT_LIFETIME,
-        MinimapIcon,
-        MinimapLens,
-        lens::LensData,
-        model::LandmarkKind,
-        style,
-    },
+    tile::minimap::{MINIMAP_ICON_DEFAULT_LIFETIME, MinimapIcon, MinimapLens, lens::LensData, model::LandmarkKind, style},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -40,10 +32,30 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         params: &[
             ParamDef { name: "open", kind: "bool", required: false, help: "Show the minimap, or only its open button." },
             ParamDef { name: "lens", kind: "string", required: false, help: "city, sectors, water or risk." },
-            ParamDef { name: "show_landmarks", kind: "bool", required: false, help: "Show the building icons in the City view, as the toggle does." },
-            ParamDef { name: "zoom", kind: "number", required: false, help: "1 shows the whole playable area; more zooms in." },
-            ParamDef { name: "auto_zoom", kind: "bool", required: false, help: "Zoom to about 95 visible cells, as on opening." },
-            ParamDef { name: "center", kind: "cell", required: false, help: "[x, y]: centre the view there (when zoomed in)." },
+            ParamDef {
+                name: "show_landmarks",
+                kind: "bool",
+                required: false,
+                help: "Show the building icons in the City view, as the toggle does.",
+            },
+            ParamDef {
+                name: "zoom",
+                kind: "number",
+                required: false,
+                help: "1 shows the whole playable area; more zooms in.",
+            },
+            ParamDef {
+                name: "auto_zoom",
+                kind: "bool",
+                required: false,
+                help: "Zoom to about 95 visible cells, as on opening.",
+            },
+            ParamDef {
+                name: "center",
+                kind: "cell",
+                required: false,
+                help: "[x, y]: centre the view there (when zoomed in).",
+            },
         ],
         run: cmd_set,
     },
@@ -71,8 +83,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "minimap.export",
         help: "Save the minimap's baked base texture as a PNG, to compare with the mockups.",
         params: &[
-            ParamDef { name: "path", kind: "string", required: false, help: "PNG file, relative to the directory the game was started from. Default: out/minimap.png." },
-            ParamDef { name: "inline", kind: "bool", required: false, help: "True returns the PNG as base64 (png_base64) instead of writing a file." },
+            ParamDef {
+                name: "path",
+                kind: "string",
+                required: false,
+                help: "PNG file, relative to the directory the game was started from. Default: out/minimap.png.",
+            },
+            ParamDef {
+                name: "inline",
+                kind: "bool",
+                required: false,
+                help: "True returns the PNG as base64 (png_base64) instead of writing a file.",
+            },
         ],
         run: cmd_export,
     },
@@ -93,9 +115,11 @@ fn minimap_state(context: &CommandContext) -> Value {
 
     let landmarks: Vec<Value> = LandmarkKind::iter()
         .flat_map(|kind| {
-            minimap.features().iter().filter(move |feature| feature.landmark == Some(kind)).map(move |feature| {
-                json!({ "kind": kind.to_string(), "cell": cell_json(feature.base_cell) })
-            })
+            minimap
+                .features()
+                .iter()
+                .filter(move |feature| feature.landmark == Some(kind))
+                .map(move |feature| json!({ "kind": kind.to_string(), "cell": cell_json(feature.base_cell) }))
         })
         .collect();
 

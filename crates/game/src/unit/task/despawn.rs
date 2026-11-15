@@ -1,16 +1,9 @@
 use std::any::Any;
-use serde::{Deserialize, Serialize};
 
 use common::coords::Cell;
+use serde::{Deserialize, Serialize};
 
-use super::{
-    UnitPostDespawnCb,
-    UnitTaskContext,
-    UnitTaskState,
-    UnitTaskTransition,
-    UnitTask,
-    UnitTaskArg,
-};
+use super::{UnitPostDespawnCb, UnitTask, UnitTaskArg, UnitTaskContext, UnitTaskState, UnitTaskTransition};
 use crate::{
     sim::{SimCmds, SimContext},
     unit::{Unit, navigation::UnitNavGoal},

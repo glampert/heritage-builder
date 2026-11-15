@@ -2,9 +2,8 @@
 // when the book is built (docs/plans/realm-ui.md, Phase 6), and what automation's city.state
 // reports. The monthly changes and trends come from the history (history.rs).
 
-use serde::Serialize;
-
 use engine::ui::text::{self, UiTextCategory};
+use serde::Serialize;
 
 use super::{CityHistory, spaced_name};
 use crate::{
@@ -197,7 +196,8 @@ impl CityReport {
                         name: kind.display_name().into_owned(),
                         stored: stored[kind.index()],
                         room: room[kind.index()].max(stored[kind.index()]),
-                        change: this_month.map(|sample| i64::from(stored[kind.index()]) - i64::from(sample.stored[kind.index()])),
+                        change: this_month
+                            .map(|sample| i64::from(stored[kind.index()]) - i64::from(sample.stored[kind.index()])),
                     })
                     .collect();
                 (group, rows)
@@ -217,7 +217,11 @@ impl CityReport {
         let granary_food = food_in(&stats.resources.granaries);
         let food_stored = granary_food + food_in(&stats.resources.markets) + food_in(&stats.resources.houses);
         let sim_configs = &GameConfigs::get().sim;
-        let days_a_month = if sim_configs.seconds_per_day > 0.0 { sim_configs.seconds_per_month / sim_configs.seconds_per_day } else { 0.0 };
+        let days_a_month = if sim_configs.seconds_per_day > 0.0 {
+            sim_configs.seconds_per_month / sim_configs.seconds_per_day
+        } else {
+            0.0
+        };
         let food_a_month = food_a_day * days_a_month;
         let food_months = (food_a_month > 0.0).then(|| food_stored as f32 / food_a_month);
 
@@ -308,7 +312,11 @@ fn warnings(world: &World, sim: &Simulation, report: &CityReport, hungry_houses:
         warnings.push(Warning { icon: "warn", text: count_text("book.warning.fires", burning), page: None });
     }
     if sick_houses > 0 {
-        warnings.push(Warning { icon: "warn", text: count_text("book.warning.sickness", sick_houses), page: Some("population") });
+        warnings.push(Warning {
+            icon: "warn",
+            text: count_text("book.warning.sickness", sick_houses),
+            page: Some("population"),
+        });
     }
     let finance = sim.finance();
     if finance.is_in_debt() {
@@ -325,15 +333,29 @@ fn warnings(world: &World, sim: &Simulation, report: &CityReport, hungry_houses:
         warnings.push(Warning { icon: "food", text: count_text("book.warning.hungry", hungry_houses), page: Some("goods") });
     }
     if report.unemployed > 0 {
-        warnings.push(Warning { icon: "population", text: count_text("book.warning.unemployed", report.unemployed), page: Some("population") });
+        warnings.push(Warning {
+            icon: "population",
+            text: count_text("book.warning.unemployed", report.unemployed),
+            page: Some("population"),
+        });
     }
     let short = world.stats().workers.buildings_below_min;
     if short > 0 {
-        warnings.push(Warning { icon: "population", text: count_text("book.warning.short_of_workers", short), page: Some("population") });
+        warnings.push(Warning {
+            icon: "population",
+            text: count_text("book.warning.short_of_workers", short),
+            page: Some("population"),
+        });
     }
-    for (row, key) in [(&report.storage_yards, "book.warning.yards_full"), (&report.granaries, "book.warning.granaries_full")] {
+    for (row, key) in
+        [(&report.storage_yards, "book.warning.yards_full"), (&report.granaries, "book.warning.granaries_full")]
+    {
         if row.capacity > 0 && row.stored * 10 >= row.capacity * 9 {
-            warnings.push(Warning { icon: "request", text: text::get(UiTextCategory::City, key).to_string(), page: Some("goods") });
+            warnings.push(Warning {
+                icon: "request",
+                text: text::get(UiTextCategory::City, key).to_string(),
+                page: Some("goods"),
+            });
         }
     }
     warnings

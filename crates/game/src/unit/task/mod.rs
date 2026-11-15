@@ -1,40 +1,39 @@
-use std::any::Any;
-use std::fmt;
-use strum::Display;
-use serde::{Deserialize, Serialize};
+use std::{any::Any, fmt};
 
 use ::common::coords::Cell;
 use engine::ui::UiSystem;
+use serde::{Deserialize, Serialize};
+use strum::Display;
 
 use crate::{
-    debug,
     building::{BuildingKind, BuildingKindAndId, BuildingTileInfo},
+    debug,
     sim::SimContextMut,
     tile::TileMapLayerKind,
     unit::Unit,
 };
 
 mod common;
-mod despawn;
 mod deliver;
+mod despawn;
 mod fetch;
-mod respond;
 mod follow_path;
 mod harvest;
 mod manager;
 mod patrol;
+mod respond;
 mod settler;
 mod state_machine;
 
 pub use common::*;
-pub use despawn::*;
 pub use deliver::*;
+pub use despawn::*;
 pub use fetch::*;
-pub use respond::*;
 pub use follow_path::*;
 pub use harvest::*;
 pub use manager::*;
 pub use patrol::*;
+pub use respond::*;
 pub use settler::*;
 pub use state_machine::*;
 

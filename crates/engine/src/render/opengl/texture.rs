@@ -41,11 +41,11 @@ impl ShaderVarTrait for &OpenGlTexture {
 #[derive(Copy, Clone, Display)]
 pub enum TextureFilter {
     Nearest = gl::NEAREST,
-    Linear  = gl::LINEAR,
+    Linear = gl::LINEAR,
     NearestMipmapNearest = gl::NEAREST_MIPMAP_NEAREST,
-    LinearMipmapNearest  = gl::LINEAR_MIPMAP_NEAREST,
-    NearestMipmapLinear  = gl::NEAREST_MIPMAP_LINEAR,
-    LinearMipmapLinear   = gl::LINEAR_MIPMAP_LINEAR,
+    LinearMipmapNearest = gl::LINEAR_MIPMAP_NEAREST,
+    NearestMipmapLinear = gl::NEAREST_MIPMAP_LINEAR,
+    LinearMipmapLinear = gl::LINEAR_MIPMAP_LINEAR,
 }
 
 // Equivalent to the GL_TEXTURE_WRAP enums.
@@ -274,12 +274,12 @@ impl From<render::texture::TextureSettings> for TextureSettings {
 impl From<TextureFilter> for render::texture::TextureFilter {
     fn from(filter: TextureFilter) -> render::texture::TextureFilter {
         match filter {
-            TextureFilter::Nearest              => render::texture::TextureFilter::Nearest,
-            TextureFilter::Linear               => render::texture::TextureFilter::Linear,
+            TextureFilter::Nearest => render::texture::TextureFilter::Nearest,
+            TextureFilter::Linear => render::texture::TextureFilter::Linear,
             TextureFilter::NearestMipmapNearest => render::texture::TextureFilter::NearestMipmapNearest,
-            TextureFilter::LinearMipmapNearest  => render::texture::TextureFilter::LinearMipmapNearest,
-            TextureFilter::NearestMipmapLinear  => render::texture::TextureFilter::NearestMipmapLinear,
-            TextureFilter::LinearMipmapLinear   => render::texture::TextureFilter::LinearMipmapLinear,
+            TextureFilter::LinearMipmapNearest => render::texture::TextureFilter::LinearMipmapNearest,
+            TextureFilter::NearestMipmapLinear => render::texture::TextureFilter::NearestMipmapLinear,
+            TextureFilter::LinearMipmapLinear => render::texture::TextureFilter::LinearMipmapLinear,
         }
     }
 }
@@ -287,12 +287,12 @@ impl From<TextureFilter> for render::texture::TextureFilter {
 impl From<render::texture::TextureFilter> for TextureFilter {
     fn from(filter: render::texture::TextureFilter) -> TextureFilter {
         match filter {
-            render::texture::TextureFilter::Nearest              => TextureFilter::Nearest,
-            render::texture::TextureFilter::Linear               => TextureFilter::Linear,
+            render::texture::TextureFilter::Nearest => TextureFilter::Nearest,
+            render::texture::TextureFilter::Linear => TextureFilter::Linear,
             render::texture::TextureFilter::NearestMipmapNearest => TextureFilter::NearestMipmapNearest,
-            render::texture::TextureFilter::LinearMipmapNearest  => TextureFilter::LinearMipmapNearest,
-            render::texture::TextureFilter::NearestMipmapLinear  => TextureFilter::NearestMipmapLinear,
-            render::texture::TextureFilter::LinearMipmapLinear   => TextureFilter::LinearMipmapLinear,
+            render::texture::TextureFilter::LinearMipmapNearest => TextureFilter::LinearMipmapNearest,
+            render::texture::TextureFilter::NearestMipmapLinear => TextureFilter::NearestMipmapLinear,
+            render::texture::TextureFilter::LinearMipmapLinear => TextureFilter::LinearMipmapLinear,
         }
     }
 }
@@ -300,8 +300,8 @@ impl From<render::texture::TextureFilter> for TextureFilter {
 impl From<TextureWrapMode> for render::texture::TextureWrapMode {
     fn from(mode: TextureWrapMode) -> render::texture::TextureWrapMode {
         match mode {
-            TextureWrapMode::Repeat        => render::texture::TextureWrapMode::Repeat,
-            TextureWrapMode::ClampToEdge   => render::texture::TextureWrapMode::ClampToEdge,
+            TextureWrapMode::Repeat => render::texture::TextureWrapMode::Repeat,
+            TextureWrapMode::ClampToEdge => render::texture::TextureWrapMode::ClampToEdge,
             TextureWrapMode::ClampToBorder => render::texture::TextureWrapMode::ClampToBorder,
         }
     }
@@ -310,8 +310,8 @@ impl From<TextureWrapMode> for render::texture::TextureWrapMode {
 impl From<render::texture::TextureWrapMode> for TextureWrapMode {
     fn from(wrap_mode: render::texture::TextureWrapMode) -> TextureWrapMode {
         match wrap_mode {
-            render::texture::TextureWrapMode::Repeat        => TextureWrapMode::Repeat,
-            render::texture::TextureWrapMode::ClampToEdge   => TextureWrapMode::ClampToEdge,
+            render::texture::TextureWrapMode::Repeat => TextureWrapMode::Repeat,
+            render::texture::TextureWrapMode::ClampToEdge => TextureWrapMode::ClampToEdge,
             render::texture::TextureWrapMode::ClampToBorder => TextureWrapMode::ClampToBorder,
         }
     }
@@ -359,11 +359,11 @@ fn set_current_gl_texture_params(filter: TextureFilter, wrap_mode: TextureWrapMo
 
         let (gl_min_filter, gl_mag_filter) = match filter {
             TextureFilter::Nearest => (gl::NEAREST, gl::NEAREST),
-            TextureFilter::Linear  => (gl::LINEAR,  gl::LINEAR),
+            TextureFilter::Linear => (gl::LINEAR, gl::LINEAR),
             TextureFilter::NearestMipmapNearest => (gl::NEAREST_MIPMAP_NEAREST, gl::NEAREST),
-            TextureFilter::LinearMipmapNearest  => (gl::LINEAR_MIPMAP_NEAREST,  gl::LINEAR),
-            TextureFilter::NearestMipmapLinear  => (gl::NEAREST_MIPMAP_LINEAR,  gl::NEAREST),
-            TextureFilter::LinearMipmapLinear   => (gl::LINEAR_MIPMAP_LINEAR,   gl::LINEAR),
+            TextureFilter::LinearMipmapNearest => (gl::LINEAR_MIPMAP_NEAREST, gl::LINEAR),
+            TextureFilter::NearestMipmapLinear => (gl::NEAREST_MIPMAP_LINEAR, gl::NEAREST),
+            TextureFilter::LinearMipmapLinear => (gl::LINEAR_MIPMAP_LINEAR, gl::LINEAR),
         };
 
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl_min_filter as _);

@@ -14,7 +14,9 @@ pub mod time;
 macro_rules! name_of {
     ($t:ty, $field:ident) => {{
         // Access the field to force a compile-time check for the field existence.
-        let _ = |x: &$t| { let _ = &x.$field; };
+        let _ = |x: &$t| {
+            let _ = &x.$field;
+        };
         stringify!($field)
     }};
 }
@@ -83,10 +85,22 @@ pub trait FieldAccessorXY<T> {
 macro_rules! field_accessor_xy {
     ($struct_name:ty, $field_type:ty, $x_field:ident, $y_field:ident) => {
         impl $crate::FieldAccessorXY<$field_type> for $struct_name {
-            #[inline] fn x_ref(&self) -> &$field_type { &self.$x_field }
-            #[inline] fn y_ref(&self) -> &$field_type { &self.$y_field }
-            #[inline] fn x_mut(&mut self) -> &mut $field_type { &mut self.$x_field }
-            #[inline] fn y_mut(&mut self) -> &mut $field_type { &mut self.$y_field }
+            #[inline]
+            fn x_ref(&self) -> &$field_type {
+                &self.$x_field
+            }
+            #[inline]
+            fn y_ref(&self) -> &$field_type {
+                &self.$y_field
+            }
+            #[inline]
+            fn x_mut(&mut self) -> &mut $field_type {
+                &mut self.$x_field
+            }
+            #[inline]
+            fn y_mut(&mut self) -> &mut $field_type {
+                &mut self.$y_field
+            }
         }
     };
 }
@@ -336,25 +350,50 @@ impl Color {
         [self.r, self.g, self.b, self.a]
     }
 
-    #[inline] pub const fn transparent() -> Self { Self { r: 0.0, g: 0.0, b: 0.0, a: 0.0 } }
-    #[inline] pub const fn white()       -> Self { Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 } }
-    #[inline] pub const fn black()       -> Self { Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 } }
-    #[inline] pub const fn red()         -> Self { Self { r: 1.0, g: 0.0, b: 0.0, a: 1.0 } }
-    #[inline] pub const fn green()       -> Self { Self { r: 0.0, g: 1.0, b: 0.0, a: 1.0 } }
-    #[inline] pub const fn blue()        -> Self { Self { r: 0.0, g: 0.0, b: 1.0, a: 1.0 } }
-    #[inline] pub const fn yellow()      -> Self { Self { r: 1.0, g: 1.0, b: 0.0, a: 1.0 } }
-    #[inline] pub const fn cyan()        -> Self { Self { r: 0.0, g: 1.0, b: 1.0, a: 1.0 } }
-    #[inline] pub const fn magenta()     -> Self { Self { r: 1.0, g: 0.0, b: 1.0, a: 1.0 } }
-    #[inline] pub const fn gray()        -> Self { Self { r: 0.7, g: 0.7, b: 0.7, a: 1.0 } }
+    #[inline]
+    pub const fn transparent() -> Self {
+        Self { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }
+    }
+    #[inline]
+    pub const fn white() -> Self {
+        Self { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }
+    }
+    #[inline]
+    pub const fn black() -> Self {
+        Self { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
+    }
+    #[inline]
+    pub const fn red() -> Self {
+        Self { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }
+    }
+    #[inline]
+    pub const fn green() -> Self {
+        Self { r: 0.0, g: 1.0, b: 0.0, a: 1.0 }
+    }
+    #[inline]
+    pub const fn blue() -> Self {
+        Self { r: 0.0, g: 0.0, b: 1.0, a: 1.0 }
+    }
+    #[inline]
+    pub const fn yellow() -> Self {
+        Self { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }
+    }
+    #[inline]
+    pub const fn cyan() -> Self {
+        Self { r: 0.0, g: 1.0, b: 1.0, a: 1.0 }
+    }
+    #[inline]
+    pub const fn magenta() -> Self {
+        Self { r: 1.0, g: 0.0, b: 1.0, a: 1.0 }
+    }
+    #[inline]
+    pub const fn gray() -> Self {
+        Self { r: 0.7, g: 0.7, b: 0.7, a: 1.0 }
+    }
 
     #[inline]
     pub fn clamp(&self) -> Self {
-        Self {
-            r: self.r.clamp(0.0, 1.0),
-            g: self.g.clamp(0.0, 1.0),
-            b: self.b.clamp(0.0, 1.0),
-            a: self.a.clamp(0.0, 1.0),
-        }
+        Self { r: self.r.clamp(0.0, 1.0), g: self.g.clamp(0.0, 1.0), b: self.b.clamp(0.0, 1.0), a: self.a.clamp(0.0, 1.0) }
     }
 }
 
@@ -554,10 +593,7 @@ impl Rect {
 
     #[inline]
     pub fn from_points(points: &[Vec2]) -> Self {
-        let mut rect = Self {
-            min: Vec2::new(f32::MAX, f32::MAX),
-            max: Vec2::new(f32::MIN, f32::MIN),
-        };
+        let mut rect = Self { min: Vec2::new(f32::MAX, f32::MAX), max: Vec2::new(f32::MIN, f32::MIN) };
 
         for point in points {
             rect.min.x = rect.min.x.min(point.x);
@@ -575,7 +611,7 @@ impl Rect {
             return *self;
         }
 
-        let center    = (self.min + self.max) * 0.5;
+        let center = (self.min + self.max) * 0.5;
         let half_size = (self.max - self.min) * 0.5 * factor;
 
         Self { min: center - half_size, max: center + half_size }
@@ -682,28 +718,19 @@ impl Rect {
     // Returns `true` if this rect intersects with another.
     #[inline]
     pub fn intersects(&self, other: &Rect) -> bool {
-        self.min.x < other.max.x
-        && self.max.x > other.min.x
-        && self.min.y < other.max.y
-        && self.max.y > other.min.y
+        self.min.x < other.max.x && self.max.x > other.min.x && self.min.y < other.max.y && self.max.y > other.min.y
     }
 
     // Returns `true` if the point is inside this rect (inclusive of min, exclusive of max).
     #[inline]
     pub fn contains_point(&self, point: Vec2) -> bool {
-        point.x >= self.min.x
-        && point.x < self.max.x
-        && point.y >= self.min.y
-        && point.y < self.max.y
+        point.x >= self.min.x && point.x < self.max.x && point.y >= self.min.y && point.y < self.max.y
     }
 
     // Returns `true` if this rect fully contains the other rect.
     #[inline]
     pub fn contains_rect(&self, other: &Rect) -> bool {
-        self.min.x <= other.min.x
-        && self.max.x >= other.max.x
-        && self.min.y <= other.min.y
-        && self.max.y >= other.max.y
+        self.min.x <= other.min.x && self.max.x >= other.max.x && self.min.y <= other.min.y && self.max.y >= other.max.y
     }
 
     // Returns which edges of `inner` rect are outside or touching the bounds of this.
@@ -725,7 +752,6 @@ impl Rect {
         outside
     }
 
-    //
     // NOTE: Top-left is the origin.
     //
 
@@ -752,23 +778,13 @@ impl Rect {
     // Counter-clockwise corners, from bottom left to top left.
     #[inline]
     pub fn corners_ccw(&self) -> [Vec2; 4] {
-        [
-            self.bottom_left(),
-            self.bottom_right(),
-            self.top_right(),
-            self.top_left(),
-        ]
+        [self.bottom_left(), self.bottom_right(), self.top_right(), self.top_left()]
     }
 
     // Clockwise corners, from bottom left to bottom right.
     #[inline]
     pub fn corners_cw(&self) -> [Vec2; 4] {
-        [
-            self.bottom_left(),
-            self.top_left(),
-            self.top_right(),
-            self.bottom_right(),
-        ]
+        [self.bottom_left(), self.top_left(), self.top_right(), self.bottom_right()]
     }
 }
 
@@ -832,7 +848,6 @@ impl RectTexCoords {
         swap2!(self.coords[1].x, self.coords[3].x); // swap(bottom_left.x, bottom_right.x)
     }
 
-    //
     // NOTE: Top-left is the origin.
     //
 
@@ -873,11 +888,11 @@ impl Default for RectTexCoords {
 pub fn map_value_to_range<T>(val: T, in_min: T, in_max: T, out_min: T, out_max: T) -> T
 where
     T: std::ops::Sub<Output = T>
-     + std::ops::Div<Output = T>
-     + std::ops::Mul<Output = T>
-     + std::ops::Add<Output = T>
-     + PartialEq
-     + Copy
+        + std::ops::Div<Output = T>
+        + std::ops::Mul<Output = T>
+        + std::ops::Add<Output = T>
+        + PartialEq
+        + Copy,
 {
     if in_min == in_max {
         val // Would cause a division by zero in in_max - in_min, so just return back the input.

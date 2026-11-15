@@ -41,7 +41,10 @@ use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 use super::layout;
 use crate::{
     campaign::BuildingAvailability,
-    menu::{skin::{HudGlyphGroup, HudTileKind, SkinPanel}, *},
+    menu::{
+        skin::{HudGlyphGroup, HudTileKind, SkinPanel},
+        *,
+    },
     realm::Realm,
     tile::{
         TileKind,
@@ -107,7 +110,12 @@ enum TilePaletteMainButtonDef {
     #[strum(props(Label = "services", Glyph = "services", Title = "sector.services", DisabledIfEmpty = true))]
     Services,
 
-    #[strum(props(Label = "infrastructure", Glyph = "infrastructure", Title = "sector.infrastructure", DisabledIfEmpty = true))]
+    #[strum(props(
+        Label = "infrastructure",
+        Glyph = "infrastructure",
+        Title = "sector.infrastructure",
+        DisabledIfEmpty = true
+    ))]
     Infrastructure,
 
     #[strum(props(Label = "culture_and_religion", Glyph = "culture", Title = "sector.culture", DisabledIfEmpty = true))]
@@ -116,7 +124,13 @@ enum TilePaletteMainButtonDef {
     #[strum(props(Label = "trade_and_economy", Glyph = "trade", Title = "sector.trade", DisabledIfEmpty = true))]
     TradeAndEconomy,
 
-    #[strum(props(Label = "beautification", Glyph = "beauty", Title = "sector.beauty", DisabledIfEmpty = true, SeparatorFollows = true))]
+    #[strum(props(
+        Label = "beautification",
+        Glyph = "beauty",
+        Title = "sector.beauty",
+        DisabledIfEmpty = true,
+        SeparatorFollows = true
+    ))]
     Beautification,
 
     #[strum(props(Label = "undo", Glyph = "undo", Title = "sector.undo"))]
@@ -145,7 +159,11 @@ impl TilePaletteMainButtonDef {
             && let Some(tile_def) = PresetTiles::VacantLot.find_tile_def()
         {
             let cost = tile_cost_text(tile_def);
-            return format!("{}\n{}", ui::text::get(UiTextCategory::Hud, "sector.housing"), ui::text::format(UiTextCategory::Hud, "sector.housing.tooltip", &[("cost", &cost)]));
+            return format!(
+                "{}\n{}",
+                ui::text::get(UiTextCategory::Hud, "sector.housing"),
+                ui::text::format(UiTextCategory::Hud, "sector.housing.tooltip", &[("cost", &cost)])
+            );
         }
         ui::text::get(UiTextCategory::Hud, self.get_str("Title").unwrap_or_default()).to_string()
     }
@@ -234,9 +252,11 @@ fn unbuildable_reason(context: &GameUiContext, tile_def: &TileDef) -> Option<Str
     if tile_def.cost > 0 && !finance.can_afford(tile_def.cost) {
         return Some(ui::text::get(UiTextCategory::Hud, "palette.cannot_afford").to_string());
     }
-    tile_def.materials.iter().find(|item| CityStock::available(context.world, item.kind) < item.count).map(|item| {
-        ui::text::format(UiTextCategory::Hud, "palette.short", &[("name", &item.kind.display_name())])
-    })
+    tile_def
+        .materials
+        .iter()
+        .find(|item| CityStock::available(context.world, item.kind) < item.count)
+        .map(|item| ui::text::format(UiTextCategory::Hud, "palette.short", &[("name", &item.kind.display_name())]))
 }
 
 // A building's tooltip: its realm name, size and gold cost, its materials against what the storage
@@ -244,16 +264,19 @@ fn unbuildable_reason(context: &GameUiContext, tile_def: &TileDef) -> Option<Str
 fn building_tooltip(context: &GameUiContext, tile_def: &TileDef, reason: Option<&str>) -> String {
     let size = tile_def.size_in_cells();
     let mut lines = vec![building_name(skin::current_realm(), tile_def)];
-    let size_text = ui::text::format(UiTextCategory::Hud, "palette.size", &[("width", &size.width.to_string()), ("height", &size.height.to_string())]);
+    let size_text = ui::text::format(UiTextCategory::Hud, "palette.size", &[
+        ("width", &size.width.to_string()),
+        ("height", &size.height.to_string()),
+    ]);
     let cost_text = ui::text::format(UiTextCategory::Hud, "palette.cost", &[("gold", &tile_def.cost.to_string())]);
     lines.push(format!("{size_text} · {cost_text}"));
     for item in tile_def.materials.iter() {
         let stored = CityStock::available(context.world, item.kind);
-        let mut line = ui::text::format(
-            UiTextCategory::Hud,
-            "palette.material",
-            &[("name", &item.kind.display_name()), ("needed", &item.count.to_string()), ("stored", &stored.to_string())],
-        );
+        let mut line = ui::text::format(UiTextCategory::Hud, "palette.material", &[
+            ("name", &item.kind.display_name()),
+            ("needed", &item.count.to_string()),
+            ("stored", &stored.to_string()),
+        ]);
         if stored < item.count {
             line = format!("{line} ({})", ui::text::get(UiTextCategory::Hud, "palette.short_mark"));
         }
@@ -285,7 +308,7 @@ struct SectorGrid {
     grid: UiMenuWidgetIndex,
     tiles: Vec<(UiWidgetGroupWidgetIndex, UiWidgetGroupWidgetIndex, TileDefHandle)>, // Row, tile in the row.
     shown: Vec<Option<String>>, // Each tile's unbuildable reason, as last set.
-    stock_key: (i64, Vec<u32>),   // The treasury and stock its tooltips were made with.
+    stock_key: (i64, Vec<u32>), // The treasury and stock its tooltips were made with.
 }
 
 impl SectorGrid {
@@ -317,7 +340,13 @@ impl SectorGrid {
 
         let title = ui::text::get(UiTextCategory::Hud, def.get_str("Title").unwrap_or_default()).to_uppercase();
         let accent = skin::hud_color("accent", "accent");
-        let title_look = engine::ui::UiLabelLook { size: (17.0 * column_scale).max(12.0), heading_font: true, letter_spacing: 1.5, color: accent, ..Default::default() };
+        let title_look = engine::ui::UiLabelLook {
+            size: (17.0 * column_scale).max(12.0),
+            heading_font: true,
+            letter_spacing: 1.5,
+            color: accent,
+            ..Default::default()
+        };
         let title_width = ui::painter(context.ui_sys, UiLayer::Background)
             .label_rect(Vec2::zero(), engine::ui::UiTextAnchor::Start, &title, &title_look)
             .width()
@@ -342,7 +371,11 @@ impl SectorGrid {
 
         let baseline = GRID_TITLE_BASELINE * column_scale;
         let heading = UiCanvas::new(Vec2::new(inner.x, title_height + crest), move |_, painter, rect| {
-            let (x, anchor) = if title_centred { (rect.center().x, engine::ui::UiTextAnchor::Middle) } else { (rect.min.x, engine::ui::UiTextAnchor::Start) };
+            let (x, anchor) = if title_centred {
+                (rect.center().x, engine::ui::UiTextAnchor::Middle)
+            } else {
+                (rect.min.x, engine::ui::UiTextAnchor::Start)
+            };
             painter.label(Vec2::new(x, rect.min.y + baseline), anchor, &title, &title_look);
         });
 
@@ -358,19 +391,32 @@ impl SectorGrid {
         grid.add_widget(heading);
         let mut rows = Vec::new();
         for chunk in children.chunks(GRID_COLUMNS) {
-            let mut row = UiWidgetGroup::new().with_stack_vertically(false).with_center_horizontally(false).with_widget_spacing(Vec2::new(gap, 0.0));
+            let mut row = UiWidgetGroup::new()
+                .with_stack_vertically(false)
+                .with_center_horizontally(false)
+                .with_widget_spacing(Vec2::new(gap, 0.0));
             let mut in_row = Vec::new();
             for child in chunk {
                 let handle = child.tile_def_handle;
                 let actions = actions.clone();
-                let tile = skin::hud_tile_scaled(context, HudTileKind::Large, scale, &child.label, HudGlyphGroup::Building, &tile_def_of(handle).name)
-                    .on_pressed(move |_, _| actions.borrow_mut().push(PaletteAction::Pick(def, handle)));
+                let tile = skin::hud_tile_scaled(
+                    context,
+                    HudTileKind::Large,
+                    scale,
+                    &child.label,
+                    HudGlyphGroup::Building,
+                    &tile_def_of(handle).name,
+                )
+                .on_pressed(move |_, _| actions.borrow_mut().push(PaletteAction::Pick(def, handle)));
                 in_row.push((row.add_widget(tile), handle));
             }
             rows.push((grid.add_widget(row), in_row));
         }
         let grid_index = menu.add_widget(grid);
-        let tiles = rows.into_iter().flat_map(|(row, in_row)| in_row.into_iter().map(move |(index, handle)| (row, index, handle))).collect::<Vec<_>>();
+        let tiles = rows
+            .into_iter()
+            .flat_map(|(row, in_row)| in_row.into_iter().map(move |(index, handle)| (row, index, handle)))
+            .collect::<Vec<_>>();
         let shown = vec![None; tiles.len()];
         let mut grid = Self { menu: menu.into_rc(), grid: grid_index, tiles, shown, stock_key: (i64::MIN, Vec::new()) };
         grid.refresh(context, true);
@@ -431,7 +477,7 @@ pub struct TilePaletteMenu {
     menu: UiMenuRcMut,
     column_x: f32,
     column_scale: f32, // Its tiles' scale, which the sectors' grids take.
-    window: Vec2, // The window's size it was built for.
+    window: Vec2,      // The window's size it was built for.
     open: Option<(TilePaletteMainButtonDef, SectorGrid)>,
     picked_from: Option<TilePaletteMainButtonDef>, // The sector whose tool is picked.
     actions: PaletteActions,
@@ -446,7 +492,7 @@ struct Column {
     window: Vec2,
 }
 
-pub type TilePaletteMenuRcMut   = RcMut<TilePaletteMenu>;
+pub type TilePaletteMenuRcMut = RcMut<TilePaletteMenu>;
 pub type TilePaletteMenuWeakMut = WeakMut<TilePaletteMenu>;
 pub type TilePaletteMenuWeakRef = WeakRef<TilePaletteMenu>;
 
@@ -563,7 +609,8 @@ impl TilePaletteMenu {
                 .with_widget_spacing(Vec2::new(0.0, spacing)),
         );
         // The tiles centred: the pad on either side of them.
-        let mut menu = menu.with_content_insets(UiMenuInsets::points(insets[0] + pad, insets[1], insets[2] + pad, insets[3]));
+        let mut menu =
+            menu.with_content_insets(UiMenuInsets::points(insets[0] + pad, insets[1], insets[2] + pad, insets[3]));
         let rule = skin::hud_color("rule", "sub");
 
         // The first tile's crest stands in this room.
@@ -582,10 +629,17 @@ impl TilePaletteMenu {
             } else {
                 def.tooltip()
             };
-            let sector = skin::hud_tile_scaled(context, HudTileKind::Sector, scale, def.label_str(), HudGlyphGroup::Sector, def.glyph())
-                .with_tooltip(skin::tooltip_beside(context, tooltip))
-                .with_enabled(enabled)
-                .on_pressed(move |_, _| actions_ref.borrow_mut().push(PaletteAction::Sector(def)));
+            let sector = skin::hud_tile_scaled(
+                context,
+                HudTileKind::Sector,
+                scale,
+                def.label_str(),
+                HudGlyphGroup::Sector,
+                def.glyph(),
+            )
+            .with_tooltip(skin::tooltip_beside(context, tooltip))
+            .with_enabled(enabled)
+            .on_pressed(move |_, _| actions_ref.borrow_mut().push(PaletteAction::Sector(def)));
             let index = menu.add_widget(sector);
             main_buttons.push(MainButton { def, children, index, y });
             y += tile.y + spacing;
@@ -601,7 +655,13 @@ impl TilePaletteMenu {
                 height += spacing + SEPARATOR_LINE;
             }
         }
-        Column { menu: menu.with_size(Vec2::new(width, height + COLUMN_SLACK)).into_rc(), main_buttons, column_x, scale, window }
+        Column {
+            menu: menu.with_size(Vec2::new(width, height + COLUMN_SLACK)).into_rc(),
+            main_buttons,
+            column_x,
+            scale,
+            window,
+        }
     }
 
     // Built again for a new window size, keeping the tool picked and the sector open.
@@ -618,7 +678,8 @@ impl TilePaletteMenu {
         if let Some((def, _)) = self.open.take()
             && let Some(button) = self.main_buttons.iter().find(|button| button.def == def)
         {
-            let grid = SectorGrid::new(context, def, &button.children, &self.actions, self.column_x, button.y, self.column_scale);
+            let grid =
+                SectorGrid::new(context, def, &button.children, &self.actions, self.column_x, button.y, self.column_scale);
             self.open = Some((def, grid));
         }
     }
@@ -674,7 +735,15 @@ impl TilePaletteMenu {
                             self.set_selection_internal(def.to_tile_selection(None));
                             self.picked_from = Some(def);
                         } else if !was_open {
-                            let grid = SectorGrid::new(context, def, &button.children, &self.actions, self.column_x, button.y, self.column_scale);
+                            let grid = SectorGrid::new(
+                                context,
+                                def,
+                                &button.children,
+                                &self.actions,
+                                self.column_x,
+                                button.y,
+                                self.column_scale,
+                            );
                             self.open = Some((def, grid));
                         }
                     }

@@ -1,12 +1,13 @@
 use std::{any::Any, cell::Cell, rc::Rc};
-use smallbox::smallbox;
-use egui::{Color32, Sense, vec2};
 
 use common::{Color, Vec2};
+use egui::{Color32, Sense, vec2};
+use smallbox::smallbox;
 
 use super::{UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext, UiWidgetGroup, widget_id};
 use crate::ui::{
-    UiNineSlice, UiString,
+    UiNineSlice,
+    UiString,
     immediate::{self, nine_slice_shape},
     internal,
     sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
@@ -70,7 +71,7 @@ pub struct UiCard {
     contents: UiWidgetGroup,
     panel: Option<UiNineSlice>,
     selected_panel: Option<UiNineSlice>,
-    padding: Vec2, // Between the panel's edges and the contents.
+    padding: Vec2,          // Between the panel's edges and the contents.
     hover_fill: Color32,    // Over a hovered card that isn't selected.
     pressed_tint: Color32,  // The panel's, while pressed.
     disabled_tint: Color32, // The panel's, while disabled.
@@ -116,7 +117,10 @@ impl UiWidget for UiCard {
             (rect, ui.painter().add(egui::Shape::Noop))
         });
 
-        let inner = egui::Rect::from_min_size(rect.min + vec2(self.padding.x, self.padding.y), vec2(inner_width, height - self.padding.y * 2.0));
+        let inner = egui::Rect::from_min_size(
+            rect.min + vec2(self.padding.x, self.padding.y),
+            vec2(inner_width, height - self.padding.y * 2.0),
+        );
         {
             let _path = immediate::path_scope(ui_sys, self.label.resolve());
             ui_sys.draw_at(inner, |_| self.contents.draw(context));
@@ -177,7 +181,11 @@ impl UiWidget for UiCard {
         let contents = if ui_sys.has_ui() {
             let origin = ui_sys.with_ui(|ui| ui.cursor().min);
             let inner_width = (width - self.padding.x * 2.0).max(1.0);
-            ui_sys.draw_at(egui::Rect::from_min_size(origin, vec2(inner_width, MEASURE_HEIGHT)), |_| self.contents.measure(context)).0
+            ui_sys
+                .draw_at(egui::Rect::from_min_size(origin, vec2(inner_width, MEASURE_HEIGHT)), |_| {
+                    self.contents.measure(context)
+                })
+                .0
         } else {
             self.contents.measure(context)
         };

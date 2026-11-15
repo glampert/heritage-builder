@@ -1,18 +1,11 @@
 use std::any::Any;
-use serde::{Deserialize, Serialize};
 
 use common::callback::Callback;
 use engine::ui::{DrawDebugUi, UiSystem};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
 
-use super::{
-    UnitTaskContext,
-    UnitTaskState,
-    UnitTaskTransition,
-    UnitTask,
-    UnitTaskId,
-    UnitTaskPool,
-};
+use super::{UnitTask, UnitTaskContext, UnitTaskId, UnitTaskPool, UnitTaskState, UnitTaskTransition};
 use crate::{
     pathfind::Path,
     sim::{SimContext, SimContextMut},
@@ -63,10 +56,7 @@ impl UnitTaskState for UnitTaskFollowPathState {
 
         if !ctx.unit.path_is_blocked() {
             ctx.unit.goal().expect("Expected unit to have an active goal!");
-            debug_assert!(
-                ctx.unit.cell() == task.path.last().unwrap().cell,
-                "Unit has not reached its goal yet!"
-            );
+            debug_assert!(ctx.unit.cell() == task.path.last().unwrap().cell, "Unit has not reached its goal yet!");
         }
 
         if let Some(completion_callback) = task.completion_callback.try_get() {
@@ -115,7 +105,7 @@ impl UnitTask for UnitTaskFollowPath {
 
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContextMut, ui_sys: &UiSystem) {
         let start = self.path.first().unwrap().cell;
-        let end   = self.path.last().unwrap().cell;
+        let end = self.path.last().unwrap().cell;
 
         #[derive(DrawDebugUi)]
         struct View {

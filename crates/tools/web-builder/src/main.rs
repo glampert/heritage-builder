@@ -5,19 +5,17 @@ use std::{
     process::Command,
 };
 
-const GAME_CRATE:    &str = "HeritageBuilder";
-const ASSETS_DIR:    &str = "assets";
-const WEB_DIR:       &str = "web";
-const PKG_DIR:       &str = "web/pkg";
+const GAME_CRATE: &str = "HeritageBuilder";
+const ASSETS_DIR: &str = "assets";
+const WEB_DIR: &str = "web";
+const PKG_DIR: &str = "web/pkg";
 const MANIFEST_FILE: &str = "web/asset_manifest.json";
 
 fn main() {
     let project_root = find_project_root();
     println!("🌐 Web Builder — project root: {}", project_root.display());
 
-    let mode = env::args()
-        .nth(1)
-        .unwrap_or_else(|| "debug".to_string());
+    let mode = env::args().nth(1).unwrap_or_else(|| "debug".to_string());
 
     let release = match mode.as_str() {
         "debug" => false,
@@ -79,11 +77,9 @@ fn generate_asset_manifest(project_root: &Path) {
     let manifest_path = project_root.join(MANIFEST_FILE);
     fs::create_dir_all(manifest_path.parent().unwrap()).unwrap();
 
-    let json = serde_json::to_string_pretty(&paths)
-        .expect("Failed to serialize asset manifest");
+    let json = serde_json::to_string_pretty(&paths).expect("Failed to serialize asset manifest");
 
-    fs::write(&manifest_path, &json)
-        .unwrap_or_else(|e| panic!("❌ Failed to write manifest: {e}"));
+    fs::write(&manifest_path, &json).unwrap_or_else(|e| panic!("❌ Failed to write manifest: {e}"));
 
     println!("   Wrote manifest: {}", manifest_path.display());
 
@@ -92,8 +88,7 @@ fn generate_asset_manifest(project_root: &Path) {
 }
 
 fn collect_asset_paths(base: &Path, dir: &Path, out: &mut Vec<String>) {
-    let entries = fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("❌ Failed to read directory {}: {e}", dir.display()));
+    let entries = fs::read_dir(dir).unwrap_or_else(|e| panic!("❌ Failed to read directory {}: {e}", dir.display()));
 
     for entry in entries {
         let entry = entry.unwrap();
@@ -109,10 +104,7 @@ fn collect_asset_paths(base: &Path, dir: &Path, out: &mut Vec<String>) {
             collect_asset_paths(base, &path, out);
         } else {
             // Path relative to the assets parent (project root), so it starts with "assets/".
-            let rel = path.strip_prefix(base.parent().unwrap())
-                .unwrap()
-                .to_string_lossy()
-                .replace('\\', "/");
+            let rel = path.strip_prefix(base.parent().unwrap()).unwrap().to_string_lossy().replace('\\', "/");
             out.push(rel);
         }
     }
@@ -123,7 +115,9 @@ fn sync_assets(src: &Path, dst: &Path) {
     if dst.exists() || dst.is_symlink() {
         // Check if it's already a symlink to the right place.
         if dst.is_symlink() {
-            if let Ok(target) = fs::read_link(dst) && target == src {
+            if let Ok(target) = fs::read_link(dst)
+                && target == src
+            {
                 println!("   Assets symlink already up to date.");
                 return;
             }
@@ -168,8 +162,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) {
             copy_dir_recursive(&entry.path(), &dst_path);
         } else {
             fs::copy(entry.path(), &dst_path)
-                .unwrap_or_else(|e| panic!("❌ Copy failed: {} -> {}: {e}",
-                    entry.path().display(), dst_path.display()));
+                .unwrap_or_else(|e| panic!("❌ Copy failed: {} -> {}: {e}", entry.path().display(), dst_path.display()));
         }
     }
 }
@@ -181,10 +174,13 @@ fn copy_dir_recursive(src: &Path, dst: &Path) {
 fn cargo_build_wasm(project_root: &Path, release: bool) {
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
-       .arg("--target").arg("wasm32-unknown-unknown")
-       .arg("--no-default-features")
-       .arg("--features").arg("web")
-       .arg("-p").arg(GAME_CRATE);
+        .arg("--target")
+        .arg("wasm32-unknown-unknown")
+        .arg("--no-default-features")
+        .arg("--features")
+        .arg("web")
+        .arg("-p")
+        .arg(GAME_CRATE);
 
     if release {
         cmd.arg("--release");
@@ -205,10 +201,7 @@ fn cargo_build_wasm(project_root: &Path, release: bool) {
 fn run_wasm_bindgen(project_root: &Path, release: bool) {
     let profile = if release { "release" } else { "debug" };
 
-    let wasm_path = project_root
-        .join("target/wasm32-unknown-unknown")
-        .join(profile)
-        .join(format!("{GAME_CRATE}.wasm"));
+    let wasm_path = project_root.join("target/wasm32-unknown-unknown").join(profile).join(format!("{GAME_CRATE}.wasm"));
 
     if !wasm_path.exists() {
         panic!("❌ WASM binary not found: {}", wasm_path.display());
@@ -219,8 +212,10 @@ fn run_wasm_bindgen(project_root: &Path, release: bool) {
 
     let status = Command::new("wasm-bindgen")
         .arg(&wasm_path)
-        .arg("--out-dir").arg(&out_dir)
-        .arg("--target").arg("web")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg("--target")
+        .arg("web")
         .arg("--no-typescript") // Skip generating typescript bindings. We use bootstrap.js to run our wasm binary, plain JS.
         .status()
         .expect("❌ Failed to run wasm-bindgen. Install it: cargo install wasm-bindgen-cli");
@@ -237,24 +232,18 @@ fn run_wasm_bindgen(project_root: &Path, release: bool) {
 // -----------------------------------------------
 
 fn run_wasm_opt(project_root: &Path) {
-    let wasm_bg = project_root
-        .join(PKG_DIR)
-        .join(format!("{GAME_CRATE}_bg.wasm"));
+    let wasm_bg = project_root.join(PKG_DIR).join(format!("{GAME_CRATE}_bg.wasm"));
 
     if !wasm_bg.exists() {
         println!("   ⚠️  Skipping wasm-opt: {} not found.", wasm_bg.display());
         return;
     }
 
-    let status = Command::new("wasm-opt")
-        .arg(&wasm_bg)
-        .arg("-O2")
-        .arg("-o").arg(&wasm_bg)
-        .status();
+    let status = Command::new("wasm-opt").arg(&wasm_bg).arg("-O2").arg("-o").arg(&wasm_bg).status();
 
     match status {
         Ok(s) if s.success() => println!("   Optimized: {}", wasm_bg.display()),
-        Ok(_)  => println!("   ⚠️  wasm-opt failed (non-zero exit). Continuing without optimization."),
+        Ok(_) => println!("   ⚠️  wasm-opt failed (non-zero exit). Continuing without optimization."),
         Err(_) => println!("   ⚠️  wasm-opt not found. Install it: brew install binaryen"),
     }
 }

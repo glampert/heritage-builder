@@ -7,10 +7,7 @@ use common::{
     coords::{Cell, CellRange},
     mem::{RcMut, SingleThreadStatic, WeakMut},
 };
-use engine::{
-    Engine,
-    ui::UiThemeId,
-};
+use engine::{Engine, ui::UiThemeId};
 use inspector::TileInspectorDevMenu;
 use log_viewer::LogViewer;
 use palette::TilePaletteDevMenu;
@@ -19,7 +16,7 @@ use settings::DebugSettingsDevMenu;
 use crate::{
     GameLoop,
     config::GameConfigs,
-    menu::{*, gallery::SkinGallery},
+    menu::{gallery::SkinGallery, *},
     save_context::{Load, PostLoadContext, PreLoadContext, Save},
     tile::{
         TileMap,
@@ -32,8 +29,8 @@ use crate::{
 
 pub mod game_object_debug;
 pub mod log_viewer;
-pub mod preset_maps;
 pub mod popups;
+pub mod preset_maps;
 pub mod utils;
 
 mod building;

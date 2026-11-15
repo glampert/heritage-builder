@@ -2,11 +2,25 @@ use std::any::Any;
 
 use common::{Color, Vec2};
 
-use super::{UiMenu, UiMenuBackground, UiMenuFlags, UiMenuInsets, UiMenuRcMut, UiWidget, UiWidgetContext, UiWidgetGroup, UiWidgetImpl};
+use super::{
+    UiMenu,
+    UiMenuBackground,
+    UiMenuFlags,
+    UiMenuInsets,
+    UiMenuRcMut,
+    UiWidget,
+    UiWidgetContext,
+    UiWidgetGroup,
+    UiWidgetImpl,
+};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{UiDecoratedPanel, UiFontScale, sound::{UiSoundEvent, UiSoundKey}},
+    ui::{
+        UiDecoratedPanel,
+        UiFontScale,
+        sound::{UiSoundEvent, UiSoundKey},
+    },
 };
 
 // ----------------------------------------------

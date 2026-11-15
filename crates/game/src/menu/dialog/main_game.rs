@@ -25,13 +25,13 @@ use crate::{
 // Layout (points on a 1920 × 1080 window, scaled with the content area: dialog_content_scale)
 // ----------------------------------------------
 
-const GAME_MENU_WIDGET_SPACING: f32 = 10.0;  // Between the panel's parts.
-const GAME_MENU_ITEM_SPACING: f32 = 12.0;    // Between the menu items.
-const GAME_MENU_ITEM_SCALE: f32 = 1.15;      // The items' fonts, padding and marker, over the skin's menu_item role.
-const GAME_MENU_CREST_HEIGHT: f32 = 72.0;    // The crest is drawn this tall at most, keeping its shape.
+const GAME_MENU_WIDGET_SPACING: f32 = 10.0; // Between the panel's parts.
+const GAME_MENU_ITEM_SPACING: f32 = 12.0; // Between the menu items.
+const GAME_MENU_ITEM_SCALE: f32 = 1.15; // The items' fonts, padding and marker, over the skin's menu_item role.
+const GAME_MENU_CREST_HEIGHT: f32 = 72.0; // The crest is drawn this tall at most, keeping its shape.
 const GAME_MENU_PLACE_FONT_SCALE: f32 = 0.8; // The place line, over the skin's subtitle.
 const GAME_MENU_SAVED_FONT_SCALE: f32 = 0.9; // "Saved 12 minutes ago".
-const GAME_MENU_MIN_FIT: f32 = 0.7;          // The smallest the items are set to fit.
+const GAME_MENU_MIN_FIT: f32 = 0.7; // The smallest the items are set to fit.
 
 // Automation labels of the lines filled in when the menu opens.
 const PLACE_LABEL: &str = "place";
@@ -63,7 +63,16 @@ enum GameMenuItem {
 }
 
 impl GameMenuItem {
-    const ALL: [Self; 8] = [Self::Resume, Self::Briefing, Self::Save, Self::Load, Self::WorldMap, Self::Settings, Self::QuitToMenu, Self::ExitGame];
+    const ALL: [Self; 8] = [
+        Self::Resume,
+        Self::Briefing,
+        Self::Save,
+        Self::Load,
+        Self::WorldMap,
+        Self::Settings,
+        Self::QuitToMenu,
+        Self::ExitGame,
+    ];
 
     // Whether the menu shows it: the briefing in a campaign mission only.
     fn shown(self, in_mission: bool) -> bool {
@@ -175,7 +184,13 @@ impl MainGame {
             parts_height += crest.measure(context).y + spacing;
             menu.add_widget(crest);
         }
-        let title = skin::heading_scaled(context, [UiString::key(UiTextCategory::Menu, "game_menu.title")], HeadingLevel::Title, scale, text);
+        let title = skin::heading_scaled(
+            context,
+            [UiString::key(UiTextCategory::Menu, "game_menu.title")],
+            HeadingLevel::Title,
+            scale,
+            text,
+        );
         parts_height += title.measure(context).y + spacing;
         menu.add_widget(title);
         let place = line_text(&shown.0, PLACE_LABEL, "accent", subtitle_font_scale() * GAME_MENU_PLACE_FONT_SCALE * text);
@@ -235,7 +250,14 @@ fn menu_items(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiWid
     let in_mission = campaign::active_mission().is_some();
     *BUILT_IN_MISSION.as_mut() = in_mission;
     for item_kind in GameMenuItem::ALL.into_iter().filter(|item| item.shown(in_mission)) {
-        let item = skin::menu_item_scaled(context, item_kind.label(), None, scale * GAME_MENU_ITEM_SCALE, text_scale * GAME_MENU_ITEM_SCALE).on_pressed(move |_, context| {
+        let item = skin::menu_item_scaled(
+            context,
+            item_kind.label(),
+            None,
+            scale * GAME_MENU_ITEM_SCALE,
+            text_scale * GAME_MENU_ITEM_SCALE,
+        )
+        .on_pressed(move |_, context| {
             item_kind.on_pressed(context_as_mut::<GameUiContext>(context));
         });
         group.add_widget(item);
@@ -246,7 +268,8 @@ fn menu_items(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiWid
 // A centered line of plain text (a city's or map's name isn't markup) in the skin's colour
 // `color`, labeled `label` for automation.
 fn line_text(text: &str, label: &str, color: &str, font_scale: f32) -> UiRichText {
-    let mut line = skin::rich_text("").with_label(label).with_align(UiTextAlign::Center).with_font_scale(UiFontScale(font_scale));
+    let mut line =
+        skin::rich_text("").with_label(label).with_align(UiTextAlign::Center).with_font_scale(UiFontScale(font_scale));
     line.set_spans([UiTextSpan::plain(text)]);
     match skin::color(color) {
         Some(color) => line.with_text_color(color),
@@ -269,10 +292,16 @@ fn place_text() -> String {
         && let Some(name) = campaign.mission_display_name(mission.mission_index)
     {
         if let Some(city) = campaign.missions.get(mission.mission_index).and_then(|mission| mission.city_display_name()) {
-            return ui::text::format(UiTextCategory::Menu, "game_menu.place.mission_city", &[("mission", name), ("city", city)]);
+            return ui::text::format(UiTextCategory::Menu, "game_menu.place.mission_city", &[
+                ("mission", name),
+                ("city", city),
+            ]);
         }
         let number = super::home::campaign_number(mission.campaign_id);
-        return ui::text::format(UiTextCategory::Menu, "game_menu.place.mission", &[("mission", name), ("campaign", &number)]);
+        return ui::text::format(UiTextCategory::Menu, "game_menu.place.mission", &[
+            ("mission", name),
+            ("campaign", &number),
+        ]);
     }
     match custom_game::active().and_then(|game| game.record.map.as_deref()).map(super::load_save::custom_map_display_name) {
         Some(map) => ui::text::format(UiTextCategory::Menu, "load_save.custom_game_place", &[("place", &map)]),
@@ -349,12 +378,17 @@ fn open_leave_popup(context: &mut GameUiContext, leave: Leave) -> bool {
         let cancel_menu = menu_weak_ref.clone();
         skin::popup_with_colored_body(context, label, [title], body).with_buttons([
             // Cancel also drops a save and quit still waiting for its save.
-            sized(make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), move |_, context| {
-                GameLoop::get_mut().cancel_save_and_then();
-                if let Some(mut main_menu) = cancel_menu.upgrade() {
-                    main_menu.close_message_box(context);
-                }
-            })),
+            sized(make_text_button(
+                context,
+                ButtonRole::Secondary,
+                UiString::key(UiTextCategory::Menu, "button.cancel"),
+                move |_, context| {
+                    GameLoop::get_mut().cancel_save_and_then();
+                    if let Some(mut main_menu) = cancel_menu.upgrade() {
+                        main_menu.close_message_box(context);
+                    }
+                },
+            )),
             // The popup closes at once: the game leaves a few frames later, once the save and its
             // thumbnail are written, with nothing left to press meanwhile but the Game menu's items.
             sized(make_text_button(context, ButtonRole::Secondary, save, move |_, context| {

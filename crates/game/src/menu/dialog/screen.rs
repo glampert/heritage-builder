@@ -9,11 +9,7 @@
 // egui's zoom).
 
 use common::{Color, Vec2};
-use engine::ui::{
-    UiDecoratedPanel,
-    UiFontScale,
-    widgets::*,
-};
+use engine::ui::{UiDecoratedPanel, UiFontScale, widgets::*};
 
 use super::skin;
 use crate::ui_context::GameUiContext;
@@ -25,9 +21,15 @@ pub const REFERENCE: Vec2 = Vec2::new(1920.0, 1080.0);
 // `intermission.panel` (the dialogs' frame, its ornaments with it) at the screen's `scales`, and
 // the padding its contents keep: the skin's `panel_padding`, else the mockup's `padding`, in
 // generator points, or the frame's content insets where they're wider.
-pub fn intermission_panel(context: &mut GameUiContext, scales: Scales, padding: [f32; 4]) -> (Option<UiDecoratedPanel>, [f32; 4]) {
+pub fn intermission_panel(
+    context: &mut GameUiContext,
+    scales: Scales,
+    padding: [f32; 4],
+) -> (Option<UiDecoratedPanel>, [f32; 4]) {
     let mut padding = skin::intermission().panel_padding.unwrap_or(padding).map(|side| scales.pt(side));
-    let skin::SkinPanel::NineSlice { mut slice, content, decorations, .. } = skin::panel(context, &skin::intermission().panel) else {
+    let skin::SkinPanel::NineSlice { mut slice, content, decorations, .. } =
+        skin::panel(context, &skin::intermission().panel)
+    else {
         return (None, padding);
     };
     slice.scale *= scales.size;
@@ -68,7 +70,8 @@ pub struct Scales {
 impl Scales {
     pub fn new(window: Vec2) -> Self {
         let size = screen_scale(window);
-        let origin = Vec2::new(((window.x - REFERENCE.x * size) * 0.5).max(0.0), ((window.y - REFERENCE.y * size) * 0.5).max(0.0));
+        let origin =
+            Vec2::new(((window.x - REFERENCE.x * size) * 0.5).max(0.0), ((window.y - REFERENCE.y * size) * 0.5).max(0.0));
         Self { size, body: body_text_size(), origin }
     }
 
@@ -109,7 +112,12 @@ fn body_text_size() -> f32 {
 }
 
 fn style_number(pointer: &str, default: f32) -> f32 {
-    skin::current().style.pointer(pointer).and_then(serde_json::Value::as_f64).map_or(default, |value| value as f32).max(0.01)
+    skin::current()
+        .style
+        .pointer(pointer)
+        .and_then(serde_json::Value::as_f64)
+        .map_or(default, |value| value as f32)
+        .max(0.01)
 }
 
 // A blank row `height` points tall.
@@ -132,7 +140,11 @@ pub fn row(scales: Scales, x: f32, widget: impl Into<UiWidgetImpl>) -> UiColumns
 
 // A line of text, `width` points wide (0: its own), labeled for automation.
 pub fn text_line(text: &str, label: &str, font: UiFontScale, color: Color, width: f32, align: UiTextAlign) -> UiRichText {
-    let mut line = UiRichText::from_spans([UiTextSpan::plain(text)]).with_label(label).with_font_scale(font).with_align(align).with_text_color(color);
+    let mut line = UiRichText::from_spans([UiTextSpan::plain(text)])
+        .with_label(label)
+        .with_font_scale(font)
+        .with_align(align)
+        .with_text_color(color);
     if width > 0.0 {
         line = line.with_width(width);
     }

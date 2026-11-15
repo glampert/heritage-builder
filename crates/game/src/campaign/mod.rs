@@ -18,9 +18,8 @@ pub mod preview;
 pub mod stele;
 
 use config::{CampaignConfigs, MissionFinanceDef, MissionMap, MissionRisksDef};
-use serde::{Deserialize, Serialize};
-
 use engine::log;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     config::GameConfigs,
@@ -168,7 +167,8 @@ pub fn start_mission_if_loadable(campaign_id: usize, mission_index: usize) -> Re
             Err(err) => return Err(format!("The mission's map '{save_file}' doesn't load: {err}")),
         }
     }
-    start_mission(campaign_id, mission_index).ok_or_else(|| format!("Campaign {campaign_id} has no mission {mission_index}."))
+    start_mission(campaign_id, mission_index)
+        .ok_or_else(|| format!("Campaign {campaign_id} has no mission {mission_index}."))
 }
 
 // Advance to the next mission: the campaign's next step (a variant's sibling sites are skipped).
@@ -323,7 +323,11 @@ pub fn active_mission_calendar() -> Option<CalendarSettings> {
     }
 
     if let Err(err) = settings.validate() {
-        log::error!(log::channel!("campaign"), "Mission '{}' has an invalid calendar: {err} Using the defaults.", mission.name);
+        log::error!(
+            log::channel!("campaign"),
+            "Mission '{}' has an invalid calendar: {err} Using the defaults.",
+            mission.name
+        );
         return Some(defaults.clone());
     }
 

@@ -45,7 +45,10 @@ pub fn use_recorded_configs(engine: &Engine) {
 
             // The engine took its language from the configs loaded at boot.
             if let Err(err) = ui::text::set_language(&crate::config::GameConfigs::get().engine.language) {
-                log::warning!(log::channel!("game"), "The recording's language isn't available, so the replay may differ: {err}");
+                log::warning!(
+                    log::channel!("game"),
+                    "The recording's language isn't available, so the replay may differ: {err}"
+                );
             }
         }
         Err(err) => {
@@ -75,13 +78,19 @@ pub fn recorded_profile(engine: &Engine) -> Option<Profile> {
         return None;
     }
     let Some(recorded) = engine.replay_info(GAME_INFO_KEY).and_then(|info| info.get("profile")) else {
-        log::warning!(log::channel!("game"), "The recording holds no profile: replaying with an empty one, so the replay may differ.");
+        log::warning!(
+            log::channel!("game"),
+            "The recording holds no profile: replaying with an empty one, so the replay may differ."
+        );
         return Some(Profile::new());
     };
     match Profile::from_value(recorded.clone()) {
         Ok(profile) => Some(profile),
         Err(err) => {
-            log::warning!(log::channel!("game"), "Can't use the recording's profile, so the replay may differ: it {err}. Replaying with an empty one.");
+            log::warning!(
+                log::channel!("game"),
+                "Can't use the recording's profile, so the replay may differ: it {err}. Replaying with an empty one."
+            );
             Some(Profile::new())
         }
     }

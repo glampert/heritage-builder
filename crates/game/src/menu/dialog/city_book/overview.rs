@@ -49,9 +49,14 @@ impl CityPage for Overview {
             Some(change) => ui::text::format(UiTextCategory::City, "book.this_month", &[("change", &number(change, true))]),
             None => get("book.first_month"),
         };
-        let treasury_sub = ui::text::format(UiTextCategory::City, "book.so_far_this_year", &[("change", &number(report.net_this_year, true))]);
+        let treasury_sub = ui::text::format(UiTextCategory::City, "book.so_far_this_year", &[(
+            "change",
+            &number(report.net_this_year, true),
+        )]);
         let (food_value, food_ratio) = match report.food_months {
-            Some(months) => (ui::text::format_count(UiTextCategory::City, "book.months", months.floor() as i64, &[]), months / 12.0),
+            Some(months) => {
+                (ui::text::format_count(UiTextCategory::City, "book.months", months.floor() as i64, &[]), months / 12.0)
+            }
             None => ("—".to_string(), 0.0),
         };
         let food_sub = ui::text::format_count(
@@ -61,8 +66,13 @@ impl CityPage for Overview {
             &[("food", &number(i64::from(report.granary_food), false))],
         );
         let employment = report.employment_ratio();
-        let employment_value = if report.employed + report.unemployed > 0 { format!("{}%", (employment * 100.0).round()) } else { "—".to_string() };
-        let employment_sub = ui::text::format_count(UiTextCategory::City, "book.looking_for_work", i64::from(report.unemployed), &[]);
+        let employment_value = if report.employed + report.unemployed > 0 {
+            format!("{}%", (employment * 100.0).round())
+        } else {
+            "—".to_string()
+        };
+        let employment_sub =
+            ui::text::format_count(UiTextCategory::City, "book.looking_for_work", i64::from(report.unemployed), &[]);
 
         let icons = [
             skin::hud_icon(context, "population").0,
@@ -197,7 +207,9 @@ fn goals(context: &GameUiContext) -> (Option<String>, Vec<GoalRow>) {
         return (None, Vec::new());
     };
     let configs = CampaignConfigs::get();
-    let (Some(campaign), Some(mission)) = (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index)) else {
+    let (Some(campaign), Some(mission)) =
+        (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index))
+    else {
         return (None, Vec::new());
     };
     let number = campaign.mission_number(active.mission_index).to_string();

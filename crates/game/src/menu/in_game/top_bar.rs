@@ -109,7 +109,10 @@ impl BarStats {
             day: {
                 let configs = &crate::config::GameConfigs::get().sim;
                 let date = calendar.date(configs.days_per_month, configs.seconds_per_month);
-                ui::text::format(UiTextCategory::Hud, "date.day", &[("day", &date.day.to_string()), ("month", &date.month.to_string())])
+                ui::text::format(UiTextCategory::Hud, "date.day", &[
+                    ("day", &date.day.to_string()),
+                    ("month", &date.month.to_string()),
+                ])
             },
             population: context.world.stats().population.total,
             treasury: context.sim.finance().balance(),
@@ -260,7 +263,7 @@ pub struct TopBar {
     stats: SharedStats,
     built_for: BuiltFor,
     buttons: Vec<(BarButton, UiWidgetGroupWidgetIndex)>,
-    canvases: Vec<(Option<Stat>, UiWidgetGroupWidgetIndex)>, // The date's (None) and the stats', their values updated each frame.
+    canvases: Vec<(Option<Stat>, UiWidgetGroupWidgetIndex)>, /* The date's (None) and the stats', their values updated each frame. */
 }
 
 impl TopBar {
@@ -286,7 +289,10 @@ impl TopBar {
         let height = (insets[1] + tile.y + insets[3]).ceil() + 1.0;
         let inner_width = width - insets[0] - insets[2];
 
-        let mut row = UiWidgetGroup::new().with_stack_vertically(false).with_center_horizontally(false).with_widget_spacing(Vec2::new(TILE_GAP, 0.0));
+        let mut row = UiWidgetGroup::new()
+            .with_stack_vertically(false)
+            .with_center_horizontally(false)
+            .with_widget_spacing(Vec2::new(TILE_GAP, 0.0));
         let mut buttons = Vec::new();
         let mut add = |context: &mut GameUiContext, row: &mut UiWidgetGroup, button: BarButton| {
             let tile = skin::hud_tile(context, HudTileKind::Small, button.label(), HudGlyphGroup::Hud, button.glyph())
@@ -362,7 +368,14 @@ impl TopBar {
     fn natural_width(context: &mut GameUiContext, built_for: &BuiltFor, insets: [f32; 4], tile: Vec2) -> f32 {
         let tiles = 8 + usize::from(built_for.has_goals) + usize::from(built_for.in_mission);
         let ornament = skin::hud_ornament(context, true).1.x * (tile.y / 36.0) + 16.0;
-        insets[0] + insets[2] + tiles as f32 * (tile.x + TILE_GAP) + 6.0 * TILE_GAP + DATE_WIDTH + 3.0 * STAT_WIDTH + RATINGS_WIDTH + 2.0 * ornament
+        insets[0]
+            + insets[2]
+            + tiles as f32 * (tile.x + TILE_GAP)
+            + 6.0 * TILE_GAP
+            + DATE_WIDTH
+            + 3.0 * STAT_WIDTH
+            + RATINGS_WIDTH
+            + 2.0 * ornament
     }
 
     fn built_for(context: &GameUiContext, stats: &BarStats) -> BuiltFor {
@@ -465,8 +478,18 @@ fn date_canvas(context: &mut GameUiContext, stats: &SharedStats, size: Vec2) -> 
     UiCanvas::new(size, move |_, painter, rect| {
         let stats = shared.borrow();
         painter.line(Vec2::new(rect.min.x, rect.min.y + 2.0), Vec2::new(rect.min.x, rect.max.y - 2.0), 2.0, rule);
-        painter.label(Vec2::new(rect.min.x + 10.0, rect.min.y + 16.0), UiTextAnchor::Start, &stats.date, &look(16.0, text, false));
-        painter.label(Vec2::new(rect.min.x + 10.0, rect.min.y + 33.0), UiTextAnchor::Start, &stats.season, &look(14.0, sub, false));
+        painter.label(
+            Vec2::new(rect.min.x + 10.0, rect.min.y + 16.0),
+            UiTextAnchor::Start,
+            &stats.date,
+            &look(16.0, text, false),
+        );
+        painter.label(
+            Vec2::new(rect.min.x + 10.0, rect.min.y + 33.0),
+            UiTextAnchor::Start,
+            &stats.season,
+            &look(14.0, sub, false),
+        );
     })
     .with_label("date", Some(json!({ "date": stats.date, "season": stats.season, "day": stats.day })))
     .with_tooltip(skin::tooltip(context, format!("{}\n{}", stats.day, stats.season)))
@@ -540,7 +563,12 @@ fn stat_canvas(context: &mut GameUiContext, stats: &SharedStats, stat: Stat, siz
         let center = Vec2::new(rect.min.x + 18.0, rect.center().y);
         painter.image(icon, Rect::from_pos_and_size(center - drawn * 0.5, drawn), Color::white());
         let color = if value < 0 { warning } else { text };
-        painter.label(Vec2::new(rect.min.x + 38.0, rect.center().y + 7.0), UiTextAnchor::Start, &digits(value), &look(20.0, color, true));
+        painter.label(
+            Vec2::new(rect.min.x + 38.0, rect.center().y + 7.0),
+            UiTextAnchor::Start,
+            &digits(value),
+            &look(20.0, color, true),
+        );
     })
     .with_label(stat.label(), Some(json!(value)))
     .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Hud, stat.tooltip())))
@@ -595,7 +623,13 @@ struct GoalsPanel {
 }
 
 fn goals_value(stats: &BarStats) -> serde_json::Value {
-    json!(stats.goals.iter().map(|goal| json!({ "goal": goal.text, "target": goal.target, "achieved": goal.achieved, "met": goal.met })).collect::<Vec<_>>())
+    json!(
+        stats
+            .goals
+            .iter()
+            .map(|goal| json!({ "goal": goal.text, "target": goal.target, "achieved": goal.achieved, "met": goal.met }))
+            .collect::<Vec<_>>()
+    )
 }
 
 impl GoalsPanel {
@@ -630,32 +664,57 @@ impl GoalsPanel {
             // The notch on the panel's top edge under the button, outside the contents' clip.
             let top = rect.min.y - insets[1];
             let x = rect.min.x - insets[0] + notch_at;
-            let unclipped = painter.unclipped(Rect::from_pos_and_size(Vec2::new(x - 16.0, top - 16.0), Vec2::new(32.0, 32.0)));
-            unclipped.convex_polygon(&[Vec2::new(x - 12.0, top + 2.0), Vec2::new(x, top - 12.0), Vec2::new(x + 12.0, top + 2.0)], notch, 1.5, notch_outline);
+            let unclipped =
+                painter.unclipped(Rect::from_pos_and_size(Vec2::new(x - 16.0, top - 16.0), Vec2::new(32.0, 32.0)));
+            unclipped.convex_polygon(
+                &[Vec2::new(x - 12.0, top + 2.0), Vec2::new(x, top - 12.0), Vec2::new(x + 12.0, top + 2.0)],
+                notch,
+                1.5,
+                notch_outline,
+            );
             let title_look = UiLabelLook { letter_spacing: 2.0, ..look(16.0, accent, true) };
-            painter.label(Vec2::new(rect.min.x, rect.min.y + 18.0), UiTextAnchor::Start, &ui::text::get(UiTextCategory::Hud, "goals.title").to_uppercase(), &title_look);
+            painter.label(
+                Vec2::new(rect.min.x, rect.min.y + 18.0),
+                UiTextAnchor::Start,
+                &ui::text::get(UiTextCategory::Hud, "goals.title").to_uppercase(),
+                &title_look,
+            );
             painter.label(Vec2::new(rect.max.x, rect.min.y + 18.0), UiTextAnchor::End, &title, &look(16.0, sub, false));
             for (k, goal) in stats.goals.iter().enumerate() {
                 let y = rect.min.y + GOALS_HEADER + k as f32 * GOAL_ROW + 20.0;
                 let mark = Vec2::new(rect.min.x + 11.0, y - 6.0);
                 if goal.met {
                     painter.circle_filled(mark, 11.0, accent);
-                    painter.polyline(&[mark + Vec2::new(-5.0, 0.0), mark + Vec2::new(-1.0, 4.0), mark + Vec2::new(6.0, -4.0)], 2.5, text, false);
+                    painter.polyline(
+                        &[mark + Vec2::new(-5.0, 0.0), mark + Vec2::new(-1.0, 4.0), mark + Vec2::new(6.0, -4.0)],
+                        2.5,
+                        text,
+                        false,
+                    );
                 } else {
                     painter.circle_stroke(mark, 11.0, 2.0, accent);
                 }
                 painter.label(Vec2::new(rect.min.x + 34.0, y), UiTextAnchor::Start, &goal.text, &look(18.0, text, false));
                 let progress = format!("{} / {}", digits(goal.achieved.min(goal.target)), digits(goal.target));
                 painter.label(Vec2::new(rect.max.x, y), UiTextAnchor::End, &progress, &look(16.0, sub, false));
-                let bar = Rect::from_pos_and_size(Vec2::new(rect.min.x + 34.0, y + 12.0), Vec2::new(rect.width() - 34.0, 8.0));
+                let bar =
+                    Rect::from_pos_and_size(Vec2::new(rect.min.x + 34.0, y + 12.0), Vec2::new(rect.width() - 34.0, 8.0));
                 painter.rect_filled(bar, track, 4.0);
                 let share = if goal.target > 0 { (goal.achieved as f32 / goal.target as f32).clamp(0.04, 1.0) } else { 1.0 };
-                painter.rect_filled(Rect::from_pos_and_size(bar.min, Vec2::new(bar.width() * share, bar.height())), accent, 4.0);
+                painter.rect_filled(
+                    Rect::from_pos_and_size(bar.min, Vec2::new(bar.width() * share, bar.height())),
+                    accent,
+                    4.0,
+                );
             }
         })
         .with_label("goals", Some(value));
 
-        let menu = UiMenu::new("Goals").with_flags(UiMenuFlags::IsOpen).with_position(position).with_size(size).with_widget_spacing(Vec2::zero());
+        let menu = UiMenu::new("Goals")
+            .with_flags(UiMenuFlags::IsOpen)
+            .with_position(position)
+            .with_size(size)
+            .with_widget_spacing(Vec2::zero());
         let mut menu = panel.apply_to_menu(menu);
         let canvas = menu.add_widget(canvas);
         Self { menu: menu.into_rc(), canvas }
@@ -678,5 +737,9 @@ fn mission_name() -> String {
         return String::new();
     };
     let configs = CampaignConfigs::get();
-    configs.campaign(active.campaign_id).and_then(|campaign| campaign.mission_display_name(active.mission_index)).map(str::to_string).unwrap_or_default()
+    configs
+        .campaign(active.campaign_id)
+        .and_then(|campaign| campaign.mission_display_name(active.mission_index))
+        .map(str::to_string)
+        .unwrap_or_default()
 }

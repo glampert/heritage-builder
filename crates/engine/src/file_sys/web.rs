@@ -146,7 +146,12 @@ impl FileSystemBackend for WebFileSystemBackend {
         extension: Option<&str>,
     ) -> io::Result<Vec<PathBuf>> {
         let dir = Self::normalize_path(path.as_ref().to_str().unwrap_or_default());
-        super::list_preloaded_entries(self.asset_cache.values().map(|entry| entry.path.as_str()), dir.as_str(), flags, extension)
+        super::list_preloaded_entries(
+            self.asset_cache.values().map(|entry| entry.path.as_str()),
+            dir.as_str(),
+            flags,
+            extension,
+        )
     }
 }
 
@@ -167,32 +172,28 @@ pub async fn preload_asset_cache(manifest_url: &str) -> Result<usize, String> {
     use wasm_bindgen::JsCast;
     use wasm_bindgen_futures::JsFuture;
 
-    let window = web_sys::window()
-        .ok_or("No global window object")?;
+    let window = web_sys::window().ok_or("No global window object")?;
 
     // Fetch the manifest (JSON array of asset paths).
-    let manifest_resp = JsFuture::from(window.fetch_with_str(manifest_url))
-        .await
-        .map_err(|e| format!("Failed to fetch manifest: {e:?}"))?;
+    let manifest_resp =
+        JsFuture::from(window.fetch_with_str(manifest_url)).await.map_err(|e| format!("Failed to fetch manifest: {e:?}"))?;
 
-    let manifest_resp: web_sys::Response = manifest_resp.dyn_into()
-        .map_err(|_| "Manifest fetch did not return a Response")?;
+    let manifest_resp: web_sys::Response =
+        manifest_resp.dyn_into().map_err(|_| "Manifest fetch did not return a Response")?;
 
     if !manifest_resp.ok() {
         return Err(format!("Manifest fetch failed with status {}", manifest_resp.status()));
     }
 
-    let manifest_text = JsFuture::from(
-        manifest_resp.text().map_err(|e| format!("Failed to get manifest text: {e:?}"))?)
+    let manifest_text = JsFuture::from(manifest_resp.text().map_err(|e| format!("Failed to get manifest text: {e:?}"))?)
         .await
         .map_err(|e| format!("Failed to read manifest text: {e:?}"))?;
 
-    let manifest_str = manifest_text.as_string()
-        .ok_or("Manifest is not a string")?;
+    let manifest_str = manifest_text.as_string().ok_or("Manifest is not a string")?;
 
     // Parse as JSON array of strings.
-    let paths: Vec<String> = serde_json::from_str(&manifest_str)
-        .map_err(|e| format!("Failed to parse asset manifest: {e}"))?;
+    let paths: Vec<String> =
+        serde_json::from_str(&manifest_str).map_err(|e| format!("Failed to parse asset manifest: {e}"))?;
 
     log::info!(log::channel!("file_sys"), "WASM: Loading {} assets from manifest...", paths.len());
 
@@ -218,19 +219,15 @@ async fn fetch_binary(window: &web_sys::Window, url: &str) -> Result<Vec<u8>, St
     use wasm_bindgen::JsCast;
     use wasm_bindgen_futures::JsFuture;
 
-    let resp = JsFuture::from(window.fetch_with_str(url))
-        .await
-        .map_err(|e| format!("Fetch error: {e:?}"))?;
+    let resp = JsFuture::from(window.fetch_with_str(url)).await.map_err(|e| format!("Fetch error: {e:?}"))?;
 
-    let resp: web_sys::Response = resp.dyn_into()
-        .map_err(|_| "Not a Response")?;
+    let resp: web_sys::Response = resp.dyn_into().map_err(|_| "Not a Response")?;
 
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status()));
     }
 
-    let array_buffer = JsFuture::from(
-        resp.array_buffer().map_err(|e| format!("array_buffer error: {e:?}"))?)
+    let array_buffer = JsFuture::from(resp.array_buffer().map_err(|e| format!("array_buffer error: {e:?}"))?)
         .await
         .map_err(|e| format!("Failed to read array_buffer: {e:?}"))?;
 

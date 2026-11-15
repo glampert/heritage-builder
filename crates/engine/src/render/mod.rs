@@ -181,7 +181,7 @@ impl RenderSystem {
         let mut render_system = RcMut::new_cyclic(|render_system| {
             #[cfg(feature = "desktop")]
             let backend = match params.render_api {
-                RenderApi::Wgpu   => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new(&params)),
+                RenderApi::Wgpu => RenderSystemBackendImpl::from(wgpu::WgpuRenderSystemBackend::new(&params)),
                 RenderApi::OpenGl => RenderSystemBackendImpl::from(opengl::OpenGlRenderSystemBackend::new(&params)),
             };
 
@@ -340,7 +340,7 @@ impl RenderSystem {
 
         // Normalize and rotate 90° to get perpendicular vector
         let nx = -d.y / length;
-        let ny =  d.x / length;
+        let ny = d.x / length;
 
         let offset_x = nx * (thickness / 2.0);
         let offset_y = ny * (thickness / 2.0);
@@ -348,8 +348,8 @@ impl RenderSystem {
         // Four corner points of the quad (screen space)
         let vertices = [
             Vec2::new((from_pos.x + offset_x).round(), (from_pos.y + offset_y).round()),
-            Vec2::new((to_pos.x   + offset_x).round(), (to_pos.y   + offset_y).round()),
-            Vec2::new((to_pos.x   - offset_x).round(), (to_pos.y   - offset_y).round()),
+            Vec2::new((to_pos.x + offset_x).round(), (to_pos.y + offset_y).round()),
+            Vec2::new((to_pos.x - offset_x).round(), (to_pos.y - offset_y).round()),
             Vec2::new((from_pos.x - offset_x).round(), (from_pos.y - offset_y).round()),
         ];
 
@@ -365,9 +365,9 @@ impl RenderSystem {
     // Handles connecting lines or closed polygons with seamless mitered joints.
     // Slower but with correct visual results and no seams.
     pub fn draw_polyline_with_thickness(&mut self, points: &[Vec2], color: Color, thickness: f32, is_closed: bool) {
-        const MAX_POINTS:   usize = 32;
+        const MAX_POINTS: usize = 32;
         const MAX_VERTICES: usize = 2 * MAX_POINTS;
-        const MAX_INDICES:  usize = 6 * MAX_POINTS;
+        const MAX_INDICES: usize = 6 * MAX_POINTS;
 
         let num_points = points.len();
         debug_assert!((2..=MAX_POINTS).contains(&num_points));
@@ -379,27 +379,12 @@ impl RenderSystem {
         let mut i_count = 0;
 
         for i in 0..num_points {
-            let prev = if i == 0 {
-                if is_closed {
-                    points[num_points - 1]
-                } else {
-                    points[0]
-                }
-            } else {
-                points[i - 1]
-            };
+            let prev = if i == 0 { if is_closed { points[num_points - 1] } else { points[0] } } else { points[i - 1] };
 
             let curr = points[i];
 
-            let next = if i == num_points - 1 {
-                if is_closed {
-                    points[0]
-                } else {
-                    points[num_points - 1]
-                }
-            } else {
-                points[i + 1]
-            };
+            let next =
+                if i == num_points - 1 { if is_closed { points[0] } else { points[num_points - 1] } } else { points[i + 1] };
 
             // Compute averaged normal (miter join)
             let dir1 = (curr - prev).normalize();

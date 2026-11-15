@@ -81,12 +81,14 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
     fn delete_save_file(&self, save_file: PathRef) -> SaveResult {
         let absolute_path = self.make_absolute_save_path(save_file);
 
-        file_sys::remove_file(&absolute_path).map_err(|err| format!("Failed to delete save file '{absolute_path}': {err}"))?;
+        file_sys::remove_file(&absolute_path)
+            .map_err(|err| format!("Failed to delete save file '{absolute_path}': {err}"))?;
 
         if let Some(thumbnail) = self.save_thumbnail_path(save_file)
             && file_sys::exists(&thumbnail)
         {
-            file_sys::remove_file(&thumbnail).map_err(|err| format!("Failed to delete save thumbnail '{thumbnail}': {err}"))?;
+            file_sys::remove_file(&thumbnail)
+                .map_err(|err| format!("Failed to delete save thumbnail '{thumbnail}': {err}"))?;
         }
         Ok(())
     }

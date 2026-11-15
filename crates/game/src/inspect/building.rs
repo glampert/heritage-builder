@@ -5,12 +5,33 @@ use common::coords::Cell;
 use engine::ui::text::{self as ui_text, UiTextCategory};
 
 use super::{
-    Action, ActionKind, InspectIcon, InspectReport, InspectTarget, PanelKind, ProductionRow, RiskRow, Section, Status, StockRow,
-    StorageOrder, StorageRow, TickRow, Tone, ValueRow, duration_text, t, tc, tf, unit,
+    Action,
+    ActionKind,
+    InspectIcon,
+    InspectReport,
+    InspectTarget,
+    PanelKind,
+    ProductionRow,
+    RiskRow,
+    Section,
+    Status,
+    StockRow,
+    StorageOrder,
+    StorageRow,
+    TickRow,
+    Tone,
+    ValueRow,
+    duration_text,
+    t,
+    tc,
+    tf,
+    unit,
 };
 use crate::{
     building::{
-        Building, BuildingArchetypeKind, BuildingKind,
+        Building,
+        BuildingArchetypeKind,
+        BuildingKind,
         config::BuildingConfigs,
         construction::ConstructionSite,
         house::{HouseLevel, HouseLevelRequirements},
@@ -21,7 +42,7 @@ use crate::{
     realm::Realm,
     sim::{SimContext, resources::ResourceKind},
     tile::{TileKind, sets::TileDef},
-    unit::{UnitTaskHelper, UnitId},
+    unit::{UnitId, UnitTaskHelper},
 };
 
 // More goods than this in a store make its panel wide (inspector-storage-<realm>.jpg).
@@ -32,7 +53,8 @@ pub(super) fn read(context: &SimContext, building: &Building, realm: Realm) -> I
     let name = name_of(building, tile_def, realm);
     let size = tile_def.map(|def| def.size_in_cells());
     let size_text = size.map(|size| format!("{}×{}", size.width, size.height));
-    let target = InspectTarget::Building { building: building.kind(), handle: building.kind_and_id(), cell: building.base_cell() };
+    let target =
+        InspectTarget::Building { building: building.kind(), handle: building.kind_and_id(), cell: building.base_cell() };
     let icon = match building.archetype_kind() {
         BuildingArchetypeKind::HouseBuilding => InspectIcon::Sector("housing".to_string()),
         _ => InspectIcon::Building(tile_def.map_or_else(String::new, |def| def.name.to_string())),
@@ -83,7 +105,8 @@ pub(super) fn read(context: &SimContext, building: &Building, realm: Realm) -> I
             let house = building.as_house();
             let level = house.level() as usize + 1;
             report.name = house_level_name(realm, level);
-            report.subtitle = subtitle(tf("kind.house", &[("level", &level.to_string()), ("max", &HouseLevel::count().to_string())]));
+            report.subtitle =
+                subtitle(tf("kind.house", &[("level", &level.to_string()), ("max", &HouseLevel::count().to_string())]));
             read_house(context, building, realm, &mut report);
         }
     }
@@ -298,7 +321,13 @@ fn push_errand(sections: &mut Vec<Section>, context: &SimContext, unit_id: UnitI
 // Workshop
 // ----------------------------------------------
 
-fn read_producer(context: &SimContext, building: &Building, tile_def: Option<&TileDef>, realm: Realm, report: &mut InspectReport) {
+fn read_producer(
+    context: &SimContext,
+    building: &Building,
+    tile_def: Option<&TileDef>,
+    realm: Realm,
+    report: &mut InspectReport,
+) {
     let producer = building.as_producer();
     let config = tile_def.map(|def| BuildingConfigs::get().find_producer_config(building.kind(), def.hash, &def.name));
     let output = producer.production_output_stock.item;
@@ -308,7 +337,8 @@ fn read_producer(context: &SimContext, building: &Building, tile_def: Option<&Ti
 
     report.status = Some(workplace_status(building, true).unwrap_or_else(|| {
         if let Some(missing) = producer.production_input_stock.slots.iter().find(|item| item.count == 0)
-            && producer.production_input_stock.requires_any_resource() && !producer.production_input_stock.has_required_resources()
+            && producer.production_input_stock.requires_any_resource()
+            && !producer.production_input_stock.has_required_resources()
         {
             return Status {
                 word: tf("status.no_good", &[("good", &good_name(missing.kind).to_lowercase())]),
@@ -350,7 +380,11 @@ fn read_producer(context: &SimContext, building: &Building, tile_def: Option<&Ti
             capacity: producer.production_output_stock.capacity(),
         });
         let timer = &producer.production_update_timer;
-        let progress = if timer.frequency_secs() > 0.0 { (timer.time_since_last_secs() / timer.frequency_secs()).clamp(0.0, 1.0) } else { 0.0 };
+        let progress = if timer.frequency_secs() > 0.0 {
+            (timer.time_since_last_secs() / timer.frequency_secs()).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         report.sections.push(Section::Production { note, rows, progress });
     }
 
@@ -411,7 +445,9 @@ fn read_storage(context: &SimContext, building: &Building, tile_def: Option<&Til
     if wide {
         // Half the width: the wages as gold alone.
         let mut costs = costs_rows(context, building, tile_def);
-        if let (Some(wages), Some(employer)) = (costs.get_mut(1), building.workers().and_then(|workers| workers.as_employer())) {
+        if let (Some(wages), Some(employer)) =
+            (costs.get_mut(1), building.workers().and_then(|workers| workers.as_employer()))
+        {
             wages.value = tc("costs.gold_a_year", i64::from(employer.employee_count() * context.finance().wage()), &[]);
         }
         report.sections.push(Section::CostsRisks { costs, risks: risk_rows(building) });
@@ -431,16 +467,20 @@ pub(crate) fn storage_order(building: &Building, kind: ResourceKind) -> StorageO
 // Service and market
 // ----------------------------------------------
 
-fn read_service(context: &SimContext, building: &Building, tile_def: Option<&TileDef>, realm: Realm, report: &mut InspectReport) {
+fn read_service(
+    context: &SimContext,
+    building: &Building,
+    tile_def: Option<&TileDef>,
+    realm: Realm,
+    report: &mut InspectReport,
+) {
     let service = building.as_service();
     let config = BuildingConfigs::get().find_service_config(building.kind());
     let market = service.service_stock.is_stock();
     let houses = count_in_reach(context, building, BuildingKind::House, config.effect_radius);
 
     report.status = Some(workplace_status(building, config.requires_road_access).unwrap_or_else(|| {
-        if market
-            && let Some(item) = building.stock().into_iter().find(|item| item.count == 0)
-        {
+        if market && let Some(item) = building.stock().into_iter().find(|item| item.count == 0) {
             return Status {
                 word: tf("status.short_of", &[("good", &good_name(item.kind).to_lowercase())]),
                 tone: Tone::Bad,
@@ -522,10 +562,20 @@ fn in_reach(building: &Building, other: &Building, radius: i32) -> bool {
 }
 
 // Every finished building of `kinds` (any archetypes) in reach of `building`, but itself.
-fn for_each_in_reach(context: &SimContext, building: &Building, kinds: BuildingKind, radius: i32, mut visit: impl FnMut(&Building)) {
+fn for_each_in_reach(
+    context: &SimContext,
+    building: &Building,
+    kinds: BuildingKind,
+    radius: i32,
+    mut visit: impl FnMut(&Building),
+) {
     let this = building.kind_and_id();
     context.world().for_each_building_of_any_kind(|other| {
-        if other.is(kinds) && other.kind_and_id() != this && !other.is_under_construction() && in_reach(building, other, radius) {
+        if other.is(kinds)
+            && other.kind_and_id() != this
+            && !other.is_under_construction()
+            && in_reach(building, other, radius)
+        {
             visit(other);
         }
         true
@@ -538,7 +588,14 @@ fn count_in_reach(context: &SimContext, building: &Building, kinds: BuildingKind
     count
 }
 
-fn riskiest_in_reach(context: &SimContext, building: &Building, kinds: BuildingKind, radius: i32, risk: RiskKind, realm: Realm) -> Option<(String, f32)> {
+fn riskiest_in_reach(
+    context: &SimContext,
+    building: &Building,
+    kinds: BuildingKind,
+    radius: i32,
+    risk: RiskKind,
+    realm: Realm,
+) -> Option<(String, f32)> {
     let mut best: Option<(Cell, &'static str, f32)> = None;
     for_each_in_reach(context, building, kinds, radius, |other| {
         let value = other.risks().get(risk);
@@ -547,7 +604,8 @@ fn riskiest_in_reach(context: &SimContext, building: &Building, kinds: BuildingK
         }
     });
     let (cell, fallback, value) = best?;
-    let name = building_name_at(context, cell, realm).map_or_else(|| spaced_name(fallback), |name| super::unit::capitalized(&name));
+    let name =
+        building_name_at(context, cell, realm).map_or_else(|| spaced_name(fallback), |name| super::unit::capitalized(&name));
     Some((name, value))
 }
 
@@ -565,17 +623,26 @@ fn read_house(context: &SimContext, building: &Building, realm: Realm, report: &
     let building_context = building.new_context(context);
 
     // Its taxes a year: what one tax cycle brings, as many times as cycles fit in a year.
-    let cycles = (GameConfigs::get().sim.seconds_per_month * 12.0 / house_config.generate_tax_frequency_secs.max(1.0)).round();
+    let cycles =
+        (GameConfigs::get().sim.seconds_per_month * 12.0 / house_config.generate_tax_frequency_secs.max(1.0)).round();
     let taxes = (house.tax_generated(context.finance().tax_percent()) as f32 * cycles) as i64;
     let tax_summary = if taxes > 0 { tc("summary.taxes", taxes, &[]) } else { t("summary.no_taxes") };
 
     report.status = Some(emergency_status(building).unwrap_or_else(|| {
         if let Some(secs) = upgrade.renovation_secs_left {
-            return Status { word: t("status.renovating"), tone: Tone::Pending, summary: tf("summary.upgrades_in", &[("time", &duration_text(secs))]) };
+            return Status {
+                word: t("status.renovating"),
+                tone: Tone::Pending,
+                summary: tf("summary.upgrades_in", &[("time", &duration_text(secs))]),
+            };
         }
         if upgrade.downgrade_pending_secs > 0.0 {
             let secs = (house_config.downgrade_grace_secs - upgrade.downgrade_pending_secs).max(0.0);
-            return Status { word: t("status.declining"), tone: Tone::Bad, summary: tf("summary.downgrades_in", &[("time", &duration_text(secs))]) };
+            return Status {
+                word: t("status.declining"),
+                tone: Tone::Bad,
+                summary: tf("summary.downgrades_in", &[("time", &duration_text(secs))]),
+            };
         }
         if upgrade.upgrade_ready_secs > 0.0 {
             return Status { word: t("status.improving"), tone: Tone::Good, summary: tax_summary.clone() };
@@ -606,7 +673,12 @@ fn read_house(context: &SimContext, building: &Building, realm: Realm, report: &
     let next_needs = (!level.is_max() && building.is_linked_to_road() && house.is_upgrade_available(&building_context))
         .then(|| next_level_needs(&house.upgrade_requirements(&building_context), level))
         .flatten()
-        .map(|needs| tf("house.next_needs", &[("house", &house_level_name(realm, level as usize + 2).to_lowercase()), ("needs", &needs)]));
+        .map(|needs| {
+            tf("house.next_needs", &[
+                ("house", &house_level_name(realm, level as usize + 2).to_lowercase()),
+                ("needs", &needs),
+            ])
+        });
     if !rows.is_empty() {
         let missing_count = rows.iter().filter(|row| !row.met).count();
         let note = if missing_count == 0 {
@@ -640,7 +712,7 @@ fn read_house(context: &SimContext, building: &Building, realm: Realm, report: &
 // "Small well or large well".
 fn service_group_name(group: BuildingKind) -> String {
     let names: Vec<String> = group.iter().map(|kind| spaced_name(&kind.to_string())).collect();
-    
+
     names.join(&format!(" {} ", t("or")))
 }
 
@@ -655,7 +727,8 @@ fn next_level_needs(requirements: &HouseLevelRequirements, level: HouseLevel) ->
         }
     }
     for group in requirements.level_config.resources_required.iter() {
-        if group.intersects(requirements.resources_missing()) && !current.resources_required.iter().any(|have| have == group) {
+        if group.intersects(requirements.resources_missing()) && !current.resources_required.iter().any(|have| have == group)
+        {
             let names: Vec<String> = group.iter().map(|kind| good_name(kind).to_lowercase()).collect();
             needs.push(names.join(&format!(" {} ", t("or"))));
         }
@@ -667,7 +740,13 @@ fn next_level_needs(requirements: &HouseLevelRequirements, level: HouseLevel) ->
 // Construction site
 // ----------------------------------------------
 
-fn read_site(_context: &SimContext, building: &Building, site: &ConstructionSite, tile_def: Option<&TileDef>, report: &mut InspectReport) {
+fn read_site(
+    _context: &SimContext,
+    building: &Building,
+    site: &ConstructionSite,
+    tile_def: Option<&TileDef>,
+    report: &mut InspectReport,
+) {
     report.status = Some(Status {
         word: t("status.being_built"),
         tone: Tone::Pending,
@@ -678,7 +757,8 @@ fn read_site(_context: &SimContext, building: &Building, site: &ConstructionSite
         note: tf("site.stage", &[("stage", &(site.stage() + 1).to_string()), ("stages", "4")]),
         value: site.progress(),
     });
-    let takes = if building.archetype_kind() == BuildingArchetypeKind::HouseBuilding { "site.takes_house" } else { "site.takes" };
+    let takes =
+        if building.archetype_kind() == BuildingArchetypeKind::HouseBuilding { "site.takes_house" } else { "site.takes" };
     report.sections.push(Section::Text { text: tf(takes, &[("time", &duration_text(site.total_secs()))]) });
 
     let mut paid = vec![ValueRow { label: t("site.gold"), value: site.paid_gold().to_string(), warn: false }];
@@ -708,7 +788,9 @@ fn read_site(_context: &SimContext, building: &Building, site: &ConstructionSite
 fn max_workers(building: &Building, tile_def: Option<&TileDef>) -> u32 {
     let configs = BuildingConfigs::get();
     match building.archetype_kind() {
-        BuildingArchetypeKind::ProducerBuilding => tile_def.map_or(0, |def| configs.find_producer_config(building.kind(), def.hash, &def.name).max_workers),
+        BuildingArchetypeKind::ProducerBuilding => {
+            tile_def.map_or(0, |def| configs.find_producer_config(building.kind(), def.hash, &def.name).max_workers)
+        }
         BuildingArchetypeKind::ServiceBuilding => configs.find_service_config(building.kind()).max_workers,
         BuildingArchetypeKind::StorageBuilding => configs.find_storage_config(building.kind()).max_workers,
         BuildingArchetypeKind::HouseBuilding => 0,

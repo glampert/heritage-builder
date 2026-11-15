@@ -10,7 +10,11 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
 use super::GameSystem;
-use crate::{config::GameConfigs, save_context::PostLoadContext, sim::{SimCmds, SimContext, SimContextMut}};
+use crate::{
+    config::GameConfigs,
+    save_context::PostLoadContext,
+    sim::{SimCmds, SimContext, SimContextMut},
+};
 
 // ----------------------------------------------
 // AmbientSoundKey
@@ -96,7 +100,7 @@ impl GameSystem for AmbientSoundsSystem {
             self.load_sounds(sound_sys);
         }
 
-        let sound_is_playing   = self.update_current_sound(sound_sys);
+        let sound_is_playing = self.update_current_sound(sound_sys);
         let game_state_changed = self.update_game_state();
 
         // If nothing is currently playing or if the game state has changed, start a new sound.

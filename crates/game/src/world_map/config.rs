@@ -20,10 +20,9 @@
 
 use std::collections::BTreeMap;
 
+use engine::{file_sys::paths::PathRef, log, ui::text::UiTextCategory};
 use serde::{Deserialize, Serialize};
 use strum::Display;
-
-use engine::{file_sys::paths::PathRef, log, ui::text::UiTextCategory};
 
 use crate::{
     campaign::config::{CampaignConfigs, CampaignDef},
@@ -360,9 +359,7 @@ impl WorldMapDef {
                         "City '{}' trades over the route '{}', which isn't on the map.",
                         city.id, route.route
                     )),
-                    Some(def)
-                        if !def.cities.contains(&city.id) || !def.cities.contains(&route.from) =>
-                    {
+                    Some(def) if !def.cities.contains(&city.id) || !def.cities.contains(&route.from) => {
                         errors.push(format!(
                             "City '{}' trades over the route '{}', which doesn't join it to '{}'.",
                             city.id, route.route, route.from

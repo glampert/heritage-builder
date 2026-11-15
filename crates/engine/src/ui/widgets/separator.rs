@@ -1,13 +1,17 @@
 use std::any::Any;
-use egui::{Color32, Sense};
 
 use common::{Color, Vec2};
+use egui::{Color32, Sense};
 
 use super::{UiSeparatorArt, UiWidget, UiWidgetContext};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{immediate::{color32, egui_vec2, uv_full}, internal, renderer::egui_texture},
+    ui::{
+        immediate::{color32, egui_vec2, uv_full},
+        internal,
+        renderer::egui_texture,
+    },
 };
 
 // ----------------------------------------------
@@ -20,7 +24,7 @@ pub struct UiSeparator {
     separator: Option<TextureHandle>,
     art: Option<UiSeparatorArt>, // In place of `separator`.
     color: Option<Color>,        // A plain line, `thickness` thick, in place of either.
-    size: Option<Vec2>, // Across the menu if None.
+    size: Option<Vec2>,          // Across the menu if None.
     thickness: f32,
     vertical: bool,
 }

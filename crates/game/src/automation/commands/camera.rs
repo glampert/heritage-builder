@@ -1,9 +1,8 @@
 // Camera commands.
 
+use common::{Vec2, coords};
 use serde::Deserialize;
 use serde_json::{Value, json};
-
-use common::{Vec2, coords};
 
 use super::{CellParam, cell_json};
 use crate::{
@@ -76,7 +75,10 @@ fn cmd_zoom(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let (min_zoom, max_zoom) = context.session.camera().zoom_limits();
     if !(min_zoom..=max_zoom).contains(&params.zoom) {
-        return Err(CommandError::invalid_params(format!("Zoom must be from {min_zoom} to {max_zoom}, got {}.", params.zoom)));
+        return Err(CommandError::invalid_params(format!(
+            "Zoom must be from {min_zoom} to {max_zoom}, got {}.",
+            params.zoom
+        )));
     }
 
     context.session.camera_mut().snap_zoom(params.zoom);
@@ -120,10 +122,8 @@ fn cmd_cell_to_screen(context: &mut CommandContext, params: Value) -> CommandRes
 
     let point = cell_to_screen(context, params.cell.0);
     let viewport_size = context.session.camera().viewport_size();
-    let on_screen = point.x >= 0.0
-        && point.y >= 0.0
-        && point.x < viewport_size.width as f32
-        && point.y < viewport_size.height as f32;
+    let on_screen =
+        point.x >= 0.0 && point.y >= 0.0 && point.x < viewport_size.width as f32 && point.y < viewport_size.height as f32;
 
     done(json!({ "point": [point.x, point.y], "on_screen": on_screen }))
 }

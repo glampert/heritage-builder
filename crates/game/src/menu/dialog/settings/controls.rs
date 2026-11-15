@@ -13,15 +13,42 @@ use super::*;
 // Each binding: what it does, and its keys.
 fn key_bindings() -> [(&'static str, &'static str); 9] {
     [
-        (ui::text::get(UiTextCategory::Menu, "settings.binding.close"), ui::text::get(UiTextCategory::Menu, "settings.keys.close")),
-        (ui::text::get(UiTextCategory::Menu, "settings.binding.undo"), ui::text::get(UiTextCategory::Menu, "settings.keys.undo")),
-        (ui::text::get(UiTextCategory::Menu, "settings.binding.redo"), ui::text::get(UiTextCategory::Menu, "settings.keys.redo")),
-        (ui::text::get(UiTextCategory::Menu, "settings.binding.zoom_in"), ui::text::get(UiTextCategory::Menu, "settings.keys.zoom_in")),
-        (ui::text::get(UiTextCategory::Menu, "settings.binding.zoom_out"), ui::text::get(UiTextCategory::Menu, "settings.keys.zoom_out")),
-        (ui::text::get(UiTextCategory::Menu, "settings.binding.screenshot"), ui::text::get(UiTextCategory::Menu, "settings.keys.screenshot")),
-        (ui::text::get(UiTextCategory::Menu, "settings.binding.screenshot_no_ui"), ui::text::get(UiTextCategory::Menu, "settings.keys.screenshot_no_ui")),
-        (ui::text::get(UiTextCategory::Menu, "settings.binding.console"), ui::text::get(UiTextCategory::Menu, "settings.keys.console")),
-        (ui::text::get(UiTextCategory::Menu, "settings.binding.dev_editor"), ui::text::get(UiTextCategory::Menu, "settings.keys.dev_editor")),
+        (
+            ui::text::get(UiTextCategory::Menu, "settings.binding.close"),
+            ui::text::get(UiTextCategory::Menu, "settings.keys.close"),
+        ),
+        (
+            ui::text::get(UiTextCategory::Menu, "settings.binding.undo"),
+            ui::text::get(UiTextCategory::Menu, "settings.keys.undo"),
+        ),
+        (
+            ui::text::get(UiTextCategory::Menu, "settings.binding.redo"),
+            ui::text::get(UiTextCategory::Menu, "settings.keys.redo"),
+        ),
+        (
+            ui::text::get(UiTextCategory::Menu, "settings.binding.zoom_in"),
+            ui::text::get(UiTextCategory::Menu, "settings.keys.zoom_in"),
+        ),
+        (
+            ui::text::get(UiTextCategory::Menu, "settings.binding.zoom_out"),
+            ui::text::get(UiTextCategory::Menu, "settings.keys.zoom_out"),
+        ),
+        (
+            ui::text::get(UiTextCategory::Menu, "settings.binding.screenshot"),
+            ui::text::get(UiTextCategory::Menu, "settings.keys.screenshot"),
+        ),
+        (
+            ui::text::get(UiTextCategory::Menu, "settings.binding.screenshot_no_ui"),
+            ui::text::get(UiTextCategory::Menu, "settings.keys.screenshot_no_ui"),
+        ),
+        (
+            ui::text::get(UiTextCategory::Menu, "settings.binding.console"),
+            ui::text::get(UiTextCategory::Menu, "settings.keys.console"),
+        ),
+        (
+            ui::text::get(UiTextCategory::Menu, "settings.binding.dev_editor"),
+            ui::text::get(UiTextCategory::Menu, "settings.keys.dev_editor"),
+        ),
     ]
 }
 
@@ -66,18 +93,32 @@ fn build(text_scale: f32, width: f32, row_padding: Option<f32>) -> UiWidgetGroup
         .with_label(UiString::key(UiTextCategory::Menu, "settings.key_bindings"))
         .with_width(width)
         .with_font_scale(UiFontScale(text_scale))
-        .with_column(UiTableColumn::new(UiString::key(UiTextCategory::Menu, "settings.column.action"), UiColumnWidth::Fraction(1.0), UiColumnAlign::Left))
-        .with_column(UiTableColumn::new(UiString::key(UiTextCategory::Menu, "settings.column.keys"), UiColumnWidth::Fraction(1.0), UiColumnAlign::Left));
+        .with_column(UiTableColumn::new(
+            UiString::key(UiTextCategory::Menu, "settings.column.action"),
+            UiColumnWidth::Fraction(1.0),
+            UiColumnAlign::Left,
+        ))
+        .with_column(UiTableColumn::new(
+            UiString::key(UiTextCategory::Menu, "settings.column.keys"),
+            UiColumnWidth::Fraction(1.0),
+            UiColumnAlign::Left,
+        ));
     for (action, keys) in key_bindings() {
         table = table.with_row(UiTableRow::new([action, keys]));
     }
 
-    let mut note = skin::rich_text(UiString::key(UiTextCategory::Menu, "settings.bindings_note")).with_font_scale(UiFontScale(text_scale * NOTE_FONT_SCALE)).with_width(width);
+    let mut note = skin::rich_text(UiString::key(UiTextCategory::Menu, "settings.bindings_note"))
+        .with_font_scale(UiFontScale(text_scale * NOTE_FONT_SCALE))
+        .with_width(width);
     if let Some(color) = skin::color("sub") {
         note = note.with_text_color(color);
     }
 
-    UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::new(0.0, NOTE_SPACING)).with_widget(table).with_widget(note)
+    UiWidgetGroup::new()
+        .with_center_horizontally(false)
+        .with_widget_spacing(Vec2::new(0.0, NOTE_SPACING))
+        .with_widget(table)
+        .with_widget(note)
 }
 
 const NOTE_SPACING: f32 = 12.0;

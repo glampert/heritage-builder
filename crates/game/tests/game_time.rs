@@ -2,9 +2,9 @@ use common::{coords::Cell, time::Seconds};
 use game::{
     config::GameConfigs,
     sim::{
+        SimCmdQueue,
         calendar::{CalendarDate, CalendarEvent},
         resources::ResourceKind,
-        SimCmdQueue,
     },
 };
 

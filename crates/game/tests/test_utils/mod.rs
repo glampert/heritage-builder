@@ -1,36 +1,41 @@
 // NOTE: Allow for the whole crate.
 #![allow(dead_code)]
 
-use common::{coords::Cell, time::Seconds, Size};
+use common::{Size, coords::Cell, time::Seconds};
 use engine::{log, render::texture::TextureCache};
 use game::{
+    building::{Building, BuildingKind, BuildingKindAndId, config::BuildingConfigs},
     cheats,
-    debug::preset_maps,
     config::GameConfigs,
+    debug::preset_maps,
     menu::{PlaceOrClearResult, TilePlacement},
-    undo_redo,
-    world::{World, object::GameObject},
-    prop::{config::PropConfigs, PropId},
+    prop::{PropId, config::PropConfigs},
     sim::{
+        SimCmds,
+        SimContextMut,
+        Simulation,
         commands::{self, SimCmdQueue, SpawnQueryResult, SpawnReadyResult},
-        SimCmds, SimContextMut, Simulation,
     },
     tile::{
+        TileMap,
+        TileMapLayerKind,
         sets::{
-            TileDef, TileSets, OBJECTS_BUILDINGS_CATEGORY, OBJECTS_VEGETATION_CATEGORY, TERRAIN_LAND_CATEGORY,
+            OBJECTS_BUILDINGS_CATEGORY,
+            OBJECTS_VEGETATION_CATEGORY,
+            TERRAIN_LAND_CATEGORY,
             TERRAIN_WATER_CATEGORY,
+            TileDef,
+            TileSets,
         },
-        TileMap, TileMapLayerKind,
     },
-    building::{
-        config::BuildingConfigs,
-        Building, BuildingKind, BuildingKindAndId,
-    },
+    undo_redo,
     unit::{
+        Unit,
+        UnitId,
         config::{UnitConfigKey, UnitConfigs},
         task::{UnitTask, UnitTaskArchetype, UnitTaskId},
-        Unit, UnitId,
     },
+    world::{World, object::GameObject},
 };
 
 // ----------------------------------------------
@@ -90,8 +95,14 @@ pub fn run_tests(test_suite_name: &str, tests: &[(&str, fn())]) {
         print!("test {name} ... ");
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(test_fn));
         match result {
-            Ok(()) => { print_passed(); passed += 1; }
-            Err(_) => { print_failed(); failed += 1; }
+            Ok(()) => {
+                print_passed();
+                passed += 1;
+            }
+            Err(_) => {
+                print_failed();
+                failed += 1;
+            }
         }
     }
 
@@ -134,11 +145,7 @@ impl TestEnvironment {
     }
 
     pub fn with_map_size(size: Size) -> Self {
-        Self {
-            tile_map: TileMap::new(size, None),
-            world: World::new(),
-            sim: Simulation::new(size, GameConfigs::get()),
-        }
+        Self { tile_map: TileMap::new(size, None), world: World::new(), sim: Simulation::new(size, GameConfigs::get()) }
     }
 
     // A map with every cell set to `tile_def`, e.g. all water, as session.new_map makes one.
@@ -155,11 +162,7 @@ impl TestEnvironment {
         let tile_map = preset_maps::create_preset_tile_map(&mut world, preset_number);
         let map_size_in_cells = tile_map.size_in_cells();
 
-        Self {
-            tile_map,
-            world,
-            sim: Simulation::new(map_size_in_cells, GameConfigs::get()),
-        }
+        Self { tile_map, world, sim: Simulation::new(map_size_in_cells, GameConfigs::get()) }
     }
 
     pub fn new_sim_context(&mut self, delta_time_secs: Seconds) -> SimContextMut<'_> {
@@ -279,7 +282,8 @@ pub fn spawn_building(env: &mut TestEnvironment, base_cell: Cell, name: &str) ->
         SpawnQueryResult::Ready(SpawnReadyResult::GameObject(_id)) => {
             // SpawnReadyResult carries a bare GenerationalIndex; look the building
             // up by base cell to recover the `BuildingKindAndId` pair.
-            let building = env.world
+            let building = env
+                .world
                 .find_building_for_cell(base_cell, &env.tile_map)
                 .unwrap_or_else(|| panic!("spawn_building: no building found at {base_cell} after spawn!"));
             building.kind_and_id()
@@ -322,11 +326,9 @@ where
 {
     let task_manager = env.sim.task_manager_mut();
 
-    let task_id = task_manager.new_task(task)
-        .expect("UnitTaskManager::new_task returned None (pool full?)");
+    let task_id = task_manager.new_task(task).expect("UnitTaskManager::new_task returned None (pool full?)");
 
-    let unit = env.world.find_unit_mut(unit_id)
-        .unwrap_or_else(|| panic!("assign_task: unit {unit_id} not found"));
+    let unit = env.world.find_unit_mut(unit_id).unwrap_or_else(|| panic!("assign_task: unit {unit_id} not found"));
 
     unit.assign_task(task_manager, Some(task_id));
 
@@ -385,8 +387,7 @@ where
 // ----------------------------------------------
 
 pub fn find_unit(env: &TestEnvironment, id: UnitId) -> &Unit {
-    env.world.find_unit(id)
-        .unwrap_or_else(|| panic!("Unit {id} is not spawned!"))
+    env.world.find_unit(id).unwrap_or_else(|| panic!("Unit {id} is not spawned!"))
 }
 
 pub fn unit_exists(env: &TestEnvironment, id: UnitId) -> bool {
@@ -420,12 +421,14 @@ pub fn find_building_id(env: &TestEnvironment, kind: BuildingKind) -> BuildingKi
 }
 
 pub fn find_building(env: &TestEnvironment, handle: BuildingKindAndId) -> &Building {
-    env.world.find_building(handle.kind, handle.id)
+    env.world
+        .find_building(handle.kind, handle.id)
         .unwrap_or_else(|| panic!("Building {} #{} not found", handle.kind, handle.id))
 }
 
 pub fn find_building_mut(env: &mut TestEnvironment, handle: BuildingKindAndId) -> &mut Building {
-    env.world.find_building_mut(handle.kind, handle.id)
+    env.world
+        .find_building_mut(handle.kind, handle.id)
         .unwrap_or_else(|| panic!("Building {} #{} not found", handle.kind, handle.id))
 }
 

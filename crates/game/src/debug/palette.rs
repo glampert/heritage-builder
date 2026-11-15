@@ -242,10 +242,10 @@ impl TilePaletteDevMenu {
             if let Some(archetype) = entry.3 {
                 match archetype {
                     // Custom sort order.
-                    BuildingArchetypeKind::ServiceBuilding  => 0,
+                    BuildingArchetypeKind::ServiceBuilding => 0,
                     BuildingArchetypeKind::ProducerBuilding => 1,
-                    BuildingArchetypeKind::StorageBuilding  => 2,
-                    BuildingArchetypeKind::HouseBuilding    => 3,
+                    BuildingArchetypeKind::StorageBuilding => 2,
+                    BuildingArchetypeKind::HouseBuilding => 3,
                 }
             } else {
                 4
@@ -352,9 +352,9 @@ impl TilePaletteDevMenu {
     fn building_archetype_kind_label(archetype_kind: BuildingArchetypeKind) -> &'static str {
         match archetype_kind {
             BuildingArchetypeKind::ProducerBuilding => "Production",
-            BuildingArchetypeKind::StorageBuilding  => "Storage",
-            BuildingArchetypeKind::ServiceBuilding  => "Services",
-            BuildingArchetypeKind::HouseBuilding    => "Houses",
+            BuildingArchetypeKind::StorageBuilding => "Storage",
+            BuildingArchetypeKind::ServiceBuilding => "Services",
+            BuildingArchetypeKind::HouseBuilding => "Houses",
         }
     }
 

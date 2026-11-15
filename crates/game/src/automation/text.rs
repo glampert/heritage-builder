@@ -133,7 +133,7 @@ const MAX_OUTPUT_LINES: usize = 40;
 pub fn format_output(name: &str, output: &CommandOutput) -> String {
     if name == "help"
         && let Ok(value) = output
-            && let Some(text) = format_help(value)
+        && let Some(text) = format_help(value)
     {
         return text;
     }
@@ -232,7 +232,10 @@ mod tests {
     fn test_parse_json_forms() {
         assert_eq!(parse(r#"session.load_preset {"preset": 2}"#), ("session.load_preset".to_string(), json!({"preset": 2})));
         assert_eq!(parse(r#"{"method": "ping"}"#), ("ping".to_string(), json!({})));
-        assert_eq!(parse(r#"{"method": "sim.speed", "params": {"speed": 3}}"#), ("sim.speed".to_string(), json!({"speed": 3})));
+        assert_eq!(
+            parse(r#"{"method": "sim.speed", "params": {"speed": 3}}"#),
+            ("sim.speed".to_string(), json!({"speed": 3}))
+        );
     }
 
     #[test]
@@ -274,7 +277,10 @@ mod tests {
         });
 
         let text = format_output("help", &Ok(command.clone()));
-        assert_eq!(text, "world.place tile [undo] - Place a tile.\n  tile: string - Tile name.\n  undo: bool, optional - Record undo.");
+        assert_eq!(
+            text,
+            "world.place tile [undo] - Place a tile.\n  tile: string - Tile name.\n  undo: bool, optional - Record undo."
+        );
 
         let text = format_output("help", &Ok(json!({ "commands": [command] })));
         assert!(text.ends_with("\n  world.place tile [undo] - Place a tile."));

@@ -1,10 +1,14 @@
 use std::any::Any;
-use egui::{Sense, vec2};
 
 use common::{Color, Vec2};
+use egui::{Sense, vec2};
 
 use super::{UiWidget, UiWidgetContext, UiWidgetGroup};
-use crate::ui::{UiDecoratedPanel, UiString, immediate::{self, color32, decoration_shapes, egui_rect, nine_slice_shape, to_rect}};
+use crate::ui::{
+    UiDecoratedPanel,
+    UiString,
+    immediate::{self, color32, decoration_shapes, egui_rect, nine_slice_shape, to_rect},
+};
 
 // ----------------------------------------------
 // UiFrame
@@ -73,7 +77,13 @@ impl UiWidget for UiFrame {
                             ui.painter().rect_stroke(line, 0.0, stroke, egui::StrokeKind::Middle);
                         }
                         Some([dash, gap]) => {
-                            let points = [line.left_top(), line.right_top(), line.right_bottom(), line.left_bottom(), line.left_top()];
+                            let points = [
+                                line.left_top(),
+                                line.right_top(),
+                                line.right_bottom(),
+                                line.left_bottom(),
+                                line.left_top(),
+                            ];
                             ui.painter().extend(egui::Shape::dashed_line(&points, stroke, dash, gap));
                         }
                     }
@@ -87,7 +97,14 @@ impl UiWidget for UiFrame {
         // A labeled frame's inner rect is its widgets' content area, for the layout check, as a
         // menu's is (kind menu_content), listed before them.
         if !self.label.is_empty() && ui_sys.is_widget_registry_enabled() {
-            immediate::record_rect(ui_sys, "menu_content", self.label.resolve(), inner, false, Some(serde_json::json!({ "scrolls": false })));
+            immediate::record_rect(
+                ui_sys,
+                "menu_content",
+                self.label.resolve(),
+                inner,
+                false,
+                Some(serde_json::json!({ "scrolls": false })),
+            );
         }
         if inner.is_positive() {
             let _path = (!self.label.is_empty()).then(|| immediate::path_scope(ui_sys, self.label.resolve()));
@@ -118,7 +135,16 @@ impl UiWidget for UiFrame {
 impl UiFrame {
     // `contents` in a frame `size` points large (0: the container's), with no panel yet.
     pub fn new(contents: UiWidgetGroup, size: Vec2) -> Self {
-        Self { label: UiString::default(), contents, panel: None, fill: None, rounding: 0.0, outlines: Vec::new(), size, padding: [0.0; 4] }
+        Self {
+            label: UiString::default(),
+            contents,
+            panel: None,
+            fill: None,
+            rounding: 0.0,
+            outlines: Vec::new(),
+            size,
+            padding: [0.0; 4],
+        }
     }
 
     // Names it in its widgets' paths.

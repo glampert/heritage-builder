@@ -1,13 +1,20 @@
 use std::any::Any;
-use egui::{Color32, Sense, pos2, vec2};
 
 use common::{Color, Vec2};
+use egui::{Color32, Sense, pos2, vec2};
 
 use super::{UiWidget, UiWidgetContext};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{UiFontScale, UiNineSlice, UiString, immediate::{self, egui_vec2, nine_slice_shape, uv_full}, internal, renderer::egui_texture},
+    ui::{
+        UiFontScale,
+        UiNineSlice,
+        UiString,
+        immediate::{self, egui_vec2, nine_slice_shape, uv_full},
+        internal,
+        renderer::egui_texture,
+    },
 };
 
 // ----------------------------------------------
@@ -73,10 +80,12 @@ impl UiWidget for UiMenuHeading {
             ui_sys.with_ui(|ui| ui.add_space(self.margin_top));
         }
 
-        let group = internal::draw_centered_text_group(context, &self.lines, self.center_vertically, self.center_horizontally);
+        let group =
+            internal::draw_centered_text_group(context, &self.lines, self.center_vertically, self.center_horizontally);
 
         if ui_sys.is_widget_registry_enabled() && group.is_positive() {
-            let text: Vec<&str> = self.lines.iter().map(|line| line.string.resolve()).filter(|line| !line.is_empty()).collect();
+            let text: Vec<&str> =
+                self.lines.iter().map(|line| line.string.resolve()).filter(|line| !line.is_empty()).collect();
             let visible = ui_sys.with_ui(|ui| ui.clip_rect().contains(group.center())); // As ui.click sees it.
             immediate::record_rect_visible(ui_sys, "heading", &text.join(" "), group, false, visible, None);
         }
@@ -86,7 +95,10 @@ impl UiWidget for UiMenuHeading {
         {
             ui_sys.with_ui(|ui| {
                 // Room for the ornament too, as UiSeparator gives it; the rule along its middle.
-                let rect = egui::Rect::from_min_size(pos2(group.left(), ui.cursor().top()), vec2(group.width(), art.total_height()));
+                let rect = egui::Rect::from_min_size(
+                    pos2(group.left(), ui.cursor().top()),
+                    vec2(group.width(), art.total_height()),
+                );
                 art.paint(ui, rect);
                 ui.advance_cursor_after_rect(rect);
             });
@@ -96,7 +108,8 @@ impl UiWidget for UiMenuHeading {
             let separator_height = self.separator_height(context);
 
             ui_sys.with_ui(|ui| {
-                let separator_rect = egui::Rect::from_min_size(pos2(group.left(), ui.cursor().top()), vec2(group.width(), separator_height));
+                let separator_rect =
+                    egui::Rect::from_min_size(pos2(group.left(), ui.cursor().top()), vec2(group.width(), separator_height));
                 ui.painter().image(egui_texture(separator), separator_rect, uv_full(), Color32::WHITE);
                 ui.advance_cursor_after_rect(separator_rect);
             });
@@ -132,7 +145,8 @@ impl UiWidget for UiMenuHeading {
 impl UiMenuHeading {
     // The separator sprite's height: as tall as the last line's font.
     fn separator_height(&self, context: &dyn UiWidgetContext) -> f32 {
-        let font_scale = self.lines.iter().rev().find(|line| !line.string.is_empty()).map_or(self.font_scale(), |line| line.font_scale);
+        let font_scale =
+            self.lines.iter().rev().find(|line| !line.string.is_empty()).map_or(self.font_scale(), |line| line.font_scale);
         internal::font(context.ui_sys(), font_scale).size
     }
 
@@ -296,7 +310,11 @@ impl UiWidget for UiSizedTextLabel {
             let (rect, response) = ui.allocate_exact_size(egui_vec2(size), Sense::hover());
 
             let color = if self.alert { ui.visuals().error_fg_color } else { ui.visuals().text_color() };
-            let galley = ui.painter().layout_no_wrap(self.label.resolve().to_string(), internal::font(ui_sys, self.font_scale), color);
+            let galley = ui.painter().layout_no_wrap(
+                self.label.resolve().to_string(),
+                internal::font(ui_sys, self.font_scale),
+                color,
+            );
             ui.painter().galley(rect.center() - galley.size() * 0.5, galley, color);
 
             immediate::record(ui_sys, ui, &response, "text", self.label.resolve(), None, true, None);

@@ -1,27 +1,27 @@
 use std::any::Any;
-use serde::{Deserialize, Serialize};
 
 use common::callback::Callback;
 use engine::ui::{DrawDebugUi, UiSystem};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
 
 use super::{
     PathFindResult,
-    UnitTaskOriginBuildingDebug,
+    UnitTask,
     UnitTaskContext,
+    UnitTaskId,
+    UnitTaskOriginBuildingDebug,
+    UnitTaskPool,
     UnitTaskState,
     UnitTaskTransition,
-    UnitTask,
-    UnitTaskId,
-    UnitTaskPool,
     find_delivery_candidate,
     invoke_completion_callback_immediate,
     visit_destination_deferred,
     with_task,
 };
 use crate::{
-    sim::{SimContextMut, resources::ResourceKind},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
+    sim::{SimContextMut, resources::ResourceKind},
     unit::Unit,
 };
 
@@ -174,8 +174,8 @@ impl UnitTaskDeliverToStorage {
 
     fn update_visiting_storage(&mut self, _ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskDeliveryState> {
         match self.visit_delivered.take() {
-            None        => UnitTaskTransition::Stay,                                   // Deferred visit not resolved yet.
-            Some(true)  => UnitTaskTransition::Goto(UnitTaskDeliveryState::Done),      // Delivered.
+            None => UnitTaskTransition::Stay, // Deferred visit not resolved yet.
+            Some(true) => UnitTaskTransition::Goto(UnitTaskDeliveryState::Done), // Delivered.
             Some(false) => UnitTaskTransition::Goto(UnitTaskDeliveryState::Searching), // Refused; try elsewhere.
         }
     }
@@ -186,10 +186,10 @@ impl UnitTaskState for UnitTaskDeliveryState {
 
     fn update(self, task: &mut UnitTaskDeliverToStorage, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
-            Self::Searching       => task.update_searching(ctx),
+            Self::Searching => task.update_searching(ctx),
             Self::MovingToStorage => task.update_moving_to_storage(ctx),
             Self::VisitingStorage => task.update_visiting_storage(ctx),
-            Self::Done            => UnitTaskTransition::Done,
+            Self::Done => UnitTaskTransition::Done,
         }
     }
 }

@@ -208,7 +208,10 @@ pub(crate) mod per_kind_map {
     use std::{fmt, marker::PhantomData};
 
     use serde::{
-        Deserialize, Deserializer, Serialize, Serializer,
+        Deserialize,
+        Deserializer,
+        Serialize,
+        Serializer,
         de::{self, MapAccess, Visitor},
         ser::SerializeMap,
     };
@@ -732,7 +735,6 @@ impl Workers {
             Self::Employer(inner) => inner.merge(other.as_employer().unwrap()),
         }
     }
-
 }
 
 // ----------------------------------------------
@@ -1028,7 +1030,6 @@ impl ResourceStock {
             }
         }
     }
-
 }
 
 impl Display for StockItem {

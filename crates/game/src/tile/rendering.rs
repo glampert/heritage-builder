@@ -1,40 +1,49 @@
 #![allow(clippy::too_many_arguments)]
 
 use bitflags::bitflags;
-use smallvec::SmallVec;
-
 use common::{
     Color,
-    Vec2,
     Rect,
     RectTexCoords,
+    Vec2,
     constants::*,
-    mem::RawPtr,
     coords::{self, CellRange, IsoPointF32, WorldToScreenTransform},
     hash::StrHashPair,
+    mem::RawPtr,
 };
 use engine::{
     render::{RenderSystem, debug::DebugDraw},
     ui::{self, UiSystem},
 };
+use smallvec::SmallVec;
 
 use super::{
-    Tile, TileDepthSortOverride, TileFlags, TileKind, TileMap, TileMapLayerKind, road,
+    Tile,
+    TileDepthSortOverride,
+    TileFlags,
+    TileKind,
+    TileMap,
+    TileMapLayerKind,
+    road,
     sets::{OBJECTS_OVERLAYS_CATEGORY, TileDef, TileSets, TileTexInfo},
 };
-use crate::{building, debug, pathfind::{Node, NodeKind as PathNodeKind}};
+use crate::{
+    building,
+    debug,
+    pathfind::{Node, NodeKind as PathNodeKind},
+};
 
 // ----------------------------------------------
 // Constants
 // ----------------------------------------------
 
 pub const HIGHLIGHT_TILE_COLOR: Color = Color::new(0.76, 0.96, 0.39, 1.0); // light green
-pub const INVALID_TILE_COLOR:   Color = Color::new(0.95, 0.60, 0.60, 1.0); // light red
-pub const SELECTION_RECT_COLOR: Color = Color::new(0.7,  0.2,  0.2,  1.0); // red-ish
+pub const INVALID_TILE_COLOR: Color = Color::new(0.95, 0.60, 0.60, 1.0); // light red
+pub const SELECTION_RECT_COLOR: Color = Color::new(0.7, 0.2, 0.2, 1.0); // red-ish
 
-pub const DEFAULT_GRID_COLOR:   Color = Color::white();
+pub const DEFAULT_GRID_COLOR: Color = Color::white();
 pub const HIGHLIGHT_GRID_COLOR: Color = Color::green();
-pub const INVALID_GRID_COLOR:   Color = Color::red();
+pub const INVALID_GRID_COLOR: Color = Color::red();
 
 pub const MIN_GRID_LINE_THICKNESS: f32 = 0.5;
 pub const MAX_GRID_LINE_THICKNESS: f32 = 20.0;
@@ -165,7 +174,14 @@ impl TileMapRenderer {
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         } else if flags.contains(TileMapRenderFlags::DrawSearchGraphDebug) {
             // Base terrain search graph debug pass draws with respect to scene depth.
-            self.draw_search_graph_debug_grid(render_sys, ui_sys, tile_map, transform, visible_range, TileMapLayerKind::Terrain);
+            self.draw_search_graph_debug_grid(
+                render_sys,
+                ui_sys,
+                tile_map,
+                transform,
+                visible_range,
+                TileMapLayerKind::Terrain,
+            );
         }
 
         self.draw_objects_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
@@ -176,7 +192,14 @@ impl TileMapRenderer {
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         } else if flags.contains(TileMapRenderFlags::DrawSearchGraphDebug) {
             // Search graph debug objects pass draws on top of everything else.
-            self.draw_search_graph_debug_grid(render_sys, ui_sys, tile_map, transform, visible_range, TileMapLayerKind::Objects);
+            self.draw_search_graph_debug_grid(
+                render_sys,
+                ui_sys,
+                tile_map,
+                transform,
+                visible_range,
+                TileMapLayerKind::Objects,
+            );
         }
 
         self.update_stats();
@@ -211,7 +234,8 @@ impl TileMapRenderer {
                 debug_assert!(tile.is(TileKind::Terrain) && tile.logical_size() == BASE_TILE_SIZE_I32);
 
                 // As an optimization, skip drawing terrain tile if fully occluded by any object.
-                if cull_occluded_terrain && let Some(object) = objects.try_tile(cell)
+                if cull_occluded_terrain
+                    && let Some(object) = objects.try_tile(cell)
                     && object.has_flags(TileFlags::OccludesTerrain)
                 {
                     continue;
@@ -246,11 +270,11 @@ impl TileMapRenderer {
 
         let mut try_add_to_sort_list = |tile: &Tile| {
             fn should_draw(tile: &Tile, flags: TileMapRenderFlags) -> bool {
-                !tile.is(TileKind::Blocker)    &&
-                (tile.is(TileKind::Building)   && flags.contains(TileMapRenderFlags::DrawBuildings)) ||
-                (tile.is(TileKind::Unit)       && flags.contains(TileMapRenderFlags::DrawUnits))     ||
-                (tile.is(TileKind::Rocks)      && flags.contains(TileMapRenderFlags::DrawProps))     ||
-                (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetation))
+                !tile.is(TileKind::Blocker)
+                    && (tile.is(TileKind::Building) && flags.contains(TileMapRenderFlags::DrawBuildings))
+                    || (tile.is(TileKind::Unit) && flags.contains(TileMapRenderFlags::DrawUnits))
+                    || (tile.is(TileKind::Rocks) && flags.contains(TileMapRenderFlags::DrawProps))
+                    || (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetation))
             }
 
             if should_draw(tile, flags) {
@@ -371,8 +395,7 @@ impl TileMapRenderer {
                 const OPACITY: f32 = 0.7;
 
                 for cell in &visible_range {
-                    let path_kind = graph.node_kind(Node::new(cell))
-                        .unwrap_or(PathNodeKind::empty());
+                    let path_kind = graph.node_kind(Node::new(cell)).unwrap_or(PathNodeKind::empty());
 
                     if path_kind.intersects(PathNodeKind::Water) {
                         let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
@@ -388,7 +411,13 @@ impl TileMapRenderer {
                 }
                 ui::overlay(ui_sys, ui::UiOverlay::new("Search Graph", Vec2::new(10.0, 30.0)).bg_alpha(0.7), |ui_sys| {
                     ui::text(ui_sys, common::format_small!("Vacant Lots: {}", graph.vacant_lot_nodes_count()));
-                    ui::text(ui_sys, common::format_small!("Settlers Spawn Point: {}", graph.settlers_spawn_point().unwrap_or(Node::invalid())));
+                    ui::text(
+                        ui_sys,
+                        common::format_small!(
+                            "Settlers Spawn Point: {}",
+                            graph.settlers_spawn_point().unwrap_or(Node::invalid())
+                        ),
+                    );
                 });
             }
             TileMapLayerKind::Objects => {
@@ -398,8 +427,7 @@ impl TileMapRenderer {
                 let mut nodes = Vec::with_capacity((visible_range.width() * visible_range.height()) as usize);
 
                 for cell in &visible_range {
-                    let path_kind = graph.node_kind(Node::new(cell))
-                        .unwrap_or(PathNodeKind::empty());
+                    let path_kind = graph.node_kind(Node::new(cell)).unwrap_or(PathNodeKind::empty());
 
                     if !path_kind.intersects(PathNodeKind::EmptyLand | PathNodeKind::Water)
                         || path_kind.intersects(PathNodeKind::BuildingAccess | PathNodeKind::SettlersSpawnPoint)
@@ -478,18 +506,39 @@ impl TileMapRenderer {
                 } else {
                     // No scaffold art for this size: a faint outline of the whole building, and
                     // the part built so far rising from the ground through it.
-                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * CONSTRUCTION_OUTLINE_COLOR);
+                    render_sys.draw_textured_colored_rect(
+                        tile_screen_rect,
+                        tex_coords,
+                        texture,
+                        color * CONSTRUCTION_OUTLINE_COLOR,
+                    );
                     let (rect, coords) = construction_site_rect(tile_screen_rect, tex_coords, stage);
                     render_sys.draw_textured_colored_rect(rect, &coords, texture, color * CONSTRUCTION_SITE_COLOR);
                 }
             } else if tile.has_flags(TileFlags::Burning) {
                 // On fire: darkened, with flames over each of its cells.
                 render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * BURNING_COLOR);
-                draw_cell_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color, &FIRE_TILE, FIRE_FRAME_SECS);
+                draw_cell_overlay(
+                    render_sys,
+                    tile,
+                    transform,
+                    tile_map.overlay_anim_secs(),
+                    highlight_color,
+                    &FIRE_TILE,
+                    FIRE_FRAME_SECS,
+                );
             } else if tile.has_flags(TileFlags::Diseased) {
                 // A sick house: a sickly tint, with a yellow cloth and incense smoke over each of its cells.
                 render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * DISEASED_COLOR);
-                draw_cell_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color, &SICKNESS_TILE, SICKNESS_FRAME_SECS);
+                draw_cell_overlay(
+                    render_sys,
+                    tile,
+                    transform,
+                    tile_map.overlay_anim_secs(),
+                    highlight_color,
+                    &SICKNESS_TILE,
+                    SICKNESS_FRAME_SECS,
+                );
             } else if tile.has_flags(TileFlags::Renovating) {
                 // A house being renovated before an upgrade: lightly tinted, with scaffolding over it.
                 render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * RENOVATION_COLOR);
@@ -529,13 +578,7 @@ impl TileMapRenderer {
             }
         };
 
-        let variation_index = {
-            if tile_def.has_variations() {
-                road::junction_mask(tile_map, cell)
-            } else {
-                0
-            }
-        };
+        let variation_index = { if tile_def.has_variations() { road::junction_mask(tile_map, cell) } else { 0 } };
 
         if let Some(anim_set) = tile_def.anim_set_by_index(variation_index, 0) {
             let tile_sprite = &anim_set.frames[0].tex_info;
@@ -565,10 +608,12 @@ impl TileMapRenderer {
 
     #[inline]
     fn update_stats(&mut self) {
-        self.stats.peak_tiles_drawn             = self.stats.tiles_drawn.max(self.stats.peak_tiles_drawn);
-        self.stats.peak_tiles_drawn_highlighted = self.stats.tiles_drawn_highlighted.max(self.stats.peak_tiles_drawn_highlighted);
-        self.stats.peak_tiles_drawn_invalidated = self.stats.tiles_drawn_invalidated.max(self.stats.peak_tiles_drawn_invalidated);
-        self.stats.peak_tile_sort_list_len      = self.stats.tile_sort_list_len.max(self.stats.peak_tile_sort_list_len);
+        self.stats.peak_tiles_drawn = self.stats.tiles_drawn.max(self.stats.peak_tiles_drawn);
+        self.stats.peak_tiles_drawn_highlighted =
+            self.stats.tiles_drawn_highlighted.max(self.stats.peak_tiles_drawn_highlighted);
+        self.stats.peak_tiles_drawn_invalidated =
+            self.stats.tiles_drawn_invalidated.max(self.stats.peak_tiles_drawn_invalidated);
+        self.stats.peak_tile_sort_list_len = self.stats.tile_sort_list_len.max(self.stats.peak_tile_sort_list_len);
     }
 }
 
@@ -576,7 +621,7 @@ impl TileMapRenderer {
 // TileDrawListEntry
 // ----------------------------------------------
 
-const TILE_DEPTH_SORT_KEY_TOPMOST:    f32 = f32::MAX; // Tile draws on top of everything else.
+const TILE_DEPTH_SORT_KEY_TOPMOST: f32 = f32::MAX; // Tile draws on top of everything else.
 const TILE_DEPTH_SORT_KEY_BOTTOMMOST: f32 = f32::MIN; // Tile draws below everything else.
 
 struct TileDrawListEntry {
@@ -725,7 +770,8 @@ fn draw_cell_overlay(
     overlay: &StrHashPair,
     default_frame_secs: f32,
 ) {
-    let Some(def) = TileSets::get().try_find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_OVERLAYS_CATEGORY.hash, overlay.hash)
+    let Some(def) =
+        TileSets::get().try_find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_OVERLAYS_CATEGORY.hash, overlay.hash)
     else {
         return;
     };
@@ -785,4 +831,3 @@ fn construction_site_rect(screen_rect: Rect, tex_coords: &RectTexCoords, stage: 
 
     (rect, coords)
 }
-

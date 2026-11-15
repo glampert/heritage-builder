@@ -27,9 +27,9 @@ use super::{TileKind, TileMap, TileMapLayerKind, sets::TileDef};
 // Directions: north is +x, the upper-right edge of the cell on screen; east is -y, the lower-right.
 
 // Sides, as the digits of a variation name, from the last.
-const WEST_BIT:  usize = 1 << 0; // 0001
+const WEST_BIT: usize = 1 << 0; // 0001
 const SOUTH_BIT: usize = 1 << 1; // 0010
-const EAST_BIT:  usize = 1 << 2; // 0100
+const EAST_BIT: usize = 1 << 2; // 0100
 const NORTH_BIT: usize = 1 << 3; // 1000
 
 // Diagonals, in the order a variation name lists them.
@@ -84,9 +84,7 @@ impl ShoreNeighbors {
 // ends at the edge of the map instead of running along it.
 #[inline]
 fn is_land(tile_map: &TileMap, cell: Cell) -> bool {
-    tile_map
-        .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
-        .is_some_and(|tile| tile.path_kind().is_land())
+    tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).is_some_and(|tile| tile.path_kind().is_land())
 }
 
 pub fn shore_neighbors(tile_map: &TileMap, cell: Cell) -> ShoreNeighbors {
@@ -94,14 +92,22 @@ pub fn shore_neighbors(tile_map: &TileMap, cell: Cell) -> ShoreNeighbors {
 
     let north = land(1, 0);
     let south = land(-1, 0);
-    let east  = land(0, -1);
-    let west  = land(0, 1);
+    let east = land(0, -1);
+    let west = land(0, 1);
 
     let mut sides = 0;
-    if north { sides |= NORTH_BIT; }
-    if south { sides |= SOUTH_BIT; }
-    if east  { sides |= EAST_BIT;  }
-    if west  { sides |= WEST_BIT;  }
+    if north {
+        sides |= NORTH_BIT;
+    }
+    if south {
+        sides |= SOUTH_BIT;
+    }
+    if east {
+        sides |= EAST_BIT;
+    }
+    if west {
+        sides |= WEST_BIT;
+    }
 
     let ne = land(1, -1);
     let nw = land(1, 1);
@@ -110,10 +116,18 @@ pub fn shore_neighbors(tile_map: &TileMap, cell: Cell) -> ShoreNeighbors {
 
     // A diagonal shows only when the two sides next to it are water.
     let mut diagonals = 0;
-    if !north && !east && ne { diagonals |= NE_BIT; }
-    if !north && !west && nw { diagonals |= NW_BIT; }
-    if !south && !east && se { diagonals |= SE_BIT; }
-    if !south && !west && sw { diagonals |= SW_BIT; }
+    if !north && !east && ne {
+        diagonals |= NE_BIT;
+    }
+    if !north && !west && nw {
+        diagonals |= NW_BIT;
+    }
+    if !south && !east && se {
+        diagonals |= SE_BIT;
+    }
+    if !south && !west && sw {
+        diagonals |= SW_BIT;
+    }
 
     // With a single land side, a channel can enter the tile beside it: the water side next to
     // the land then has land at both of its diagonals. The diagonal next to the land side shows
@@ -122,20 +136,36 @@ pub fn shore_neighbors(tile_map: &TileMap, cell: Cell) -> ShoreNeighbors {
     let mut attached = 0;
     match sides {
         NORTH_BIT => {
-            if se && ne && !sw { attached |= NE_BIT; }
-            if sw && nw && !se { attached |= NW_BIT; }
+            if se && ne && !sw {
+                attached |= NE_BIT;
+            }
+            if sw && nw && !se {
+                attached |= NW_BIT;
+            }
         }
         SOUTH_BIT => {
-            if ne && se && !nw { attached |= SE_BIT; }
-            if nw && sw && !ne { attached |= SW_BIT; }
+            if ne && se && !nw {
+                attached |= SE_BIT;
+            }
+            if nw && sw && !ne {
+                attached |= SW_BIT;
+            }
         }
         EAST_BIT => {
-            if nw && ne && !sw { attached |= NE_BIT; }
-            if sw && se && !nw { attached |= SE_BIT; }
+            if nw && ne && !sw {
+                attached |= NE_BIT;
+            }
+            if sw && se && !nw {
+                attached |= SE_BIT;
+            }
         }
         WEST_BIT => {
-            if ne && nw && !se { attached |= NW_BIT; }
-            if se && sw && !ne { attached |= SW_BIT; }
+            if ne && nw && !se {
+                attached |= NW_BIT;
+            }
+            if se && sw && !ne {
+                attached |= SW_BIT;
+            }
         }
         _ => {}
     }
@@ -199,8 +229,8 @@ const FISHING_WHARF: StrHashPair = StrHashPair::from_str("fishing_wharf");
 
 const PORT_VARIATION_NORTH_BANK: usize = 0;
 const PORT_VARIATION_SOUTH_BANK: usize = 1;
-const PORT_VARIATION_EAST_BANK:  usize = 2;
-const PORT_VARIATION_WEST_BANK:  usize = 3;
+const PORT_VARIATION_EAST_BANK: usize = 2;
+const PORT_VARIATION_WEST_BANK: usize = 3;
 
 // Port-like buildings, e.g. fishing wharf, port, etc.
 // These buildings must be placed over a water edge tile.

@@ -1,26 +1,26 @@
 // World map commands (docs/plans/realm-ui.md, Phase 2): what the world map screen shows of a
 // campaign, read through its WorldMapProvider.
 
+use engine::ui::widgets::UiMapViewState;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use engine::ui::widgets::UiMapViewState;
-
 use crate::{
-    menu::dialog::world_map as world_map_screen,
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     campaign::config::CampaignConfigs,
+    menu::dialog::world_map as world_map_screen,
     profile,
     world_map::{
-        self, WorldMapProvider,
+        self,
+        WorldMapProvider,
         provider::{CityPanel, MapCity, MapRoute, NextMissionChoice},
     },
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
-CommandDef {
-    name: "world_map.state",
-    help: "What the world map shows of a campaign: its map (extent, compass, choice box), its cities (kind, \
+    CommandDef {
+        name: "world_map.state",
+        help: "What the world map shows of a campaign: its map (extent, compass, choice box), its cities (kind, \
            owner, position, label side, player_owned, the mission that founds it, current, and the side panel's \
            trade data for a trade partner), the routes shown (a route shows once every city it joins is on the \
            map), the region labels, uncharted areas and threats (their text, with its keys), and the next \
@@ -31,27 +31,32 @@ CommandDef {
            campaign it shows (the UI realm's), the city selected and the one under the cursor, and the map's \
            view (zoom: 1 is the fit, the whole map; centre: the map point in the middle, in map units; fit). \
            selected: the screen's selected city, when the screen shows this campaign.",
-    params: &[ParamDef {
-        name: "campaign",
-        kind: "string",
-        required: false,
-        help: "A campaign id (campaigns.json), hidden ones included. Default: the open screen's campaign, else the \
+        params: &[ParamDef {
+            name: "campaign",
+            kind: "string",
+            required: false,
+            help: "A campaign id (campaigns.json), hidden ones included. Default: the open screen's campaign, else the \
                mission being played's campaign, else the custom game's realm's, else the latest the player can play.",
-    }],
-    run: cmd_state,
-},
-CommandDef {
-    name: "world_map.set",
-    help: "Sets the open world map screen: the city selected (its side panel), and the map's view (zoom from 1, \
+        }],
+        run: cmd_state,
+    },
+    CommandDef {
+        name: "world_map.set",
+        help: "Sets the open world map screen: the city selected (its side panel), and the map's view (zoom from 1, \
            the fit, to its maximum; centre, the map point in the middle, in map units), kept in its limits. \
            The screen shows them from the next frame. Fails while the screen isn't open.",
-    params: &[
-        ParamDef { name: "city", kind: "string", required: false, help: "A city id on the screen's map (world_map.state's cities)." },
-        ParamDef { name: "zoom", kind: "number", required: false, help: "1 shows the whole map; more is closer." },
-        ParamDef { name: "centre", kind: "point", required: false, help: "[x, y] in map units (the world file's)." },
-    ],
-    run: cmd_set,
-},
+        params: &[
+            ParamDef {
+                name: "city",
+                kind: "string",
+                required: false,
+                help: "A city id on the screen's map (world_map.state's cities).",
+            },
+            ParamDef { name: "zoom", kind: "number", required: false, help: "1 shows the whole map; more is closer." },
+            ParamDef { name: "centre", kind: "point", required: false, help: "[x, y] in map units (the world file's)." },
+        ],
+        run: cmd_set,
+    },
 ];
 
 fn cmd_set(_context: &mut CommandContext, params: Value) -> CommandResult {
@@ -113,7 +118,9 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
             let ids: Vec<&str> = configs.campaigns.iter().map(|campaign| campaign.id.as_str()).collect();
             CommandError::not_found(format!("No campaign has the id '{id}'. Campaigns: {}.", ids.join(", ")))
         })?,
-        None => world_map_screen::screen_info().and_then(|screen| screen.campaign).unwrap_or_else(world_map::default_campaign),
+        None => {
+            world_map_screen::screen_info().and_then(|screen| screen.campaign).unwrap_or_else(world_map::default_campaign)
+        }
     };
     let campaign = configs.campaign(campaign_index).ok_or_else(|| CommandError::not_found("There are no campaigns."))?;
     let provider = world_map::provider(campaign_index).ok_or_else(|| {

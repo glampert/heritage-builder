@@ -1,9 +1,8 @@
 // Command tables, grouped by area. Add a group's table to COMMAND_GROUPS to register it.
 
+use common::{Size, coords::Cell};
 use serde::Deserialize;
 use serde_json::{Value, json};
-
-use common::{Size, coords::Cell};
 
 use super::{CommandContext, CommandError};
 use crate::{
@@ -13,12 +12,12 @@ use crate::{
 
 mod assert;
 mod camera;
+mod city;
 mod config;
 mod finance;
 mod input;
 mod inspect;
 mod intermission;
-mod city;
 mod messages;
 mod meta;
 mod minimap;
@@ -31,8 +30,8 @@ mod story;
 mod strings;
 mod time;
 mod ui;
-mod world_map;
 mod world;
+mod world_map;
 
 pub(super) use session::state_checksum;
 
@@ -124,7 +123,10 @@ pub(super) fn validate_save_name(name: &str) -> Result<(), CommandError> {
     if crate::session::is_valid_save_name(name) {
         Ok(())
     } else {
-        Err(CommandError::invalid_params(format!("'{name}' isn't a valid save name. Use a plain file name of at most {} characters, without folders or dots.", crate::session::MAX_SAVE_NAME_CHARS)))
+        Err(CommandError::invalid_params(format!(
+            "'{name}' isn't a valid save name. Use a plain file name of at most {} characters, without folders or dots.",
+            crate::session::MAX_SAVE_NAME_CHARS
+        )))
     }
 }
 
@@ -254,7 +256,19 @@ mod tests {
 
         // A dot would have the storage replace what follows it with the extension: "city.v2" is city.json.
         let too_long = "x".repeat(crate::session::MAX_SAVE_NAME_CHARS + 1);
-        for bad in ["", ".hidden", "../escape", "dir/save", "dir\\save", "c:save", "a..b", "city.v2", "autosave.bak", "foo.", &too_long] {
+        for bad in [
+            "",
+            ".hidden",
+            "../escape",
+            "dir/save",
+            "dir\\save",
+            "c:save",
+            "a..b",
+            "city.v2",
+            "autosave.bak",
+            "foo.",
+            &too_long,
+        ] {
             assert!(validate_save_name(bad).is_err(), "'{bad}' should be rejected.");
         }
     }

@@ -1,8 +1,6 @@
 use std::cmp::Reverse;
-use arrayvec::ArrayVec;
-use serde::{Deserialize, Serialize};
-use strum::Display;
 
+use arrayvec::ArrayVec;
 use common::{
     Color,
     callback::{self, Callback},
@@ -12,9 +10,10 @@ use common::{
 };
 use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+use strum::Display;
 
 use super::{
-    risks::RiskRates,
     Building,
     BuildingBehavior,
     BuildingContext,
@@ -22,20 +21,21 @@ use super::{
     BuildingKind,
     BuildingStock,
     config::{BuildingConfig, BuildingConfigs, building_config},
+    risks::RiskRates,
 };
 use crate::{
     cheats,
-    tile::Tile,
-    save_context::PostLoadContext,
-    world::{object::GameObject, stats::WorldStats},
-    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color, game_object_debug_options},
+    save_context::PostLoadContext,
     sim::{
         SimCmds,
-        SimContext, SimContextMut,
+        SimContext,
+        SimContextMut,
         finance::LedgerCategory,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
+    tile::Tile,
+    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
         UnitTaskHelper,
@@ -43,10 +43,10 @@ use crate::{
         patrol::*,
         runner::Runner,
         task::{
+            Emergency,
             UnitTaskDespawn,
             UnitTaskFetchCompletionCallback,
             UnitTaskFetchFromStorage,
-            Emergency,
             UnitTaskRandomizedPatrol,
             UnitTaskRespond,
             UnitTaskRespondCompletionCallback,
@@ -54,6 +54,7 @@ use crate::{
             find_nearest_emergency,
         },
     },
+    world::{object::GameObject, stats::WorldStats},
 };
 
 // ----------------------------------------------
@@ -249,9 +250,11 @@ impl BuildingBehavior for ServiceBuilding {
         let service_delta_secs = delta_time_secs * self.work_efficiency();
 
         // Procure resources from storage periodically if we need them.
-        if has_stock_requirements && has_min_required_workers && !self.debug.freeze_stock_update()
+        if has_stock_requirements
+            && has_min_required_workers
+            && !self.debug.freeze_stock_update()
             && let ServiceStock::Stock { update_timer, .. } = &mut self.service_stock
-                && update_timer.tick(service_delta_secs).should_update()
+            && update_timer.tick(service_delta_secs).should_update()
         {
             self.stock_update(cmds, context);
         }
@@ -447,9 +450,7 @@ impl BuildingBehavior for ServiceBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        ServiceUndoRedoSavedState::new_state(ServiceUndoRedoSavedState {
-            service_stock: self.service_stock.clone(),
-        })
+        ServiceUndoRedoSavedState::new_state(ServiceUndoRedoSavedState { service_stock: self.service_stock.clone() })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
@@ -742,14 +743,24 @@ impl ServiceBuilding {
             emergency.name(),
             target.base_cell()
         );
-        self.runner.try_spawn_with_task(context.debug_name(), cmds, sim_ctx, road_link, self.config.unwrap().patrol_unit, task);
+        self.runner.try_spawn_with_task(
+            context.debug_name(),
+            cmds,
+            sim_ctx,
+            road_link,
+            self.config.unwrap().patrol_unit,
+            task,
+        );
     }
 
     fn on_response_done(context: &SimContextMut, this_building: &mut Building, responder: &mut Unit) {
         let this_service = this_building.as_service_mut();
 
         debug_assert!(this_service.runner.unit_id() == responder.id());
-        debug_assert!(this_service.runner.is_running_task::<UnitTaskRespond>(context), "No responder was sent out by this building!");
+        debug_assert!(
+            this_service.runner.is_running_task::<UnitTaskRespond>(context),
+            "No responder was sent out by this building!"
+        );
 
         this_service.runner.reset();
         debug_popup_msg_color!(this_service.debug, Color::magenta(), "Back from an emergency");
@@ -807,4 +818,3 @@ impl ServiceStock {
         }
     }
 }
-

@@ -48,8 +48,9 @@ impl ScreensDevMenu {
         let shown = realm::ui_realm_for(false);
         ui::text(ui_sys, format!("UI realm: {} ({})", shown.realm.display_name(), shown.source));
         let realms: Vec<String> = std::iter::once("auto".to_string()).chain(Realm::names()).collect();
-        let mut realm_choice =
-            realm::override_realm().and_then(|chosen| Realm::iter().position(|realm| realm == chosen)).map_or(0, |index| index + 1);
+        let mut realm_choice = realm::override_realm()
+            .and_then(|chosen| Realm::iter().position(|realm| realm == chosen))
+            .map_or(0, |index| index + 1);
         if ui::combo(ui_sys, "Realm", &mut realm_choice, &realms) {
             realm::set_override(realm_choice.checked_sub(1).and_then(|index| Realm::iter().nth(index)));
         }
@@ -74,7 +75,11 @@ impl ScreensDevMenu {
             let missions: Vec<String> = (0..campaign.missions.len())
                 .map(|index| {
                     let variant = if campaign.is_variant(index) { " (variant)" } else { "" };
-                    format!("{} · {}{variant}", campaign.mission_number(index), campaign.mission_display_name(index).unwrap_or_default())
+                    format!(
+                        "{} · {}{variant}",
+                        campaign.mission_number(index),
+                        campaign.mission_display_name(index).unwrap_or_default()
+                    )
                 })
                 .collect();
             ui::combo(ui_sys, "Mission", &mut self.mission, &missions);
@@ -117,7 +122,11 @@ impl ScreensDevMenu {
             }
             if let Some(screen) = screen {
                 // The campaign-complete screen is the last step's.
-                let mission = if screen == PreviewScreen::CampaignComplete { campaign.steps().last().copied().unwrap_or(mission) } else { mission };
+                let mission = if screen == PreviewScreen::CampaignComplete {
+                    campaign.steps().last().copied().unwrap_or(mission)
+                } else {
+                    mission
+                };
                 preview::request(PreviewRequest { campaign_index: self.campaign, mission_index: mission, screen }, context);
             }
         }
@@ -127,7 +136,9 @@ impl ScreensDevMenu {
         let sequences = StoryConfigs::is_initialized()
             .then(|| StoryConfigs::get().stories.get(&campaign.id))
             .flatten()
-            .map_or_else(Vec::new, |story| story.sequences.iter().map(|sequence| (sequence.id.clone(), sequence.trigger.kind())).collect::<Vec<_>>());
+            .map_or_else(Vec::new, |story| {
+                story.sequences.iter().map(|sequence| (sequence.id.clone(), sequence.trigger.kind())).collect::<Vec<_>>()
+            });
         if sequences.is_empty() {
             ui::text(ui_sys, "No story sequences.");
             return;

@@ -1,33 +1,32 @@
+use common::{
+    Size,
+    coords::CellRange,
+    mem::RcMut,
+    time::{Seconds, UpdateTimer},
+};
+use engine::{Engine, save::*};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use serde::{Deserialize, Serialize};
 
-use common::{
-    Size,
-    mem::RcMut,
-    coords::CellRange,
-    time::{Seconds, UpdateTimer},
-};
-use engine::{Engine, save::*};
-
 use super::{
-    constants::*,
-    world::World,
-    system::GameSystems,
     config::GameConfigs,
+    constants::*,
+    system::GameSystems,
     ui_context::GameUiContext,
     unit::task::UnitTaskManager,
+    world::World,
 };
 use crate::{
-    launch,
-    save_context::*,
     debug::DebugUiMode,
+    launch,
     pathfind::Search,
+    save_context::*,
     tile::{Tile, TileKind, TileMap},
 };
 
 pub mod commands;
-pub use commands::{SimCmds, SimCmdQueue};
+pub use commands::{SimCmdQueue, SimCmds};
 
 pub mod context;
 pub use context::{SimContext, SimContextMut};
@@ -438,7 +437,8 @@ impl Simulation {
     ) {
         // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
         // it's dropped on return.
-        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
+        let sim_context =
+            unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
         systems.draw_debug_ui(engine, &mut cmds, &sim_context, context.ui_sys);
@@ -465,14 +465,16 @@ impl Simulation {
     fn draw_building_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
         // it's dropped on return.
-        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
+        let sim_context =
+            unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         context.world.draw_building_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_building_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
         // it's dropped on return.
-        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
+        let sim_context =
+            unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
         context.world.draw_building_debug_ui(&mut cmds, &sim_context, context.ui_sys, tile, mode);
@@ -482,14 +484,16 @@ impl Simulation {
     fn draw_unit_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
         // it's dropped on return.
-        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
+        let sim_context =
+            unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         context.world.draw_unit_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_unit_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
         // it's dropped on return.
-        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
+        let sim_context =
+            unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
         context.world.draw_unit_debug_ui(&mut cmds, &sim_context, context.ui_sys, tile, mode);
@@ -499,14 +503,16 @@ impl Simulation {
     fn draw_prop_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
         // it's dropped on return.
-        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
+        let sim_context =
+            unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         context.world.draw_prop_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_prop_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
         // it's dropped on return.
-        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
+        let sim_context =
+            unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
         context.world.draw_prop_debug_ui(&mut cmds, &sim_context, context.ui_sys, tile, mode);

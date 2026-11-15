@@ -1,15 +1,14 @@
 use arrayvec::ArrayString;
-use smallvec::SmallVec;
-use strum::{IntoEnumIterator, VariantNames};
 use common::{Color, format_small};
 use engine::{
     Engine,
     ui::{self, DrawDebugUi, UiStaticVar, UiSystem},
 };
+use smallvec::SmallVec;
+use strum::{IntoEnumIterator, VariantNames};
 
 use crate::{
     sim::{SimCmds, SimContext, SimContextMut},
-    tile::{TileFlags, TileKind},
     system::{
         GameSystem,
         GameSystemImpl,
@@ -19,6 +18,7 @@ use crate::{
         ambient_sounds::AmbientSoundsSystem,
         settlers::SettlersSpawnSystem,
     },
+    tile::{TileFlags, TileKind},
 };
 
 // ----------------------------------------------
@@ -26,7 +26,13 @@ use crate::{
 // ----------------------------------------------
 
 impl GameSystems {
-    pub(crate) fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui(
+        &mut self,
+        engine: &mut Engine,
+        cmds: &mut SimCmds,
+        context: &SimContextMut,
+        ui_sys: &UiSystem,
+    ) {
         // A tab per system, then "Create Systems".
         let mut tabs: SmallVec<[ArrayString<128>; 8]> =
             self.systems.iter().map(|entry| format_small!("{}", entry.system)).collect();

@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use smallvec::SmallVec;
 
 use common::{
     Size,
@@ -7,22 +6,23 @@ use common::{
     hash::SmallSet,
 };
 use engine::log;
+use smallvec::SmallVec;
 
 use super::{
     Building,
-    BuildingId,
-    BuildingKind,
     BuildingContext,
     BuildingContextMut,
+    BuildingId,
+    BuildingKind,
     config::BuildingConfigs,
     house::{HouseLevel, HouseLevelConfig},
 };
 use crate::{
     config::GameConfigs,
-    sim::SimCmds,
-    world::object::{GameObject, Spawner},
     pathfind::{Node, NodeKind as PathNodeKind},
+    sim::SimCmds,
     tile::{TileFlags, TileKind, TileMapLayerKind, sets::TileDef},
+    world::object::{GameObject, Spawner},
 };
 
 // ----------------------------------------------
@@ -56,8 +56,7 @@ pub fn can_expand_house(
     // We can only advance one level at a time (expanding by one tile in each dimension).
     debug_assert!(target_level == current_level.next());
 
-    let best_result =
-        find_best_expanded_rect_and_candidates(context, house_id);
+    let best_result = find_best_expanded_rect_and_candidates(context, house_id);
 
     if best_result.is_none() || find_tile_def_for_level(context, target_level).is_none() {
         return false; // Not possible to expand.
@@ -81,8 +80,7 @@ pub fn try_expand_house(
     // We can only advance one level at a time (expanding by one tile in each dimension).
     debug_assert!(target_level == current_level.next());
 
-    let best_result =
-        find_best_expanded_rect_and_candidates(context, house_id);
+    let best_result = find_best_expanded_rect_and_candidates(context, house_id);
 
     let (target_rect, merge_ids) = match best_result {
         Some(best_result) => best_result,
@@ -168,19 +166,18 @@ pub fn try_replace_tile(
         Ok(tile) => tile,
         Err(err) => {
             // Revert back to the previous tile if we've failed.
-            let prev_tile =
-                match tile_map.try_place_tile(prev_cell_range.start, prev_tile_def) {
-                    Ok(tile) => tile,
-                    Err(err) => {
-                        log::error!(
-                            log::channel!("house"),
-                            "{}: Tile placement failed! Unable to restore previous House tile: {}",
-                            dest_house.name(),
-                            err.message
-                        );
-                        return false;
-                    }
-                };
+            let prev_tile = match tile_map.try_place_tile(prev_cell_range.start, prev_tile_def) {
+                Ok(tile) => tile,
+                Err(err) => {
+                    log::error!(
+                        log::channel!("house"),
+                        "{}: Tile placement failed! Unable to restore previous House tile: {}",
+                        dest_house.name(),
+                        err.message
+                    );
+                    return false;
+                }
+            };
 
             // Restore previous game object handle:
             prev_tile.set_game_object_handle(prev_game_object_handle);
@@ -545,13 +542,7 @@ fn merge_house(
     let house_to_merge = building_to_merge.as_house_mut();
     let dest_house = dest_building.as_house_mut();
 
-    dest_house.merge(
-        cmds,
-        context,
-        house_to_merge,
-        house_to_merge_kind_and_id,
-        target_level_config,
-    );
+    dest_house.merge(cmds, context, house_to_merge, house_to_merge_kind_and_id, target_level_config);
 }
 
 fn destroy_house(context: &BuildingContextMut, merged_building: &mut Building) {
@@ -570,12 +561,16 @@ fn destroy_house(context: &BuildingContextMut, merged_building: &mut Building) {
 type HouseIdsSet = SmallSet<32, BuildingId>;
 
 fn house_for_id<'game>(context: &'game BuildingContext, id: BuildingId) -> &'game Building {
-    context.sim_ctx.find_building(BuildingKind::House, id)
+    context
+        .sim_ctx
+        .find_building(BuildingKind::House, id)
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
 fn house_for_id_mut<'game>(context: &'game BuildingContextMut, id: BuildingId) -> &'game mut Building {
-    context.sim_ctx.find_building_mut(BuildingKind::House, id)
+    context
+        .sim_ctx
+        .find_building_mut(BuildingKind::House, id)
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
@@ -584,12 +579,12 @@ fn house_for_id_mut<'game>(context: &'game BuildingContextMut, id: BuildingId) -
 fn find_house_for_cell<'game>(context: &'game BuildingContext, cell: Cell) -> Option<&'game Building> {
     if let Some(building) = context.sim_ctx.find_building_for_cell(cell)
         && building.is(BuildingKind::House)
-            && !building.is_burning()
-            && !building.has_outbreak()
-            && !building.risks().is_doomed()
-        {
-            return Some(building);
-        }
+        && !building.is_burning()
+        && !building.has_outbreak()
+        && !building.risks().is_doomed()
+    {
+        return Some(building);
+    }
 
     None
 }

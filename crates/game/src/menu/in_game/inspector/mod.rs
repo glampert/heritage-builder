@@ -17,11 +17,7 @@ use common::{
     Vec2,
     mem::{RcMut, WeakMut, WeakRef},
 };
-use engine::ui::{
-    UiFontScale, UiString,
-    text::UiTextCategory,
-    widgets::*,
-};
+use engine::ui::{UiFontScale, UiString, text::UiTextCategory, widgets::*};
 
 use self::paint::{Icons, Item};
 use super::layout;
@@ -29,7 +25,8 @@ use crate::{
     building::BuildingKind,
     inspect::{self, ActionKind, InspectIcon, InspectReport, InspectTarget, PanelKind, Section, StorageOrder},
     menu::{
-        TileInspector, TilePlacement,
+        TileInspector,
+        TilePlacement,
         dialog::city_book::{BookColors, Paint},
         skin::{self, ButtonRole, HudGlyphGroup, HudTileKind},
     },
@@ -242,7 +239,9 @@ impl TileInspectorMenu {
                 let home = {
                     let sim = context.new_sim_context();
                     match target {
-                        InspectTarget::Unit { id, .. } => sim.find_unit(id).and_then(|unit| inspect::unit_home_cell(&sim, unit, realm::ui_realm_for(false).realm)),
+                        InspectTarget::Unit { id, .. } => sim
+                            .find_unit(id)
+                            .and_then(|unit| inspect::unit_home_cell(&sim, unit, realm::ui_realm_for(false).realm)),
                         _ => None,
                     }
                 };
@@ -300,9 +299,14 @@ fn demolish_popup(context: &mut dyn UiWidgetContext, name: &str, commands: &Comm
     let confirm = commands.clone();
     let cancel = commands.clone();
     skin::popup_with_body(context, "Demolish Popup", [UiString::from(title)], body).with_buttons([
-        skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Hud, "inspect.action.demolish"), move |_, _| {
-            confirm.borrow_mut().push(Command::ConfirmDemolish);
-        }),
+        skin::button(
+            context,
+            ButtonRole::Primary,
+            UiString::key(UiTextCategory::Hud, "inspect.action.demolish"),
+            move |_, _| {
+                confirm.borrow_mut().push(Command::ConfirmDemolish);
+            },
+        ),
         skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), move |_, _| {
             cancel.borrow_mut().push(Command::CancelPopup);
         }),
@@ -372,7 +376,9 @@ fn content_height(parts: &[Part], width: f32, actions: bool) -> f32 {
         height += match part {
             Part::Run(items) => paint::flow(None, icons, items, width),
             Part::Text(text) => text_lines(text, width) * 27.0 + TEXT_GAP,
-            Part::Store(Section::Storage { rows, .. }) => paint::TOP + 14.0 + rows.len() as f32 * STORE_ROW + ACCEPT_BUTTON.y + 30.0,
+            Part::Store(Section::Storage { rows, .. }) => {
+                paint::TOP + 14.0 + rows.len() as f32 * STORE_ROW + ACCEPT_BUTTON.y + 30.0
+            }
             Part::Store(_) => 0.0,
         };
     }
@@ -393,7 +399,8 @@ fn build(context: &mut GameUiContext, report: &InspectReport, commands: &Command
     // smaller, if they don't fit.
     let height = content_height(&parts(report), width, !report.actions.is_empty());
     // Centred, so the build column's width is kept clear at both sides.
-    let room = Vec2::new(window.x - 2.0 * (column + layout::GAP + layout::MARGIN) - inset_x, window.y - TOP - BOTTOM - inset_y);
+    let room =
+        Vec2::new(window.x - 2.0 * (column + layout::GAP + layout::MARGIN) - inset_x, window.y - TOP - BOTTOM - inset_y);
     let k = (room.y / height).min(room.x / width).clamp(MIN_SCALE, 1.0);
     let (menu, measured) = build_at(context, report, commands, k);
     if measured <= room.y + 0.5 || k <= MIN_SCALE {
@@ -416,7 +423,9 @@ fn build_at(context: &mut GameUiContext, report: &InspectReport, commands: &Comm
     let size = Vec2::new(width * k + inset_x, height * k + inset_y + 4.0);
     // Centred on the screen, between the top bar and the screen's foot.
     let room_height = window.y - TOP - BOTTOM;
-    let centred = |height: f32| Vec2::new(((window.x - size.x) * 0.5).round(), (TOP + ((room_height - height) * 0.5).max(0.0)).round());
+    let centred = |height: f32| {
+        Vec2::new(((window.x - size.x) * 0.5).round(), (TOP + ((room_height - height) * 0.5).max(0.0)).round())
+    };
     let position = centred(size.y);
 
     let menu = UiMenu::new(menu_label(report.panel))
@@ -503,7 +512,11 @@ fn header(context: &mut GameUiContext, report: &InspectReport, width: f32, k: f3
     let icon_size = ICON * k;
     match &report.icon {
         InspectIcon::Building(name) | InspectIcon::Sector(name) => {
-            let group_kind = if matches!(report.icon, InspectIcon::Building(_)) { HudGlyphGroup::Building } else { HudGlyphGroup::Sector };
+            let group_kind = if matches!(report.icon, InspectIcon::Building(_)) {
+                HudGlyphGroup::Building
+            } else {
+                HudGlyphGroup::Sector
+            };
             let scale = icon_size / skin::hud_tile_size(HudTileKind::Large).x.max(1.0);
             group = group.with_widget(skin::hud_tile_scaled(context, HudTileKind::Large, scale, "icon", group_kind, name));
         }
@@ -551,17 +564,28 @@ fn sprite_icon(context: &mut GameUiContext, target: InspectTarget, size: f32) ->
 }
 
 // A store's goods: the title, a row per good with its order, and Accept all and Accept none.
-fn add_store(context: &mut GameUiContext, menu: &mut Added, section: &Section, width: f32, k: f32, colors: BookColors, commands: &Commands) {
+fn add_store(
+    context: &mut GameUiContext,
+    menu: &mut Added,
+    section: &Section,
+    width: f32,
+    k: f32,
+    colors: BookColors,
+    commands: &Commands,
+) {
     let Section::Storage { title, note, rows, footer } = section else {
         return;
     };
     let title = title.clone();
     let note = note.clone();
-    menu.add(context, UiCanvas::new(Vec2::new(width * k, (paint::TOP + 14.0) * k), move |_, painter, rect| {
-        let p = Paint::new(painter, rect, k, colors);
-        p.section(0.0, paint::TOP, &title);
-        p.text(width, paint::TOP, &note, 17.0, p.c.sub, engine::ui::UiTextAnchor::End, false);
-    }));
+    menu.add(
+        context,
+        UiCanvas::new(Vec2::new(width * k, (paint::TOP + 14.0) * k), move |_, painter, rect| {
+            let p = Paint::new(painter, rect, k, colors);
+            p.section(0.0, paint::TOP, &title);
+            p.text(width, paint::TOP, &note, 17.0, p.c.sub, engine::ui::UiTextAnchor::End, false);
+        }),
+    );
 
     let steps: Vec<UiString> = StorageOrder::ALL.iter().map(|order| UiString::from(order.label())).collect();
     for row in rows {
@@ -597,21 +621,38 @@ fn add_store(context: &mut GameUiContext, menu: &mut Added, section: &Section, w
             p.bar(150.0, y - 11.0, (line_width - 280.0).max(20.0), 9.0, ratio);
             p.text(line_width - 16.0, y, &format!("{have} / {room}"), 17.0, p.c.text, engine::ui::UiTextAnchor::End, false);
         });
-        menu.add(context, UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::zero()).with_widget(canvas).with_widget(order));
+        menu.add(
+            context,
+            UiWidgetGroup::new()
+                .with_stack_vertically(false)
+                .with_widget_spacing(Vec2::zero())
+                .with_widget(canvas)
+                .with_widget(order),
+        );
     }
 
     menu.add(context, spacer(width * k, 10.0 * k));
     let all = commands.clone();
     let none = commands.clone();
-    let accept_all = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Hud, "inspect.action.accept_all"), move |_, _| {
-        all.borrow_mut().push(Command::SetAllOrders(StorageOrder::Accept));
-    })
+    let accept_all = skin::button(
+        context,
+        ButtonRole::Secondary,
+        UiString::key(UiTextCategory::Hud, "inspect.action.accept_all"),
+        move |_, _| {
+            all.borrow_mut().push(Command::SetAllOrders(StorageOrder::Accept));
+        },
+    )
     .with_width(UiTextButtonWidth::Fixed(ACCEPT_BUTTON.x * k))
     .with_min_height(ACCEPT_BUTTON.y * k)
     .with_font_scale(button_text_scale(k));
-    let accept_none = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Hud, "inspect.action.accept_none"), move |_, _| {
-        none.borrow_mut().push(Command::SetAllOrders(StorageOrder::Refuse));
-    })
+    let accept_none = skin::button(
+        context,
+        ButtonRole::Secondary,
+        UiString::key(UiTextCategory::Hud, "inspect.action.accept_none"),
+        move |_, _| {
+            none.borrow_mut().push(Command::SetAllOrders(StorageOrder::Refuse));
+        },
+    )
     .with_width(UiTextButtonWidth::Fixed(ACCEPT_BUTTON.x * k))
     .with_min_height(ACCEPT_BUTTON.y * k)
     .with_font_scale(button_text_scale(k));

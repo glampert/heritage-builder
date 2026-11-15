@@ -1,15 +1,21 @@
 use std::any::Any;
-use smallbox::smallbox;
-use egui::Color32;
 
-use common::{Color, Vec2, bitflags_with_display, mem::{self, RawPtr, RcMut, WeakMut, WeakRef}};
+use common::{
+    Color,
+    Vec2,
+    bitflags_with_display,
+    mem::{self, RawPtr, RcMut, WeakMut, WeakRef},
+};
+use egui::Color32;
+use smallbox::smallbox;
 
 use super::{UiMessageBox, UiWidget, UiWidgetCallback, UiWidgetClosure, UiWidgetContext, UiWidgetImpl, widget_id};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
     ui::{
-        UiDecoratedPanel, UiSystem,
+        UiDecoratedPanel,
+        UiSystem,
         immediate::{self, decorated_panel_shapes, egui_pos2, egui_vec2, uv_full},
         renderer::egui_texture,
         sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
@@ -150,7 +156,9 @@ impl UiMenuBackground {
     // what goes over them (the panel's other decorations).
     fn shapes(&self, rect: egui::Rect) -> (egui::Shape, egui::Shape) {
         match self {
-            Self::Sprite(texture) => (egui::Shape::image(egui_texture(*texture), rect, uv_full(), Color32::WHITE), egui::Shape::Noop),
+            Self::Sprite(texture) => {
+                (egui::Shape::image(egui_texture(*texture), rect, uv_full(), Color32::WHITE), egui::Shape::Noop)
+            }
             Self::Panel(panel) => decorated_panel_shapes(rect, panel, Color32::WHITE),
         }
     }
@@ -160,11 +168,11 @@ impl UiMenuBackground {
 // UiMenu Types
 // ----------------------------------------------
 
-pub type UiMenuRcMut   = RcMut<UiMenu>;
+pub type UiMenuRcMut = RcMut<UiMenu>;
 pub type UiMenuWeakMut = WeakMut<UiMenu>;
 pub type UiMenuWeakRef = WeakRef<UiMenu>;
 
-pub type UiMenuOpenClose    = UiWidgetCallback<dyn Fn(&mut UiMenu, &mut dyn UiWidgetContext, bool)>;
+pub type UiMenuOpenClose = UiWidgetCallback<dyn Fn(&mut UiMenu, &mut dyn UiWidgetContext, bool)>;
 pub type UiMenuCalcPosition = UiWidgetClosure<dyn Fn(&UiMenu, &mut dyn UiWidgetContext) -> Vec2>;
 
 #[derive(Copy, Clone)]
@@ -185,7 +193,7 @@ pub struct UiMenu {
     pub(super) background: Option<UiMenuBackground>,
     pub(super) content_insets: Option<UiMenuInsets>, // The style's window margin if None.
     widgets: Vec<UiWidgetImpl>,
-    widget_spacing: Option<Vec2>, // The style's item spacing if None.
+    widget_spacing: Option<Vec2>,             // The style's item spacing if None.
     pub(super) backdrop_color: Option<Color>, // A modal menu's; UiSystem::modal_backdrop_color if None.
     message_box: UiMessageBox,
     sounds: UiWidgetSounds, // Opened and Closed: nothing by default; a dialog's or popup's role.
@@ -623,7 +631,8 @@ impl UiMenu {
                 let inner_min = bounds.min + insets.left_top();
                 let inner_max = (bounds.max - insets.right_bottom()).max(inner_min);
 
-                let mut content_ui = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_max(inner_min, inner_max)));
+                let mut content_ui =
+                    ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_max(inner_min, inner_max)));
                 if let Some(content_size) = content_size {
                     content_ui.set_min_size(content_size);
                     content_ui.set_max_size(content_size);
@@ -670,7 +679,10 @@ impl UiMenu {
 
                 // The menu takes its inner rect plus its insets.
                 let inner = content_ui.min_rect();
-                ui.allocate_rect(egui::Rect::from_min_max(inner.min - insets.left_top(), inner.max + insets.right_bottom()), egui::Sense::hover());
+                ui.allocate_rect(
+                    egui::Rect::from_min_max(inner.min - insets.left_top(), inner.max + insets.right_bottom()),
+                    egui::Sense::hover(),
+                );
 
                 (close_clicked, inner, scrolls)
             });
@@ -731,7 +743,8 @@ impl UiMenu {
                 .backdrop_color(backdrop_color)
                 .show(&ctx, draw_window);
 
-            let escape_pressed = close_on_escape && response.is_top_modal && ctx.input(crate::ui::immediate::escape_pressed_in);
+            let escape_pressed =
+                close_on_escape && response.is_top_modal && ctx.input(crate::ui::immediate::escape_pressed_in);
             if response.inner || escape_pressed {
                 is_open = false;
             }

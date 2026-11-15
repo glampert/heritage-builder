@@ -94,7 +94,9 @@ fn cmd_speed(context: &mut CommandContext, params: Value) -> CommandResult {
     if let Some(speed) = params.speed {
         let (min_speed, max_speed) = context.session.sim().speed_limits();
         if !(min_speed..=max_speed).contains(&speed) {
-            return Err(CommandError::invalid_params(format!("Speed must be from {min_speed} to {max_speed}, got {speed}.")));
+            return Err(CommandError::invalid_params(format!(
+                "Speed must be from {min_speed} to {max_speed}, got {speed}."
+            )));
         }
         context.session.sim_mut().set_speed(speed);
     }

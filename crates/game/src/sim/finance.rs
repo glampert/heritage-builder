@@ -8,13 +8,12 @@
 //   negative.
 // - Cheats and debug edits change the balance without touching the accounts.
 
-use serde::{Deserialize, Serialize};
-use strum::{Display, EnumCount, EnumIter, EnumString, IntoEnumIterator};
-
 use engine::{
     log,
     ui::text::{self, UiTextCategory},
 };
+use serde::{Deserialize, Serialize};
+use strum::{Display, EnumCount, EnumIter, EnumString, IntoEnumIterator};
 
 use super::calendar::CalendarEvent;
 use crate::{
@@ -73,7 +72,10 @@ pub(crate) mod per_category_map {
     use std::{fmt, marker::PhantomData, str::FromStr};
 
     use serde::{
-        Deserialize, Deserializer, Serialize, Serializer,
+        Deserialize,
+        Deserializer,
+        Serialize,
+        Serializer,
         de::{self, MapAccess, Visitor},
         ser::SerializeMap,
     };
@@ -571,7 +573,8 @@ mod tests {
 
         // Keys in any order load onto the right categories.
         let loaded: YearAccounts =
-            serde_json::from_value(serde_json::json!({ "start_balance": 1, "totals": { "Upkeep": 3, "Taxes": 7 } })).unwrap();
+            serde_json::from_value(serde_json::json!({ "start_balance": 1, "totals": { "Upkeep": 3, "Taxes": 7 } }))
+                .unwrap();
         assert_eq!(loaded.total(LedgerCategory::Taxes), 7);
         assert_eq!(loaded.total(LedgerCategory::Upkeep), 3);
     }

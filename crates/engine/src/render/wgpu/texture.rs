@@ -212,19 +212,31 @@ fn to_wgpu_filter_mode(
 ) -> (wgpu::FilterMode, wgpu::FilterMode, wgpu::MipmapFilterMode) {
     // Returns (min_filter, mag_filter, mipmap_filter).
     match filter {
-        render::texture::TextureFilter::Nearest              => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest),
-        render::texture::TextureFilter::Linear               => (wgpu::FilterMode::Linear,  wgpu::FilterMode::Linear,  wgpu::MipmapFilterMode::Nearest),
-        render::texture::TextureFilter::NearestMipmapNearest => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest),
-        render::texture::TextureFilter::LinearMipmapNearest  => (wgpu::FilterMode::Linear,  wgpu::FilterMode::Linear,  wgpu::MipmapFilterMode::Nearest),
-        render::texture::TextureFilter::NearestMipmapLinear  => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Linear),
-        render::texture::TextureFilter::LinearMipmapLinear   => (wgpu::FilterMode::Linear,  wgpu::FilterMode::Linear,  wgpu::MipmapFilterMode::Linear),
+        render::texture::TextureFilter::Nearest => {
+            (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest)
+        }
+        render::texture::TextureFilter::Linear => {
+            (wgpu::FilterMode::Linear, wgpu::FilterMode::Linear, wgpu::MipmapFilterMode::Nearest)
+        }
+        render::texture::TextureFilter::NearestMipmapNearest => {
+            (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest)
+        }
+        render::texture::TextureFilter::LinearMipmapNearest => {
+            (wgpu::FilterMode::Linear, wgpu::FilterMode::Linear, wgpu::MipmapFilterMode::Nearest)
+        }
+        render::texture::TextureFilter::NearestMipmapLinear => {
+            (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Linear)
+        }
+        render::texture::TextureFilter::LinearMipmapLinear => {
+            (wgpu::FilterMode::Linear, wgpu::FilterMode::Linear, wgpu::MipmapFilterMode::Linear)
+        }
     }
 }
 
 fn to_wgpu_address_mode(wrap: render::texture::TextureWrapMode, device: &wgpu::Device) -> wgpu::AddressMode {
     match wrap {
-        render::texture::TextureWrapMode::Repeat        => wgpu::AddressMode::Repeat,
-        render::texture::TextureWrapMode::ClampToEdge   => wgpu::AddressMode::ClampToEdge,
+        render::texture::TextureWrapMode::Repeat => wgpu::AddressMode::Repeat,
+        render::texture::TextureWrapMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
         render::texture::TextureWrapMode::ClampToBorder => {
             if device.features().contains(wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER) {
                 wgpu::AddressMode::ClampToBorder

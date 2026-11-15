@@ -53,7 +53,7 @@ impl TextureHandle {
     pub fn pack(&self) -> usize {
         match self {
             Self::Invalid => 0,
-            Self::White   => 1 << Self::TAG_SHIFT,
+            Self::White => 1 << Self::TAG_SHIFT,
             Self::Index(idx) => (2 << Self::TAG_SHIFT) | (*idx as usize & Self::INDEX_MASK),
         }
     }
@@ -63,8 +63,14 @@ impl TextureHandle {
         let tag = value >> Self::TAG_SHIFT;
         let idx = (value & Self::INDEX_MASK) as u32;
         match tag {
-            0 => { debug_assert_eq!(idx, 0); Self::Invalid }
-            1 => { debug_assert_eq!(idx, 0); Self::White   }
+            0 => {
+                debug_assert_eq!(idx, 0);
+                Self::Invalid
+            }
+            1 => {
+                debug_assert_eq!(idx, 0);
+                Self::White
+            }
             2 => Self::Index(idx),
             _ => panic!("Invalid packed TextureHandle!"),
         }
@@ -83,7 +89,9 @@ impl Default for TextureHandle {
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, Debug, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize,
+)]
 pub enum TextureFilter {
     Nearest,
     Linear,
@@ -94,7 +102,9 @@ pub enum TextureFilter {
 }
 
 #[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, Debug, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize,
+)]
 pub enum TextureWrapMode {
     Repeat,
     ClampToEdge,
@@ -111,11 +121,7 @@ pub struct TextureSettings {
 impl Default for TextureSettings {
     #[inline]
     fn default() -> Self {
-        Self {
-            filter: TextureFilter::Nearest,
-            wrap_mode: TextureWrapMode::ClampToEdge,
-            mipmaps: false,
-        }
+        Self { filter: TextureFilter::Nearest, wrap_mode: TextureWrapMode::ClampToEdge, mipmaps: false }
     }
 }
 
@@ -394,7 +400,7 @@ impl TextureCache {
         debug_assert!(!self.dummy_texture_handle.is_valid());
         debug_assert!(!self.white_texture_handle.is_valid());
 
-        self.dummy_texture_handle = self.create_filled_8x8_texture("dummy_texture", [255, 0,   255, 255]);
+        self.dummy_texture_handle = self.create_filled_8x8_texture("dummy_texture", [255, 0, 255, 255]);
         self.white_texture_handle = self.create_filled_8x8_texture("white_texture", [255, 255, 255, 255]);
     }
 

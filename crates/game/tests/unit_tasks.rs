@@ -1,11 +1,14 @@
-use common::{time::Seconds, callback::Callback, coords::Cell, mem::SingleThreadStatic};
+use common::{callback::Callback, coords::Cell, mem::SingleThreadStatic, time::Seconds};
 use game::{
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo, config::BuildingConfigs},
     debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
     pathfind::{NodeKind as PathNodeKind, SearchResult},
     sim::{
+        SimCmdQueue,
+        SimCmds,
+        SimContext,
+        SimContextMut,
         resources::{ResourceKind, ShoppingList, StockItem},
-        SimCmds, SimCmdQueue, SimContext, SimContextMut,
     },
     system::settlers::Settler,
     tile::TileKind,
@@ -15,13 +18,23 @@ use game::{
         config::UnitConfigKey,
         navigation::UnitNavGoal,
         task::{
-            UnitPatrolPathRecord, UnitTaskArg, UnitTaskArgs, UnitTaskDeliverToStorage,
-            UnitTaskDespawn, UnitTaskDespawnWithCallback, UnitTaskFetchFromStorage,
-            UnitTaskFetchState, UnitTaskFollowPath, UnitTaskHarvestWood,
-            UnitTaskPatrolCompletionCallback, UnitTaskPatrolState,
-            UnitTaskPostDespawnCallback, UnitTaskRandomizedPatrol,
-            UnitTaskFollowPathState, UnitTaskDespawnWithCallbackState,
+            UnitPatrolPathRecord,
             UnitPostDespawnCb,
+            UnitTaskArg,
+            UnitTaskArgs,
+            UnitTaskDeliverToStorage,
+            UnitTaskDespawn,
+            UnitTaskDespawnWithCallback,
+            UnitTaskDespawnWithCallbackState,
+            UnitTaskFetchFromStorage,
+            UnitTaskFetchState,
+            UnitTaskFollowPath,
+            UnitTaskFollowPathState,
+            UnitTaskHarvestWood,
+            UnitTaskPatrolCompletionCallback,
+            UnitTaskPatrolState,
+            UnitTaskPostDespawnCallback,
+            UnitTaskRandomizedPatrol,
         },
     },
 };
@@ -29,9 +42,19 @@ use game::{
 mod test_utils;
 use test_utils::{
     TestEnvironment,
-    assign_task, clear_terrain, despawn_building, find_building, find_building_id,
-    find_building_mut, find_unit, find_unit_by_config, place_road, spawn_unit, tick,
-    tick_until, unit_exists,
+    assign_task,
+    clear_terrain,
+    despawn_building,
+    find_building,
+    find_building_id,
+    find_building_mut,
+    find_unit,
+    find_unit_by_config,
+    place_road,
+    spawn_unit,
+    tick,
+    tick_until,
+    unit_exists,
 };
 
 // ----------------------------------------------
@@ -42,20 +65,16 @@ fn main() {
     test_utils::run_tests("Unit Tasks", &[
         // UnitTaskDespawn
         test_utils::test_fn!(test_despawn_removes_unit_from_world),
-
         // UnitTaskDespawnWithCallback
         test_utils::test_fn!(test_despawn_with_callback_fires_callback),
         test_utils::test_fn!(test_despawn_with_callback_passes_extra_arg),
-
         // UnitTaskFollowPath
         test_utils::test_fn!(test_follow_path_reaches_goal),
         test_utils::test_fn!(test_follow_path_chains_to_completion_task),
-
         // UnitTaskDeliverToStorage
         test_utils::test_fn!(test_deliver_transfers_resources_to_storage),
         test_utils::test_fn!(test_deliver_producer_fallback_when_no_storage),
         test_utils::test_fn!(test_delivery_path_blocked_recovery),
-
         // UnitTaskFetchFromStorage
         test_utils::test_fn!(test_fetch_picks_up_and_returns_with_resource),
         test_utils::test_fn!(test_fetch_path_blocked_recovery),
@@ -66,17 +85,14 @@ fn main() {
         test_utils::test_fn!(test_fetch_takes_more_than_one_slot),
         test_utils::test_fn!(test_fetch_surplus_skips_storage_that_cannot_hold_it),
         test_utils::test_fn!(test_fetch_skips_goods_the_origin_has_no_room_for),
-
         // UnitTaskHarvestWood
         test_utils::test_fn!(test_harvest_traverses_off_road),
         test_utils::test_fn!(test_harvest_claims_tree_then_returns_wood),
         test_utils::test_fn!(test_harvest_reroutes_when_tree_already_claimed),
-
         // UnitTaskSettler
         test_utils::test_fn!(test_settler_prefers_vacant_lot),
         test_utils::test_fn!(test_settler_falls_back_to_house_when_no_lot),
         test_utils::test_fn!(test_settler_returns_to_spawn_when_no_settlement),
-
         // UnitTaskRandomizedPatrol
         test_utils::test_fn!(test_patrol_leaves_and_returns_to_origin),
         test_utils::test_fn!(test_patrol_visits_target_buildings),
@@ -229,9 +245,7 @@ fn test_follow_path_reaches_goal() {
     assign_task(&mut env, unit_id, task);
 
     // ~6 tiles at ~1.66 tiles/sec ≈ 3.6s. Cap at 200 ticks (20 s) to be safe.
-    let ticks = tick_until(&mut env, 200, TestEnvironment::TICK_DELTA_SECS, |env| {
-        find_unit(env, unit_id).cell() == end
-    });
+    let ticks = tick_until(&mut env, 200, TestEnvironment::TICK_DELTA_SECS, |env| find_unit(env, unit_id).cell() == end);
     assert!(ticks < 200, "unit should have reached the goal well within 200 ticks");
 
     // The task clears its goal on completion (see follow_path.rs -- unit.follow_path(None)),
@@ -251,8 +265,7 @@ fn test_follow_path_chains_to_completion_task() {
     let unit_id = spawn_unit(&mut env, start, UnitConfigKey::Peasant);
 
     // Pre-allocate the follow-up despawn task and wire it in.
-    let despawn_task_id = env.sim.task_manager_mut().new_task(UnitTaskDespawn::default())
-        .expect("task pool full");
+    let despawn_task_id = env.sim.task_manager_mut().new_task(UnitTaskDespawn::default()).expect("task pool full");
 
     let task = UnitTaskFollowPath {
         path,
@@ -263,9 +276,7 @@ fn test_follow_path_chains_to_completion_task() {
     };
     assign_task(&mut env, unit_id, task);
 
-    let ticks = tick_until(&mut env, 200, TestEnvironment::TICK_DELTA_SECS, |env| {
-        !unit_exists(env, unit_id)
-    });
+    let ticks = tick_until(&mut env, 200, TestEnvironment::TICK_DELTA_SECS, |env| !unit_exists(env, unit_id));
     assert!(ticks < 200, "chained despawn should finish within 200 ticks");
 }
 
@@ -297,11 +308,8 @@ fn seed_producer_output(env: &mut TestEnvironment, handle: BuildingKindAndId, ki
 
 // Tick until the producer dispatches its Runner. Returns the runner's UnitId.
 fn tick_until_runner_spawned(env: &mut TestEnvironment, max_ticks: usize) -> UnitId {
-    tick_until(env, max_ticks, DELIVER_TICK_DELTA_SECS, |env| {
-        find_unit_by_config(env, UnitConfigKey::Runner).is_some()
-    });
-    find_unit_by_config(env, UnitConfigKey::Runner)
-        .expect("Runner should have been dispatched")
+    tick_until(env, max_ticks, DELIVER_TICK_DELTA_SECS, |env| find_unit_by_config(env, UnitConfigKey::Runner).is_some());
+    find_unit_by_config(env, UnitConfigKey::Runner).expect("Runner should have been dispatched")
 }
 
 // Tick until the runner has finished its task chain and despawned. The chained
@@ -309,18 +317,14 @@ fn tick_until_runner_spawned(env: &mut TestEnvironment, max_ticks: usize) -> Uni
 // releases the spawn promise, so this drains the sim's task and promise pools
 // and prevents leak panics on TestEnvironment drop.
 fn tick_until_runner_despawned(env: &mut TestEnvironment, runner_id: UnitId, max_ticks: usize) {
-    let ticks = tick_until(env, max_ticks, DELIVER_TICK_DELTA_SECS, |env| {
-        !unit_exists(env, runner_id)
-    });
+    let ticks = tick_until(env, max_ticks, DELIVER_TICK_DELTA_SECS, |env| !unit_exists(env, runner_id));
     assert!(ticks < max_ticks, "runner should have despawned within {max_ticks} ticks");
 }
 
 // Lumberyard -> StorageYard: producer dispatches Runner, Runner walks the road
 // network, storage receives the delivery, producer's output stock drained.
 fn test_deliver_transfers_resources_to_storage() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD);
 
     let lumberyard = find_building_id(&env, BuildingKind::Lumberyard);
     let storage = find_building_id(&env, BuildingKind::StorageYard);
@@ -359,11 +363,9 @@ fn test_deliver_transfers_resources_to_storage() {
 // runner's primary delivery search fails and the fallback routes to a producer
 // that consumes Rice as a raw material (Distillery -> Wine).
 fn test_deliver_producer_fallback_when_no_storage() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_FARM_1_DISTILLERY,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_FARM_1_DISTILLERY);
 
-    let rice_farm  = find_building_id(&env, BuildingKind::Farm);
+    let rice_farm = find_building_id(&env, BuildingKind::Farm);
     let distillery = find_building_id(&env, BuildingKind::Factory);
 
     // Pin the rice farm's output to exactly N -- with freeze_production set, the
@@ -400,9 +402,7 @@ fn test_deliver_producer_fallback_when_no_storage() {
 // idle (still owns the task, but no goal/path), then recover once the road is
 // restored and finish the delivery.
 fn test_delivery_path_blocked_recovery() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD);
 
     let lumberyard = find_building_id(&env, BuildingKind::Lumberyard);
     let storage = find_building_id(&env, BuildingKind::StorageYard);
@@ -427,9 +427,8 @@ fn test_delivery_path_blocked_recovery() {
     // the storage's road link; nav goes PathBlocked when it tries to step onto the
     // first removed cell, after which the delivery task can't pathfind to storage
     // (the building is no longer road-linked) so it idles.
-    let ticks_to_block = tick_until(&mut env, 60, DELIVER_TICK_DELTA_SECS, |env| {
-        find_unit(env, runner_id).path_is_blocked()
-    });
+    let ticks_to_block =
+        tick_until(&mut env, 60, DELIVER_TICK_DELTA_SECS, |env| find_unit(env, runner_id).path_is_blocked());
     assert!(ticks_to_block < 60, "runner should detect path blocked within 60 ticks");
 
     // Runner is still alive, still owns its delivery task, and the storage
@@ -478,11 +477,9 @@ fn seed_storage(env: &mut TestEnvironment, handle: BuildingKindAndId, kind: Reso
 // to the granary, picks up rice, returns home, callback deposits rice into the
 // market's stock.
 fn test_fetch_picks_up_and_returns_with_resource() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_MARKET_1_GRANARY,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_MARKET_1_GRANARY);
 
-    let market  = find_building_id(&env, BuildingKind::Market);
+    let market = find_building_id(&env, BuildingKind::Market);
     let granary = find_building_id(&env, BuildingKind::Granary);
 
     // Suppress the market's Vendor patrol unit -- we only care about the runner.
@@ -523,11 +520,9 @@ fn test_fetch_picks_up_and_returns_with_resource() {
 // Restoring the cleared cell lets the runner walk back via the short path on
 // the return leg.
 fn test_fetch_path_blocked_recovery() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_MARKET_1_GRANARY,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_MARKET_1_GRANARY);
 
-    let market  = find_building_id(&env, BuildingKind::Market);
+    let market = find_building_id(&env, BuildingKind::Market);
     let granary = find_building_id(&env, BuildingKind::Granary);
 
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
@@ -556,10 +551,7 @@ fn test_fetch_path_blocked_recovery() {
     {
         let runner = find_unit(&env, runner_id);
         let task_manager = env.sim.task_manager();
-        assert!(
-            runner.is_running_task::<UnitTaskFetchFromStorage>(task_manager),
-            "runner should still own the fetch task",
-        );
+        assert!(runner.is_running_task::<UnitTaskFetchFromStorage>(task_manager), "runner should still own the fetch task",);
     }
 
     // Restore the short path. The runner may have already started rerouting
@@ -583,11 +575,9 @@ fn test_fetch_path_blocked_recovery() {
 // fetch task gives up and transitions to ReturningToOrigin. The runner walks
 // home empty-handed and despawns.
 fn test_fetch_path_blocked_no_recovery() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_MARKET_1_GRANARY,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_MARKET_1_GRANARY);
 
-    let market  = find_building_id(&env, BuildingKind::Market);
+    let market = find_building_id(&env, BuildingKind::Market);
     let granary = find_building_id(&env, BuildingKind::Granary);
 
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
@@ -641,12 +631,10 @@ fn total_rice_in_storages(env: &TestEnvironment) -> u32 {
 // return path is blocked, try_return_to_origin fails on the next task tick,
 // and the recovery routes the surplus to a storage building instead.
 fn test_fetch_recovers_by_shipping_back_to_storage_when_origin_unreachable() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD);
 
-    let market       = find_building_id(&env, BuildingKind::Market);
-    let granary      = find_building_id(&env, BuildingKind::Granary);
+    let market = find_building_id(&env, BuildingKind::Market);
+    let granary = find_building_id(&env, BuildingKind::Granary);
     let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
 
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
@@ -672,10 +660,7 @@ fn test_fetch_recovers_by_shipping_back_to_storage_when_origin_unreachable() {
     // Tear out *every* road tile adjacent to the market so the runner's return
     // path is unrecoverable. (Market 2x2 at (1,1)-(2,2); its only road
     // neighbours are the top-left corner of the ring road.)
-    let market_road_cells = [
-        Cell::new(0, 1), Cell::new(0, 2),
-        Cell::new(1, 0), Cell::new(2, 0),
-    ];
+    let market_road_cells = [Cell::new(0, 1), Cell::new(0, 2), Cell::new(1, 0), Cell::new(2, 0)];
     clear_terrain(&mut env, &market_road_cells);
 
     // Recovery: the runner reroutes to a storage that will accept rice
@@ -688,10 +673,7 @@ fn test_fetch_recovers_by_shipping_back_to_storage_when_origin_unreachable() {
     assert_eq!(find_building(&env, market).available_resources(ResourceKind::Rice), 0);
 
     // No rice was abandoned: it ended up in granary, storage_yard, or some mix.
-    assert_eq!(
-        total_rice_in_storages(&env), N,
-        "surplus rice should have been deposited at a storage, not dropped",
-    );
+    assert_eq!(total_rice_in_storages(&env), N, "surplus rice should have been deposited at a storage, not dropped",);
 
     let granary_rice = find_building(&env, granary).available_resources(ResourceKind::Rice);
     let storage_yard_rice = find_building(&env, storage_yard).available_resources(ResourceKind::Rice);
@@ -704,12 +686,10 @@ fn test_fetch_recovers_by_shipping_back_to_storage_when_origin_unreachable() {
 // branch in completed() with a non-empty inventory and ships the surplus
 // to a storage instead of dropping the cargo.
 fn test_fetch_recovers_when_unload_at_origin_fails() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD);
 
-    let market       = find_building_id(&env, BuildingKind::Market);
-    let granary      = find_building_id(&env, BuildingKind::Granary);
+    let market = find_building_id(&env, BuildingKind::Market);
+    let granary = find_building_id(&env, BuildingKind::Granary);
     let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
 
     // Stop the market from dispatching its own runner -- we drive the fetch
@@ -727,19 +707,13 @@ fn test_fetch_recovers_when_unload_at_origin_fails() {
 
     let unit_id = spawn_unit(&mut env, market_road_link, UnitConfigKey::Peasant);
 
-    let despawn_task_id = env.sim.task_manager_mut().new_task(UnitTaskDespawn::default())
-        .expect("task pool full");
+    let despawn_task_id = env.sim.task_manager_mut().new_task(UnitTaskDespawn::default()).expect("task pool full");
 
     let task = UnitTaskFetchFromStorage {
         origin_building: market,
-        origin_building_tile: BuildingTileInfo {
-            road_link: market_road_link,
-            base_cell: market_base_cell,
-        },
+        origin_building_tile: BuildingTileInfo { road_link: market_road_link, base_cell: market_base_cell },
         storage_buildings_accepted: BuildingKind::storage(),
-        resources_to_fetch: ShoppingList::from_items(&[
-            StockItem { kind: ResourceKind::Rice, count: N },
-        ]),
+        resources_to_fetch: ShoppingList::from_items(&[StockItem { kind: ResourceKind::Rice, count: N }]),
         // No completion callback -- forces the task into the recovery branch
         // (no deferred unload at origin) after the unit reaches the market.
         completion_callback: Callback::default(),
@@ -756,10 +730,7 @@ fn test_fetch_recovers_when_unload_at_origin_fails() {
     tick_until(&mut env, 300, DELIVER_TICK_DELTA_SECS, |env| !unit_exists(env, unit_id));
 
     assert_eq!(find_building(&env, market).available_resources(ResourceKind::Rice), 0);
-    assert_eq!(
-        total_rice_in_storages(&env), N,
-        "surplus rice should have been deposited at a storage, not dropped",
-    );
+    assert_eq!(total_rice_in_storages(&env), N, "surplus rice should have been deposited at a storage, not dropped",);
 
     let granary_rice = find_building(&env, granary).available_resources(ResourceKind::Rice);
     let storage_yard_rice = find_building(&env, storage_yard).available_resources(ResourceKind::Rice);
@@ -771,12 +742,10 @@ fn test_fetch_recovers_when_unload_at_origin_fails() {
 // picks up the rice, try_return_to_origin fails (origin no longer exists),
 // and the in-callback recovery routes the surplus to a storage instead.
 fn test_fetch_recovers_when_origin_destroyed_mid_return() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD);
 
-    let market       = find_building_id(&env, BuildingKind::Market);
-    let granary      = find_building_id(&env, BuildingKind::Granary);
+    let market = find_building_id(&env, BuildingKind::Market);
+    let granary = find_building_id(&env, BuildingKind::Granary);
     let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
 
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
@@ -807,10 +776,7 @@ fn test_fetch_recovers_when_origin_destroyed_mid_return() {
 
     // No market remains; no rice was abandoned.
     assert!(env.world.find_building(market.kind, market.id).is_none());
-    assert_eq!(
-        total_rice_in_storages(&env), N,
-        "surplus rice should have been deposited at a storage, not dropped",
-    );
+    assert_eq!(total_rice_in_storages(&env), N, "surplus rice should have been deposited at a storage, not dropped",);
 
     let granary_rice = find_building(&env, granary).available_resources(ResourceKind::Rice);
     let storage_yard_rice = find_building(&env, storage_yard).available_resources(ResourceKind::Rice);
@@ -829,11 +795,9 @@ fn storage_yard_slot_capacity() -> u32 {
 // with wood in a slot between them: one trip brings back everything the
 // market asked for, not just the first slot's, and leaves the wood.
 fn test_fetch_takes_more_than_one_slot() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD);
 
-    let market       = find_building_id(&env, BuildingKind::Market);
+    let market = find_building_id(&env, BuildingKind::Market);
     let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
 
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
@@ -872,12 +836,10 @@ fn test_fetch_takes_more_than_one_slot() {
 // take it: it passes the nearer granary, which has free slots but can't hold
 // wine, and takes it back to the storage yard.
 fn test_fetch_surplus_skips_storage_that_cannot_hold_it() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD);
 
-    let market       = find_building_id(&env, BuildingKind::Market);
-    let granary      = find_building_id(&env, BuildingKind::Granary);
+    let market = find_building_id(&env, BuildingKind::Market);
+    let granary = find_building_id(&env, BuildingKind::Granary);
     let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
 
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
@@ -909,11 +871,9 @@ fn test_fetch_surplus_skips_storage_that_cannot_hold_it() {
 // runner comes straight back. It used to go for rice it had no room for and
 // stay at the granary, taking nothing, while the market waited on it.
 fn test_fetch_skips_goods_the_origin_has_no_room_for() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_MARKET_1_GRANARY,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_MARKET_1_GRANARY);
 
-    let market  = find_building_id(&env, BuildingKind::Market);
+    let market = find_building_id(&env, BuildingKind::Market);
     let granary = find_building_id(&env, BuildingKind::Granary);
 
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
@@ -952,9 +912,7 @@ fn set_short_harvest_interval() {
 
 // Tick until a unit of the given config exists; return its id.
 fn tick_until_unit_of_config_spawned(env: &mut TestEnvironment, config: UnitConfigKey, max_ticks: usize) -> UnitId {
-    let ticks = tick_until(env, max_ticks, HARVEST_TICK_DELTA_SECS, |env| {
-        find_unit_by_config(env, config).is_some()
-    });
+    let ticks = tick_until(env, max_ticks, HARVEST_TICK_DELTA_SECS, |env| find_unit_by_config(env, config).is_some());
     assert!(ticks < max_ticks, "{config:?} should have spawned within {max_ticks} ticks");
     find_unit_by_config(env, config).expect("unit should be spawned")
 }
@@ -962,9 +920,7 @@ fn tick_until_unit_of_config_spawned(env: &mut TestEnvironment, config: UnitConf
 // Drain in-flight units of `config` -- caller should set the appropriate
 // freeze_* flags first or the producer will just dispatch another one.
 fn tick_until_no_units_of_config(env: &mut TestEnvironment, config: UnitConfigKey, max_ticks: usize) {
-    let ticks = tick_until(env, max_ticks, HARVEST_TICK_DELTA_SECS, |env| {
-        find_unit_by_config(env, config).is_none()
-    });
+    let ticks = tick_until(env, max_ticks, HARVEST_TICK_DELTA_SECS, |env| find_unit_by_config(env, config).is_none());
     assert!(ticks < max_ticks, "all {config:?} units should have despawned within {max_ticks} ticks");
 }
 
@@ -987,9 +943,7 @@ fn drain_harvest_pipeline(env: &mut TestEnvironment, lumberyards: &[BuildingKind
 fn test_harvest_traverses_off_road() {
     set_short_harvest_interval();
 
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD_WITH_TREES,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD_WITH_TREES);
 
     let lumberyard = find_building_id(&env, BuildingKind::Lumberyard);
 
@@ -1019,10 +973,8 @@ fn test_harvest_traverses_off_road() {
         .goal()
         .expect("harvester should have a goal after task initialization")
         .destination_cell();
-    let goal_path_kind = env.tile_map
-        .find_tile(goal_cell, TileKind::Terrain)
-        .expect("goal cell should have a terrain tile")
-        .path_kind();
+    let goal_path_kind =
+        env.tile_map.find_tile(goal_cell, TileKind::Terrain).expect("goal cell should have a terrain tile").path_kind();
     assert!(
         goal_path_kind.intersects(PathNodeKind::EmptyLand),
         "harvester goal should be on grass (off-road), got {goal_path_kind}",
@@ -1038,9 +990,7 @@ fn test_harvest_traverses_off_road() {
 fn test_harvest_claims_tree_then_returns_wood() {
     set_short_harvest_interval();
 
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD_WITH_TREES,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD_WITH_TREES);
 
     let lumberyard = find_building_id(&env, BuildingKind::Lumberyard);
     assert_eq!(find_building(&env, lumberyard).available_resources(ResourceKind::Wood), 0);
@@ -1076,7 +1026,8 @@ fn test_harvest_claims_tree_then_returns_wood() {
         .map(|p| p.harvestable_amount())
         .sum();
     assert_eq!(
-        total_wood_pre - total_wood_post, wood_in_stock,
+        total_wood_pre - total_wood_post,
+        wood_in_stock,
         "wood removed from tree(s) should equal wood deposited in the lumberyard",
     );
 
@@ -1090,9 +1041,7 @@ fn test_harvest_claims_tree_then_returns_wood() {
 fn test_harvest_reroutes_when_tree_already_claimed() {
     set_short_harvest_interval();
 
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_2_LUMBERYARDS_2_TREES,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_2_LUMBERYARDS_2_TREES);
 
     // Collect both lumberyard handles.
     let mut lumberyard_ids = Vec::new();
@@ -1104,9 +1053,7 @@ fn test_harvest_reroutes_when_tree_already_claimed() {
 
     // Tick until both lumberyards have at least one unit of wood.
     let ticks = tick_until(&mut env, 200, HARVEST_TICK_DELTA_SECS, |env| {
-        lumberyard_ids
-            .iter()
-            .all(|id| find_building(env, *id).available_resources(ResourceKind::Wood) != 0)
+        lumberyard_ids.iter().all(|id| find_building(env, *id).available_resources(ResourceKind::Wood) != 0)
     });
     assert!(ticks < 200, "both lumberyards should have wood within 200 ticks");
 
@@ -1135,8 +1082,7 @@ fn spawn_settler(env: &mut TestEnvironment, origin: Cell, population: u32) -> Un
         Settler::spawn(&mut cmds, &context, origin, population);
         cmds.execute(&context);
     }
-    find_unit_by_config(env, UnitConfigKey::Settler)
-        .expect("Settler should have been spawned")
+    find_unit_by_config(env, UnitConfigKey::Settler).expect("Settler should have been spawned")
 }
 
 // Count buildings of `kind` currently spawned in the world.
@@ -1153,9 +1099,7 @@ fn count_buildings(env: &TestEnvironment, kind: BuildingKind) -> usize {
 // the spawn_building command that on_settled queues for vacant-lot goals)
 // so the task / promise pools are empty before TestEnvironment drops.
 fn tick_until_settler_despawned(env: &mut TestEnvironment, settler_id: UnitId, max_ticks: usize) {
-    let ticks = tick_until(env, max_ticks, SETTLER_TICK_DELTA_SECS, |env| {
-        !unit_exists(env, settler_id)
-    });
+    let ticks = tick_until(env, max_ticks, SETTLER_TICK_DELTA_SECS, |env| !unit_exists(env, settler_id));
     assert!(ticks < max_ticks, "settler should despawn within {max_ticks} ticks");
 }
 
@@ -1163,14 +1107,12 @@ fn tick_until_settler_despawned(env: &mut TestEnvironment, settler_id: UnitId, m
 // After despawn, `Settler::on_settled` spawns a new house at the lot cell and
 // seeds it with the settler's population.
 fn test_settler_prefers_vacant_lot() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_SETTLER_VACANT_LOT_AND_HOUSE,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_SETTLER_VACANT_LOT_AND_HOUSE);
 
     // NOTE: Cells assumed from the preset map above.
-    let spawn_point     = Cell::new(4, 0);
+    let spawn_point = Cell::new(4, 0);
     let vacant_lot_cell = Cell::new(4, 3);
-    let original_house  = Cell::new(4, 7);
+    let original_house = Cell::new(4, 7);
 
     // Sanity: a single (empty) house exists at the start.
     assert_eq!(count_buildings(&env, BuildingKind::House), 1);
@@ -1184,16 +1126,16 @@ fn test_settler_prefers_vacant_lot() {
     tick_until_settler_despawned(&mut env, settler_id, 100);
 
     // A new house now sits on the vacant lot, populated by the settler.
-    let new_house = env.world
+    let new_house = env
+        .world
         .find_building_for_cell(vacant_lot_cell, &env.tile_map)
         .expect("new house should be placed on the vacant lot");
     assert!(new_house.is(BuildingKind::House));
     assert_eq!(new_house.population_count(), 1, "settler should have populated the new house");
 
     // The pre-existing house is untouched.
-    let original = env.world
-        .find_building_for_cell(original_house, &env.tile_map)
-        .expect("original house should still exist");
+    let original =
+        env.world.find_building_for_cell(original_house, &env.tile_map).expect("original house should still exist");
     assert_eq!(original.population_count(), 0);
 
     assert_eq!(count_buildings(&env, BuildingKind::House), 2);
@@ -1203,13 +1145,11 @@ fn test_settler_prefers_vacant_lot() {
 // adds to its population. Exercises the `fallback_to_houses_with_room`
 // branch in settler.rs plus HouseBuilding::visited_by_settler.
 fn test_settler_falls_back_to_house_when_no_lot() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_SETTLER_HOUSE_ONLY,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_SETTLER_HOUSE_ONLY);
 
     // NOTE: Cells assumed from the preset map above.
     let spawn_point = Cell::new(4, 0);
-    let house_cell  = Cell::new(4, 4);
+    let house_cell = Cell::new(4, 4);
 
     let house_id = find_building_id(&env, BuildingKind::House);
     assert_eq!(find_building(&env, house_id).population_count(), 0, "house starts empty");
@@ -1220,22 +1160,18 @@ fn test_settler_falls_back_to_house_when_no_lot() {
 
     // No new building was created; the existing house gained the settler.
     assert_eq!(count_buildings(&env, BuildingKind::House), 1);
-    let house = env.world
-        .find_building_for_cell(house_cell, &env.tile_map)
-        .expect("original house should still exist");
+    let house = env.world.find_building_for_cell(house_cell, &env.tile_map).expect("original house should still exist");
     assert_eq!(house.population_count(), 1, "house should have absorbed the settler");
 }
 
 // No vacant lot, no house -> settler routes back to its spawn point and despawns empty.
 // Exercises the `return_to_spawn_point_if_failed` branch in settler.rs.
 fn test_settler_returns_to_spawn_when_no_settlement() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_SETTLER_SPAWN_POINT_ONLY,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_SETTLER_SPAWN_POINT_ONLY);
 
     // Spawn the settler away from the spawn point so the return walk is
     // observable (and the test doesn't trivially pass on tick zero).
-    let spawn_point    = Cell::new(4, 0);
+    let spawn_point = Cell::new(4, 0);
     let settler_origin = Cell::new(4, 4);
 
     let settler_id = spawn_settler(&mut env, settler_origin, 1);
@@ -1267,8 +1203,7 @@ const PATROL_TICK_DELTA_SECS: Seconds = 0.5;
 // building owns a `Patrol` helper with state -- which we bypass when assigning
 // the task manually. So we register a no-op here just to satisfy the callback
 // invocation path; the test doesn't observe anything via this callback.
-fn patrol_test_callback(_context: &SimContextMut, _building: &mut Building, _unit: &mut Unit) {
-}
+fn patrol_test_callback(_context: &SimContextMut, _building: &mut Building, _unit: &mut Unit) {}
 
 fn register_patrol_test_callback() -> Callback<UnitTaskPatrolCompletionCallback> {
     common::callback::register!(patrol_test_callback)
@@ -1314,9 +1249,7 @@ fn spawn_patrol_from_building(
 // Patrol unit leaves its origin road link, wanders out to a waypoint, then
 // returns home -- the chained UnitTaskDespawn fires once the patrol task ends.
 fn test_patrol_leaves_and_returns_to_origin() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_PATROL_CROSSROADS_MARKET,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_PATROL_CROSSROADS_MARKET);
 
     let market = find_building_id(&env, BuildingKind::Market);
 
@@ -1332,9 +1265,7 @@ fn test_patrol_leaves_and_returns_to_origin() {
     assert!(ticks < 50, "unit should leave the origin road link within 50 ticks");
 
     // ...and despawn once it returns and the chained UnitTaskDespawn fires.
-    let ticks = tick_until(&mut env, 200, PATROL_TICK_DELTA_SECS, |env| {
-        !unit_exists(env, unit_id)
-    });
+    let ticks = tick_until(&mut env, 200, PATROL_TICK_DELTA_SECS, |env| !unit_exists(env, unit_id));
     assert!(ticks < 200, "unit should return and despawn within 200 ticks");
 }
 
@@ -1343,19 +1274,12 @@ fn test_patrol_leaves_and_returns_to_origin() {
 // places houses immediately off the crossroads so the unit can hardly avoid
 // passing at least one BuildingRoadLink node next to a house.
 fn test_patrol_visits_target_buildings() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_PATROL_CROSSROADS_MARKET_WITH_HOUSES,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_PATROL_CROSSROADS_MARKET_WITH_HOUSES);
 
     let market = find_building_id(&env, BuildingKind::Market);
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
 
-    let (unit_id, _) = spawn_patrol_from_building(
-        &mut env,
-        market,
-        10,
-        Some(BuildingKind::House),
-    );
+    let (unit_id, _) = spawn_patrol_from_building(&mut env, market, 10, Some(BuildingKind::House));
 
     // Tick until the patrol records at least one visit. We poll the task's
     // visited_buildings list (populated in patrol.rs each time the
@@ -1373,22 +1297,18 @@ fn test_patrol_visits_target_buildings() {
     // Every recorded visit should be a House -- the patrol filter must respect `buildings_to_visit`.
     let visits: Vec<BuildingKindAndId> = {
         let unit = find_unit(&env, unit_id);
-        let task = unit.current_task_as::<UnitTaskRandomizedPatrol>(env.sim.task_manager())
+        let task = unit
+            .current_task_as::<UnitTaskRandomizedPatrol>(env.sim.task_manager())
             .expect("patrol should still own its task");
         task.visited_buildings.as_ref().unwrap().to_vec()
     };
     assert!(!visits.is_empty(), "expected at least one visited building");
     for v in &visits {
-        assert!(
-            v.kind == BuildingKind::House,
-            "patrol visited a non-House building: kind={} id={}", v.kind, v.id,
-        );
+        assert!(v.kind == BuildingKind::House, "patrol visited a non-House building: kind={} id={}", v.kind, v.id,);
     }
 
     // Drain: let the patrol finish so the task pool is empty before drop.
-    let ticks = tick_until(&mut env, 300, PATROL_TICK_DELTA_SECS, |env| {
-        !unit_exists(env, unit_id)
-    });
+    let ticks = tick_until(&mut env, 300, PATROL_TICK_DELTA_SECS, |env| !unit_exists(env, unit_id));
     assert!(ticks < 300, "patrol should despawn within 300 ticks");
 }
 
@@ -1397,9 +1317,7 @@ fn test_patrol_visits_target_buildings() {
 // so at no point during the run should the unit be farther than
 // `max_distance` from the origin road link.
 fn test_patrol_respects_max_distance() {
-    let mut env = TestEnvironment::with_preset_map(
-        preset_maps::PRESET_PATROL_CROSSROADS_MARKET,
-    );
+    let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_PATROL_CROSSROADS_MARKET);
 
     let market = find_building_id(&env, BuildingKind::Market);
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
@@ -1422,14 +1340,8 @@ fn test_patrol_respects_max_distance() {
         ticks_used += 1;
     }
 
-    assert!(
-        ticks_used < max_ticks,
-        "patrol should have despawned within {max_ticks} ticks (used {ticks_used})",
-    );
-    assert!(
-        max_observed <= MAX_DISTANCE,
-        "patrol drifted {max_observed} cells from origin (max_distance={MAX_DISTANCE})",
-    );
+    assert!(ticks_used < max_ticks, "patrol should have despawned within {max_ticks} ticks (used {ticks_used})",);
+    assert!(max_observed <= MAX_DISTANCE, "patrol drifted {max_observed} cells from origin (max_distance={MAX_DISTANCE})",);
     // Also confirm we actually saw movement -- otherwise the assertion is vacuous.
     assert!(max_observed > 0, "patrol should have moved at least one cell from origin");
 }

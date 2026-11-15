@@ -33,7 +33,7 @@ use crate::{
 
 pub struct HomeMenus {
     slideshow: UiSlideshow,
-    skin_version: u32, // The skin the backdrop was built with.
+    skin_version: u32,  // The skin the backdrop was built with.
     played_intro: bool, // The first backdrop played its intro: a rebuilt one replays it under the dialogs.
 }
 
@@ -118,9 +118,7 @@ impl GameMenusSystem for HomeMenus {
             }
             // [ESCAPE]: Close the dialog on top (only that one: the dialogs don't close themselves on
             // Escape), unless it's the home menu's own.
-            if key == InputKey::Escape && action == InputAction::Press
-                && dialog::close_current_on_escape(context)
-            {
+            if key == InputKey::Escape && action == InputAction::Press && dialog::close_current_on_escape(context) {
                 return UiInputEvent::Handled; // Key press is handled.
             }
         }

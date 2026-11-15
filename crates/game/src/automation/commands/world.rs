@@ -1,10 +1,9 @@
 // World commands: place and clear tiles as a player would, spawn objects for test setup, and read
 // buildings, units, props and tiles back.
 
+use common::coords::Cell;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
-
-use common::coords::Cell;
 
 use super::{CellParam, ObjectId, archetype_building_kinds, cell_json, refresh_world_stats};
 use crate::{
@@ -18,7 +17,10 @@ use crate::{
     menu::{PlaceOrClearResult, TilePlacement},
     prop::Prop,
     save_context::{PostSaveContext, PreSaveContext},
-    sim::{commands::ImmediateModeSimCmds, resources::{ResourceKind, ResourceStock, StockItem, Workers}},
+    sim::{
+        commands::ImmediateModeSimCmds,
+        resources::{ResourceKind, ResourceStock, StockItem, Workers},
+    },
     tile::{
         Tile,
         TileKind,
@@ -28,7 +30,11 @@ use crate::{
     },
     undo_redo,
     unit::Unit,
-    world::{city_stock::CityStock, object::{GameObject, Spawner}, stats::WorldStats},
+    world::{
+        city_stock::CityStock,
+        object::{GameObject, Spawner},
+        stats::WorldStats,
+    },
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -47,10 +53,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Place a tile (building, road, terrain, ...) at a cell as a player would: pays its cost, records undo, and \
                starts a building as a construction site unless its tier is Instant (object.construction says how long; \
                the instant_construction cheat skips it).",
-        params: &[
-            ParamDef { name: "tile", kind: "string", required: true, help: "Tile name, see tiles.list." },
-            ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]. For bigger tiles, the cell with the lowest x and y." },
-        ],
+        params: &[ParamDef { name: "tile", kind: "string", required: true, help: "Tile name, see tiles.list." }, ParamDef {
+            name: "cell",
+            kind: "cell",
+            required: true,
+            help: "[x, y]. For bigger tiles, the cell with the lowest x and y.",
+        }],
         run: cmd_place,
     },
     CommandDef {
@@ -77,7 +85,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "world.spawn_unit",
         help: "Spawn a unit for test setup: free, no undo.",
         params: &[
-            ParamDef { name: "unit", kind: "string", required: true, help: "Unit name, e.g. peasant. See tiles.list category=units." },
+            ParamDef {
+                name: "unit",
+                kind: "string",
+                required: true,
+                help: "Unit name, e.g. peasant. See tiles.list category=units.",
+            },
             ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]." },
         ],
         run: cmd_spawn_unit,
@@ -85,7 +98,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "world.despawn",
         help: "Remove a building, unit or prop by id, for test setup: no refund, no undo.",
-        params: &[ParamDef { name: "id", kind: "string", required: true, help: "Object id from world.list, e.g. unit:12:40." }],
+        params: &[ParamDef {
+            name: "id",
+            kind: "string",
+            required: true,
+            help: "Object id from world.list, e.g. unit:12:40.",
+        }],
         run: cmd_despawn,
     },
     CommandDef {
@@ -110,7 +128,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "A building, unit or prop as a save stores it, all of it or some fields.",
         params: &[
             ParamDef { name: "id", kind: "string", required: false, help: "Object id from world.list. Or give a cell." },
-            ParamDef { name: "cell", kind: "cell", required: false, help: "The object at this cell (buildings, then units, then props)." },
+            ParamDef {
+                name: "cell",
+                kind: "cell",
+                required: false,
+                help: "The object at this cell (buildings, then units, then props).",
+            },
             ParamDef { name: "fields", kind: "string[]", required: false, help: "JSON pointers to return, e.g. [\"/id\"]." },
         ],
         run: cmd_inspect,
@@ -136,10 +159,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Move residents into a house at once, as settlers would, up to its room; their workers join the city's. \
                Reports how many moved in and the house's population. Fails on a building that houses no one, a sick \
                house and a construction site.",
-        params: &[
-            ParamDef { name: "cell", kind: "cell", required: true, help: "A cell of the house." },
-            ParamDef { name: "count", kind: "number", required: true, help: "Residents to add, above 0." },
-        ],
+        params: &[ParamDef { name: "cell", kind: "cell", required: true, help: "A cell of the house." }, ParamDef {
+            name: "count",
+            kind: "number",
+            required: true,
+            help: "Residents to add, above 0.",
+        }],
         run: cmd_add_population,
     },
     CommandDef {
@@ -192,7 +217,10 @@ pub(super) fn find_tile_def(
         [single] => Ok(*single),
         _ => {
             let categories: Vec<&str> = matches.iter().map(|(_, category)| category.name.as_str()).collect();
-            Err(CommandError::invalid_params(format!("Tile name '{name}' is in several categories: {}.", categories.join(", "))))
+            Err(CommandError::invalid_params(format!(
+                "Tile name '{name}' is in several categories: {}.",
+                categories.join(", ")
+            )))
         }
     }
 }
@@ -330,9 +358,9 @@ fn cmd_clear(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let delta_time_secs = context.engine.frame_clock().delta_time();
     let result = context.session.with_sim_context(delta_time_secs, |sim_context| {
-        let tile = layers.iter().find_map(|layer| {
-            sim_context.try_tile_from_layer(cell, *layer).filter(|tile| TilePlacement::can_clear(tile))
-        })?;
+        let tile = layers
+            .iter()
+            .find_map(|layer| sim_context.try_tile_from_layer(cell, *layer).filter(|tile| TilePlacement::can_clear(tile)))?;
 
         let base_cell = tile.base_cell();
         Some((TilePlacement::clear(sim_context, tile, false, true), base_cell))
@@ -478,8 +506,12 @@ fn find_object(context: &CommandContext, id: ObjectId) -> Option<ObjectRef> {
         ObjectId::Building(archetype, id) => world
             .find_building(archetype_building_kinds(archetype), id)
             .map(|building| ObjectRef { name: building.name().to_string(), summary: building_json(building) }),
-        ObjectId::Unit(id) => world.find_unit(id).map(|unit| ObjectRef { name: unit.name().to_string(), summary: unit_json(unit) }),
-        ObjectId::Prop(id) => world.find_prop(id).map(|prop| ObjectRef { name: prop.name().to_string(), summary: prop_json(prop) }),
+        ObjectId::Unit(id) => {
+            world.find_unit(id).map(|unit| ObjectRef { name: unit.name().to_string(), summary: unit_json(unit) })
+        }
+        ObjectId::Prop(id) => {
+            world.find_prop(id).map(|prop| ObjectRef { name: prop.name().to_string(), summary: prop_json(prop) })
+        }
     }
 }
 
@@ -577,9 +609,8 @@ fn cmd_list(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let limit = params.limit.unwrap_or(DEFAULT_LIST_LIMIT);
     let name_filter = params.name.as_deref().map(str::to_lowercase);
-    let matches_name = |names: &[&str]| {
-        name_filter.as_deref().is_none_or(|filter| names.iter().any(|name| name.to_lowercase() == filter))
-    };
+    let matches_name =
+        |names: &[&str]| name_filter.as_deref().is_none_or(|filter| names.iter().any(|name| name.to_lowercase() == filter));
 
     let world = context.session.world();
     let mut items = Vec::new();
@@ -648,8 +679,9 @@ fn cmd_building_at(context: &mut CommandContext, params: Value) -> CommandResult
     let mut reply = building_json(building);
     reply["operational"] = json!(building.is_operational());
     reply["road_link"] = building.road_link().map_or(Value::Null, cell_json);
-    reply["population"] =
-        building.population().map_or(Value::Null, |population| json!({ "count": population.count(), "max": population.max() }));
+    reply["population"] = building
+        .population()
+        .map_or(Value::Null, |population| json!({ "count": population.count(), "max": population.max() }));
     reply["workers"] = building.workers().map_or(Value::Null, workers_json);
     reply["stock"] = stock_items_json(building.stock().iter().filter(|item| item.count != 0));
     reply["risks"] = super::risks::building_risks_json(building);
@@ -684,8 +716,9 @@ fn cmd_inspect(context: &mut CommandContext, params: Value) -> CommandResult {
         (Some(id), None) => ObjectId::parse(id)?,
         (None, Some(cell)) => {
             context.require_cell_in_map(cell.0)?;
-            object_id_at(context, cell.0)
-                .ok_or_else(|| CommandError::not_found(format!("No building, unit or prop at [{}, {}].", cell.0.x, cell.0.y)))?
+            object_id_at(context, cell.0).ok_or_else(|| {
+                CommandError::not_found(format!("No building, unit or prop at [{}, {}].", cell.0.x, cell.0.y))
+            })?
         }
         _ => return Err(CommandError::invalid_params("Give either id or cell.")),
     };
@@ -702,20 +735,27 @@ fn cmd_inspect(context: &mut CommandContext, params: Value) -> CommandResult {
     };
 
     let state = state
-        .ok_or_else(|| CommandError::not_found(format!("No object with id '{}'.", id.to_json().as_str().unwrap_or_default())))?
+        .ok_or_else(|| {
+            CommandError::not_found(format!("No object with id '{}'.", id.to_json().as_str().unwrap_or_default()))
+        })?
         .map_err(CommandError::failed)?;
 
     let Some(fields) = params.fields else {
         return done(json!({ "id": id.to_json(), "state": state }));
     };
 
-    let selected: Map<String, Value> =
-        fields.into_iter().map(|pointer| (pointer.clone(), state.pointer(&pointer).cloned().unwrap_or(Value::Null))).collect();
+    let selected: Map<String, Value> = fields
+        .into_iter()
+        .map(|pointer| (pointer.clone(), state.pointer(&pointer).cloned().unwrap_or(Value::Null)))
+        .collect();
 
     done(json!({ "id": id.to_json(), "fields": selected }))
 }
 
-fn save_json<T: GameObject + serde::Serialize>(object: &mut T, cmds: common::mem::RcMut<crate::sim::SimCmds>) -> Result<Value, String> {
+fn save_json<T: GameObject + serde::Serialize>(
+    object: &mut T,
+    cmds: common::mem::RcMut<crate::sim::SimCmds>,
+) -> Result<Value, String> {
     object.pre_save(&mut PreSaveContext::new(cmds));
     let state = serde_json::to_value(&*object).map_err(|err| err.to_string());
     object.post_save(&mut PostSaveContext::new());

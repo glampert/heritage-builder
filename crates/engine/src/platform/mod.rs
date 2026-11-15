@@ -10,29 +10,29 @@ use crate::{file_sys::paths, log};
 mod desktop;
 #[cfg(feature = "desktop")]
 pub use desktop::{
-    initialize_crash_report,
-    set_crash_report_frame,
-    add_panic_listener,
-    PanicReport,
-    set_main_thread,
-    is_main_thread,
-    run_environment,
-    local_date_time,
     DebugBacktrace,
+    PanicReport,
+    add_panic_listener,
+    initialize_crash_report,
+    is_main_thread,
+    local_date_time,
+    run_environment,
+    set_crash_report_frame,
+    set_main_thread,
 };
 
 #[cfg(feature = "web")]
 mod web;
 #[cfg(feature = "web")]
 pub use web::{
+    DebugBacktrace,
     download_file,
     initialize_crash_report,
+    is_main_thread,
+    local_date_time,
+    run_environment,
     set_crash_report_frame,
     set_main_thread,
-    is_main_thread,
-    run_environment,
-    local_date_time,
-    DebugBacktrace,
 };
 
 // ----------------------------------------------
@@ -78,11 +78,7 @@ pub struct LocalDateTime {
 }
 
 pub fn build_profile() -> BuildProfile {
-    if cfg!(debug_assertions) {
-        BuildProfile::Debug
-    } else {
-        BuildProfile::Release
-    }
+    if cfg!(debug_assertions) { BuildProfile::Debug } else { BuildProfile::Release }
 }
 
 // ----------------------------------------------

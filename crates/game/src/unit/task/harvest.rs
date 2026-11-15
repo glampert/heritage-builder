@@ -1,39 +1,35 @@
 use std::any::Any;
-use rand::seq::SliceRandom;
-use serde::{Deserialize, Serialize};
 
 use common::{
     callback::Callback,
     mem::SingleThreadStatic,
     time::{CountdownTimer, Seconds},
 };
-use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use engine::{
+    log,
+    ui::{DrawDebugUi, UiSystem},
+};
 use proc_macros::DrawDebugUi;
+use rand::seq::SliceRandom;
+use serde::{Deserialize, Serialize};
 
 use super::{
-    UnitTaskOriginBuildingDebug,
+    UnitTask,
     UnitTaskContext,
+    UnitTaskId,
+    UnitTaskOriginBuildingDebug,
+    UnitTaskPool,
     UnitTaskState,
     UnitTaskTransition,
-    UnitTask,
-    UnitTaskId,
-    UnitTaskPool,
     invoke_completion_callback_deferred,
     with_task,
 };
 use crate::{
-    pathfind::{
-        self,
-        Node,
-        NodeKind as PathNodeKind,
-        Path,
-        PathFilter,
-        SearchResult,
-    },
-    prop::PropId,
-    unit::{Unit, UnitId, navigation::UnitNavGoal},
     building::{Building, BuildingKindAndId, BuildingTileInfo},
+    pathfind::{self, Node, NodeKind as PathNodeKind, Path, PathFilter, SearchResult},
+    prop::PropId,
     sim::{SimCmdQueue, SimContext, SimContextMut, resources::ResourceKind},
+    unit::{Unit, UnitId, navigation::UnitNavGoal},
     world::object::GameObject,
 };
 
@@ -118,7 +114,8 @@ impl PathFilter for FindHarvestableTreeFilter<'_> {
         debug_assert_eq!(goal, *path.last().unwrap());
 
         if let Some(tree) = self.context.find_prop_for_cell(goal.cell)
-            && !tree.is_being_harvested() && tree.harvestable_amount() != 0
+            && !tree.is_being_harvested()
+            && tree.harvestable_amount() != 0
         {
             return true; // Accept path.
         }
@@ -194,9 +191,7 @@ impl UnitTaskHarvestWood {
             return false;
         };
 
-        let SearchResult::PathFound(dest_path) =
-            sim_context.find_path(traversable_node_kinds, start, neighbor_cell)
-        else {
+        let SearchResult::PathFound(dest_path) = sim_context.find_path(traversable_node_kinds, start, neighbor_cell) else {
             return false;
         };
 
@@ -306,9 +301,7 @@ impl UnitTaskHarvestWood {
     fn update_harvesting(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskHarvestState> {
         // Is the tree still valid and still ours to harvest?
         let unit_id = ctx.unit.id();
-        let tree_ok = ctx.sim_context
-            .find_prop(self.harvest_target)
-            .is_some_and(|tree| tree.harvester_unit() == unit_id);
+        let tree_ok = ctx.sim_context.find_prop(self.harvest_target).is_some_and(|tree| tree.harvester_unit() == unit_id);
 
         if !tree_ok {
             // Tree was removed or claimed by someone else; find another.
@@ -386,13 +379,13 @@ impl UnitTaskState for UnitTaskHarvestState {
 
     fn update(self, task: &mut UnitTaskHarvestWood, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
-            Self::Searching          => task.update_searching(ctx),
-            Self::MovingToTree       => task.update_moving_to_tree(ctx),
-            Self::Harvesting         => task.update_harvesting(ctx),
-            Self::PendingHarvest     => task.update_pending_harvest(ctx),
-            Self::ReturningToOrigin  => task.update_returning(ctx),
+            Self::Searching => task.update_searching(ctx),
+            Self::MovingToTree => task.update_moving_to_tree(ctx),
+            Self::Harvesting => task.update_harvesting(ctx),
+            Self::PendingHarvest => task.update_pending_harvest(ctx),
+            Self::ReturningToOrigin => task.update_returning(ctx),
             Self::DeliveringToOrigin => task.update_delivering(ctx),
-            Self::Done               => task.update_done(ctx),
+            Self::Done => task.update_done(ctx),
         }
     }
 }
@@ -407,10 +400,10 @@ impl UnitTask for UnitTaskHarvestWood {
         let current_node_kinds = ctx.unit.traversable_node_kinds();
         ctx.unit.set_traversable_node_kinds(
             current_node_kinds
-            | PathNodeKind::EmptyLand
-            | PathNodeKind::Road
-            | PathNodeKind::VacantLot
-            | PathNodeKind::SettlersSpawnPoint
+                | PathNodeKind::EmptyLand
+                | PathNodeKind::Road
+                | PathNodeKind::VacantLot
+                | PathNodeKind::SettlersSpawnPoint,
         );
     }
 

@@ -14,14 +14,15 @@ fn volume(value: SettingValue) -> f32 {
 
 pub(super) fn settings() -> Vec<SettingDef> {
     let tab = SettingsTab::Sound;
-    let slider = |label: UiString, read: fn(&GameConfigs) -> SettingValue, write: fn(&mut GameConfigs, SettingValue)| SettingDef {
-        tab,
-        label,
-        control: SettingControl::Slider { range: VOLUME_RANGE, suffix: "%" },
-        restart: false,
-        read,
-        write,
-    };
+    let slider =
+        |label: UiString, read: fn(&GameConfigs) -> SettingValue, write: fn(&mut GameConfigs, SettingValue)| SettingDef {
+            tab,
+            label,
+            control: SettingControl::Slider { range: VOLUME_RANGE, suffix: "%" },
+            restart: false,
+            read,
+            write,
+        };
 
     vec![
         slider(

@@ -42,12 +42,7 @@ fn init_log_output() -> LogOutput {
         let log_file_path = super::logs_path().join(LOG_FILENAME);
         let _ = file_sys::create_path(&log_file_path);
 
-        if let Ok(file) = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&log_file_path)
-        {
+        if let Ok(file) = std::fs::OpenOptions::new().create(true).write(true).truncate(true).open(&log_file_path) {
             super::enable_tty_colors(false);
             LogOutput::File(file)
         } else {
@@ -86,13 +81,7 @@ pub fn output_log(level: Level, channel: Option<Channel>, location: &Location, a
 
     let chan_str = channel.map(|chan| chan.name).unwrap_or_default();
 
-    let (color_start, color_end) = {
-        if ENABLE_TTY_COLORS.load(Ordering::Relaxed) {
-            level.tty_color()
-        } else {
-            ("", "")
-        }
-    };
+    let (color_start, color_end) = { if ENABLE_TTY_COLORS.load(Ordering::Relaxed) { level.tty_color() } else { ("", "") } };
 
     if ENABLE_SRC_LOCATION.load(Ordering::Relaxed) {
         writeln!(

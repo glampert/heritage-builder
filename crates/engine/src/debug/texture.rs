@@ -1,6 +1,6 @@
+use common::format_small;
 use num_enum::TryFromPrimitive;
 use strum::VariantNames;
-use common::format_small;
 
 use crate::{
     render::texture::{TextureCache, TextureFilter, TextureSettings, TextureWrapMode},

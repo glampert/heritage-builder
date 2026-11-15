@@ -67,56 +67,59 @@ const TEST_PRESET: usize = preset_maps::PRESET_1_FARM_1_GRANARY_1_HOUSE_2_WELLS_
 // singleton so the tests don't depend on the shipped campaigns.json.
 fn build_test_configs() -> CampaignConfigs {
     CampaignConfigs {
-        campaigns: vec![CampaignDef {
-            id: "test_campaign".into(),
-            name: "Test Campaign".into(),
-            realm: Realm::DaiLong,
-            missions: vec![
-                MissionDef {
-                    id: String::new(),
-                    name: "Mission 1".into(),
-                    description: String::new(),
-                    map: MissionMap::Preset { preset_number: TEST_PRESET },
-                    requirements: MissionRequirements { goals: vec![MissionGoal::Population { min: 10 }] },
-                    calendar: Some(MissionCalendarDef { start_year: Some(5), start_month: Some(3), wet_months: None }),
-                    finance: None,
-                    risks: None,
-                    city: None,
-                    choices: Vec::new(),
-                    choice_text: None,
-                    stele_line: None,
-                    lead_in: None,
-                    briefing: None,
-                    briefing_new: Vec::new(),
-                    briefing_threats: None,
-                    distinctions: Vec::new(),
-                },
-                MissionDef {
-                    id: String::new(),
-                    name: "Mission 2".into(),
-                    description: String::new(),
-                    map: MissionMap::Preset { preset_number: TEST_PRESET },
-                    requirements: MissionRequirements { goals: vec![MissionGoal::Treasury { min_gold: 100 }] },
-                    calendar: None,
-                    finance: None,
-                    risks: None,
-                    city: None,
-                    choices: Vec::new(),
-                    choice_text: None,
-                    stele_line: None,
-                    lead_in: None,
-                    briefing: None,
-                    briefing_new: Vec::new(),
-                    briefing_threats: None,
-                    distinctions: Vec::new(),
-                },
-            ],
-            eras: vec![EraDef { name: "Test Era".into(), start_year: 4 }],
-            hidden: false,
-            world_map: None,
-            stele_title: None,
-            stele_closing: None,
-        }, build_choice_campaign()],
+        campaigns: vec![
+            CampaignDef {
+                id: "test_campaign".into(),
+                name: "Test Campaign".into(),
+                realm: Realm::DaiLong,
+                missions: vec![
+                    MissionDef {
+                        id: String::new(),
+                        name: "Mission 1".into(),
+                        description: String::new(),
+                        map: MissionMap::Preset { preset_number: TEST_PRESET },
+                        requirements: MissionRequirements { goals: vec![MissionGoal::Population { min: 10 }] },
+                        calendar: Some(MissionCalendarDef { start_year: Some(5), start_month: Some(3), wet_months: None }),
+                        finance: None,
+                        risks: None,
+                        city: None,
+                        choices: Vec::new(),
+                        choice_text: None,
+                        stele_line: None,
+                        lead_in: None,
+                        briefing: None,
+                        briefing_new: Vec::new(),
+                        briefing_threats: None,
+                        distinctions: Vec::new(),
+                    },
+                    MissionDef {
+                        id: String::new(),
+                        name: "Mission 2".into(),
+                        description: String::new(),
+                        map: MissionMap::Preset { preset_number: TEST_PRESET },
+                        requirements: MissionRequirements { goals: vec![MissionGoal::Treasury { min_gold: 100 }] },
+                        calendar: None,
+                        finance: None,
+                        risks: None,
+                        city: None,
+                        choices: Vec::new(),
+                        choice_text: None,
+                        stele_line: None,
+                        lead_in: None,
+                        briefing: None,
+                        briefing_new: Vec::new(),
+                        briefing_threats: None,
+                        distinctions: Vec::new(),
+                    },
+                ],
+                eras: vec![EraDef { name: "Test Era".into(), start_year: 4 }],
+                hidden: false,
+                world_map: None,
+                stele_title: None,
+                stele_closing: None,
+            },
+            build_choice_campaign(),
+        ],
     }
 }
 
@@ -144,7 +147,14 @@ fn build_choice_campaign() -> CampaignDef {
         briefing_threats: None,
         distinctions: Vec::new(),
     };
-    let site = |site, mission| MissionChoiceDef { site, name: "city.hoi_thuy".into(), phrase: None, position: [0.0, 0.0], label: LabelSide::Below, mission };
+    let site = |site, mission| MissionChoiceDef {
+        site,
+        name: "city.hoi_thuy".into(),
+        phrase: None,
+        position: [0.0, 0.0],
+        label: LabelSide::Below,
+        mission,
+    };
     let mut missions = vec![mission("First"), mission("Choice"), mission("Variant"), mission("Last")];
     missions[1].choices = vec![site(ChoiceSite::A, MissionRef::Index(1)), site(ChoiceSite::B, MissionRef::Index(2))];
     CampaignDef {
@@ -181,13 +191,13 @@ fn test_mission_goal_is_met() {
     stats.population.employed = 30;
     stats.treasury.gold_units_total = 1000;
 
-    assert!(MissionGoal::Population  { min: 50 }.is_met(&stats));
+    assert!(MissionGoal::Population { min: 50 }.is_met(&stats));
     assert!(!MissionGoal::Population { min: 51 }.is_met(&stats));
 
-    assert!(MissionGoal::Employment  { min_employed: 30 }.is_met(&stats));
+    assert!(MissionGoal::Employment { min_employed: 30 }.is_met(&stats));
     assert!(!MissionGoal::Employment { min_employed: 31 }.is_met(&stats));
 
-    assert!(MissionGoal::Treasury  { min_gold: 1000 }.is_met(&stats));
+    assert!(MissionGoal::Treasury { min_gold: 1000 }.is_met(&stats));
     assert!(!MissionGoal::Treasury { min_gold: 1001 }.is_met(&stats));
 }
 
@@ -195,7 +205,7 @@ fn test_mission_goal_resource() {
     let mut stats = WorldStats::default();
     stats.resources.all.add(ResourceKind::Rice, 20);
 
-    assert!(MissionGoal::Resource  { kind: ResourceKind::Rice, min: 20 }.is_met(&stats));
+    assert!(MissionGoal::Resource { kind: ResourceKind::Rice, min: 20 }.is_met(&stats));
     assert!(!MissionGoal::Resource { kind: ResourceKind::Rice, min: 21 }.is_met(&stats));
 
     // A different resource the world has none of.
@@ -207,14 +217,12 @@ fn test_requirements_all_met() {
     stats.population.total = 50;
     stats.treasury.gold_units_total = 500;
 
-    let all = MissionRequirements {
-        goals: vec![MissionGoal::Population { min: 50 }, MissionGoal::Treasury { min_gold: 500 }],
-    };
+    let all =
+        MissionRequirements { goals: vec![MissionGoal::Population { min: 50 }, MissionGoal::Treasury { min_gold: 500 }] };
     assert!(all.all_met(&stats));
 
-    let partial = MissionRequirements {
-        goals: vec![MissionGoal::Population { min: 50 }, MissionGoal::Treasury { min_gold: 501 }],
-    };
+    let partial =
+        MissionRequirements { goals: vec![MissionGoal::Population { min: 50 }, MissionGoal::Treasury { min_gold: 501 }] };
     assert!(!partial.all_met(&stats));
 
     // No goals => already met.
@@ -492,7 +500,8 @@ fn test_mission_preview() {
     assert!(campaign::start_mission(0, 1).is_some());
     let shown = |preview: Option<campaign::preview::MissionPreview>| {
         campaign::preview::set(preview);
-        let mission = campaign::preview::shown_mission().map(|mission| (mission.campaign_id, mission.mission_index, mission.completed));
+        let mission = campaign::preview::shown_mission()
+            .map(|mission| (mission.campaign_id, mission.mission_index, mission.completed));
         campaign::preview::set(None);
         mission
     };
@@ -500,15 +509,24 @@ fn test_mission_preview() {
     let preview = campaign::preview::MissionPreview { campaign_index: 0, mission_index: 0, completed: true };
     assert_eq!(shown(Some(preview)), Some((0, 0, true)));
     assert!(!campaign::preview::is_active(), "cleared");
-    assert_eq!(campaign::active_mission().map(|mission| mission.mission_index), Some(1), "the mission being played is left alone");
+    assert_eq!(
+        campaign::active_mission().map(|mission| mission.mission_index),
+        Some(1),
+        "the mission being played is left alone"
+    );
 
     // Played up to a mission: every step before it finished (at its first mission), then it.
     let configs = CampaignConfigs { campaigns: vec![build_choice_campaign()] };
-    let finished_in = |profile: &Profile, id: &str| profile.record(id).map(|record| record.missions_finished.clone()).unwrap_or_default();
+    let finished_in =
+        |profile: &Profile, id: &str| profile.record(id).map(|record| record.missions_finished.clone()).unwrap_or_default();
     let finished = |profile: &Profile| finished_in(profile, "choice_campaign");
     let empty = Profile::default();
     assert_eq!(finished(&campaign::preview::profile_through(&empty, &configs, 0, 0)), vec![0]);
-    assert_eq!(finished(&campaign::preview::profile_through(&empty, &configs, 0, 2)), vec![0, 2], "a variant: its choice point isn't finished");
+    assert_eq!(
+        finished(&campaign::preview::profile_through(&empty, &configs, 0, 2)),
+        vec![0, 2],
+        "a variant: its choice point isn't finished"
+    );
     assert_eq!(finished(&campaign::preview::profile_through(&empty, &configs, 0, 3)), vec![0, 1, 3]);
     assert!(finished(&empty).is_empty(), "the profile itself is left alone");
     // A step the profile finished through its variant stays so.

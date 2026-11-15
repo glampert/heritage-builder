@@ -1,11 +1,13 @@
 // Turns what egui drew into the renderer's UiDrawData (render/ui_draw.rs), and keeps the textures
 // egui manages itself, such as its font atlas, in the TextureCache.
 
-use smallvec::SmallVec;
-
-use egui::{TextureId, TexturesDelta, epaint::{ClippedPrimitive, Primitive}};
-
 use common::{Size, Vec2, format_fixed_string};
+use egui::{
+    TextureId,
+    TexturesDelta,
+    epaint::{ClippedPrimitive, Primitive},
+};
+use smallvec::SmallVec;
 
 use crate::{
     log,

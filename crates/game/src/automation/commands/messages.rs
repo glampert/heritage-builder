@@ -46,7 +46,9 @@ fn cmd_push(_context: &mut CommandContext, params: Value) -> CommandResult {
         "construction" => MessageKind::Construction,
         "warning" => MessageKind::Warning,
         "finance" => MessageKind::Finance,
-        other => return Err(CommandError::invalid_params(format!("Unknown kind '{other}': construction, warning or finance."))),
+        other => {
+            return Err(CommandError::invalid_params(format!("Unknown kind '{other}': construction, warning or finance.")));
+        }
     };
     messages::push(kind, params.text);
     done(json!({ "count": messages::latest(messages::CAPACITY).len() }))

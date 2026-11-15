@@ -1,8 +1,10 @@
-use common::{coords::Cell, Size};
+use common::{Size, coords::Cell};
 use game::{
     pathfind::Node,
     tile::{
-        TileKind, TileMap, TileMapLayerKind,
+        TileKind,
+        TileMap,
+        TileMapLayerKind,
         placement::{TileClearingErr, TilePlacementErr},
     },
 };
@@ -79,7 +81,10 @@ fn test_vacant_lot_obstructed_by_building() {
     assert!(!obstructed_kind.is_vacant_lot());
 
     tile_map.try_clear_tile_from_layer(cell, TileMapLayerKind::Objects).ok_or_panic("clear house");
-    assert!(tile_map.graph().has_vacant_lot_nodes(), "VacantLot should be reclaimed once the obstructing building is cleared");
+    assert!(
+        tile_map.graph().has_vacant_lot_nodes(),
+        "VacantLot should be reclaimed once the obstructing building is cleared"
+    );
 
     let restored_kind = tile_map.graph().node_kind(Node::new(cell)).unwrap();
     assert!(restored_kind.is_vacant_lot());
@@ -115,8 +120,10 @@ fn test_non_vacant_terrain_restored_on_object_clear() {
     tile_map.try_place_tile(lot_cell, house).ok_or_panic("place house");
     tile_map.try_clear_tile_from_layer(lot_cell, TileMapLayerKind::Objects).ok_or_panic("clear house");
 
-    assert!(tile_map.graph().node_kind(Node::new(lot_cell)).unwrap().is_vacant_lot(),
-        "Terrain's VacantLot path_kind must be restored when the Object above is cleared");
+    assert!(
+        tile_map.graph().node_kind(Node::new(lot_cell)).unwrap().is_vacant_lot(),
+        "Terrain's VacantLot path_kind must be restored when the Object above is cleared"
+    );
 
     // TileMap.find_tile should still see the Terrain tile underneath.
     assert!(tile_map.find_tile(lot_cell, TileKind::Terrain).is_some());

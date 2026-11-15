@@ -1,14 +1,18 @@
 use std::{any::Any, fmt::Display, ops::RangeInclusive};
-use smallbox::smallbox;
-use egui::{Align2, Color32, Sense, pos2, vec2};
 
 use common::{Color, Vec2};
+use egui::{Align2, Color32, Sense, pos2, vec2};
+use smallbox::smallbox;
 
 use super::{UiWidget, UiWidgetCallback, UiWidgetContext, left_label, list_index, record_settable, widget_id};
 use crate::{
     render::texture::TextureHandle,
     ui::{
-        UiFontScale, UiNineSlice, UiString, immediate::{self, color32, nine_slice_shape, uv_full}, internal,
+        UiFontScale,
+        UiNineSlice,
+        UiString,
+        immediate::{self, color32, nine_slice_shape, uv_full},
+        internal,
         renderer::egui_texture,
         sound::{self, UiSoundEvent, UiSoundKey, UiWidgetSounds},
     },
@@ -156,7 +160,7 @@ impl_ui_slider_value! { i32 => true, u32 => true, i64 => true, u64 => true, f32 
 // UiSlider
 // ----------------------------------------------
 
-pub type UiSliderReadValue   = UiWidgetCallback<dyn Fn(&UiSlider, &mut dyn UiWidgetContext) -> f64>;
+pub type UiSliderReadValue = UiWidgetCallback<dyn Fn(&UiSlider, &mut dyn UiWidgetContext) -> f64>;
 pub type UiSliderUpdateValue = UiWidgetCallback<dyn Fn(&UiSlider, &mut dyn UiWidgetContext, f64)>;
 
 pub struct UiSlider {
@@ -295,9 +299,8 @@ impl UiSlider {
         T: UiSliderValue,
         F: Fn(&UiSlider, &mut dyn UiWidgetContext) -> T + 'static,
     {
-        self.on_read_value = Some(smallbox!(move |slider: &UiSlider, context: &mut dyn UiWidgetContext| {
-            f(slider, context).to_f64()
-        }));
+        self.on_read_value =
+            Some(smallbox!(move |slider: &UiSlider, context: &mut dyn UiWidgetContext| { f(slider, context).to_f64() }));
         self
     }
 
@@ -329,7 +332,10 @@ impl UiSlider {
         let value_width = match self.row {
             Some(_) => {
                 let widest = [self.min, self.max].map(|value| self.value_text(value));
-                let text_width = widest.iter().map(|text| internal::calc_text_size(ui_sys, self.font_scale, text).0.x).fold(0.0, f32::max);
+                let text_width = widest
+                    .iter()
+                    .map(|text| internal::calc_text_size(ui_sys, self.font_scale, text).0.x)
+                    .fold(0.0, f32::max);
                 text_width + VALUE_GAP
             }
             None => ui_sys.egui_style().spacing.interact_size.x,
@@ -369,7 +375,11 @@ impl UiSlider {
     // The slider in its look's sprites: a rail `width` points wide with the filled part up to the
     // knob, then the value as text. Click or drag anywhere on the rail to move the knob there.
     fn value_text(&self, value: f64) -> String {
-        if self.integral { format!("{:.0}{}", value, self.value_suffix) } else { format!("{:.2}{}", value, self.value_suffix) }
+        if self.integral {
+            format!("{:.0}{}", value, self.value_suffix)
+        } else {
+            format!("{:.2}{}", value, self.value_suffix)
+        }
     }
 
     fn draw_skinned_slider(
@@ -410,7 +420,10 @@ impl UiSlider {
             let knob_center = rect.left() + knob_width * 0.5 + travel * fraction;
 
             let rail_height = look.rail_height.min(rect.height());
-            let rail = egui::Rect::from_min_max(pos2(rect.left(), rect.center().y - rail_height * 0.5), pos2(rect.right(), rect.center().y + rail_height * 0.5));
+            let rail = egui::Rect::from_min_max(
+                pos2(rect.left(), rect.center().y - rail_height * 0.5),
+                pos2(rect.right(), rect.center().y + rail_height * 0.5),
+            );
             ui.painter().add(nine_slice_shape(rail, &look.rail, Color32::WHITE));
             let fill_height = look.fill_height.min(rail_height);
             let fill_inset = (rail_height - fill_height) * 0.5;
@@ -421,7 +434,8 @@ impl UiSlider {
             if fill.width() > 0.5 {
                 ui.painter().add(nine_slice_shape(fill, &look.fill, Color32::WHITE));
             }
-            let knob = egui::Rect::from_center_size(pos2(knob_center, rect.center().y), vec2(look.knob_size.x, look.knob_size.y));
+            let knob =
+                egui::Rect::from_center_size(pos2(knob_center, rect.center().y), vec2(look.knob_size.x, look.knob_size.y));
             paint_sprite(ui, look.knob, knob);
             if response.hovered() || response.dragged() {
                 ui.painter().circle_filled(knob.center(), knob.width().min(knob.height()) * 0.5, HOVER_WASH);
@@ -448,7 +462,7 @@ impl UiSlider {
 // UiCheckbox
 // ----------------------------------------------
 
-pub type UiCheckboxReadValue   = UiWidgetCallback<dyn Fn(&UiCheckbox, &mut dyn UiWidgetContext) -> bool>;
+pub type UiCheckboxReadValue = UiWidgetCallback<dyn Fn(&UiCheckbox, &mut dyn UiWidgetContext) -> bool>;
 pub type UiCheckboxUpdateValue = UiWidgetCallback<dyn Fn(&UiCheckbox, &mut dyn UiWidgetContext, bool)>;
 
 pub struct UiCheckbox {
@@ -482,7 +496,8 @@ impl UiWidget for UiCheckbox {
                     left_label(ui_sys, ui, self.label.resolve());
                     match &self.look {
                         Some(look) => {
-                            let (rect, mut response) = ui.allocate_exact_size(vec2(look.size.x, look.size.y), Sense::click());
+                            let (rect, mut response) =
+                                ui.allocate_exact_size(vec2(look.size.x, look.size.y), Sense::click());
                             if response.clicked() {
                                 value = !value;
                                 response.mark_changed();
@@ -500,7 +515,8 @@ impl UiWidget for UiCheckbox {
                 })
                 .inner;
 
-            let set_value = record_settable(ui_sys, ui, &response, "checkbox", self.label.resolve(), serde_json::Value::Bool(value));
+            let set_value =
+                record_settable(ui_sys, ui, &response, "checkbox", self.label.resolve(), serde_json::Value::Bool(value));
             (response.changed(), set_value)
         });
 
@@ -619,7 +635,7 @@ impl UiCheckbox {
 // UiIntInput
 // ----------------------------------------------
 
-pub type UiIntInputReadValue   = UiWidgetCallback<dyn Fn(&UiIntInput, &mut dyn UiWidgetContext) -> i32>;
+pub type UiIntInputReadValue = UiWidgetCallback<dyn Fn(&UiIntInput, &mut dyn UiWidgetContext) -> i32>;
 pub type UiIntInputUpdateValue = UiWidgetCallback<dyn Fn(&UiIntInput, &mut dyn UiWidgetContext, i32)>;
 
 pub struct UiIntInput {
@@ -680,7 +696,8 @@ impl UiWidget for UiIntInput {
                 })
                 .inner;
 
-            let set_value = record_settable(ui_sys, ui, &response, "int_input", self.label.resolve(), serde_json::json!(value));
+            let set_value =
+                record_settable(ui_sys, ui, &response, "int_input", self.label.resolve(), serde_json::json!(value));
             let dragged = response.changed() && response.dragged();
             (response.changed() || stepped, stepped || dragged, set_value)
         });
@@ -801,7 +818,7 @@ impl UiIntInput {
 // UiTextInput
 // ----------------------------------------------
 
-pub type UiTextInputReadValue   = UiWidgetCallback<dyn for<'a> Fn(&UiTextInput, &'a mut dyn UiWidgetContext) -> &'a str>;
+pub type UiTextInputReadValue = UiWidgetCallback<dyn for<'a> Fn(&UiTextInput, &'a mut dyn UiWidgetContext) -> &'a str>;
 pub type UiTextInputUpdateValue = UiWidgetCallback<dyn Fn(&UiTextInput, &mut dyn UiWidgetContext, &str)>;
 
 pub struct UiTextInput {
@@ -859,7 +876,10 @@ impl UiWidget for UiTextInput {
                     };
                     let padding = vec2(look.padding.x, look.padding.y);
                     // The padding is the frame's inner margin; egui counts it in the desired width.
-                    let margin = egui::Margin::symmetric(padding.x.round().clamp(0.0, 127.0) as i8, padding.y.round().clamp(0.0, 127.0) as i8);
+                    let margin = egui::Margin::symmetric(
+                        padding.x.round().clamp(0.0, 127.0) as i8,
+                        padding.y.round().clamp(0.0, 127.0) as i8,
+                    );
                     text_edit = text_edit.frame(egui::Frame::NONE.inner_margin(margin)).desired_width(width);
                     if let Some(color) = look.text_color {
                         text_edit = text_edit.text_color(color32(color));
@@ -872,13 +892,19 @@ impl UiWidget for UiTextInput {
                     }
                     if let Some(color) = look.focus_color.filter(|_| response.has_focus()) {
                         let (width, radius) = FOCUS_LINE;
-                        ui.painter().rect_stroke(response.rect, radius, egui::Stroke::new(width, color32(color)), egui::StrokeKind::Inside);
+                        ui.painter().rect_stroke(
+                            response.rect,
+                            radius,
+                            egui::Stroke::new(width, color32(color)),
+                            egui::StrokeKind::Inside,
+                        );
                     }
                     response
                 })
                 .inner;
 
-            let set_value = record_settable(ui_sys, ui, &response, "text_input", self.label.resolve(), serde_json::json!(self.buffer));
+            let set_value =
+                record_settable(ui_sys, ui, &response, "text_input", self.label.resolve(), serde_json::json!(self.buffer));
             (response.changed(), set_value)
         });
 
@@ -1012,7 +1038,7 @@ impl UiTextInput {
 // UiDropdown
 // ----------------------------------------------
 
-pub type UiDropdownSelectionChanged    = UiWidgetCallback<dyn Fn(&UiDropdown, &mut dyn UiWidgetContext)>;
+pub type UiDropdownSelectionChanged = UiWidgetCallback<dyn Fn(&UiDropdown, &mut dyn UiWidgetContext)>;
 pub type UiDropdownGetCurrentSelection = UiWidgetCallback<dyn Fn(&UiDropdown, &mut dyn UiWidgetContext) -> usize>;
 
 pub struct UiDropdown {
@@ -1085,11 +1111,13 @@ impl UiWidget for UiDropdown {
                             ui.spacing_mut().button_padding.x = look.text_inset;
                         }
                         combo_box = combo_box.icon(move |ui, rect, _visuals, _open| {
-                            let arrow = egui::Rect::from_center_size(rect.center(), vec2(look.arrow_size.x, look.arrow_size.y));
+                            let arrow =
+                                egui::Rect::from_center_size(rect.center(), vec2(look.arrow_size.x, look.arrow_size.y));
                             paint_sprite(ui, look.arrow, arrow);
                         });
                         let widgets = &mut ui.visuals_mut().widgets;
-                        for visuals in [&mut widgets.inactive, &mut widgets.hovered, &mut widgets.active, &mut widgets.open] {
+                        for visuals in [&mut widgets.inactive, &mut widgets.hovered, &mut widgets.active, &mut widgets.open]
+                        {
                             visuals.bg_fill = Color32::TRANSPARENT;
                             visuals.weak_bg_fill = Color32::TRANSPARENT;
                             visuals.bg_stroke = egui::Stroke::NONE;
@@ -1097,21 +1125,29 @@ impl UiWidget for UiDropdown {
                         field = Some((look, ui.painter().add(egui::Shape::Noop)));
                     }
 
-                    let combo = combo_box
-                        .selected_text(selected_text)
-                        .show_ui(ui, |ui| {
-                            // Its items, recorded under its label while it's open.
-                            let _path = immediate::path_scope(ui_sys, self.label.resolve());
-                            let mut hovered_item = None;
-                            for (index, item) in self.items.iter().enumerate() {
-                                let response = ui.selectable_value(&mut current_item, index, egui::RichText::new(item).font(font.clone()));
-                                if response.hovered() {
-                                    hovered_item = Some(index);
-                                }
-                                immediate::record(ui_sys, ui, &response, "list_item", item, None, true, Some(serde_json::Value::Bool(current_item == index)));
+                    let combo = combo_box.selected_text(selected_text).show_ui(ui, |ui| {
+                        // Its items, recorded under its label while it's open.
+                        let _path = immediate::path_scope(ui_sys, self.label.resolve());
+                        let mut hovered_item = None;
+                        for (index, item) in self.items.iter().enumerate() {
+                            let response =
+                                ui.selectable_value(&mut current_item, index, egui::RichText::new(item).font(font.clone()));
+                            if response.hovered() {
+                                hovered_item = Some(index);
                             }
-                            hovered_item
-                        });
+                            immediate::record(
+                                ui_sys,
+                                ui,
+                                &response,
+                                "list_item",
+                                item,
+                                None,
+                                true,
+                                Some(serde_json::Value::Bool(current_item == index)),
+                            );
+                        }
+                        hovered_item
+                    });
 
                     if let Some((look, slot)) = field {
                         let rect = combo.response.rect;
@@ -1127,7 +1163,14 @@ impl UiWidget for UiDropdown {
             // Some(hovered item) while its list is open.
             let list = combo.inner;
             let current = self.items.get(current_item).cloned().unwrap_or_default();
-            let set_value = record_settable(ui_sys, ui, &combo.response, "dropdown", self.label.resolve(), serde_json::Value::String(current));
+            let set_value = record_settable(
+                ui_sys,
+                ui,
+                &combo.response,
+                "dropdown",
+                self.label.resolve(),
+                serde_json::Value::String(current),
+            );
             (current_item != self.current_item, set_value, list)
         });
 

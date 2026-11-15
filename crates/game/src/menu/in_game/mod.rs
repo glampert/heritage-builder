@@ -7,14 +7,14 @@ use engine::{
 };
 use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
 use message_log::MessageLog;
+use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
 use top_bar::TopBar;
 pub(crate) use top_bar::{rating_names, season_text};
-use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
 
 use super::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, TileInspector, TilePalette, TilePlacement, dialog, skin};
 use crate::{
-    realm,
     campaign::{self, CampaignPrompt},
+    realm,
     save_context::{Load, PreLoadContext, Save},
     tile::minimap::{InGameUiMinimapRenderer, MinimapRenderer},
     ui_context::GameUiContext,
@@ -137,9 +137,7 @@ impl GameMenusSystem for InGameMenus {
             }
             // [ESCAPE]: Close the dialog on top, or its popup (only that: the dialogs don't close
             // themselves on Escape).
-            if key == InputKey::Escape && action == InputAction::Press
-                && dialog::close_current_on_escape(context)
-            {
+            if key == InputKey::Escape && action == InputAction::Press && dialog::close_current_on_escape(context) {
                 dialog::preview::return_if_closed(context);
                 return UiInputEvent::Handled; // Key press is handled.
             }

@@ -2,7 +2,7 @@ use common::{Color, format_small};
 use engine::ui::{self, DrawDebugUi, UiStaticVar, UiSystem};
 
 use crate::{
-    building::risks::{RiskEntry, RiskKind, RiskSummary, RISK_HIGH},
+    building::risks::{RISK_HIGH, RiskEntry, RiskKind, RiskSummary},
     camera::Camera,
     cheats,
     sim::{Finance, risks::CityRisks},
@@ -17,7 +17,13 @@ const RISKIEST_LISTED: usize = 10;
 // ----------------------------------------------
 
 impl World {
-    pub(crate) fn draw_debug_ui(&mut self, finance: &mut Finance, risks: &mut CityRisks, camera: &mut Camera, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui(
+        &mut self,
+        finance: &mut Finance,
+        risks: &mut CityRisks,
+        camera: &mut Camera,
+        ui_sys: &UiSystem,
+    ) {
         const TABS: [&str; 4] = ["Population/Workers/Housing", "Tax/Treasury", "Resources", "Risks"];
         let Some(tab) = ui::tab_bar(ui_sys, "World Stats Tab Bar", &TABS) else {
             return;
@@ -44,7 +50,10 @@ impl World {
         }
         ui::checkbox(ui_sys, "No City Risks Cheat", &mut cheats::get_mut().no_city_risks);
         let state = |active: bool| if active { "active" } else { "stopped" };
-        ui::text(ui_sys, format_small!("Risks: {}, disease: {}", state(risks.is_active()), state(risks.is_disease_active())));
+        ui::text(
+            ui_sys,
+            format_small!("Risks: {}, disease: {}", state(risks.is_active()), state(risks.is_disease_active())),
+        );
 
         ui::separator(ui_sys);
 
@@ -148,7 +157,8 @@ impl WorldStats {
         };
 
         let highlight_zero_value = |label: &str, value: u32, color: Color| highlight_value(label, value, value == 0, color);
-        let highlight_nonzero_value = |label: &str, value: u32, color: Color| highlight_value(label, value, value != 0, color);
+        let highlight_nonzero_value =
+            |label: &str, value: u32, color: Color| highlight_value(label, value, value != 0, color);
 
         if tab == 0 {
             ui::bullet_text(ui_sys, "Population:");

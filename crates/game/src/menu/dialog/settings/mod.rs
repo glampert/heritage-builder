@@ -27,22 +27,22 @@ use strum::VariantArray;
 use super::*;
 use crate::{GameLoop, config::GameConfigs};
 
-mod game;
-mod sound;
-mod graphics;
 mod controls;
+mod game;
+mod graphics;
+mod sound;
 
 // ----------------------------------------------
 // Layout (points on a 1920 × 1080 window, scaled by the dialog's scale: skin::dialog_scale)
 // ----------------------------------------------
 
 const DROPDOWN_WIDTH: f32 = 300.0;
-const SLIDER_WIDTH: f32 = 420.0;      // The rail and the value at its left.
+const SLIDER_WIDTH: f32 = 420.0; // The rail and the value at its left.
 const TAB_MIN_WIDTH: f32 = 200.0;
-const PART_SPACING: f32 = 14.0;       // Between the title, the tabs' contents and the buttons.
+const PART_SPACING: f32 = 14.0; // Between the title, the tabs' contents and the buttons.
 const RULE_THICKNESS: f32 = 1.0;
-const SLACK: f32 = 24.0;              // Room left under the rows for what measuring misses.
-const BUTTONS_GAP: f32 = 20.0;        // At least, between the last row and the buttons.
+const SLACK: f32 = 24.0; // Room left under the rows for what measuring misses.
+const BUTTONS_GAP: f32 = 20.0; // At least, between the last row and the buttons.
 const RESTORE_WIDTH: f32 = 300.0;
 const CANCEL_WIDTH: f32 = 200.0;
 const OK_WIDTH: f32 = 200.0;
@@ -56,7 +56,7 @@ const TAB_TEXT_SCALES: (f32, f32) = (1.35, 1.1); // Over the skin's tab font.
 const TEXT_SCALES: (f32, f32) = (1.15, 0.9);
 const BUTTON_HEIGHTS: (f32, f32) = (56.0, 36.0);
 const CONTROL_SCALES: (f32, f32) = (1.0, 0.75); // The toggles' and sliders' sprites.
-const NOTE_FONT_SCALE: f32 = 0.85;    // The Controls tab's note, over the text size.
+const NOTE_FONT_SCALE: f32 = 0.85; // The Controls tab's note, over the text size.
 
 // ----------------------------------------------
 // SettingsTab
@@ -192,7 +192,8 @@ struct SettingsState {
     built: (u32, u32, u32),     // build_key() when the dialog was last built.
 }
 
-static STATE: UiStaticVar<SettingsState> = UiStaticVar::new(SettingsState { tab: SettingsTab::Game, pending: Vec::new(), built: (0, 0, 0) });
+static STATE: UiStaticVar<SettingsState> =
+    UiStaticVar::new(SettingsState { tab: SettingsTab::Game, pending: Vec::new(), built: (0, 0, 0) });
 
 // What the dialog's layout reads from the window: its scale (in hundredths) and the dialog's size.
 fn build_key(context: &GameUiContext) -> (u32, u32, u32) {
@@ -265,7 +266,10 @@ impl SettingsCategory {
                 crate::automation::save_game_configs();
                 log::info!(log::channel!("settings"), "Settings saved.");
             } else {
-                log::info!(log::channel!("settings"), "Settings changed for this run only (script, replay, smoke test or --default-configs).");
+                log::info!(
+                    log::channel!("settings"),
+                    "Settings changed for this run only (script, replay, smoke test or --default-configs)."
+                );
             }
         }
         any_changed
@@ -381,7 +385,8 @@ impl MainSettings {
         let text_scale = by_window(TEXT_SCALES, scale) * fit;
         let spacing = points(PART_SPACING);
 
-        let title = skin::heading_at(context, [UiString::key(UiTextCategory::Menu, "settings.title")], HeadingLevel::Dialog, fit);
+        let title =
+            skin::heading_at(context, [UiString::key(UiTextCategory::Menu, "settings.title")], HeadingLevel::Dialog, fit);
         let buttons_row = buttons(context, scale, growth, fit);
 
         // The rows take the height the title, the tabs and the buttons leave, each tab's rows
@@ -392,7 +397,14 @@ impl MainSettings {
         let tab_text_scale = by_window(TAB_TEXT_SCALES, scale) * fit;
         let tabs_height = skin::tab_bar_sized(context, tab_size, tab_text_scale).with_tab("Tab").measure(context).y;
         let buttons_gap = points(BUTTONS_GAP);
-        let rows_height = (content.y - title.measure(context).y - tabs_height - buttons_row.measure(context).y - spacing * 3.0 - SLACK * scale * growth - buttons_gap).max(1.0);
+        let rows_height = (content.y
+            - title.measure(context).y
+            - tabs_height
+            - buttons_row.measure(context).y
+            - spacing * 3.0
+            - SLACK * scale * growth
+            - buttons_gap)
+            .max(1.0);
         let max_row_step = by_window(ROW_STEPS, scale) * growth;
         let row_layout = |rows: usize| {
             let row_step = max_row_step.min(rows_height / rows.max(1) as f32).floor();
@@ -460,7 +472,12 @@ struct RowLayout {
 }
 
 // The rows of `tab`'s settings, each with a rule under it.
-fn setting_rows(context: &mut GameUiContext, settings: &[SettingDef], tab: SettingsTab, layout: &RowLayout) -> UiWidgetGroup {
+fn setting_rows(
+    context: &mut GameUiContext,
+    settings: &[SettingDef],
+    tab: SettingsTab,
+    layout: &RowLayout,
+) -> UiWidgetGroup {
     let mut group = UiWidgetGroup::new().with_center_horizontally(false);
     for (index, setting) in settings.iter().enumerate().filter(|(_, setting)| setting.tab == tab) {
         group.add_widget(setting_row(context, index, setting, layout));
@@ -518,26 +535,40 @@ fn buttons(context: &mut GameUiContext, scale: f32, growth: f32, fit: f32) -> Ui
         button.with_font_scale(UiFontScale(font_scale))
     };
 
-    let restore = make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "settings.restore_defaults"), |_, _| {
-        SettingsCategory::restore_defaults();
-    })
+    let restore = make_text_button(
+        context,
+        ButtonRole::Secondary,
+        UiString::key(UiTextCategory::Menu, "settings.restore_defaults"),
+        |_, _| {
+            SettingsCategory::restore_defaults();
+        },
+    )
     .with_width(width(RESTORE_WIDTH))
     .with_min_height(height);
     let restore = fitted(restore);
-    let cancel = fitted(make_dialog_close_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel")))
-        .with_width(width(CANCEL_WIDTH))
-        .with_min_height(height);
-    let ok = make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "button.ok"), |_, context| {
-        SettingsCategory::commit();
-        super::close_current(context_as_mut::<GameUiContext>(context));
-    })
-    .with_width(width(OK_WIDTH))
+    let cancel = fitted(make_dialog_close_button(
+        context,
+        ButtonRole::Secondary,
+        UiString::key(UiTextCategory::Menu, "button.cancel"),
+    ))
+    .with_width(width(CANCEL_WIDTH))
     .with_min_height(height);
+    let ok =
+        make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "button.ok"), |_, context| {
+            SettingsCategory::commit();
+            super::close_current(context_as_mut::<GameUiContext>(context));
+        })
+        .with_width(width(OK_WIDTH))
+        .with_min_height(height);
     let ok = fitted(ok);
 
     let spacing = (BUTTON_SPACING * scale).round();
     let actions_width = ((CANCEL_WIDTH + OK_WIDTH) * scale).round() + spacing;
-    let actions = UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::new(spacing, 0.0)).with_widget(cancel).with_widget(ok);
+    let actions = UiWidgetGroup::new()
+        .with_stack_vertically(false)
+        .with_widget_spacing(Vec2::new(spacing, 0.0))
+        .with_widget(cancel)
+        .with_widget(ok);
 
     UiColumns::new()
         .with_spacing(spacing)

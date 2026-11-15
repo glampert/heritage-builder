@@ -1,14 +1,17 @@
 use std::{any::Any, fmt::Display};
-use smallbox::smallbox;
-use egui::{Align2, Color32, Sense, pos2, vec2};
 
 use common::{Color, Vec2, bitflags_with_display};
+use egui::{Align2, Color32, Sense, pos2, vec2};
+use smallbox::smallbox;
 
 use super::{UiWidget, UiWidgetCallback, UiWidgetContext, list_index, record_settable, widget_id};
 use crate::{
     render::texture::TextureHandle,
     ui::{
-        UiFontScale, UiNineSlice, UiString, UiSystem,
+        UiFontScale,
+        UiNineSlice,
+        UiString,
+        UiSystem,
         immediate::{self, color32, nine_slice_shape, uv_full},
         internal,
         renderer::egui_texture,
@@ -114,7 +117,16 @@ impl UiListRowLook {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn paint(&self, ui: &egui::Ui, ui_sys: &UiSystem, rect: egui::Rect, response: &egui::Response, row: &UiListRow, font_scale: UiFontScale, selected: bool) {
+    fn paint(
+        &self,
+        ui: &egui::Ui,
+        ui_sys: &UiSystem,
+        rect: egui::Rect,
+        response: &egui::Response,
+        row: &UiListRow,
+        font_scale: UiFontScale,
+        selected: bool,
+    ) {
         let painter = ui.painter();
         let hovered = response.hovered() && row.enabled && !selected;
         let panel = if selected { self.selected_panel.or(self.panel) } else { self.panel };
@@ -150,8 +162,16 @@ impl UiListRowLook {
         let inner = rect.shrink2(vec2(self.padding.x, self.padding.y));
         let mut left = inner.left();
         if let Some(icon) = row.icon {
-            let icon_rect = egui::Rect::from_min_size(pos2(left, inner.center().y - self.icon_size * 0.5), vec2(self.icon_size, self.icon_size));
-            painter.image(egui_texture(icon), icon_rect, uv_full(), if row.enabled { Color32::WHITE } else { Color32::from_white_alpha(170) });
+            let icon_rect = egui::Rect::from_min_size(
+                pos2(left, inner.center().y - self.icon_size * 0.5),
+                vec2(self.icon_size, self.icon_size),
+            );
+            painter.image(
+                egui_texture(icon),
+                icon_rect,
+                uv_full(),
+                if row.enabled { Color32::WHITE } else { Color32::from_white_alpha(170) },
+            );
             left += self.icon_size + self.padding.x;
         }
 
@@ -223,9 +243,9 @@ pub struct UiItemList {
     rows: Option<Vec<UiListRow>>, // Drawn from the row template if set; items are their titles.
     row_look: UiListRowLook,
     text_input_field_buffer: Option<String>,
-    sounds: UiWidgetSounds,      // Hovered: ItemHovered, for a row; Selected: ItemSelected. Typing plays nothing.
+    sounds: UiWidgetSounds, // Hovered: ItemHovered, for a row; Selected: ItemSelected. Typing plays nothing.
     hovered_item: Option<usize>, // Last frame.
-    reveal_current: bool,        // Scroll the current item into view when it's next drawn.
+    reveal_current: bool,   // Scroll the current item into view when it's next drawn.
     on_selection_changed: UiItemListSelectionChanged,
 }
 
@@ -284,7 +304,12 @@ impl UiWidget for UiItemList {
                 let response = ui
                     .horizontal(|ui| {
                         ui.add_space(margin_left);
-                        ui.add(egui::TextEdit::singleline(text_input_field_buffer).id(id.with("input_field")).font(font.clone()).desired_width(width))
+                        ui.add(
+                            egui::TextEdit::singleline(text_input_field_buffer)
+                                .id(id.with("input_field"))
+                                .font(font.clone())
+                                .desired_width(width),
+                        )
                     })
                     .inner;
                 text_input_field_changed = response.changed();
@@ -379,7 +404,16 @@ impl UiWidget for UiItemList {
                             if response.hovered() {
                                 hovered_item = Some(index);
                             }
-                            immediate::record(ui_sys, ui, &response, "list_item", item, None, true, Some(serde_json::Value::Bool(is_selected)));
+                            immediate::record(
+                                ui_sys,
+                                ui,
+                                &response,
+                                "list_item",
+                                item,
+                                None,
+                                true,
+                                Some(serde_json::Value::Bool(is_selected)),
+                            );
                         }
                     });
                 });
@@ -414,10 +448,19 @@ impl UiWidget for UiItemList {
         // ui.set on the list selects an item, by text or index.
         let current = self.current_item.and_then(|index| self.items.get(index)).cloned();
         let set_value = ui_sys.with_ui(|ui| {
-            record_settable(ui_sys, ui, &list_response, "item_list", self.label.resolve(), current.map_or(serde_json::Value::Null, serde_json::Value::String))
+            record_settable(
+                ui_sys,
+                ui,
+                &list_response,
+                "item_list",
+                self.label.resolve(),
+                current.map_or(serde_json::Value::Null, serde_json::Value::String),
+            )
         });
-        let row_enabled = |index: usize| self.rows.as_ref().is_none_or(|rows| rows.get(index).is_some_and(|row| row.enabled));
-        if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)).filter(|index| row_enabled(*index)) {
+        let row_enabled =
+            |index: usize| self.rows.as_ref().is_none_or(|rows| rows.get(index).is_some_and(|row| row.enabled));
+        if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)).filter(|index| row_enabled(*index))
+        {
             if self.current_item != Some(index) {
                 self.sounds.play(context, UiSoundEvent::Selected, Some(UiSoundKey::ItemSelected));
             }

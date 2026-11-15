@@ -108,7 +108,9 @@ impl super::WinitWindowManager for WinitWindowManager {
 
         // Web: no-op — WebRunner drives events via ApplicationHandler.
         #[cfg(feature = "web")]
-        { let _ = handler; }
+        {
+            let _ = handler;
+        }
     }
 
     fn set_cursor_position(&mut self, pos: Vec2) {
@@ -116,7 +118,9 @@ impl super::WinitWindowManager for WinitWindowManager {
         super::input::cursor::set_position_native(&self.window, pos.x as f64, pos.y as f64);
 
         #[cfg(feature = "web")]
-        { let _ = pos; } // Unavailable.
+        {
+            let _ = pos;
+        } // Unavailable.
     }
 }
 

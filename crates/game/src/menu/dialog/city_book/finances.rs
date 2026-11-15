@@ -37,12 +37,18 @@ impl CityPage for Finances {
     fn note(&self, context: &GameUiContext) -> String {
         let configs = &GameConfigs::get().sim;
         let date = context.sim.calendar().date(configs.days_per_month, configs.seconds_per_month);
-        ui::text::format(UiTextCategory::City, "book.note.finances", &[("year", &date.year.to_string()), ("month", &date.month.to_string())])
+        ui::text::format(UiTextCategory::City, "book.note.finances", &[
+            ("year", &date.year.to_string()),
+            ("month", &date.month.to_string()),
+        ])
     }
 
     fn body(&self, context: &mut GameUiContext, page: &PageContext) -> UiWidgetGroup {
         let mut columns = UiColumns::new().with_spacing(page.pt(GAP)).with_width(page.pt(BODY.x));
-        columns.add_column(UiColumnWidth::Fixed(page.pt(ACCOUNTS_WIDTH)), super::left_group().with_widget(accounts(context, page)));
+        columns.add_column(
+            UiColumnWidth::Fixed(page.pt(ACCOUNTS_WIDTH)),
+            super::left_group().with_widget(accounts(context, page)),
+        );
         let right = super::left_group()
             .with_widget_spacing(Vec2::zero())
             .with_widget(treasury(context, page))
@@ -75,7 +81,11 @@ fn accounts(context: &GameUiContext, page: &PageContext) -> UiCanvas {
     let mut lines: Vec<(String, [i64; 2], Line)> = Vec::new();
     lines.push((get("book.accounts.taxes"), both(&|a| signed(a, LedgerCategory::Taxes)), Line::Row));
     lines.push((get("book.accounts.income"), both(&|a| a.income()), Line::Total));
-    for (key, category) in [("construction", LedgerCategory::Construction), ("wages", LedgerCategory::Wages), ("upkeep", LedgerCategory::Upkeep)] {
+    for (key, category) in [
+        ("construction", LedgerCategory::Construction),
+        ("wages", LedgerCategory::Wages),
+        ("upkeep", LedgerCategory::Upkeep),
+    ] {
         lines.push((get(&format!("book.accounts.{key}")), both(&|a| signed(a, category)), Line::Row));
     }
     lines.push((get("book.accounts.spending"), both(&|a| -a.spending()), Line::Total));
@@ -86,7 +96,12 @@ fn accounts(context: &GameUiContext, page: &PageContext) -> UiCanvas {
     let configs = &GameConfigs::get().sim;
     let month = context.sim.calendar().date(configs.days_per_month, configs.seconds_per_month).month;
     let footnote = ui::text::format(UiTextCategory::City, "book.accounts.covers", &[("month", &month.to_string())]);
-    let value = json!(lines.iter().map(|(name, values, _)| json!({ "line": name, "last_year": values[0], "this_year": values[1] })).collect::<Vec<_>>());
+    let value = json!(
+        lines
+            .iter()
+            .map(|(name, values, _)| json!({ "line": name, "last_year": values[0], "this_year": values[1] }))
+            .collect::<Vec<_>>()
+    );
     let title = get("book.accounts");
     let columns = [get("book.accounts.last_year"), get("book.accounts.this_year")];
     body_canvas(page, ACCOUNTS_WIDTH, BODY.y, "accounts", value, move |p: &Paint| {
@@ -138,7 +153,10 @@ fn treasury(context: &mut GameUiContext, page: &PageContext) -> UiCanvas {
     let months = CityHistory::get().trend_months(TREND_MONTHS, month);
     let get = |key: &str| ui::text::get(UiTextCategory::City, key).to_string();
     let status = get(if in_debt { "book.treasury.in_debt" } else { "book.treasury.not_in_debt" });
-    let clock = ui::text::format(UiTextCategory::City, "book.treasury.clock", &[("months", &months_in_debt.to_string()), ("limit", &limit.to_string())]);
+    let clock = ui::text::format(UiTextCategory::City, "book.treasury.clock", &[
+        ("months", &months_in_debt.to_string()),
+        ("limit", &limit.to_string()),
+    ]);
     let title = get("book.treasury");
     let coin = skin::hud_icon(context, "coin").0;
     let width = BODY.x - ACCOUNTS_WIDTH - GAP;
@@ -146,7 +164,15 @@ fn treasury(context: &mut GameUiContext, page: &PageContext) -> UiCanvas {
     body_canvas(page, width, TREASURY_HEIGHT, "treasury", value, move |p: &Paint| {
         p.card(0.0, 0.0, width, TREASURY_HEIGHT, Some(&title), None);
         p.icon(coin, 40.0, 86.0, 34.0);
-        p.text(68.0, 100.0, &number(balance, false), 44.0, if balance < 0 { p.c.accent } else { p.c.text }, UiTextAnchor::Start, true);
+        p.text(
+            68.0,
+            100.0,
+            &number(balance, false),
+            44.0,
+            if balance < 0 { p.c.accent } else { p.c.text },
+            UiTextAnchor::Start,
+            true,
+        );
         let status_width = p.width(&status, 19.0, false);
         p.check(width - 44.0 - status_width, 84.0, !in_debt);
         p.text(width - 24.0, 91.0, &status, 19.0, p.c.text, UiTextAnchor::End, false);
@@ -171,12 +197,14 @@ fn taxes_and_wages(context: &mut GameUiContext, page: &PageContext) -> UiFrame {
     // The title, "Tax level" and what the level pays.
     let tax_title = get("book.taxes");
     let tax_label = get("book.taxes.level");
-    let tax_note = ui::text::format(UiTextCategory::City, "book.taxes.pays", &[("percent", &level.percent(configs).to_string())]);
-    let top = body_canvas(page, width, 104.0, "tax_level_line", json!({ "percent": level.percent(configs) }), move |p: &Paint| {
-        p.section(24.0, 36.0, &tax_title);
-        p.text(24.0, 84.0, &tax_label, 21.0, p.c.text, UiTextAnchor::Start, false);
-        p.text(width - 24.0, 84.0, &tax_note, 17.0, p.c.sub, UiTextAnchor::End, false);
-    });
+    let tax_note =
+        ui::text::format(UiTextCategory::City, "book.taxes.pays", &[("percent", &level.percent(configs).to_string())]);
+    let top =
+        body_canvas(page, width, 104.0, "tax_level_line", json!({ "percent": level.percent(configs) }), move |p: &Paint| {
+            p.section(24.0, 36.0, &tax_title);
+            p.text(24.0, 84.0, &tax_label, 21.0, p.c.text, UiTextAnchor::Start, false);
+            p.text(width - 24.0, 84.0, &tax_note, 17.0, p.c.sub, UiTextAnchor::End, false);
+        });
 
     // The tax level's buttons.
     let steps = TaxLevel::iter().map(|level| UiString::key(UiTextCategory::City, tax_key(level)));
@@ -238,7 +266,8 @@ fn taxes_and_wages(context: &mut GameUiContext, page: &PageContext) -> UiFrame {
         (get("book.wage.month"), number(monthly as i64, false)),
         (get("book.wage.year"), number(i64::from(employed) * i64::from(wage), false)),
     ];
-    let value = json!({ "workers": employed, "wage": wage, "a_month": monthly, "a_year": u64::from(employed) * u64::from(wage) });
+    let value =
+        json!({ "workers": employed, "wage": wage, "a_month": monthly, "a_year": u64::from(employed) * u64::from(wage) });
     let bottom = body_canvas(page, width, 130.0, "wages", value, move |p: &Paint| {
         for (k, (label, value)) in rows.iter().enumerate() {
             let y = 36.0 + k as f32 * 38.0;

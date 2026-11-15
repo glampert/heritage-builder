@@ -1,19 +1,16 @@
-use smallvec::SmallVec;
-
 use common::{
     self,
     Color,
-    time::Seconds,
     coords::{CellRange, WorldToScreenTransform},
+    time::Seconds,
 };
-use engine::{
-    ui::{self, UiNumberFormat, UiSystem},
-};
+use engine::ui::{self, UiNumberFormat, UiSystem};
+use smallvec::SmallVec;
 
 use crate::{
     debug::{
         self,
-        popups::{PopupMessages, PopupMsgText, POPUP_MSG_CAP},
+        popups::{POPUP_MSG_CAP, PopupMessages, PopupMsgText},
     },
     sim::resources::ResourceKind,
     tile::Tile,
@@ -115,19 +112,19 @@ pub trait GameObjectDebugOptions {
                 GameObjectDebugVarRef::Bool(value) => {
                     (**value) = match new_value {
                         GameObjectDebugVarRef::Bool(b) => *b,
-                        _ => panic!("Expected Bool!")
+                        _ => panic!("Expected Bool!"),
                     };
                 }
                 GameObjectDebugVarRef::I32(value) => {
                     (**value) = match new_value {
                         GameObjectDebugVarRef::I32(i) => *i,
-                        _ => panic!("Expected I32!")
+                        _ => panic!("Expected I32!"),
                     };
                 }
                 GameObjectDebugVarRef::F32(value) => {
                     (**value) = match new_value {
                         GameObjectDebugVarRef::F32(f) => *f,
-                        _ => panic!("Expected F32!")
+                        _ => panic!("Expected F32!"),
                     };
                 }
             }
@@ -293,4 +290,6 @@ macro_rules! debug_popup_msg_color {
     };
 }
 
-pub(crate) use {debug_popup_msg, debug_popup_msg_color, game_object_debug_options};
+pub(crate) use debug_popup_msg;
+pub(crate) use debug_popup_msg_color;
+pub(crate) use game_object_debug_options;

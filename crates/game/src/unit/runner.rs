@@ -4,25 +4,28 @@ use common::{callback::Callback, coords::Cell};
 use serde::{Deserialize, Serialize};
 
 use super::{
+    SpawnedUnitWithTask,
     Unit,
     UnitId,
-    UnitTaskHelper,
     UnitSpawnState,
-    SpawnedUnitWithTask,
+    UnitTaskHelper,
     config::UnitConfigKey,
     task::{
-        UnitTaskDespawn,
         UnitTaskDeliverToStorage,
         UnitTaskDeliveryCompletionCallback,
         UnitTaskDeliveryState,
-        UnitTaskFetchFromStorage,
+        UnitTaskDespawn,
         UnitTaskFetchCompletionCallback,
+        UnitTaskFetchFromStorage,
         UnitTaskFetchState,
     },
 };
 use crate::{
     building::{BuildingContext, BuildingKind},
-    sim::{resources::{ResourceKind, ShoppingList}, commands::{SimCmds, SpawnPromise}},
+    sim::{
+        commands::{SimCmds, SpawnPromise},
+        resources::{ResourceKind, ShoppingList},
+    },
 };
 
 // ----------------------------------------------

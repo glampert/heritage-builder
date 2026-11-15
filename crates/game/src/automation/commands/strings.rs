@@ -3,11 +3,10 @@
 
 use std::{collections::BTreeMap, str::FromStr};
 
+use engine::ui::text::{self, UiTextCategory};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use strum::IntoEnumIterator;
-
-use engine::ui::text::{self, UiTextCategory};
 
 use crate::automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params};
 
@@ -101,7 +100,10 @@ fn cmd_missing(_context: &mut CommandContext, params: Value) -> CommandResult {
     let count: usize = missing.values().map(Vec::len).sum();
     let untranslated_count: usize = untranslated.values().flat_map(BTreeMap::values).map(Vec::len).sum();
     let by_category = |keys: BTreeMap<UiTextCategory, Vec<String>>| -> Value {
-        keys.into_iter().map(|(category, keys)| (category.to_string(), json!(keys))).collect::<serde_json::Map<_, _>>().into()
+        keys.into_iter()
+            .map(|(category, keys)| (category.to_string(), json!(keys)))
+            .collect::<serde_json::Map<_, _>>()
+            .into()
     };
 
     done(json!({

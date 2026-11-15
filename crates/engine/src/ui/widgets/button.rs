@@ -1,16 +1,24 @@
 use std::any::Any;
-use smallbox::smallbox;
-use egui::{Align2, Color32, Sense, vec2};
-use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
-use common::{Color, Vec2, mem, time::{CountdownTimer, Seconds}};
+use common::{
+    Color,
+    Vec2,
+    mem,
+    time::{CountdownTimer, Seconds},
+};
+use egui::{Align2, Color32, Sense, vec2};
+use smallbox::smallbox;
+use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
 use super::{UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
     ui::{
-        UiFontScale, UiNineSlice, UiNineSliceCenter, UiString,
+        UiFontScale,
+        UiNineSlice,
+        UiNineSliceCenter,
+        UiString,
         immediate::{self, color32, egui_vec2, nine_slice_shape, rich_text, uv_full},
         internal,
         renderer::egui_texture,
@@ -35,10 +43,10 @@ pub enum UiTextButtonSize {
 impl UiTextButtonSize {
     pub const fn font_scale(self) -> UiFontScale {
         match self {
-            UiTextButtonSize::Normal     => UiFontScale(1.2),
-            UiTextButtonSize::Small      => UiFontScale(1.0),
+            UiTextButtonSize::Normal => UiFontScale(1.2),
+            UiTextButtonSize::Small => UiFontScale(1.0),
             UiTextButtonSize::ExtraSmall => UiFontScale(0.8),
-            UiTextButtonSize::Large      => UiFontScale(1.5),
+            UiTextButtonSize::Large => UiFontScale(1.5),
         }
     }
 }
@@ -112,7 +120,8 @@ impl UiWidget for UiTextButton {
             let text_color = match &self.frame {
                 Some(frame) => frame.text_color.map_or_else(|| ui.visuals().text_color(), color32),
                 None => {
-                    let color = if self.hovered && enabled { self.hover_text_color.or(self.text_color) } else { self.text_color };
+                    let color =
+                        if self.hovered && enabled { self.hover_text_color.or(self.text_color) } else { self.text_color };
                     color.map_or_else(|| ui.visuals().text_color(), color32)
                 }
             };
@@ -184,7 +193,8 @@ impl UiWidget for UiTextButton {
                         && response.hovered()
                     {
                         let rect = response.rect;
-                        let underline_rect = egui::Rect::from_min_size(rect.min + vec2(0.0, rect.height() * 0.5 + 1.0), rect.size());
+                        let underline_rect =
+                            egui::Rect::from_min_size(rect.min + vec2(0.0, rect.height() * 0.5 + 1.0), rect.size());
                         let tint = if response.is_pointer_button_down_on() || !enabled {
                             Color32::from_white_alpha(128)
                         } else {
@@ -383,8 +393,8 @@ impl UiTextButton {
 pub struct UiTextButtonFrame {
     panels: [UiNineSlice; UI_SPRITE_BUTTON_STATE_COUNT], // By UiSpriteButtonState.
     tints: [Color; UI_SPRITE_BUTTON_STATE_COUNT],
-    padding: Option<Vec2>,      // The panels' borders if None.
-    text_color: Option<Color>,  // The style's if None.
+    padding: Option<Vec2>,     // The panels' borders if None.
+    text_color: Option<Color>, // The style's if None.
 }
 
 impl UiTextButtonFrame {
@@ -543,7 +553,13 @@ impl UiWidget for UiIconButton {
                     (_, None) => {
                         // Painted: the style's button look, selected like a selectable label.
                         let visuals = ui.style().interact_selectable(&response, self.selected);
-                        ui.painter().rect(rect, visuals.corner_radius, visuals.weak_bg_fill, visuals.bg_stroke, egui::StrokeKind::Inside);
+                        ui.painter().rect(
+                            rect,
+                            visuals.corner_radius,
+                            visuals.weak_bg_fill,
+                            visuals.bg_stroke,
+                            egui::StrokeKind::Inside,
+                        );
                     }
                 }
 
@@ -555,7 +571,16 @@ impl UiWidget for UiIconButton {
 
             let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
             let name = self.label.rsplit('/').next().unwrap_or(&self.label);
-            immediate::record(ui_sys, ui, &response, "icon_button", name, tooltip, enabled, Some(serde_json::Value::Bool(self.selected)));
+            immediate::record(
+                ui_sys,
+                ui,
+                &response,
+                "icon_button",
+                name,
+                tooltip,
+                enabled,
+                Some(serde_json::Value::Bool(self.selected)),
+            );
             (response.clicked(), response.hovered())
         });
 
@@ -908,7 +933,9 @@ impl UiSpriteButton {
         // Play state transition sound if moving to a different state.
         if self.logical_state != new_state {
             match new_state {
-                UiSpriteButtonState::Pressed => self.sounds.play(context, UiSoundEvent::Pressed, Some(UiSoundKey::ButtonPressed)),
+                UiSpriteButtonState::Pressed => {
+                    self.sounds.play(context, UiSoundEvent::Pressed, Some(UiSoundKey::ButtonPressed))
+                }
                 UiSpriteButtonState::Hovered => self.sounds.play(context, UiSoundEvent::Hovered, None),
                 UiSpriteButtonState::Idle | UiSpriteButtonState::Disabled => {}
             }
@@ -1058,16 +1085,14 @@ mod tests {
 
     #[test]
     fn frame_loads_a_sprite_per_state() {
-        let paths: Vec<_> = UiSpriteButtonState::iter().map(|state| state.frame_sprite_path("skins/dailong/button_primary")).collect();
-        assert_eq!(
-            paths,
-            [
-                "skins/dailong/button_primary_idle.png",
-                "skins/dailong/button_primary_disabled.png",
-                "skins/dailong/button_primary_hovered.png",
-                "skins/dailong/button_primary_pressed.png",
-            ]
-        );
+        let paths: Vec<_> =
+            UiSpriteButtonState::iter().map(|state| state.frame_sprite_path("skins/dailong/button_primary")).collect();
+        assert_eq!(paths, [
+            "skins/dailong/button_primary_idle.png",
+            "skins/dailong/button_primary_disabled.png",
+            "skins/dailong/button_primary_hovered.png",
+            "skins/dailong/button_primary_pressed.png",
+        ]);
     }
 
     #[test]

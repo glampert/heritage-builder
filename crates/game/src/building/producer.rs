@@ -1,8 +1,6 @@
 use std::cmp::Reverse;
-use arrayvec::ArrayVec;
-use smallvec::SmallVec;
-use serde::{Deserialize, Serialize};
 
+use arrayvec::ArrayVec;
 use common::{
     Color,
     callback::{self, Callback},
@@ -11,30 +9,32 @@ use common::{
 };
 use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use super::{
-    risks::RiskRates,
     Building,
-    BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
     BuildingContextMut,
     BuildingKind,
+    BuildingVisitResult,
     config::{BuildingConfig, BuildingConfigs, building_config},
+    risks::RiskRates,
 };
 use crate::{
     cheats,
-    tile::Tile,
-    save_context::PostLoadContext,
-    world::{object::GameObject, stats::WorldStats},
-    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
+    save_context::PostLoadContext,
     sim::{
-        SimCmds,
-        SimContext, SimContextMut,
         RandomGenerator,
+        SimCmds,
+        SimContext,
+        SimContextMut,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
+    tile::Tile,
+    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
         UnitTaskHelper,
@@ -50,6 +50,7 @@ use crate::{
             UnitTaskHarvestWood,
         },
     },
+    world::{object::GameObject, stats::WorldStats},
 };
 
 // ----------------------------------------------
@@ -451,7 +452,7 @@ impl BuildingBehavior for ProducerBuilding {
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
         ProducerUndoRedoSavedState::new_state(ProducerUndoRedoSavedState {
-            production_input_stock:  self.production_input_stock.clone(),
+            production_input_stock: self.production_input_stock.clone(),
             production_output_stock: self.production_output_stock.clone(),
         })
     }
@@ -460,7 +461,7 @@ impl BuildingBehavior for ProducerBuilding {
         let saved_state = ProducerUndoRedoSavedState::downcast(state);
 
         // NOTE: Only stocks are preserved on undo/redo. Runners/harvesters and workers are reset.
-        self.production_input_stock  = saved_state.production_input_stock.clone();
+        self.production_input_stock = saved_state.production_input_stock.clone();
         self.production_output_stock = saved_state.production_output_stock.clone();
     }
 
@@ -509,8 +510,8 @@ impl ProducerBuilding {
 
     pub fn register_callbacks() {
         let _: Callback<UnitTaskDeliveryCompletionCallback> = callback::register!(ProducerBuilding::on_resources_delivered);
-        let _: Callback<UnitTaskFetchCompletionCallback>    = callback::register!(ProducerBuilding::on_resources_fetched);
-        let _: Callback<UnitTaskFetchCompletionCallback>    = callback::register!(ProducerBuilding::on_resources_harvested);
+        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ProducerBuilding::on_resources_fetched);
+        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ProducerBuilding::on_resources_harvested);
     }
 
     pub fn add_production_output_stock(&mut self, kind: ResourceKind, count: u32) -> bool {
@@ -750,8 +751,7 @@ impl ProducerBuilding {
     pub(crate) fn spawn_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, force_spawn: bool) {
         let tile_def = context.find_tile().tile_def();
 
-        let config = BuildingConfigs::get()
-            .find_producer_config(context.kind, tile_def.hash, &tile_def.name);
+        let config = BuildingConfigs::get().find_producer_config(context.kind, tile_def.hash, &tile_def.name);
 
         if let Some(unit_config) = config.ambient_patrol.unit {
             let spawn_chance = config.ambient_patrol.spawn_chance;
@@ -985,4 +985,3 @@ impl ProducerInputsLocalStock {
         0
     }
 }
-

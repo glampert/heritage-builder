@@ -1,27 +1,23 @@
 use std::{marker::PhantomData, ops::Deref};
 
-use smallvec::SmallVec;
-use rand::{
-    Rng,
-    distr::uniform::{SampleRange, SampleUniform},
-};
-
 use common::{
     Size,
     Vec2,
     coords::{Cell, CellRange, WorldToScreenTransform},
-    mem::{self, RawPtr},
     hash::StringHash,
+    mem::{self, RawPtr},
     time::Seconds,
 };
 use engine::log;
+use rand::{
+    Rng,
+    distr::uniform::{SampleRange, SampleUniform},
+};
+use smallvec::SmallVec;
 
 use super::{CityRisks, Finance, GameCalendar, RandomGenerator, SimCmds};
 use crate::{
-    world::{World, object::GameObject},
     building::{Building, BuildingId, BuildingKind},
-    unit::{Unit, UnitId, task::UnitTaskManager},
-    prop::{Prop, PropId},
     pathfind::{
         self,
         AStarUniformCostHeuristic,
@@ -36,6 +32,7 @@ use crate::{
         SearchResult,
         Unbiased,
     },
+    prop::{Prop, PropId},
     tile::{
         Tile,
         TileKind,
@@ -46,6 +43,8 @@ use crate::{
         placement::{TileClearingErr, TilePlacementErr},
         sets::{TileDef, TileSets},
     },
+    unit::{Unit, UnitId, task::UnitTaskManager},
+    world::{World, object::GameObject},
 };
 
 // ----------------------------------------------
@@ -564,8 +563,7 @@ impl<'game> SimContext<'game> {
                 let result_building =
                     building_filter.result_building.expect("If we've found a path we should have found a building too!");
 
-                let result_path =
-                    building_filter.result_path.expect("Path should be valid for SearchResult::PathFound!");
+                let result_path = building_filter.result_path.expect("Path should be valid for SearchResult::PathFound!");
 
                 debug_assert!(result_building.is(building_kinds));
                 debug_assert!(result_path.as_ref() == path_found); // Must be the same.
@@ -587,27 +585,19 @@ impl<'game> SimContext<'game> {
         debug_assert!(!building_kinds.is_empty());
         debug_assert!(effect_radius > 0);
 
-        let traversable_node_kinds = if connected_to_road_only {
-            PathNodeKind::Road
-        } else {
-            PathNodeKind::EmptyLand | PathNodeKind::Road
-        };
+        let traversable_node_kinds =
+            if connected_to_road_only { PathNodeKind::Road } else { PathNodeKind::EmptyLand | PathNodeKind::Road };
 
         if !self.graph().node_kind(Node::new(start)).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
             log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
             return false;
         }
 
-        self.find_nearest_buildings(
-            start,
-            building_kinds,
-            traversable_node_kinds,
-            Some(effect_radius),
-            |building, _path| {
-                // Stop at the first match; a construction site provides nothing yet.
-                building.is_under_construction()
-            },
-        ).is_some()
+        self.find_nearest_buildings(start, building_kinds, traversable_node_kinds, Some(effect_radius), |building, _path| {
+            // Stop at the first match; a construction site provides nothing yet.
+            building.is_under_construction()
+        })
+        .is_some()
     }
 
     // ----------------------
@@ -694,11 +684,7 @@ impl<'game> SimContextMut<'game> {
     }
 
     #[inline]
-    pub fn try_clear_tile_from_layer(
-        &self,
-        target_cell: Cell,
-        layer_kind: TileMapLayerKind,
-    ) -> Result<(), TileClearingErr> {
+    pub fn try_clear_tile_from_layer(&self, target_cell: Cell, layer_kind: TileMapLayerKind) -> Result<(), TileClearingErr> {
         self.tile_map_mut().try_clear_tile_from_layer(target_cell, layer_kind)
     }
 

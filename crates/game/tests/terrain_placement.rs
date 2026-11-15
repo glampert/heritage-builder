@@ -1,4 +1,4 @@
-use common::{coords::Cell, Size};
+use common::{Size, coords::Cell};
 use game::tile::{TileKind, TileMapLayerKind};
 
 mod test_utils;
@@ -53,7 +53,8 @@ fn place_water(env: &mut TestEnvironment, cells: &[Cell]) {
 
 // The name of the water variation drawn at `cell`.
 fn shore_at(env: &TestEnvironment, cell: Cell) -> &'static str {
-    let tile = env.tile_map
+    let tile = env
+        .tile_map
         .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
         .unwrap_or_else(|| panic!("No terrain tile at {cell}"));
     assert!(tile.path_kind().is_water(), "Expected water at {cell}, found '{}'", tile.name());
@@ -214,11 +215,11 @@ fn test_channel_entering_a_lake() {
     place_water(&mut env, &[Cell::new(7, 6), Cell::new(8, 6)]);
 
     assert_shores(&env, &[
-        (Cell::new(5, 6), "0010_nw_sw_corner"), // West cell: land south, the channel between north-west and south-west land.
+        (Cell::new(5, 6), "0010_nw_sw_corner"), /* West cell: land south, the channel between north-west and south-west land. */
         (Cell::new(5, 7), "1010"),              // The channel.
-        (Cell::new(6, 6), "0001_ne_nw_corner"), // North cell: land west, the channel between north-east and north-west land.
+        (Cell::new(6, 6), "0001_ne_nw_corner"), /* North cell: land west, the channel between north-east and north-west land. */
         (Cell::new(7, 6), "0101"),
-        (Cell::new(5, 5), "0110"),              // The lake's other corners are plain inner corners.
+        (Cell::new(5, 5), "0110"), // The lake's other corners are plain inner corners.
         (Cell::new(6, 5), "1100"),
     ]);
 
@@ -280,7 +281,9 @@ fn test_every_neighbor_pattern_has_a_variation() {
         }
 
         let mut env = water_map();
-        let cells: Vec<Cell> = NEIGHBORS.iter().enumerate()
+        let cells: Vec<Cell> = NEIGHBORS
+            .iter()
+            .enumerate()
             .filter(|(bit, _)| land(*bit))
             .map(|(_, (dx, dy))| Cell::new(CENTER.x + dx, CENTER.y + dy))
             .collect();

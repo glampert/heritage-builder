@@ -32,10 +32,6 @@
 
 use std::collections::BTreeMap;
 
-use serde::Deserialize;
-use serde_json::Value;
-use strum::IntoEnumIterator;
-
 use common::{Color, Vec2};
 use engine::{
     config,
@@ -45,15 +41,15 @@ use engine::{
     sound::SoundSystem,
     ui::{
         DEV_UI_THEME,
+        UiDecoratedPanel,
+        UiDecorationAnchor,
         UiFontScale,
         UiLabelLook,
         UiNineSlice,
         UiNineSliceCenter,
-        UiStyleSource,
-        UiDecoratedPanel,
-        UiDecorationAnchor,
         UiPanelDecoration,
         UiString,
+        UiStyleSource,
         UiSystem,
         UiThemeId,
         UiToastLook,
@@ -63,13 +59,12 @@ use engine::{
         widgets::*,
     },
 };
+use serde::Deserialize;
+use serde_json::Value;
+use strum::IntoEnumIterator;
 
 pub use super::skin_hud::*;
-use crate::{
-    realm::Realm,
-    tile::minimap::style::HexColor,
-    ui_context::GameUiContext,
-};
+use crate::{realm::Realm, tile::minimap::style::HexColor, ui_context::GameUiContext};
 
 // The developer UI's style file, under assets/configs/.
 const DEV_STYLE_FILE: &str = "ui/styles/dev.json";
@@ -104,7 +99,7 @@ pub struct UiSkinDef {
     pub separators: BTreeMap<String, SkinSeparatorDef>,
     // The home menu's campaign row, the campaign picker, Load / Save's rows and Custom Game's realm
     // rows and preview draw them (skin::emblem).
-    pub emblems: BTreeMap<String, String>,   // Realm → stem (idle, locked, current states).
+    pub emblems: BTreeMap<String, String>, // Realm → stem (idle, locked, current states).
     pub ornaments: BTreeMap<String, String>, // Decorations by name: `crest`, the home menu's.
     pub cards: SkinCardsDef,
     pub toast: SkinToastDef,
@@ -332,7 +327,7 @@ pub struct SkinToggleDef {
     pub off: String,
     pub on: String,
     pub knob: String,
-    pub size: [f32; 2],         // The pill's, in points; the knob's is its sprite's.
+    pub size: [f32; 2],             // The pill's, in points; the knob's is its sprite's.
     pub text: Option<String>,       // The label's colour.
     pub state_text: Option<String>, // The "On" / "Off" text's colour.
 }
@@ -697,7 +692,15 @@ pub struct SkinMapRouteDef {
 
 impl Default for SkinMapRouteDef {
     fn default() -> Self {
-        Self { color: "ink".into(), width: 2.5, dash: [14.0, 6.0], dots: 0.0, shadow: None, shadow_width: 5.0, shadow_offset: [0.0, 0.0] }
+        Self {
+            color: "ink".into(),
+            width: 2.5,
+            dash: [14.0, 6.0],
+            dots: 0.0,
+            shadow: None,
+            shadow_width: 5.0,
+            shadow_offset: [0.0, 0.0],
+        }
     }
 }
 
@@ -901,7 +904,13 @@ pub struct SkinBriefingDef {
 
 impl Default for SkinBriefingDef {
     fn default() -> Self {
-        Self { panel: "dialog".into(), image_outline: "ink".into(), image_outline_width: 3.0, bullet: SkinBullet::Square, bullet_color: "accent".into() }
+        Self {
+            panel: "dialog".into(),
+            image_outline: "ink".into(),
+            image_outline_width: 3.0,
+            bullet: SkinBullet::Square,
+            bullet_color: "accent".into(),
+        }
     }
 }
 
@@ -1026,7 +1035,14 @@ impl Default for SkinStoryBubbleDef {
             line_height: 40.0,
             bottom: 34.0,
             tail_width: 84.0,
-            name: SkinMapTextDef { size: 18.0, heading: true, capitals: true, letter_spacing: 2.0, color: "accent".into(), ..SkinMapTextDef::default() },
+            name: SkinMapTextDef {
+                size: 18.0,
+                heading: true,
+                capitals: true,
+                letter_spacing: 2.0,
+                color: "accent".into(),
+                ..SkinMapTextDef::default()
+            },
             text: SkinMapTextDef { size: 28.0, heading: true, ..SkinMapTextDef::default() },
             whisper_dash: [10.0, 7.0],
             whisper_text: "sub".into(),
@@ -1311,7 +1327,9 @@ pub fn read_skin_files() -> Result<Vec<(Realm, Value)>, String> {
 
 // Every realm's skin from the files' JSON, in Realm order.
 fn merge_all(files: &[(Realm, Value)]) -> Result<Vec<UiSkinDef>, String> {
-    let file = |realm: Realm| files.iter().find(|(file_realm, _)| *file_realm == realm).map(|(_, value)| value.clone()).unwrap_or_default();
+    let file = |realm: Realm| {
+        files.iter().find(|(file_realm, _)| *file_realm == realm).map(|(_, value)| value.clone()).unwrap_or_default()
+    };
     Realm::iter()
         .map(|realm| {
             let skin = merge_skin(realm, &file)?;
@@ -1327,7 +1345,8 @@ fn merge_all(files: &[(Realm, Value)]) -> Result<Vec<UiSkinDef>, String> {
 pub fn check_required(skin: &UiSkinDef) -> Result<(), String> {
     let dialog_panels = skin.dialogs.values().filter_map(|dialog| dialog.panel.as_deref());
     let card_panels = [skin.cards.panel.as_str(), skin.cards.selected.as_str()];
-    for name in ["dialog", "popup", "tooltip", skin.toast.panel.as_str()].into_iter().chain(card_panels).chain(dialog_panels) {
+    for name in ["dialog", "popup", "tooltip", skin.toast.panel.as_str()].into_iter().chain(card_panels).chain(dialog_panels)
+    {
         if !skin.panels.contains_key(name) {
             return Err(format!("no panel '{name}'"));
         }
@@ -1371,7 +1390,7 @@ struct SkinState {
     loaded: bool,
     skins: Vec<UiSkinDef>, // By Realm, merged over Đại Long's, as read at boot (or reloaded).
     current: Realm,
-    version: u32, // Goes up whenever the current skin changes (realm switch or reload).
+    version: u32,               // Goes up whenever the current skin changes (realm switch or reload).
     toast_version: Option<u32>, // The version the toasts' look was set for (follow).
 }
 
@@ -1568,7 +1587,12 @@ fn insets_points(insets: UiMenuInsets) -> Option<[f32; 4]> {
 }
 
 // A 9-slice of a sprite under assets/ui/, at the skin's sprite scale.
-pub(crate) fn nine_slice(context: &mut dyn UiWidgetContext, sprite: &str, slice_px: [f32; 4], center: SkinCenter) -> UiNineSlice {
+pub(crate) fn nine_slice(
+    context: &mut dyn UiWidgetContext,
+    sprite: &str,
+    slice_px: [f32; 4],
+    center: SkinCenter,
+) -> UiNineSlice {
     context.load_nine_slice(PathRef::from_str(sprite), slice_px).with_scale(art_scale()).with_center(center.nine_slice())
 }
 
@@ -1808,13 +1832,22 @@ impl HeadingLevel {
 }
 
 // A heading of `lines` at `level`: its font scale, colour, margins and separator from the skin.
-pub fn heading(context: &mut dyn UiWidgetContext, lines: impl IntoIterator<Item = UiString>, level: HeadingLevel) -> UiMenuHeading {
+pub fn heading(
+    context: &mut dyn UiWidgetContext,
+    lines: impl IntoIterator<Item = UiString>,
+    level: HeadingLevel,
+) -> UiMenuHeading {
     heading_at(context, lines, level, 1.0)
 }
 
 // A heading as heading() makes it, its font and margins `scale` times the skin's: for a dialog
 // whose contents scale with the window (the home menu).
-pub fn heading_at(context: &mut dyn UiWidgetContext, lines: impl IntoIterator<Item = UiString>, level: HeadingLevel, scale: f32) -> UiMenuHeading {
+pub fn heading_at(
+    context: &mut dyn UiWidgetContext,
+    lines: impl IntoIterator<Item = UiString>,
+    level: HeadingLevel,
+    scale: f32,
+) -> UiMenuHeading {
     heading_scaled(context, lines, level, scale, scale)
 }
 
@@ -1830,7 +1863,8 @@ pub fn heading_scaled(
     let mut def = current().headings.get(level.key()).cloned().unwrap_or_default();
     def.margin_top *= scale;
     def.margin_bottom *= scale;
-    let font_scale = UiFontScale(if def.font_scale > 0.0 { def.font_scale } else { level.default_font_scale() } * text_scale);
+    let font_scale =
+        UiFontScale(if def.font_scale > 0.0 { def.font_scale } else { level.default_font_scale() } * text_scale);
     let color = opt_color(&def.color);
 
     let lines = lines.into_iter().map(|line| {
@@ -1847,7 +1881,11 @@ pub fn heading_scaled(
 
 // `heading` with the separator of headings at `level`, for a heading built with its own lines
 // (e.g. placeholders filled in later).
-pub fn with_heading_separator(context: &mut dyn UiWidgetContext, heading: UiMenuHeading, level: HeadingLevel) -> UiMenuHeading {
+pub fn with_heading_separator(
+    context: &mut dyn UiWidgetContext,
+    heading: UiMenuHeading,
+    level: HeadingLevel,
+) -> UiMenuHeading {
     let Some(separator) = current().headings.get(level.key()).and_then(|def| def.separator.clone()) else {
         return heading;
     };
@@ -1902,9 +1940,9 @@ pub fn separator(context: &mut dyn UiWidgetContext, kind: &str) -> UiSeparator {
 // The roles text buttons play, each looked up in the skin's `buttons`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum ButtonRole {
-    Primary,     // A dialog's main action: Ok, Start, Save, Yes.
-    Secondary,   // Its other actions: Cancel, No.
-    MenuItem,    // A dialog's list of choices: Home's, the Game menu's.
+    Primary,   // A dialog's main action: Ok, Start, Save, Yes.
+    Secondary, // Its other actions: Cancel, No.
+    MenuItem,  // A dialog's list of choices: Home's, the Game menu's.
     Tab,
     TabSelected,
 }
@@ -1922,7 +1960,12 @@ impl ButtonRole {
 }
 
 // A text button of `role` labeled `label`, pressing which runs `on_pressed`.
-pub fn button<F>(context: &mut dyn UiWidgetContext, role: ButtonRole, label: impl Into<UiString>, on_pressed: F) -> UiTextButton
+pub fn button<F>(
+    context: &mut dyn UiWidgetContext,
+    role: ButtonRole,
+    label: impl Into<UiString>,
+    on_pressed: F,
+) -> UiTextButton
 where
     F: for<'a> Fn(&'a UiTextButton, &mut dyn UiWidgetContext) + 'static,
 {
@@ -1958,7 +2001,8 @@ where
 // A framed button role's frame: its state sprites, padding and text colour. None for a plain one.
 fn button_frame(context: &mut dyn UiWidgetContext, def: &SkinButtonDef) -> Option<UiTextButtonFrame> {
     let stem = def.sprite.as_ref()?;
-    let mut frame = UiTextButtonFrame::load(context, stem, def.slice).with_scale(art_scale()).with_center(def.center.nine_slice());
+    let mut frame =
+        UiTextButtonFrame::load(context, stem, def.slice).with_scale(art_scale()).with_center(def.center.nine_slice());
     if let Some([x, y]) = def.padding {
         frame = frame.with_padding(Vec2::new(x, y));
     }
@@ -2004,7 +2048,9 @@ pub fn tooltip(context: &mut dyn UiWidgetContext, text: impl Into<UiString>) -> 
         SkinPanel::NineSlice { slice, content, text_color, decorations } => tooltip
             .with_panel(UiDecoratedPanel::new(slice).with_decorations(decorations), insets_points(content))
             .with_text_color(text_color),
-        SkinPanel::Sprite { texture, text_color, .. } => tooltip.with_background_texture(texture).with_text_color(text_color),
+        SkinPanel::Sprite { texture, text_color, .. } => {
+            tooltip.with_background_texture(texture).with_text_color(text_color)
+        }
     }
 }
 
@@ -2092,7 +2138,11 @@ pub fn slider_look(context: &mut dyn UiWidgetContext) -> Option<UiSliderLook> {
 
 // A slider over `range` labeled `label` in the skin's sprites. Give it on_read_value and
 // on_update_value.
-pub fn slider<T: UiSliderValue>(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, range: std::ops::RangeInclusive<T>) -> UiSlider {
+pub fn slider<T: UiSliderValue>(
+    context: &mut dyn UiWidgetContext,
+    label: impl Into<UiString>,
+    range: std::ops::RangeInclusive<T>,
+) -> UiSlider {
     slider_at(context, label, range, 1.0)
 }
 
@@ -2156,10 +2206,17 @@ pub fn text_input_look(context: &mut dyn UiWidgetContext) -> Option<UiTextInputL
         return None;
     };
     let padding = match insets_points(content) {
-        Some([left, top, right, bottom]) if left + top + right + bottom > 0.0 => Vec2::new(left.max(right), top.max(bottom) * 0.5),
+        Some([left, top, right, bottom]) if left + top + right + bottom > 0.0 => {
+            Vec2::new(left.max(right), top.max(bottom) * 0.5)
+        }
         _ => Vec2::new(12.0, 8.0),
     };
-    Some(UiTextInputLook { field: slice, padding, text_color: text_color.or_else(|| color("ink")), focus_color: color("accent") })
+    Some(UiTextInputLook {
+        field: slice,
+        padding,
+        text_color: text_color.or_else(|| color("ink")),
+        focus_color: color("accent"),
+    })
 }
 
 // A text field named `label` in widget paths (not drawn: a heading above it says what it is), as
@@ -2263,8 +2320,12 @@ pub fn toggle_at(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, 
     let def = &current().controls.toggle;
     let colors = (color_or(&def.text, "ink"), color_or(&def.state_text, "sub"));
     let look = match toggle_look(context) {
-        UiToggleLook::Sprites { off, on, knob, size, knob_size } => UiToggleLook::Sprites { off, on, knob, size: size * scale, knob_size: knob_size * scale },
-        UiToggleLook::Painted { on, off, knob, outline, size } => UiToggleLook::Painted { on, off, knob, outline, size: size * scale },
+        UiToggleLook::Sprites { off, on, knob, size, knob_size } => {
+            UiToggleLook::Sprites { off, on, knob, size: size * scale, knob_size: knob_size * scale }
+        }
+        UiToggleLook::Painted { on, off, knob, outline, size } => {
+            UiToggleLook::Painted { on, off, knob, outline, size: size * scale }
+        }
     };
     UiToggle::new().with_label(label).with_look(look).with_text_colors(colors.0, colors.1)
 }
@@ -2298,7 +2359,9 @@ pub fn step_look() -> UiStepLook {
 // difficulty), as Settings does its toggles.
 pub fn step_selector(label: impl Into<UiString>, steps: impl IntoIterator<Item = UiString>) -> UiStepSelector {
     let rows = &current().rows;
-    UiStepSelector::new(label, steps).with_look(step_look()).with_text_colors(color_or(&rows.title, "ink"), color_or(&rows.selected, "accent"))
+    UiStepSelector::new(label, steps)
+        .with_look(step_look())
+        .with_text_colors(color_or(&rows.title, "ink"), color_or(&rows.selected, "accent"))
 }
 
 // An entry of a dialog's list of choices (the home menu's), with an optional subline: the skin's
@@ -2423,7 +2486,9 @@ pub fn rich_text(markup: impl Into<UiString>) -> UiRichText {
 // left content inset.
 pub fn framed_image(context: &mut dyn UiWidgetContext, image: UiImage, panel_name: &str) -> UiImage {
     match panel(context, panel_name) {
-        SkinPanel::NineSlice { slice, content, .. } => image.with_frame(slice, if content.relative { 0.0 } else { content.left }),
+        SkinPanel::NineSlice { slice, content, .. } => {
+            image.with_frame(slice, if content.relative { 0.0 } else { content.left })
+        }
         SkinPanel::Sprite { .. } => image,
     }
 }
@@ -2506,7 +2571,8 @@ pub fn icon_button(context: &mut dyn UiWidgetContext, label: &str, icon_name: &s
         button = button.with_frame(frame);
     }
     if let Some(selected) = &def.selected {
-        button = button.with_selected_panel(nine_slice(context, selected, def.selected_slice.unwrap_or(def.slice), def.center));
+        button =
+            button.with_selected_panel(nine_slice(context, selected, def.selected_slice.unwrap_or(def.slice), def.center));
     }
     let path = icon(icon_name);
     if !path.is_empty() {
@@ -2626,7 +2692,8 @@ mod tests {
     // A dialog's size is [width, height] or "fullscreen"; its entry merges over `default`.
     #[test]
     fn dialog_defs_parse_and_merge() {
-        let def: SkinDialogDef = serde_json::from_value(serde_json::json!({ "size": "fullscreen", "show_below": true })).unwrap();
+        let def: SkinDialogDef =
+            serde_json::from_value(serde_json::json!({ "size": "fullscreen", "show_below": true })).unwrap();
         assert_eq!(def.size, Some(SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen)));
         assert_eq!(def.show_below, Some(true));
         let def: SkinDialogDef = serde_json::from_value(serde_json::json!({ "size": [600, 960], "align": "left" })).unwrap();
@@ -2646,8 +2713,14 @@ mod tests {
                 assert!(name == "default" || kinds.contains(name), "{realm}: no dialog '{name}'");
                 if let Some(SkinDialogSize::Points([width, height])) = def.size {
                     let size = dialog_size(SkinDialogSize::Points([width, height]), DIALOG_REFERENCE_WINDOW);
-                    assert!(size.x <= DIALOG_REFERENCE_WINDOW.x && size.y <= DIALOG_REFERENCE_WINDOW.y, "{realm}: '{name}' too large");
-                    assert!(width.abs() < DIALOG_REFERENCE_WINDOW.x && height.abs() < DIALOG_REFERENCE_WINDOW.y, "{realm}: '{name}': {width} × {height}");
+                    assert!(
+                        size.x <= DIALOG_REFERENCE_WINDOW.x && size.y <= DIALOG_REFERENCE_WINDOW.y,
+                        "{realm}: '{name}' too large"
+                    );
+                    assert!(
+                        width.abs() < DIALOG_REFERENCE_WINDOW.x && height.abs() < DIALOG_REFERENCE_WINDOW.y,
+                        "{realm}: '{name}': {width} × {height}"
+                    );
                 }
             }
         }
@@ -2703,7 +2776,8 @@ mod tests {
                     let code = line.split("//").next().unwrap_or_default();
                     // The text between quotes: every other piece, from the second.
                     let is_sprite_path = |literal: &str| {
-                        PREFIXES.iter().any(|prefix| literal.starts_with(prefix)) || (literal.ends_with(".png") && !literal.contains('{'))
+                        PREFIXES.iter().any(|prefix| literal.starts_with(prefix))
+                            || (literal.ends_with(".png") && !literal.contains('{'))
                     };
                     if code.split('"').skip(1).step_by(2).any(is_sprite_path) {
                         found.push(format!("{}:{}: {}", path.display(), number + 1, line.trim()));

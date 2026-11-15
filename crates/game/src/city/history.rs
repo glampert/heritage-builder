@@ -96,7 +96,12 @@ impl CityHistory {
 
     // The month numbers (1 to 12) of a trend's points, as population_trend gives them.
     pub fn trend_months(&self, count: usize, month: u32) -> Vec<u32> {
-        let past: Vec<u32> = self.months.iter().filter(|sample| sample.ordinal_month < month).map(|sample| sample.ordinal_month % 12 + 1).collect();
+        let past: Vec<u32> = self
+            .months
+            .iter()
+            .filter(|sample| sample.ordinal_month < month)
+            .map(|sample| sample.ordinal_month % 12 + 1)
+            .collect();
         let skip = past.len().saturating_sub(count.saturating_sub(1));
         let mut months: Vec<u32> = past.into_iter().skip(skip).collect();
         months.push(month % 12 + 1);

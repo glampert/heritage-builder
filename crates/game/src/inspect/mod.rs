@@ -12,12 +12,10 @@ mod tile;
 mod unit;
 
 pub use building::building_name;
-pub use unit::home_cell as unit_home_cell;
-
-use serde::Serialize;
-
 use common::coords::Cell;
 use engine::ui::text::{self, UiTextCategory};
+use serde::Serialize;
+pub use unit::home_cell as unit_home_cell;
 
 use crate::{
     building::{BuildingKind, BuildingKindAndId},
@@ -291,7 +289,9 @@ pub fn inspect_tile(context: &SimContext, tile: &Tile, realm: Realm) -> Option<I
     let world = context.world();
     // A building's or prop's other cells hold blockers: inspect what owns them.
     if tile.is(TileKind::Blocker) {
-        let owner = context.tile_map().find_tile(tile.base_cell(), TileKind::Building | TileKind::Prop | TileKind::Vegetation | TileKind::Rocks)?;
+        let owner = context
+            .tile_map()
+            .find_tile(tile.base_cell(), TileKind::Building | TileKind::Prop | TileKind::Vegetation | TileKind::Rocks)?;
         return inspect_tile(context, owner, realm);
     }
     if tile.is(TileKind::Unit) {
@@ -318,9 +318,13 @@ pub fn inspect_tile(context: &SimContext, tile: &Tile, realm: Realm) -> Option<I
 pub fn inspect_target(context: &SimContext, target: &InspectTarget, realm: Realm) -> Option<InspectReport> {
     let world = context.world();
     match *target {
-        InspectTarget::Building { handle, .. } => world.find_building(handle.kind, handle.id).map(|building| building::read(context, building, realm)),
+        InspectTarget::Building { handle, .. } => {
+            world.find_building(handle.kind, handle.id).map(|building| building::read(context, building, realm))
+        }
         InspectTarget::Unit { id, .. } => world.find_unit(id).and_then(|unit| unit::read(context, unit, realm)),
-        InspectTarget::Prop { .. } | InspectTarget::Terrain { .. } => inspect_tile(context, target_tile(context, target)?, realm),
+        InspectTarget::Prop { .. } | InspectTarget::Terrain { .. } => {
+            inspect_tile(context, target_tile(context, target)?, realm)
+        }
     }
 }
 
@@ -330,9 +334,9 @@ pub fn target_tile<'a>(context: &'a SimContext, target: &InspectTarget) -> Optio
     let tiles = context.tile_map();
     match *target {
         InspectTarget::Prop { cell } => tiles.find_tile(cell, TileKind::Prop | TileKind::Vegetation | TileKind::Rocks),
-        InspectTarget::Terrain { cell } => {
-            tiles.find_tile(cell, TileKind::Vegetation | TileKind::Rocks).or_else(|| tiles.find_tile(cell, TileKind::Terrain))
-        }
+        InspectTarget::Terrain { cell } => tiles
+            .find_tile(cell, TileKind::Vegetation | TileKind::Rocks)
+            .or_else(|| tiles.find_tile(cell, TileKind::Terrain)),
         InspectTarget::Building { cell, .. } | InspectTarget::Unit { cell, .. } => tiles.topmost_tile_at_cell(cell),
     }
 }

@@ -381,7 +381,7 @@ pub type AssetPath = FixedPathBuf<1024>;
 // Path separator is always forward slash (/) for both Windows and Unix paths.
 
 pub const SEPARATOR_CHAR: char = '/';
-pub const SEPARATOR_STR:  &str = "/";
+pub const SEPARATOR_STR: &str = "/";
 
 // Absolute path where the application runs from. Parent of assets_path.
 #[inline]
