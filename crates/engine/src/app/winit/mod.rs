@@ -32,6 +32,8 @@ mod opengl;
 // WinitWindowManagerImpl
 // ----------------------------------------------
 
+// The app holds one, so the variants' sizes don't matter.
+#[allow(clippy::large_enum_variant)]
 #[enum_dispatch]
 enum WinitWindowManagerImpl {
     Wgpu(wgpu::WinitWindowManager),

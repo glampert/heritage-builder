@@ -7,7 +7,9 @@ use glfw::Context;
 use smallvec::SmallVec;
 
 use super::{ApplicationContentScale, ApplicationInitParams, ApplicationWindowMode};
-use crate::{app::platform, log};
+#[cfg(target_os = "macos")]
+use crate::app::platform;
+use crate::log;
 
 type GlfwEventReceiver = glfw::GlfwReceiver<(f64, glfw::WindowEvent)>;
 
