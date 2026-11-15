@@ -1586,15 +1586,15 @@ fn draw_icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> boo
 
 pub struct UiImageButtonParams<'a> {
     pub id: &'a str,
-    pub size: Vec2,
+    pub size: Vec2, // The button's, frame included.
     pub texture: TextureHandle,
     pub tooltip: Option<&'a str>,
-    pub normal_color: Option<Color>,
-    pub hovered_color: Option<Color>,
-    pub selected_color: Option<Color>,
     pub tint_color: Option<Color>,
     pub top_left_uvs: Option<Vec2>,
     pub bottom_right_uvs: Option<Vec2>,
+    // The image's size, or any size of its aspect: it's drawn as large as fits inside the button's
+    // padding, centred, at that aspect. None stretches it over that room.
+    pub image_size: Option<Vec2>,
     pub selected: bool,
 }
 
@@ -1605,19 +1605,19 @@ impl Default for UiImageButtonParams<'_> {
             size: Vec2::zero(),
             texture: TextureHandle::invalid(),
             tooltip: None,
-            normal_color: None,
-            hovered_color: None,
-            selected_color: None,
             tint_color: None,
             top_left_uvs: None,
             bottom_right_uvs: None,
+            image_size: None,
             selected: false,
         }
     }
 }
 
 // A button showing an image, such as a tile from a texture atlas (`top_left_uvs`/`bottom_right_uvs`
-// with V up). It records itself as an "image_button", with whether it's selected as its value.
+// with V up), framed, hovered, pressed and selected as egui's buttons are (the theme's widget
+// visuals; selected in its selection colours). It records itself as an "image_button", with
+// whether it's selected as its value.
 pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
     debug_assert!(!params.id.is_empty());
     debug_assert!(params.size != Vec2::zero());
@@ -1627,9 +1627,6 @@ pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
     let top_left = params.top_left_uvs.unwrap_or(Vec2::new(0.0, 0.0));
     let bottom_right = params.bottom_right_uvs.unwrap_or(Vec2::new(1.0, 1.0));
     let uv = egui::Rect::from_min_max(pos2(top_left.x, 1.0 - bottom_right.y), pos2(bottom_right.x, 1.0 - top_left.y));
-
-    let background = if params.selected { params.selected_color } else { params.normal_color };
-    let background = color32(background.unwrap_or_default()); // White by default.
     let tint = color32(params.tint_color.unwrap_or_default());
 
     ui_sys.with_ui(|ui| {
@@ -1638,14 +1635,20 @@ pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
         let response = ui.interact(rect, id, Sense::click());
 
         if ui.is_rect_visible(rect) {
-            ui.painter().rect_filled(rect, 0.0, background);
-            ui.painter().image(egui_texture(params.texture), rect, uv, tint);
+            let visuals = ui.style().interact_selectable(&response, params.selected);
+            let frame = rect.expand(visuals.expansion);
+            ui.painter().rect(frame, visuals.corner_radius, visuals.weak_bg_fill, visuals.bg_stroke, StrokeKind::Inside);
 
-            if response.hovered()
-                && let Some(hovered) = params.hovered_color
-            {
-                ui.painter().rect_filled(rect, 0.0, color32(hovered));
-            }
+            let padding = ui.spacing().button_padding.x + visuals.bg_stroke.width;
+            let room = rect.shrink(padding);
+            let image_rect = match params.image_size {
+                Some(size) if size.x > 0.0 && size.y > 0.0 => {
+                    let scale = (room.width() / size.x).min(room.height() / size.y);
+                    egui::Rect::from_center_size(room.center(), egui_vec2(size * scale))
+                }
+                _ => room,
+            };
+            ui.painter().image(egui_texture(params.texture), image_rect, uv, tint);
         }
 
         // Its value is whether it's selected, e.g. the tile palette's current tile.

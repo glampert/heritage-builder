@@ -67,6 +67,13 @@ impl TilePalette for TilePaletteDevMenu {
     }
 }
 
+// The palette's tile buttons, frame included: 4:3, near the buildings' sprites (about 1.3:1), so
+// they fill most of it; each sprite keeps its own aspect inside.
+const TILE_BUTTON_SIZE: Vec2 = Vec2::new(BASE_TILE_WIDTH_F32, BASE_TILE_WIDTH_F32 * 0.75);
+
+// The clear tool's icon (icons/red_x_icon.png, 819 × 620): the aspect it's drawn at.
+const CLEAR_ICON_ASPECT: Vec2 = Vec2::new(819.0, 620.0);
+
 impl TilePaletteDevMenu {
     pub fn new(context: &mut GameUiContext) -> Self {
         Self {
@@ -126,12 +133,10 @@ impl TilePaletteDevMenu {
 
                 let btn_params = ui::UiImageButtonParams {
                     id: "Clear",
-                    size: BASE_TILE_SIZE_F32,
+                    size: TILE_BUTTON_SIZE,
                     texture: self.clear_button_image,
                     tooltip: Some("Clear Land"),
-                    normal_color: Some(Color::gray()),
-                    hovered_color: Some(Color::new(1.0, 1.0, 0.0, 0.1)), // Faint yellow
-                    selected_color: Some(Color::white()),
+                    image_size: Some(CLEAR_ICON_ASPECT),
                     selected: self.current_selection().is_clear(),
                     ..Default::default()
                 };
@@ -321,17 +326,18 @@ impl TilePaletteDevMenu {
             btn_id.as_str()
         };
 
+        // The sprite at the aspect it's drawn at on the map.
+        let draw_size = if tile_def.draw_size.is_valid() { tile_def.draw_size } else { tile_def.logical_size };
+
         let btn_params = ui::UiImageButtonParams {
             id: &btn_id,
-            size: BASE_TILE_SIZE_F32,
+            size: TILE_BUTTON_SIZE,
             texture: tile_sprite.texture,
             tooltip: Some(btn_tooltip),
-            normal_color: Some(Color::gray()),
-            hovered_color: Some(Color::new(1.0, 1.0, 0.0, 0.1)), // Faint yellow
-            selected_color: Some(Color::white()),
             tint_color: Some(tile_def.color),
             top_left_uvs: Some(tile_sprite.coords.top_left()),
             bottom_right_uvs: Some(tile_sprite.coords.bottom_right()),
+            image_size: Some(draw_size.to_vec2()),
             selected,
         };
 
