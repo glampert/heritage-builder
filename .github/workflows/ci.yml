@@ -79,7 +79,7 @@ jobs:
     env:
       # rustfmt.toml uses nightly-only options. Pinned so a new nightly can't change the format;
       # bump it together with a reformat (cargo +nightly-<date> fmt --all).
-      RUSTFMT_TOOLCHAIN: nightly-2026-03-18
+      RUSTFMT_TOOLCHAIN: nightly-2026-11-14
 
     steps:
       - uses: actions/checkout@v7
