@@ -538,6 +538,9 @@ impl StorageSlots {
         crate::inspect::StorageOrder::Accept
     }
 
+    // Sets the order for each good of `kinds` the store takes. TODO(realm-ui P8e): saved per store.
+    pub(crate) fn set_orders(&mut self, _kinds: ResourceKind, _order: crate::inspect::StorageOrder) {}
+
     pub(crate) fn slot_capacity(&self) -> u32 {
         self.slot_capacity
     }

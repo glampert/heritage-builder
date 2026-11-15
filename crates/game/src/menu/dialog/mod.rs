@@ -41,7 +41,7 @@ use about::*;
 mod load_save;
 use load_save::*;
 
-mod city_book;
+pub(crate) mod city_book;
 use city_book::*;
 
 mod settings;

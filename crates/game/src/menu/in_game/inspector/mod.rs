@@ -1,592 +1,573 @@
+// The in-game inspector (docs/plans/realm-ui.md, Phase 8): a panel for what's clicked, as
+// inspector-<kind>-<realm>.jpg lays it out, at the right under the top bar, left of the build
+// column, on the HUD's large panel. crate::inspect reads the report; paint.rs paints its sections;
+// this module builds the panel's widgets around them: the header (icon tile, name, close tile),
+// the painted runs, a paragraph's text, a store's goods with their orders, and the buttons.
+//
+// The panel pauses the simulation while it's open, as it always has. It reads its report again
+// every few frames and is built again when the report changes (an order set, a site finished),
+// and closes once what it shows is gone. The buttons' actions run after it draws (`Command`s),
+// never from inside its own drawing.
+
+mod paint;
+
+use std::{cell::RefCell, rc::Rc};
+
 use common::{
-    fixed_string::snake_case_to_title,
+    Vec2,
     mem::{RcMut, WeakMut, WeakRef},
 };
 use engine::ui::{
-    self,
+    UiFontScale, UiString,
     text::UiTextCategory,
-    widgets::{UiMenu, UiWidget},
+    widgets::*,
 };
 
+use self::paint::{Icons, Item};
+use super::layout;
 use crate::{
-    building::config::BuildingConfigs,
-    menu::TileInspector,
-    tile::{Tile, TileKind},
-    ui_context::GameUiContext,
-    sim::resources::{ResourceKind, StockItem},
-    building::{
-        Building,
-        BuildingArchetypeKind,
-        BuildingKind,
-        BuildingContext,
-        BuildingKindAndId,
-        construction::ConstructionSite,
-        risks::{self, RiskKind},
+    building::BuildingKind,
+    inspect::{self, ActionKind, InspectIcon, InspectReport, InspectTarget, PanelKind, Section, StorageOrder},
+    menu::{
+        TileInspector, TilePlacement,
+        dialog::city_book::{BookColors, Paint},
+        skin::{self, ButtonRole, HudGlyphGroup, HudTileKind},
     },
+    realm,
+    sim::resources::ResourceKind,
+    ui_context::GameUiContext,
 };
 
-mod renderer;
-use renderer::*;
+// ----------------------------------------------
+// Layout
+// ----------------------------------------------
+
+// The dialogs' frame: the HUD's large panel, its insets clear of each realm's foot ornaments.
+const PANEL: &str = "dialog";
+const TOP: f32 = 130.0; // Under the top bar, room for a large panel's crest.
+const BOTTOM: f32 = 24.0; // Room under it, for the panel's foot ornaments.
+const MIN_SCALE: f32 = 0.55;
+
+// The mockup's content widths, px: the panel (500 or 620) less 28 a side.
+const CONTENT: f32 = 444.0;
+const CONTENT_WIDE: f32 = 564.0;
+
+const ICON: f32 = 76.0;
+const CLOSE: f32 = 36.0;
+const HEADER: f32 = 86.0; // The header's height.
+const TEXT_GAP: f32 = 12.0; // Under a paragraph.
+const STORE_ROW: f32 = 32.0;
+const ORDER_WIDTH: f32 = 102.0;
+const ACCEPT_BUTTON: Vec2 = Vec2::new(150.0, 40.0);
+const BUTTON: Vec2 = Vec2::new(210.0, 56.0);
+const BUTTON_WIDE: f32 = 240.0;
+const BUTTONS_GAP: f32 = 18.0; // Above the buttons.
+const CHECK_EVERY_FRAMES: u32 = 15;
+
+// How often the panel reads its report again while open.
 
 // ----------------------------------------------
 // TileInspectorMenu
 // ----------------------------------------------
 
 pub struct TileInspectorMenu {
-    current_inspector_kind: Option<GameObjectInspectorKind>,
-
-    unit_inspector: UnitInspector,
-    building_inspector: BuildingInspector,
-    prop_inspector: PropInspector,
-    terrain_inspector: TerrainInspector,
+    panel: Option<Panel>,
+    commands: Commands,
 }
 
-pub type TileInspectorMenuRcMut   = RcMut<TileInspectorMenu>;
+pub type TileInspectorMenuRcMut = RcMut<TileInspectorMenu>;
 pub type TileInspectorMenuWeakMut = WeakMut<TileInspectorMenu>;
 pub type TileInspectorMenuWeakRef = WeakRef<TileInspectorMenu>;
 
+// What the panel's widgets ask for, run after it draws.
+#[derive(Copy, Clone, Debug)]
+enum Command {
+    Close,
+    Action(ActionKind),
+    ConfirmDemolish,
+    CancelPopup,
+    SetOrder(ResourceKind, StorageOrder),
+    SetAllOrders(StorageOrder),
+}
+
+type Commands = Rc<RefCell<Vec<Command>>>;
+
+struct Panel {
+    target: InspectTarget,
+    report: InspectReport,
+    menu: UiMenuRcMut,
+    frames: u32,
+}
+
 impl TileInspector for TileInspectorMenu {
     fn open(&mut self, context: &mut GameUiContext) {
-        debug_assert!(self.current_inspector_kind.is_none());
-
-        self.current_inspector_kind = {
-            let selected_tile = match context.topmost_selected_tile() {
-                Some(tile) => tile,
-                None => return,
+        self.close(context);
+        let realm = realm::ui_realm_for(false).realm;
+        let cell = context.tile_selection.last_cell();
+        let report = {
+            let sim = context.new_sim_context();
+            let Some(tile) = sim.tile_map().topmost_tile_at_cell(cell) else {
+                return;
             };
-
-            if selected_tile.is(TileKind::Unit) {
-                Some(GameObjectInspectorKind::Unit)
-            } else if selected_tile.is(TileKind::Building) {
-                Some(GameObjectInspectorKind::Building)
-            } else if selected_tile.is_harvestable_prop() {
-                // NOTE: Only harvestable props have an associated Prop object. Anything else uses the terrain inspector.
-                Some(GameObjectInspectorKind::Prop)
-            } else if selected_tile.is(TileKind::Terrain | TileKind::Rocks | TileKind::Vegetation) {
-                // NOTE: Rocks and non-harvestable vegetation are considered part of terrain (no associated Prop object).
-                Some(GameObjectInspectorKind::Terrain)
-            } else {
-                None
-            }
+            inspect::inspect_tile(&sim, tile, realm)
         };
-
-        if let Some(inspector) = self.current_inspector() {
-            inspector.open(context);
+        if let Some(report) = report {
+            self.show(context, report);
         }
     }
 
     fn close(&mut self, context: &mut GameUiContext) {
-        if let Some(inspector) = self.current_inspector() {
-            inspector.close(context);
-            self.current_inspector_kind = None;
+        if let Some(mut panel) = self.panel.take() {
+            panel.menu.close(context);
         }
+        self.commands.borrow_mut().clear();
     }
 }
 
 impl TileInspectorMenu {
-    pub fn new(context: &mut GameUiContext) -> TileInspectorMenuRcMut {
-        TileInspectorMenuRcMut::new_cyclic(|tile_inspector_menu_weak_ref| Self {
-            current_inspector_kind: None,
-            unit_inspector: UnitInspector::new(context, &tile_inspector_menu_weak_ref),
-            building_inspector: BuildingInspector::new(context, &tile_inspector_menu_weak_ref),
-            prop_inspector: PropInspector::new(context, &tile_inspector_menu_weak_ref),
-            terrain_inspector: TerrainInspector::new(context, &tile_inspector_menu_weak_ref),
-        })
+    pub fn new(_context: &mut GameUiContext) -> TileInspectorMenuRcMut {
+        TileInspectorMenuRcMut::new(Self { panel: None, commands: Rc::new(RefCell::new(Vec::new())) })
+    }
+
+    // The report the panel shows, if it's open (automation).
+    pub fn report(&self) -> Option<&InspectReport> {
+        self.panel.as_ref().map(|panel| &panel.report)
     }
 
     pub fn draw(&mut self, context: &mut GameUiContext) {
-        if let Some(inspector) = self.current_inspector() {
-            let is_open = inspector.draw(context);
-
-            // If the menu was closed just now, clear current inspector.
-            if !is_open {
-                self.close(context);
-            }
-        }
-    }
-
-    fn current_inspector(&mut self) -> Option<&mut dyn GameObjectInspector> {
-        self.current_inspector_kind.map(|kind| {
-            let inspector: &mut dyn GameObjectInspector = {
-                match kind {
-                    GameObjectInspectorKind::Unit     => &mut self.unit_inspector,
-                    GameObjectInspectorKind::Building => &mut self.building_inspector,
-                    GameObjectInspectorKind::Prop     => &mut self.prop_inspector,
-                    GameObjectInspectorKind::Terrain  => &mut self.terrain_inspector,
-                }
-            };
-            inspector
-        })
-    }
-}
-
-// ----------------------------------------------
-// GameObjectInspectorKind / GameObjectInspector
-// ----------------------------------------------
-
-#[derive(Copy, Clone)]
-enum GameObjectInspectorKind {
-    Unit,
-    Building,
-    Prop,
-    Terrain,
-}
-
-trait GameObjectInspector {
-    fn update_selection(&mut self, context: &mut GameUiContext);
-    fn menu(&mut self) -> &mut UiMenu;
-
-    fn open(&mut self, context: &mut GameUiContext) {
-        if context.topmost_selected_tile().is_none() {
-            return;
-        }
-
-        self.update_selection(context);
-        self.menu().open(context);
-    }
-
-    fn close(&mut self, context: &mut GameUiContext) {
-        self.menu().close(context);
-    }
-
-    // Returns true if menu still open.
-    fn draw(&mut self, context: &mut GameUiContext) -> bool {
-        let menu = self.menu();
-        menu.draw(context);
-        menu.is_open()
-    }
-}
-
-// ----------------------------------------------
-// Tile description lookup helpers
-// ----------------------------------------------
-
-fn find_tile_description(tile: &Tile) -> &'static str {
-    ui::text::find_str(UiTextCategory::TileDescription, tile.tile_def().hash).unwrap_or("")
-}
-
-fn find_unit_dialog(unit_tile: &Tile) -> &'static str {
-    ui::text::find_str(UiTextCategory::UnitDialog, unit_tile.tile_def().hash).unwrap_or("")
-}
-
-// ----------------------------------------------
-// UnitInspector
-// ----------------------------------------------
-
-struct UnitInspector {
-    renderer: InspectorMenuRenderer,
-}
-
-impl GameObjectInspector for UnitInspector {
-    fn update_selection(&mut self, context: &mut GameUiContext) {
-        let selected_tile = context.topmost_selected_tile().unwrap();
-
-        if let Some(unit) = context.world.find_unit_for_tile(selected_tile) {
-            self.renderer.set_icon(selected_tile.icon_sprite(), selected_tile.kind());
-            self.renderer.set_title(unit.name());
-            self.renderer.set_body_text(find_unit_dialog(selected_tile));
-            self.set_inventory(unit.peek_inventory());
-        }
-    }
-
-    fn menu(&mut self) -> &mut UiMenu {
-        self.renderer.menu()
-    }
-}
-
-impl UnitInspector {
-    fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        Self { renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(UnitInspector)) }
-    }
-
-    fn set_inventory(&mut self, inventory: Option<StockItem>) {
-        if let Some(item) = inventory {
-            self.renderer.set_heading_pairs(&[(item.kind.display_name(), item.count)]);
-        } else {
-            self.renderer.clear_headings();
-        }
-    }
-}
-
-// ----------------------------------------------
-// BuildingInspector
-// ----------------------------------------------
-
-struct BuildingInspector {
-    renderer: InspectorMenuRenderer,
-    // While the building shown is a construction site: the building, and the progress shown
-    // (percent), so the panel follows the site until it completes.
-    site: Option<(BuildingKindAndId, u32)>,
-}
-
-impl GameObjectInspector for BuildingInspector {
-    fn update_selection(&mut self, context: &mut GameUiContext) {
-        let selected_tile = context.topmost_selected_tile().unwrap();
-
-        if let Some(building) = context.world.find_building_for_tile(selected_tile) {
-            self.renderer.set_icon(selected_tile.icon_sprite(), selected_tile.kind());
-            self.show(context, building.kind_and_id());
-        }
-    }
-
-    fn menu(&mut self) -> &mut UiMenu {
-        self.renderer.menu()
-    }
-
-    fn draw(&mut self, context: &mut GameUiContext) -> bool {
-        // The panel is filled when opened; a site's progress is refreshed as it changes.
-        if let Some((handle, shown_percent)) = self.site {
-            let percent = context
-                .world
-                .find_building(handle.kind, handle.id)
-                .map(|building| building.construction_site().map(construction_percent));
-
-            match percent {
-                Some(percent) if percent != Some(shown_percent) => self.show(context, handle),
-                Some(_) => {}
-                None => self.site = None, // Gone.
-            }
-        }
-
-        let menu = self.menu();
-        menu.draw(context);
-        menu.is_open()
-    }
-}
-
-// Progress of a site, in whole percent.
-fn construction_percent(site: &ConstructionSite) -> u32 {
-    (site.progress() * 100.0).floor() as u32
-}
-
-impl BuildingInspector {
-    fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        Self {
-            renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(BuildingInspector)),
-            site: None,
-        }
-    }
-
-    fn show(&mut self, context: &mut GameUiContext, handle: BuildingKindAndId) {
-        let sim_context = context.new_sim_context();
-        let Some(building) = sim_context.find_building(handle.kind, handle.id) else {
-            self.site = None;
+        let Some(panel) = &mut self.panel else {
             return;
         };
 
-        self.renderer.set_title(building.name());
-        self.site = building.construction_site().map(|site| (handle, construction_percent(site)));
+        // Read again now and then: an order set, a site finished, a building gone.
+        panel.frames += 1;
+        if panel.frames >= CHECK_EVERY_FRAMES {
+            panel.frames = 0;
+            self.refresh(context);
+        }
 
-        if let Some(site) = building.construction_site() {
-            self.renderer.clear_headings();
-            self.renderer.set_body(&Self::gather_site_stats(site));
+        if let Some(panel) = &mut self.panel {
+            panel.menu.draw(context);
+            if !panel.menu.is_open() {
+                // Closed by Escape (CloseModalOnEscape).
+                self.close(context);
+            }
+        }
+
+        let commands: Vec<Command> = self.commands.borrow_mut().drain(..).collect();
+        for command in commands {
+            self.run(context, command);
+        }
+    }
+
+    fn show(&mut self, context: &mut GameUiContext, report: InspectReport) {
+        let mut menu = build(context, &report, &self.commands);
+        menu.open(context);
+        self.panel = Some(Panel { target: report.target, report, menu, frames: 0 });
+    }
+
+    // Reads the report again; builds the panel again if it changed, closes it if what it shows is
+    // gone.
+    fn refresh(&mut self, context: &mut GameUiContext) {
+        let Some(panel) = &self.panel else {
             return;
-        }
-
-        self.set_population_and_workers(building, sim_context.finance().tax_percent());
-
-        let building_ctx = building.new_context(&sim_context);
-        self.set_stats_info(&building_ctx, building);
-    }
-
-    fn gather_site_stats(site: &ConstructionSite) -> InspectorMenuBody {
-        let mut body = InspectorMenuBody::new();
-        add_body_line!(&mut body, "Under construction: {}%", construction_percent(site));
-        add_body_line!(&mut body, "About {} seconds left. It starts working once it's built.", site.remaining_secs().ceil());
-        body
-    }
-
-    fn set_population_and_workers(&mut self, building: &Building, tax_percent: u32) {
-        let mut headings = InspectorMenuHeadings::new();
-
-        // Population + Workers: Household.
-        if let Some(population) = building.population() {
-            add_heading!(&mut headings, "Residents", "{}/{}", population.count(), population.max());
-
-            if let Some(workers) = building.workers() {
-                let household = workers.as_household_worker_pool().expect("Expected Household!");
-                let total_workers = household.total_workers();
-
-                add_heading!(&mut headings, "Workers Available", "{}", total_workers);
-                if total_workers != 0 {
-                    add_heading!(&mut headings, "Workers Employed", "{}", household.employed_count());
+        };
+        let target = panel.target;
+        let realm = realm::ui_realm_for(false).realm;
+        let report = {
+            let sim = context.new_sim_context();
+            inspect::inspect_target(&sim, &target, realm)
+        };
+        match report {
+            None => self.close(context),
+            Some(report) if Some(&report) != self.report() => {
+                let popup_open = self.panel.as_ref().is_some_and(|panel| panel.menu.is_message_box_open());
+                if popup_open {
+                    return; // Not under an open popup: after it closes.
                 }
+                if let Some(mut panel) = self.panel.take() {
+                    panel.menu.close(context);
+                }
+                self.show(context, report);
             }
-
-            let house = building.as_house();
-            let tax_generated = house.tax_generated(tax_percent);
-
-            if tax_generated != 0 {
-                add_heading!(&mut headings, "Tax", "Generated {} / Available {}", tax_generated, house.tax_available());
-            } else {
-                add_heading!(&mut headings, "Tax", "No Income Generated");
-            }
-        // Just Workers: Employer Building.
-        } else if let Some(workers) = building.workers() {
-            let employer = workers.as_employer().expect("Expected Employer Building!");
-            if employer.min_employees() != 0 {
-                add_heading!(&mut headings, "Workers", "{}/{}", employer.employee_count(), employer.max_employees());
-                add_heading!(&mut headings, "Min Workers Required", "{}", employer.min_employees());
-            }
-        }
-
-        self.renderer.set_headings(&headings);
-    }
-
-    fn set_stats_info(&mut self, building_ctx: &BuildingContext, building: &Building) {
-        let mut body = InspectorMenuBody::new();
-        Self::gather_emergency(building, &mut body);
-        body.append(&{
-            if building.is(BuildingKind::House) {
-                Self::gather_house_stats(building_ctx, building)
-            } else {
-                Self::gather_building_stats(building)
-            }
-        });
-        self.renderer.set_body(&body);
-    }
-
-    // A fire or a sickness, first, as what matters most (docs/plans/city-risks.md).
-    fn gather_emergency(building: &Building, body: &mut InspectorMenuBody) {
-        let risks = building.risks();
-        if let Some(fire) = risks.burning() {
-            add_body_line!(&mut body, "On fire! It burns down in about {} seconds unless a fire watcher puts it out.", fire.secs_left.ceil());
-        }
-        if let Some(outbreak) = risks.outbreak() {
-            match outbreak.deaths {
-                0 => add_body_line!(&mut body, "Sickness! Its residents will start dying unless a medic visits soon."),
-                1 => add_body_line!(&mut body, "Sickness! 1 resident has died. A medic's visit cures it."),
-                deaths => add_body_line!(&mut body, "Sickness! {deaths} residents have died. A medic's visit cures it."),
-            }
+            Some(_) => {}
         }
     }
 
-    // One line with the risks the building builds up, by level: "Fire risk: Low | Collapse risk:
-    // Medium", and a house's disease risk.
-    fn gather_risks(building: &Building, body: &mut InspectorMenuBody) {
-        if !building.has_risks() {
+    fn run(&mut self, context: &mut GameUiContext, command: Command) {
+        let Some(panel) = &mut self.panel else {
             return;
-        }
-        let rates = building.configs().risk_rates();
-        let shown = [
-            (RiskKind::Fire, "Fire risk", rates.fire),
-            (RiskKind::Collapse, "Collapse risk", rates.collapse),
-            (RiskKind::Disease, "Disease risk", rates.disease),
-        ];
-        let mut first = true;
-        for (kind, label, rate) in shown {
-            if rate <= 0.0 {
-                continue;
+        };
+        let target = panel.target;
+        match command {
+            Command::Close => self.close(context),
+            Command::Action(ActionKind::Demolish) => {
+                let name = panel.report.name.clone();
+                let commands = self.commands.clone();
+                panel.menu.reset_message_box();
+                panel.menu.open_message_box(context, move |context| demolish_popup(context, &name, &commands));
             }
-            if !first {
-                body.add_str(" | ");
+            Command::CancelPopup => panel.menu.close_message_box(context),
+            Command::ConfirmDemolish | Command::Action(ActionKind::CancelSite) | Command::Action(ActionKind::Clear) => {
+                panel.menu.close_message_box(context);
+                clear(context, target);
+                self.close(context);
             }
-            add_body_str!(&mut body, "{label}: {}", risks::risk_level_name(building.risks().get(kind)));
-            first = false;
-        }
-        if !first {
-            body.add_line("");
-        }
-    }
-
-    fn gather_house_stats(building_ctx: &BuildingContext, building: &Building) -> InspectorMenuBody {
-        let mut body = InspectorMenuBody::new();
-
-        let house = building.as_house();
-        let upgrade_state = house.upgrade_state();
-        let config = BuildingConfigs::get().house_config();
-
-        // Renovation and downgrade warnings.
-        if let Some(secs_left) = upgrade_state.renovation_secs_left {
-            add_body_line!(&mut body, "Being renovated: it upgrades in about {} seconds.", secs_left.ceil());
-        } else if upgrade_state.upgrade_ready_secs > 0.0 {
-            let secs = (config.renovation_delay_secs - upgrade_state.upgrade_ready_secs).max(0.0);
-            add_body_line!(&mut body, "Its needs are met: renovation starts in about {} seconds.", secs.ceil());
-        }
-        if upgrade_state.downgrade_pending_secs > 0.0 {
-            let secs = (config.downgrade_grace_secs - upgrade_state.downgrade_pending_secs).max(0.0);
-            add_body_line!(&mut body, "Its needs aren't met! It downgrades in about {} seconds.", secs.ceil());
-        }
-
-        if !house.level().is_max() {
-            if !building.is_linked_to_road() {
-                add_body_line!(&mut body, "House lacks road access!");
-            } else if !house.is_upgrade_available(building_ctx) {
-                add_body_line!(&mut body, "House has no room to expand!");
-            } else {
-                let upgrade_requirements = house.upgrade_requirements(building_ctx);
-                let has_required_resources = upgrade_requirements.has_required_resources();
-                let has_required_services  = upgrade_requirements.has_required_services();
-
-                if !has_required_resources {
-                    add_body_line!(&mut body, "Resources required before it can upgrade:");
-                    add_body_line!(&mut body, "{}", upgrade_requirements.resources_missing());
-                }
-
-                if !has_required_services {
-                    add_body_line!(&mut body, "Services required before it can upgrade:");
-                    add_body_line!(&mut body, "{}", upgrade_requirements.services_missing());
-                }
-            }
-        } else {
-            add_body_line!(&mut body, "This house is upgraded to its highest level!");
-        }
-
-        Self::gather_risks(building, &mut body);
-
-        let skip_empty = true;
-        let stock = building.stock();
-
-        if !stock.is_empty() {
-            let stock_items = Self::gather_stock_items(&stock, skip_empty);
-            if !stock_items.is_empty() {
-                add_body_line!(&mut body, "Resources stocked:");
-                body.append(&stock_items);
-            }
-        }
-
-        body
-    }
-
-    fn gather_building_stats(building: &Building) -> InspectorMenuBody {
-        let mut body = InspectorMenuBody::new();
-
-        let is_operational = building.is_operational();
-        if !is_operational {
-            let is_linked_to_road = building.is_linked_to_road();
-
-            let has_min_required_workers = building.has_min_required_workers();
-            let has_min_required_resources = building.has_min_required_resources();
-            let is_production_halted = building.is_production_halted();
-
-            if !is_linked_to_road {
-                add_body_line!(&mut body, "Building not running because it lacks road access!");
-            } else if !has_min_required_workers {
-                add_body_line!(&mut body, "Building not running because it doesn't have enough workers!");
-            } else if !has_min_required_resources {
-                add_body_line!(&mut body, "Building not running because it doesn't have the required resources!");
-            }
-
-            if is_production_halted && has_min_required_workers && has_min_required_resources {
-                // If we have workers and resources but halted production, our local output stock mut be full.
-                add_body_line!(&mut body, "Production halted! Waiting for production stock to be shipped out.");
-            }
-        } else {
-            let has_all_workers = building.workers_is_maxed();
-            if has_all_workers {
-                add_body_line!(&mut body, "Building is operational and running at full capacity!");
-            } else {
-                add_body_line!(&mut body, "Building is operational but doesn't have all required workers.");
-            }
-        }
-
-        Self::gather_risks(building, &mut body);
-
-        let skip_empty = building.archetype_kind() == BuildingArchetypeKind::ServiceBuilding
-            || building.archetype_kind() == BuildingArchetypeKind::StorageBuilding;
-
-        let stock = building.stock();
-
-        if !stock.is_empty() || !skip_empty {
-            let stock_items = Self::gather_stock_items(&stock, skip_empty);
-            if !stock_items.is_empty() || !skip_empty {
-                add_body_line!(&mut body, "Stock:");
-                body.append(&stock_items);
-            }
-        }
-
-        body
-    }
-
-    fn gather_stock_items(stock: &[StockItem], skip_empty: bool) -> InspectorMenuBody {
-        let mut body = InspectorMenuBody::new();
-
-        if !stock.is_empty() || !skip_empty {
-            let mut items_in_line = 0;
-
-            for item in stock {
-                if item.count != 0 || !skip_empty {
-                    // Up to 3 items per line.
-                    if items_in_line == 3 {
-                        body.add_line(""); // newline.
-                        items_in_line = 0;
-                    } else if items_in_line != 0 {
-                        body.add_str(" | ");
+            Command::Action(ActionKind::ShowHome) => {
+                let home = {
+                    let sim = context.new_sim_context();
+                    match target {
+                        InspectTarget::Unit { id, .. } => sim.find_unit(id).and_then(|unit| inspect::unit_home_cell(&sim, unit, realm::ui_realm_for(false).realm)),
+                        _ => None,
                     }
-
-                    add_body_str!(&mut body, "{}: {}", item.kind.display_name(), item.count);
-                    items_in_line += 1;
+                };
+                if let Some(cell) = home {
+                    context.camera.teleport(cell);
                 }
+                self.close(context);
+            }
+            Command::Action(ActionKind::PauseWork) => {} // Disabled until M11's labour.
+            Command::SetOrder(kind, order) => {
+                set_orders(context, target, kind, order);
+                self.refresh(context);
+            }
+            Command::SetAllOrders(order) => {
+                set_orders(context, target, ResourceKind::all(), order);
+                self.refresh(context);
             }
         }
-
-        body
     }
 }
 
-// ----------------------------------------------
-// PropInspector
-// ----------------------------------------------
-
-struct PropInspector {
-    renderer: InspectorMenuRenderer,
+// Clears what the panel shows through the player's own path: a building demolished (nothing
+// given back), a site cancelled (all it took given back), a prop or a road cleared.
+fn clear(context: &mut GameUiContext, target: InspectTarget) {
+    let sim = context.new_sim_context();
+    let cell = match target {
+        InspectTarget::Building { handle, .. } => match sim.find_building(handle.kind, handle.id) {
+            Some(building) => building.base_cell(),
+            None => return,
+        },
+        other => other.cell(),
+    };
+    if let Some(tile) = sim.tile_map().topmost_tile_at_cell(cell) {
+        let _ = TilePlacement::clear(&sim, tile, false, true);
+    }
 }
 
-impl GameObjectInspector for PropInspector {
-    fn update_selection(&mut self, context: &mut GameUiContext) {
-        let selected_tile = context.topmost_selected_tile().unwrap();
+// Sets a store's order for each good of `kinds` it takes.
+fn set_orders(context: &mut GameUiContext, target: InspectTarget, kinds: ResourceKind, order: StorageOrder) {
+    let InspectTarget::Building { handle, .. } = target else {
+        return;
+    };
+    if !handle.kind.intersects(BuildingKind::storage()) {
+        return;
+    }
+    if let Some(building) = context.world.find_building_mut(handle.kind, handle.id) {
+        building.as_storage_mut().storage_slots.set_orders(kinds, order);
+    }
+}
 
-        if let Some(prop) = context.world.find_prop_for_tile(selected_tile) {
-            self.renderer.set_icon(selected_tile.icon_sprite(), selected_tile.kind());
-            self.renderer.set_title(prop.name());
-            self.renderer.set_body_text(find_tile_description(selected_tile));
-            self.set_harvestable_resource(prop.harvestable_resource(), prop.harvestable_amount());
+fn demolish_popup(context: &mut dyn UiWidgetContext, name: &str, commands: &Commands) -> UiMessageBox {
+    let title = inspect::tf("demolish.title", &[("building", &name.to_lowercase())]);
+    let body = [UiString::key(UiTextCategory::Hud, "inspect.demolish.body")];
+    let confirm = commands.clone();
+    let cancel = commands.clone();
+    skin::popup_with_body(context, "Demolish Popup", [UiString::from(title)], body).with_buttons([
+        skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Hud, "inspect.action.demolish"), move |_, _| {
+            confirm.borrow_mut().push(Command::ConfirmDemolish);
+        }),
+        skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), move |_, _| {
+            cancel.borrow_mut().push(Command::CancelPopup);
+        }),
+    ])
+}
+
+// ----------------------------------------------
+// Building the panel
+// ----------------------------------------------
+
+// The menu's label: its widgets' paths start with it (`BuildingInspector/Close`).
+fn menu_label(panel: PanelKind) -> &'static str {
+    match panel {
+        PanelKind::Unit => "UnitInspector",
+        PanelKind::Prop => "PropInspector",
+        PanelKind::Terrain => "TerrainInspector",
+        _ => "BuildingInspector",
+    }
+}
+
+// The parts of the panel under its header, in order.
+enum Part {
+    Run(Vec<Item>),
+    Text(String),
+    Store(Section),
+}
+
+fn parts(report: &InspectReport) -> Vec<Part> {
+    let mut parts = Vec::new();
+    let mut run = vec![Item::Status(report.status.clone())];
+    for section in &report.sections {
+        match section {
+            Section::Text { text } => {
+                parts.push(Part::Run(std::mem::take(&mut run)));
+                parts.push(Part::Text(text.clone()));
+            }
+            Section::Storage { .. } => {
+                parts.push(Part::Run(std::mem::take(&mut run)));
+                parts.push(Part::Store(section.clone()));
+            }
+            _ => run.push(Item::Section(section.clone())),
+        }
+    }
+    parts.push(Part::Run(run));
+    parts.retain(|part| !matches!(part, Part::Run(items) if items.is_empty()));
+    parts
+}
+
+fn insets(context: &mut GameUiContext) -> (f32, f32) {
+    match skin::panel(context, PANEL) {
+        skin::SkinPanel::NineSlice { content, .. } => (content.left + content.right, content.top + content.bottom),
+        skin::SkinPanel::Sprite { .. } => (40.0, 40.0),
+    }
+}
+
+// Lines a paragraph takes, about: its characters over what a line holds at 18 px.
+fn text_lines(text: &str, width: f32) -> f32 {
+    let per_line = (width / (18.0 * 0.46)).max(10.0);
+    text.split('\n').map(|line| (line.chars().count() as f32 / per_line).ceil().max(1.0)).sum()
+}
+
+// The panel's height in mockup px at scale 1, without its insets.
+fn content_height(parts: &[Part], width: f32, actions: bool) -> f32 {
+    let icons = Icons { population: None };
+    let mut height = HEADER;
+    for part in parts {
+        height += match part {
+            Part::Run(items) => paint::flow(None, icons, items, width),
+            Part::Text(text) => text_lines(text, width) * 27.0 + TEXT_GAP,
+            Part::Store(Section::Storage { rows, .. }) => paint::TOP + 14.0 + rows.len() as f32 * STORE_ROW + ACCEPT_BUTTON.y + 30.0,
+            Part::Store(_) => 0.0,
+        };
+    }
+    if actions {
+        height += BUTTONS_GAP + BUTTON.y;
+    }
+    height
+}
+
+fn build(context: &mut GameUiContext, report: &InspectReport, commands: &Commands) -> UiMenuRcMut {
+    let window = Vec2::new(context.viewport_size.width as f32, context.viewport_size.height as f32);
+    let width = if report.wide { CONTENT_WIDE } else { CONTENT };
+    let parts = parts(report);
+    let (inset_x, inset_y) = insets(context);
+    let column = layout::column_width(context);
+
+    // Its scale: the mockup's size where the window has room, smaller where it hasn't.
+    let height = content_height(&parts, width, !report.actions.is_empty());
+    let room = Vec2::new(window.x - column - layout::GAP - 2.0 * layout::MARGIN - inset_x, window.y - TOP - BOTTOM - inset_y);
+    let k = (room.y / height).min(room.x / width).clamp(MIN_SCALE, 1.0);
+
+    let colors = BookColors::read();
+    let icons = Icons { population: Some(skin::hud_icon(context, "population").0) };
+    let size = Vec2::new(width * k + inset_x, height * k + inset_y + 4.0);
+    let position = Vec2::new(window.x - column - layout::GAP - layout::MARGIN - size.x, TOP);
+
+    let menu = UiMenu::new(menu_label(report.panel))
+        .with_flags(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::Modal | UiMenuFlags::CloseModalOnEscape)
+        .with_position(position)
+        .with_size(size)
+        .with_widget_spacing(Vec2::zero());
+    let mut menu = skin::panel(context, PANEL).apply_to_menu(menu);
+
+    menu.add_widget(header(context, report, width, k, commands));
+
+    for part in parts {
+        match part {
+            Part::Run(items) => {
+                let run_height = paint::flow(None, icons, &items, width);
+                let canvas = UiCanvas::new(Vec2::new(width * k, run_height * k), move |_, painter, rect| {
+                    let p = Paint::new(painter, rect, k, colors);
+                    paint::flow(Some(&p), icons, &items, width);
+                });
+                menu.add_widget(canvas);
+            }
+            Part::Text(text) => {
+                let line = UiText::new(text, UiFontScale(k)).with_color(colors.text).with_wrap_width(width * k);
+                menu.add_widget(UiMenuHeading::new([line]).with_center_horizontally(false));
+                menu.add_widget(spacer(width * k, TEXT_GAP * k));
+            }
+            Part::Store(section) => add_store(context, &mut menu, &section, width, k, colors, commands),
         }
     }
 
-    fn menu(&mut self) -> &mut UiMenu {
-        self.renderer.menu()
+    if !report.actions.is_empty() {
+        menu.add_widget(spacer(width * k, BUTTONS_GAP * k));
+        menu.add_widget(actions(context, report, width, k, commands));
     }
+
+    menu.into_rc()
 }
 
-impl PropInspector {
-    fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        Self { renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(PropInspector)) }
-    }
+fn spacer(width: f32, height: f32) -> UiCanvas {
+    UiCanvas::new(Vec2::new(width, height), |_, _, _| {})
+}
 
-    fn set_harvestable_resource(&mut self, resource: ResourceKind, amount: u32) {
-        if !resource.is_empty() {
-            self.renderer.set_heading_pairs(&[(resource, amount)]);
-        } else {
-            self.renderer.clear_headings();
+// The icon tile, the name and the kind, and the close tile.
+fn header(context: &mut GameUiContext, report: &InspectReport, width: f32, k: f32, commands: &Commands) -> UiWidgetGroup {
+    let gap = 20.0;
+    let mut group = UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::new(gap * k, 0.0));
+
+    let icon_size = ICON * k;
+    match &report.icon {
+        InspectIcon::Building(name) | InspectIcon::Sector(name) => {
+            let group_kind = if matches!(report.icon, InspectIcon::Building(_)) { HudGlyphGroup::Building } else { HudGlyphGroup::Sector };
+            let scale = icon_size / skin::hud_tile_size(HudTileKind::Large).x.max(1.0);
+            group = group.with_widget(skin::hud_tile_scaled(context, HudTileKind::Large, scale, "icon", group_kind, name));
         }
+        InspectIcon::Sprite => group = group.with_widget(sprite_icon(context, report.target, icon_size)),
     }
+
+    let colors = BookColors::read();
+    let name = report.name.clone();
+    let subtitle = report.subtitle.clone();
+    let title_width = width * k - icon_size - CLOSE * k - 2.0 * gap * k;
+    let value = serde_json::json!({ "name": name, "subtitle": subtitle });
+    let title = UiCanvas::new(Vec2::new(title_width, HEADER * k), move |_, painter, rect| {
+        let p = Paint::new(painter, rect, k, colors);
+        p.text(0.0, 36.0, &name, 30.0, p.c.text, engine::ui::UiTextAnchor::Start, true);
+        p.text(0.0, 66.0, &subtitle, 18.0, p.c.sub, engine::ui::UiTextAnchor::Start, false);
+    })
+    .with_label("title", Some(value));
+    group = group.with_widget(title);
+
+    let close_commands = commands.clone();
+    let close = skin::hud_tile_scaled(context, HudTileKind::Small, k, "Close", HudGlyphGroup::Hud, "close")
+        .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Hud, "button.close")))
+        .on_pressed(move |_, _| close_commands.borrow_mut().push(Command::Close));
+    group.with_widget(close)
 }
 
-// ----------------------------------------------
-// TerrainInspector
-// ----------------------------------------------
-
-struct TerrainInspector {
-    renderer: InspectorMenuRenderer,
+// A walker's, prop's or terrain's own sprite, fitted in the icon's square.
+fn sprite_icon(context: &mut GameUiContext, target: InspectTarget, size: f32) -> UiSpriteIcon {
+    let mut icon = UiSpriteIcon::new(Vec2::new(size, size));
+    let sprite = {
+        let sim = context.new_sim_context();
+        match target {
+            InspectTarget::Unit { id, .. } => sim.find_unit(id).map(|unit| unit.find_tile(&sim).icon_sprite()),
+            other => sim.tile_map().topmost_tile_at_cell(other.cell()).map(|tile| tile.icon_sprite()),
+        }
+    };
+    if let Some(sprite) = sprite {
+        icon.set_sprite(sprite.tex_info.texture);
+        icon.set_tex_coords(sprite.tex_info.coords);
+        let natural = sprite.size.to_vec2();
+        let fit = (size / natural.x.max(1.0)).min(size / natural.y.max(1.0));
+        icon.set_size(natural * fit);
+    }
+    icon
 }
 
-impl GameObjectInspector for TerrainInspector {
-    fn update_selection(&mut self, context: &mut GameUiContext) {
-        let selected_tile = context.topmost_selected_tile().unwrap();
+// A store's goods: the title, a row per good with its order, and Accept all and Accept none.
+fn add_store(context: &mut GameUiContext, menu: &mut UiMenu, section: &Section, width: f32, k: f32, colors: BookColors, commands: &Commands) {
+    let Section::Storage { title, note, rows, footer } = section else {
+        return;
+    };
+    let title = title.clone();
+    let note = note.clone();
+    menu.add_widget(UiCanvas::new(Vec2::new(width * k, (paint::TOP + 14.0) * k), move |_, painter, rect| {
+        let p = Paint::new(painter, rect, k, colors);
+        p.section(0.0, paint::TOP, &title);
+        p.text(width, paint::TOP, &note, 17.0, p.c.sub, engine::ui::UiTextAnchor::End, false);
+    }));
 
-        self.renderer.set_icon(selected_tile.icon_sprite(), selected_tile.kind());
-        self.renderer.set_title(&snake_case_to_title::<128>(selected_tile.name()));
-        self.renderer.set_body_text(find_tile_description(selected_tile));
+    let steps: Vec<UiString> = StorageOrder::ALL.iter().map(|order| UiString::from(order.label())).collect();
+    for row in rows {
+        let row = row.clone();
+        let refused = !row.order.takes_in();
+        let line_width = width - ORDER_WIDTH;
+        let (good, have, room) = (row.good.clone(), row.have, row.room);
+        let canvas = UiCanvas::new(Vec2::new(line_width * k, STORE_ROW * k), move |_, painter, rect| {
+            let p = Paint::new(painter, rect, k, colors);
+            let y = 22.0;
+            p.painter.rect_filled(p.rect(3.0, y - 11.0, 9.0, 9.0), p.c.accent, 1.0 * k);
+            let name_color = if refused { p.c.sub } else { p.c.text };
+            p.text(20.0, y, &good, 18.0, name_color, engine::ui::UiTextAnchor::Start, false);
+            let ratio = if room > 0 { have as f32 / room as f32 } else { 0.0 };
+            p.bar(150.0, y - 11.0, line_width - 280.0, 9.0, ratio);
+            p.text(line_width - 16.0, y, &format!("{have} / {room}"), 17.0, p.c.text, engine::ui::UiTextAnchor::End, false);
+        });
+        let order_commands = commands.clone();
+        let kind = row.kind;
+        let current = StorageOrder::ALL.iter().position(|order| *order == row.order).unwrap_or(1);
+        let order = skin::step_selector(row.good.clone(), steps.clone())
+            .with_style(UiStepSelectorStyle::Arrows)
+            .with_wrap(true)
+            .with_label_hidden(true)
+            .with_width(ORDER_WIDTH * k)
+            .with_font_scale(UiFontScale(0.9 * k))
+            .with_current(current)
+            .on_changed(move |_, _, index| {
+                order_commands.borrow_mut().push(Command::SetOrder(kind, StorageOrder::ALL[index]));
+            });
+        menu.add_widget(UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::zero()).with_widget(canvas).with_widget(order));
     }
 
-    fn menu(&mut self) -> &mut UiMenu {
-        self.renderer.menu()
-    }
+    menu.add_widget(spacer(width * k, 10.0 * k));
+    let all = commands.clone();
+    let none = commands.clone();
+    let accept_all = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Hud, "inspect.action.accept_all"), move |_, _| {
+        all.borrow_mut().push(Command::SetAllOrders(StorageOrder::Accept));
+    })
+    .with_width(UiTextButtonWidth::Fixed(ACCEPT_BUTTON.x * k))
+    .with_min_height(ACCEPT_BUTTON.y * k);
+    let accept_none = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Hud, "inspect.action.accept_none"), move |_, _| {
+        none.borrow_mut().push(Command::SetAllOrders(StorageOrder::Refuse));
+    })
+    .with_width(UiTextButtonWidth::Fixed(ACCEPT_BUTTON.x * k))
+    .with_min_height(ACCEPT_BUTTON.y * k);
+    let footer = footer.clone();
+    let footer_width = width - 2.0 * ACCEPT_BUTTON.x - 28.0;
+    let footer_canvas = UiCanvas::new(Vec2::new(footer_width * k, ACCEPT_BUTTON.y * k), move |_, painter, rect| {
+        let p = Paint::new(painter, rect, k, colors);
+        p.text(footer_width, 26.0, &footer, 17.0, p.c.sub, engine::ui::UiTextAnchor::End, false);
+    });
+    menu.add_widget(
+        UiWidgetGroup::new()
+            .with_stack_vertically(false)
+            .with_widget_spacing(Vec2::new(14.0 * k, 0.0))
+            .with_widget(accept_all)
+            .with_widget(accept_none)
+            .with_widget(footer_canvas),
+    );
+    menu.add_widget(spacer(width * k, 20.0 * k));
 }
 
-impl TerrainInspector {
-    fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        Self { renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(TerrainInspector)) }
+// The panel's buttons at its foot: two at its edges, or one at the right.
+fn actions(context: &mut GameUiContext, report: &InspectReport, width: f32, k: f32, commands: &Commands) -> UiWidgetGroup {
+    let single = report.actions.len() == 1;
+    let button_width = if single { BUTTON_WIDE } else { BUTTON.x };
+    let mut group = UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::zero());
+    let gap = width - button_width * report.actions.len() as f32;
+    if single {
+        group = group.with_widget(spacer(gap * k, BUTTON.y * k));
     }
+    for (i, action) in report.actions.iter().enumerate() {
+        if i > 0 {
+            group = group.with_widget(spacer(gap.max(0.0) * k, BUTTON.y * k));
+        }
+        let pushed = commands.clone();
+        let kind = action.kind;
+        let mut button = skin::button(context, ButtonRole::Secondary, UiString::from(action.label.clone()), move |_, _| {
+            pushed.borrow_mut().push(Command::Action(kind));
+        })
+        .with_width(UiTextButtonWidth::Fixed(button_width * k))
+        .with_min_height(BUTTON.y * k)
+        .with_enabled(action.enabled);
+        if let Some(tooltip) = &action.tooltip {
+            button = button.with_tooltip(skin::tooltip(context, UiString::from(tooltip.clone())));
+        }
+        group = group.with_widget(button);
+    }
+    group
 }

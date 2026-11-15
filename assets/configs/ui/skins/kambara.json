@@ -208,7 +208,7 @@
   "city": {
     "icons": "skins/kambara/city/icons",
     "colors": { "rule": "#5f6152", "card": "#2a26208c", "card_outline": "#5f6152", "field": "#2a2620", "field_outline": "#77705a",
-                "good": "#98ad7a", "track": "#5f615299", "hover": "#98ad7a26" }
+                "good": "#98ad7a", "track": "#5f615299", "hover": "#98ad7a26", "bad": "#f0705a" }
   },
   "hud": {
     "tiles": {"large": {"size": [84, 91], "frame": "skins/kambara/hud/tile_large", "bleed": [18.5, 38.0, 13.5, 18.5]}, "sector": {"size": [54, 58.5], "frame": "skins/kambara/hud/tile_sector", "bleed": [14.5, 20.5, 11.5, 15.0]}, "small": {"size": [36, 36], "frame": "skins/kambara/hud/tile_small", "bleed": [8.5, 8.5, 10.0, 10.5]}},

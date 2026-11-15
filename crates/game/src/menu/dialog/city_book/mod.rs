@@ -351,7 +351,7 @@ fn page_contents(context: &mut GameUiContext, page: &dyn CityPage, page_context:
 
 // The book's colours (skin::city_color).
 #[derive(Copy, Clone)]
-pub(super) struct BookColors {
+pub(crate) struct BookColors {
     pub text: Color,
     pub sub: Color,
     pub title: Color,
@@ -365,10 +365,11 @@ pub(super) struct BookColors {
     pub good: Color,
     pub track: Color,
     pub hover: Color,
+    pub bad: Color, // High risks and shortages (the inspector).
 }
 
 impl BookColors {
-    fn read() -> Self {
+    pub(crate) fn read() -> Self {
         let c = skin::city_color;
         Self {
             text: c("text", "ink"),
@@ -384,6 +385,7 @@ impl BookColors {
             good: c("good", "accent"),
             track: c("track", "sub"),
             hover: c("hover", "light"),
+            bad: c("bad", "accent"),
         }
     }
 }
@@ -410,7 +412,7 @@ pub(super) fn number(value: i64, signed: bool) -> String {
 
 // Paints what a page draws, in the page's points from a rect's top left: `k` scales the mockup's
 // px.
-pub(super) struct Paint<'a> {
+pub(crate) struct Paint<'a> {
     pub painter: &'a UiPainter,
     pub origin: Vec2,
     pub k: f32,

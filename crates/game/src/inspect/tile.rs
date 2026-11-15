@@ -74,6 +74,8 @@ pub(super) fn read_terrain(tile: &Tile) -> InspectReport {
         "kind.woodland"
     } else if tile.is(TileKind::Rocks) {
         "kind.rocks"
+    } else if tile.path_kind().intersects(crate::pathfind::NodeKind::Water) {
+        "kind.water"
     } else {
         "kind.land"
     };

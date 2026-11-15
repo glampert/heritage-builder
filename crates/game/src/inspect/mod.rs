@@ -11,6 +11,9 @@ mod building;
 mod tile;
 mod unit;
 
+pub use building::building_name;
+pub use unit::home_cell as unit_home_cell;
+
 use serde::Serialize;
 
 use common::coords::Cell;
@@ -286,11 +289,17 @@ pub struct InspectReport {
 // harvestable prop, else the terrain), in `realm`'s words.
 pub fn inspect_tile(context: &SimContext, tile: &Tile, realm: Realm) -> Option<InspectReport> {
     let world = context.world();
+    // A building's or prop's other cells hold blockers: inspect what owns them.
+    if tile.is(TileKind::Blocker) {
+        let owner = context.tile_map().find_tile(tile.base_cell(), TileKind::Building | TileKind::Prop | TileKind::Vegetation | TileKind::Rocks)?;
+        return inspect_tile(context, owner, realm);
+    }
     if tile.is(TileKind::Unit) {
         let unit = world.find_unit_for_tile(tile)?;
         return unit::read(context, unit, realm);
     }
     if tile.is(TileKind::Building) {
+        // Any of its cells: a tile off its base cell isn't the building's own.
         let building = world.find_building_for_tile(tile)?;
         return Some(building::read(context, building, realm));
     }
@@ -311,8 +320,14 @@ pub fn inspect_target(context: &SimContext, target: &InspectTarget, realm: Realm
     match *target {
         InspectTarget::Building { handle, .. } => world.find_building(handle.kind, handle.id).map(|building| building::read(context, building, realm)),
         InspectTarget::Unit { id, .. } => world.find_unit(id).and_then(|unit| unit::read(context, unit, realm)),
-        InspectTarget::Prop { cell } | InspectTarget::Terrain { cell } => {
-            let tile = context.tile_map().topmost_tile_at_cell(cell)?;
+        // The tile under a walker passing over it.
+        InspectTarget::Prop { cell } => {
+            let tile = context.tile_map().find_tile(cell, TileKind::Prop | TileKind::Vegetation | TileKind::Rocks)?;
+            inspect_tile(context, tile, realm)
+        }
+        InspectTarget::Terrain { cell } => {
+            let tiles = context.tile_map();
+            let tile = tiles.find_tile(cell, TileKind::Vegetation | TileKind::Rocks).or_else(|| tiles.find_tile(cell, TileKind::Terrain))?;
             inspect_tile(context, tile, realm)
         }
     }
@@ -350,10 +365,10 @@ pub fn distance_text(cells: usize) -> String {
     if metres < 30.0 {
         return t("distance.close");
     }
-    if metres < 1000.0 {
-        let step = if metres < 200.0 { 10.0 } else { 50.0 };
-        let rounded = ((metres / step).round() * step) as i64;
-        return tf("distance.metres", &[("count", &rounded.to_string())]);
+    let step = if metres < 200.0 { 10.0 } else { 50.0 };
+    let rounded = (metres / step).round() * step;
+    if rounded < 1000.0 {
+        return tf("distance.metres", &[("count", &(rounded as i64).to_string())]);
     }
     let km = (metres / 100.0).round() / 10.0;
     let km = if km.fract() == 0.0 { format!("{km:.0}") } else { format!("{km:.1}") };
