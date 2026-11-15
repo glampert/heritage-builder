@@ -507,8 +507,10 @@ fn add_store(context: &mut GameUiContext, menu: &mut UiMenu, section: &Section, 
             .with_width(ORDER_WIDTH * k)
             .with_font_scale(UiFontScale(0.9 * k))
             .with_current(current)
-            .on_changed(move |_, _, index| {
-                order_commands.borrow_mut().push(Command::SetOrder(kind, StorageOrder::ALL[index]));
+            // The callback's index is the step it left: the selector holds the new one.
+            .on_changed(move |selector, _, _previous| {
+                let order = StorageOrder::ALL[selector.current().min(StorageOrder::ALL.len() - 1)];
+                order_commands.borrow_mut().push(Command::SetOrder(kind, order));
             });
         menu.add_widget(UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::zero()).with_widget(canvas).with_widget(order));
     }

@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-14): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4 done (story comics: the story data and panel art, the comic viewer, the triggers and replays, and the developer editor's Screens menu); Phase 5 done (the HUD: its art, the top bar and goals, the build palette, the minimap, message log and inspector on the HUD's frames, and every dialog restyled onto them); Phase 6 done (the City book); Phase 7 done (the old UI assets nothing used, deleted); Phase 8 (the inspector's panels, after `inspector-<realm>.jpg` and `inspector-<kind>-<realm>.jpg`) in progress: P8a's mockups done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-14): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4 done (story comics: the story data and panel art, the comic viewer, the triggers and replays, and the developer editor's Screens menu); Phase 5 done (the HUD: its art, the top bar and goals, the build palette, the minimap, message log and inspector on the HUD's frames, and every dialog restyled onto them); Phase 6 done (the City book); Phase 7 done (the old UI assets nothing used, deleted); Phase 8 done (the inspector's panels, after `inspector-<realm>.jpg` and `inspector-<kind>-<realm>.jpg`).** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -848,79 +848,9 @@ Steps, each implemented, reviewed, fixed, committed and pushed in order, then th
 - [x] **P8a Mockups for the other panels**, in all three realms: house, storage yard, granary, service (the fire watch; the hospital alike, with sick houses), market, construction site, walker (a cart), and terrain and props (a tree). The workshop's mockup also stands for farms and other producers.
   - Done (2026-11-14): `inspector-<kind>-<realm>.jpg` (`house`, `storage`, `service`, `market`, `site`, `unit`, `terrain`) beside the workshop's `inspector-<realm>.jpg`, redrawn with Risks in place of Built. The generator's `Dialogs.inspector(kind)` draws every panel from `INSPECTORS` in `dialogs_content.py`: a header, a status line (its dot good, pending or bad), then sections (`workers`, `residents`, `production`, `stock`, `ticks`, `values`, `progress`, `errand`, `risks`, `text`) and the buttons, the panel as tall as its sections (the tallest, the house, ends 65 points above the screen's foot). A house shows its residents, the services its level needs ticked and the next level's missing one, its goods, its tax in the status line and three risks, and only Demolish. A site shows its progress, what it took (given back if cancelled) and what it will cost once built, and Cancel and refund. A walker shows its errand and Show its home; terrain and props a description, the cost of clearing them and Clear. High risks, shortages and missing needs are in the realm's red (`risk_col`: Kambara's and Tampadesa's accents are green and gold), on the right-hand figure or level only, their labels in the panel's text.
   - The user's review (2026-11-14): only the right-hand part of a high risk or a missing good is red; the fire watch has no "Fires answered" line; a walker's distance is in metres, roughly ("About 100 metres"), not cells; terrain and props show no cell. The stores (`inspector-storage-<realm>.jpg`, wider at 620 points, and `inspector-granary-<realm>.jpg`) list every good they take, each with its meter, its count and its order (Refuse, Accept, Get or Empty, stepped with arrows; the user dropped a separate accepted checkbox as redundant), then Accept all and Accept none under the list, which set every good's order to Accept or Refuse, as in the classic Impressions games; the yard's workers take one line, and its costs and risks sit side by side so it fits.
-- [ ] **P8b The figures:** a walker's distance as players read it, in rough metres from its cells ("About 100 metres", "About 1 km"), and a report per building, read when the panel is built and while it's open (as `city::CityReport` is for the City book): status, workers, inputs and outputs with their stock and capacity, the batch and its progress, the walker's errand, coverage, the house's needs, upkeep and wages, risks (the risk line it shows today). An automation query (`inspector.state`, or `world.building_at` grown) reports it, so scenarios check the numbers.
-- [ ] **P8c The panel framework:** one inspector menu built from sections (header, status, workers, meters, an errand line, key values, actions) in the skin's colours. A panel per kind, each listing its sections, so a later milestone adds its own (M8's temples, M10's trade posts, game Phase 2's monuments). Painted parts are read each frame, as the goals panel's are. The panel is at the mockup's place, not centred. The paths `BuildingInspector/Close` stay, with sections under the panel's label (`BuildingInspector/Workers`, `BuildingInspector/Production`, ...).
-- [ ] **P8d The panels:** workshop and farm, house, storage, service, market, construction site; the unit, prop and terrain inspectors in the same frame.
-- [ ] **P8e Actions:** Demolish asks in a popup first, then clears the building through the player's own path (`TilePlacement::clear`, no refund), and a site's Cancel and refund refunds what it took, as clearing a site does today. Clear on terrain and props charges as the clear tool does; Show its home moves the camera to a walker's building. A store's Refuse and Accept orders, Accept all and Accept none work (the user's call on 2026-11-14): a set of refused goods saved on each storage yard and granary (a save-version bump with its migration script), which `receivable_resources` honours, so deliveries and the city stock's refunds go elsewhere (goods already held stay until taken), with an automation command to set it. Pause work and the stores' Get and Empty orders are controls only (the order steps over them, or they show disabled). Empty means the store takes in no more of the good and carries out what it holds (the user's call on 2026-11-15), so until M11 an Empty order refuses the good as Refuse does: disabled, with a tooltip, until roadmap M11 hooks them up, so they add no saved state here.
-- [ ] **P8f Wrap-up:** a scenario (`ui_inspector.jsonl`: each panel in each realm, its figures against `world.building_at` and `city.state`, Demolish and its popup, Pause work); `ui_snapshot.jsonl`'s inspectors; the docs (AGENTS.md's HUD notes) and known issues; final screenshots beside the mockups.
-
-## Dependencies on other milestones
-
-| Screen | Works now with | Filled in by |
-|---|---|---|
-| Home, Continue, Campaign | Profile (Phase 0) | Campaigns II and III configs (game Phases 3 and 4) |
-| Custom Game options | Fast construction | Seasons and floods (M7), fires (M6), raids (game Phase 2), difficulty (M4, M9) |
-| World map | Config cities, routes, choices | Trade, prices, limits, requests, relations (M10); sea routes and gifts (game Phase 2) |
-| Intermission | Goals from requirements, stats | Distinctions and ratings (M9) |
-| Briefing and comics | Mission text, I-A and I-B data | Story events, the other sequences (game Phase 2) |
-| HUD ratings, goals | Requirements progress | Ratings (M9), new goal types (M9) |
-| Message log | Existing notices | Typed messages, popups for important events (M11) |
-| City pages | Population, goods, treasury | Accounts (M4), ratings (M9), labour and food advisors (M11) |
-| Heritage page | The tabs, empty | Faith and festivals (M8): patrons, favour, blessings, festivals; monuments and guilds (game Phase 2) |
-
-The roadmap's convention stands: new retail screens go through the skins and pass `ui.layout_issues`. From Phase 0 on, a milestone that adds a screen builds it with this plan's widgets and skin helpers.
-
-## Mockups
-
-Every screen the phases build has a mockup in all three realms, in [docs/design/mockups/](../design/mockups/README.md). The first set came with the plan's research: the world map, the intro comic, the intermission, the HUD and the main menus (`world-map`, `intro`, `intermission`, `hud`, `menu-{home,load-save,settings,custom-game,about}`). The screens it found missing were drawn on 2026-11-07 (commit `8a44c00`):
-
-| Screen | Phase | Mockup |
-|---|---|---|
-| Campaign picker (more than one campaign reached) | 1 | `campaign-picker-<realm>.jpg` |
-| In-game Game menu and the Quit popup | 1 | `game-menu-<realm>.jpg`, `game-quit-<realm>.jpg` |
-| Briefing scroll | 3 | `briefing-<realm>.jpg` |
-| Campaign complete (the finished stele) | 3 | `campaign-complete-<realm>.jpg` |
-| The HUD (one top bar, goals panel, build column, minimap, message log) and the build palette with its icons, redrawn with the user on 2026-11-14 | 5 | `hud-<realm>.jpg`, `build-palette-<realm>.jpg`, `build-icons-<realm>.jpg` |
-| Inspector: the workshop, and a panel per kind (P8a) | 5, 8 | `inspector-<realm>.jpg`, `inspector-{house,storage,service,market,site,unit,terrain}-<realm>.jpg` |
-| City book: Overview, Population, Goods, Finances | 6 | `city-{overview,population,goods,finances}-<realm>.jpg` |
-| City book: Ratings, Labour, Food | 6, for M9 and M11 | `city-{ratings,labour,food}-<realm>.jpg` |
-| City book: Heritage (monument, patrons, festivals; added 2026-11-08) | 6, for M8 and game Phase 2 | `city-heritage-<realm>.jpg` (Festivals tab) |
-| Important-event popup (flood, fire, court request) | 5, for M11 | `event-<realm>.jpg` |
-
-The HUD's menu buttons first got their own bar left of the build bar; the redrawn HUD (2026-11-14) puts them at the right end of one top bar.
-
-## Performance
-
-- Skins load once per realm switch: tens of sprites, a few MB.
-- **9-slice:** 9 quads per panel, the same draw path as today's stretched sprites.
-- **World map:** one textured quad for the base, plus tens of painted markers.
-- **Comics:** one panel image loaded at a time, the next prefetched (into the texture cache, as each panel is built: `story_comic.rs`).
-- **City pages:** the history buffer is 120 samples per series, sampled monthly. As built (Phase 6): 13 samples (the 12 months the trend lines draw and the month before them), runtime only.
-
-## Open decisions
-
-The user accepted every default on 2026-11-07, with the changes marked below.
-
-| # | Question | Default |
-|---|---|---|
-| 1 | Body text in the realm font, as the mockups have it, or a plainer face for small text? | Realm font. A skin can set a plainer body face if small text reads poorly in testing. |
-| 2 | Đại Long's home backdrop | Keep the painting, as the mockup does. Only the UI sprites go. Changed 2026-11-14: a generated scene in Kambara's and Tampadesa's style (`home_scene`) replaces it, in the game and the mockups; the painting goes in Phase 7. |
-| 3 | New Game (map size and terrain) on Home | Remove it. A Blank map entry in Custom Game takes its options. |
-| 4 | Where the profile lives | `saves/user/profile.json`, beside the user configs; localStorage on web. (Changed in review.) |
-| 5 | 9-slice centres | Stretch. `center: "tile"` per panel where grain shows. |
-| 6 | Dialogs: each its own window, or stacked inside the root as today | Each its own window. |
-| 7 | Build bar categories: the mockup's nine (house, water, farm, industry, trade, temple, learning, defence, monument) or today's sectors | Today's sectors with the mockup's icons. New categories come only with buildings that need them. |
-| 8 | Where the game menu buttons go in the HUD | At the right end of one bar across the top (`hud-<realm>.jpg`; changed 2026-11-14). |
-| 9 | The art renderer | Playwright's Chromium on the generator's SVG; Pillow stays for glyph icons. |
-| 10 | Save thumbnails | A JPEG beside each save, taken at the save's camera position; its size is a config (default 320 × 180). Old saves show none. (Changed in review.) |
-| 11 | Ratings and distinctions before M9 | Hidden, not shown as placeholders. The HUD's ratings show as placeholder rings (changed 2026-11-14). |
-
-## Later
-
-- Animated home backdrops per realm. Play a short looping video in a simple format (for example VP9 or AV1 in WebM, decoded to a texture) rather than a sequence of still frames, to keep the size down; the `misc/home_menu_anim/` frames, removed in Phase 0, showed the idea. The web build can use the browser's own video decoder.
-- Real UI sounds per realm, mapped to the role keys the skins already name.
-- Hand-made art replacing the placeholders, file by file.
-- Translations, into the language files the strings already live in.
-- Key rebinding on the Controls tab.
-- An encyclopedia (overview.md's content budget mentions entries).
-- A mission list for the campaign picker's Replay a mission (disabled, "coming soon", until then): replaying any mission of a campaign already played.
+- [x] **P8b The figures:** a walker's distance as players read it, in rough metres from its cells ("About 100 metres", "About 1 km"), and a report per building, read when the panel is built and while it's open (as `city::CityReport` is for the City book): status, workers, inputs and outputs with their stock and capacity, the batch and its progress, the walker's errand, coverage, the house's needs, upkeep and wages, risks (the risk line it shows today). An automation query (`inspector.state`, or `world.building_at` grown) reports it, so scenarios check the numbers.
+- [x] **P8c The panel framework:** one inspector menu built from sections (header, status, workers, meters, an errand line, key values, actions) in the skin's colours. A panel per kind, each listing its sections, so a later milestone adds its own (M8's temples, M10's trade posts, game Phase 2's monuments). Painted parts are read each frame, as the goals panel's are. The panel is at the mockup's place, not centred. The paths `BuildingInspector/Close` stay, with sections under the panel's label (`BuildingInspector/Workers`, `BuildingInspector/Production`, ...).
+- [x] **P8d The panels:** workshop and farm, house, storage, service, market, construction site; the unit, prop and terrain inspectors in the same frame.
+- [x] **P8e Actions:** Demolish asks in a popup first, then clears the building through the player's own path (`TilePlacement::clear`, no refund), and a site's Cancel and refund refunds what it took, as clearing a site does today. Clear on terrain and props charges as the clear tool does; Show its home moves the camera to a walker's building. A store's Refuse and Accept orders, Accept all and Accept none work (the user's call on 2026-11-14): a set of refused goods saved on each storage yard and granary (a save-version bump with its migration script), which `receivable_resources` honours, so deliveries and the city stock's refunds go elsewhere (goods already held stay until taken), with an automation command to set it. Pause work and the stores' Get and Empty orders are controls only (the order steps over them, or they show disabled). Empty means the store takes in no more of the good and carries out what it holds (the user's call on 2026-11-15), so until M11 an Empty order refuses the good as Refuse does: disabled, with a tooltip, until roadmap M11 hooks them up, so they add no saved state here.
+- [x] **P8f Wrap-up:** a scenario (`ui_inspector.jsonl`: each panel in each realm, its figures against `world.building_at` and `city.state`, Demolish and its popup, Pause work); `ui_snapshot.jsonl`'s inspectors; the docs (AGENTS.md's HUD notes) and known issues; final screenshots beside the mockups.
+- Done (2026-11-15). `crate::inspect` reads an `InspectReport` per selection (building.rs, unit.rs, tile.rs) and `inspect.at` reports it; the panel (`menu/in_game/inspector/`) paints its sections with `paint.rs`, a port of the generator's `Dialogs.inspector` layout on the City book's painter and colours (the skins' city colours gain `bad`, the realm's red), on the dialogs' frame (`dialog`, whose insets clear Tampadesa's nagas), at the mockup's place, scaled to fit a short window. A store's orders are saved per good (`StorageSlots::orders`, save v9, `v8_to_v9.py`; sample saves migrated) and honoured where goods are received, so deliveries and the city stock's refunds go to another store; `storage.orders` reads and sets them. `ui_inspector.jsonl` (CI) checks it all. Deviations: the panel keeps pausing the simulation (its figures don't move while it's open); the service's reach is counted along the grid, not by its walkers' paths, and the mockups' "Visited this month" and "Restocked N days ago" aren't kept; a house's next level lists only what it adds; Get and Empty are stored but send no runners (Empty refuses) until M11, and Pause work is disabled. Review fixes: a building's other cells (blockers) open it; houses are named by level everywhere; services that need no road don't say No road; walkers going home or back empty-handed say so; Show its home only while it stands; the step selector's callback gives the step it left.

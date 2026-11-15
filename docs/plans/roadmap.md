@@ -62,7 +62,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
 | MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6; Faith, Flood and Fertility come with M8, M7) |
-| UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–7 done (skins, main menus, world map, intermission and briefing, story comics, HUD, City book, old assets); Phase 8 (the inspector's panels) in progress |
+| UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–8 done (skins, main menus, world map, intermission and briefing, story comics, HUD, City book, old assets, the inspector's panels) |
 
 Suggested order:
 - **First:** M1 → M3 → M5, with M2 running alongside from the start.
@@ -302,6 +302,7 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 6 | One signed treasury (tax offices hold no gold); the yearly ledger, saved by category name; the finance rates and debt counter | M4 | Done |
 | 7 | Fire and collapse risk per building; the city's risks switch | M6 | Done |
 | 8 | Disease risk and outbreaks per house; the city's disease switch and death count; the fire watcher's task generalised to `UnitTaskRespond` | M6 | Done |
+| 9 | A store's orders per good (refuse, accept, get, empty), set in the inspector | UI (realm-ui Phase 8) | Done |
 | 9 | Elevation map | T | Planned |
 | … | Flood, favour and ratings state | M7–M9 | Planned; group them where possible |
 

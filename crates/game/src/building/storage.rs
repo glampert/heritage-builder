@@ -17,6 +17,7 @@ use super::{
     config::{BuildingConfig, BuildingConfigs, building_config},
 };
 use crate::{
+    inspect::StorageOrder,
     cheats,
     tile::Tile,
     save_context::PostLoadContext,
@@ -25,7 +26,7 @@ use crate::{
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, game_object_debug_options},
     sim::{
         SimCmds,
-        resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers},
+        resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers, per_kind_map},
     },
     unit::{
         Unit,
@@ -379,6 +380,10 @@ pub(crate) struct StorageSlot {
 pub(crate) struct StorageSlots {
     pub(crate) slots: ArrayVec<StorageSlot, MAX_STORAGE_SLOTS>,
     slot_capacity: u32,
+    // The player's order for each good (the inspector's rows): it takes in a good only while
+    // accepting or getting it. Saved by good name, accepted goods left out ({ "Rice": "refuse" }).
+    #[serde(with = "per_kind_map")]
+    orders: [StorageOrder; RESOURCE_KIND_COUNT],
 }
 
 impl StorageSlot {
@@ -502,7 +507,7 @@ impl StorageSlots {
             });
         }
 
-        Box::new(Self { slots, slot_capacity })
+        Box::new(Self { slots, slot_capacity, orders: [StorageOrder::Accept; RESOURCE_KIND_COUNT] })
     }
 
     // After a load: the goods, slot count and slot capacity the config asks for now, so config
@@ -532,14 +537,21 @@ impl StorageSlots {
         }
     }
 
-    #[inline]
-    // The store's order for a good (the inspector's rows). TODO(realm-ui P8e): saved per store.
-    pub(crate) fn order(&self, _kind: ResourceKind) -> crate::inspect::StorageOrder {
-        crate::inspect::StorageOrder::Accept
+    // The store's order for a good (the inspector's rows).
+    pub(crate) fn order(&self, kind: ResourceKind) -> StorageOrder {
+        debug_assert!(kind.is_single_resource());
+        self.orders[kind.index()]
     }
 
-    // Sets the order for each good of `kinds` the store takes. TODO(realm-ui P8e): saved per store.
-    pub(crate) fn set_orders(&mut self, _kinds: ResourceKind, _order: crate::inspect::StorageOrder) {}
+    // Sets the order for each good of `kinds`. Goods already held stay until they're taken
+    // (Empty's runners, which carry them out, come with roadmap M11).
+    pub(crate) fn set_orders(&mut self, kinds: ResourceKind, order: StorageOrder) {
+        for kind in kinds.iter() {
+            self.orders[kind.index()] = order;
+        }
+    }
+
+    #[inline]
 
     pub(crate) fn slot_capacity(&self) -> u32 {
         self.slot_capacity
@@ -644,9 +656,9 @@ impl StorageSlots {
             .map(|(slot_index, _)| slot_index)
     }
 
-    // Every slot accepts the same kinds.
+    // Every slot accepts the same kinds; the player's order may refuse one (Refuse, Empty).
     fn accepts(&self, kind: ResourceKind) -> bool {
-        self.slots.first().is_some_and(|slot| slot.accepted_kinds().intersects(kind))
+        self.slots.first().is_some_and(|slot| slot.accepted_kinds().intersects(kind)) && self.orders[kind.index()].takes_in()
     }
 
     // ----------------------

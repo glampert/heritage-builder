@@ -934,7 +934,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 8;
+const CURRENT_SAVE_VERSION: u32 = 9;
 
 // What the menus show of a save without loading it (the home menu's Continue, the Load / Save
 // dialog): whether this game can load it (its save version is this game's) and its header (blank
