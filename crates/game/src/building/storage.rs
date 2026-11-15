@@ -533,6 +533,11 @@ impl StorageSlots {
     }
 
     #[inline]
+    // The store's order for a good (the inspector's rows). TODO(realm-ui P8e): saved per store.
+    pub(crate) fn order(&self, _kind: ResourceKind) -> crate::inspect::StorageOrder {
+        crate::inspect::StorageOrder::Accept
+    }
+
     pub(crate) fn slot_capacity(&self) -> u32 {
         self.slot_capacity
     }

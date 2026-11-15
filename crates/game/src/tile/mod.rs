@@ -3009,11 +3009,14 @@ impl TileMap {
     }
 
     pub fn topmost_selected_tile(&self, selection: &TileSelection) -> Option<&Tile> {
-        let selected_cell = selection.last_cell();
-        // Returns the tile at the topmost layer if it is not empty
-        // (object, terrain), or nothing if all layers are empty.
+        self.topmost_tile_at_cell(selection.last_cell())
+    }
+
+    // The tile at the topmost layer at `cell` if it is not empty (object, terrain), or nothing if
+    // all layers are empty.
+    pub fn topmost_tile_at_cell(&self, cell: Cell) -> Option<&Tile> {
         for layer_kind in TileMapLayerKind::iter().rev() {
-            let tile = self.try_tile_from_layer(selected_cell, layer_kind);
+            let tile = self.try_tile_from_layer(cell, layer_kind);
             if tile.is_some() {
                 return tile;
             }

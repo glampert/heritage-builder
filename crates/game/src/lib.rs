@@ -13,6 +13,7 @@ pub mod cheats;
 pub mod config;
 pub mod constants;
 pub mod custom_game;
+pub mod inspect;
 pub mod debug;
 pub mod launch;
 pub mod menu;

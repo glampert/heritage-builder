@@ -359,6 +359,12 @@ impl UnitNavigation {
         UnitNavStatus::Moving
     }
 
+    // How many cells of its path are still ahead of it (the inspector's distance to go).
+    #[inline]
+    pub fn remaining_cells(&self) -> usize {
+        self.path.len().saturating_sub(self.path_index + 1)
+    }
+
     #[inline]
     pub fn is_following_path(&self) -> bool {
         if self.path.is_empty() || (self.path_index + 1 >= self.path.len()) {

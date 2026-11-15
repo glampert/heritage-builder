@@ -789,6 +789,11 @@ impl ServiceStock {
         }
     }
 
+    // Whether it keeps a stock (a market).
+    pub(crate) fn is_stock(&self) -> bool {
+        matches!(self, Self::Stock { .. })
+    }
+
     pub(crate) fn is_stock_and_requires_resources(&self) -> bool {
         match self {
             Self::Stock { stock, .. } => stock.accepts_any(),

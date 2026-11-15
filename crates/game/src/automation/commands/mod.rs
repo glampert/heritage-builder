@@ -16,6 +16,7 @@ mod camera;
 mod config;
 mod finance;
 mod input;
+mod inspect;
 mod intermission;
 mod city;
 mod messages;
@@ -46,6 +47,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     camera::COMMANDS,
     minimap::COMMANDS,
     city::COMMANDS,
+    inspect::COMMANDS,
     messages::COMMANDS,
     input::COMMANDS,
     ui::COMMANDS,
