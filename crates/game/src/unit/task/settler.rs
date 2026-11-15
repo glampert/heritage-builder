@@ -121,10 +121,10 @@ impl UnitTaskSettler {
                         if building.has_outbreak() {
                             return true; // No one moves into a sick house.
                         }
-                        if let Some(population) = building.population() {
-                            if !population.is_max() {
-                                return false; // Accept this building and end the search.
-                            }
+                        if let Some(population) = building.population()
+                            && !population.is_max()
+                        {
+                            return false; // Accept this building and end the search.
                         }
                         true // Continue search.
                     },
@@ -238,11 +238,11 @@ impl UnitTaskSettler {
             .tile_destination();
         debug_assert!(destination_cell.is_valid());
 
-        if let Some(tile) = sim_context.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
-            if tile.path_kind().is_vacant_lot() || tile.has_flags(TileFlags::SettlersSpawnPoint) {
-                self.notify_completion(ctx.unit, sim_context, tile);
-                return UnitTaskTransition::Goto(UnitTaskSettlerState::Done);
-            }
+        if let Some(tile) = sim_context.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain)
+            && (tile.path_kind().is_vacant_lot() || tile.has_flags(TileFlags::SettlersSpawnPoint))
+        {
+            self.notify_completion(ctx.unit, sim_context, tile);
+            return UnitTaskTransition::Goto(UnitTaskSettlerState::Done);
         }
 
         // Destination tile is no longer a vacant lot / spawn point; search again.

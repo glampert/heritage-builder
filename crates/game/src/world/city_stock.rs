@@ -219,10 +219,10 @@ impl CityStock {
 
         for item in &withdrawal.taken {
             let mut returned = 0;
-            if let Some(building) = world.find_building_mut(CITY_STOCK_BUILDINGS, item.storage_id) {
-                if Self::is_stock_building(building) {
-                    returned = building.as_storage_mut().storage_slots.receive_resources(item.kind, item.count);
-                }
+            if let Some(building) = world.find_building_mut(CITY_STOCK_BUILDINGS, item.storage_id)
+                && Self::is_stock_building(building)
+            {
+                returned = building.as_storage_mut().storage_slots.receive_resources(item.kind, item.count);
             }
             Self::add_to_stats(world, item.kind, returned);
             leftover.add(item.kind, item.count - returned);

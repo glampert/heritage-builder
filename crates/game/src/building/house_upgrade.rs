@@ -231,11 +231,11 @@ fn find_best_expanded_rect_and_candidates(
     let current_cell_range = context.cell_range();
 
     for target_rect in candidate_target_rects(current_cell_range) {
-        if let Some((score, merge_ids)) = evaluate_target_rect(context, house_id, current_cell_range, target_rect) {
-            if score > best_score {
-                best_score = score;
-                best_result = Some((target_rect, merge_ids));
-            }
+        if let Some((score, merge_ids)) = evaluate_target_rect(context, house_id, current_cell_range, target_rect)
+            && score > best_score
+        {
+            best_score = score;
+            best_result = Some((target_rect, merge_ids));
         }
     }
 
@@ -371,13 +371,13 @@ fn collect_merge_candidates(
                     continue;
                 }
 
-                if let Some(neighbor_house) = find_house_for_cell(context, neighbor_cell) {
-                    if valid_merge_sizes(current_size, neighbor_house) {
-                        let neighbor_id = neighbor_house.id();
-                        if !visited.contains(&neighbor_id) {
-                            visited.insert(neighbor_id);
-                            queue.push_back(neighbor_id);
-                        }
+                if let Some(neighbor_house) = find_house_for_cell(context, neighbor_cell)
+                    && valid_merge_sizes(current_size, neighbor_house)
+                {
+                    let neighbor_id = neighbor_house.id();
+                    if !visited.contains(&neighbor_id) {
+                        visited.insert(neighbor_id);
+                        queue.push_back(neighbor_id);
                     }
                 }
             }
@@ -582,15 +582,14 @@ fn house_for_id_mut<'game>(context: &'game BuildingContextMut, id: BuildingId) -
 // A house to merge with or expand into. A burning or sick one is neither: the fire must burn it
 // down or be put out first, and a medic must cure the sickness.
 fn find_house_for_cell<'game>(context: &'game BuildingContext, cell: Cell) -> Option<&'game Building> {
-    if let Some(building) = context.sim_ctx.find_building_for_cell(cell) {
-        if building.is(BuildingKind::House)
+    if let Some(building) = context.sim_ctx.find_building_for_cell(cell)
+        && building.is(BuildingKind::House)
             && !building.is_burning()
             && !building.has_outbreak()
             && !building.risks().is_doomed()
         {
             return Some(building);
         }
-    }
 
     None
 }

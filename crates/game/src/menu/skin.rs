@@ -1874,7 +1874,7 @@ fn separator_look(context: &mut dyn UiWidgetContext, kind: &str) -> Option<Separ
     };
 
     let rule = nine_slice(context, &def.sprite, slice_px, SkinCenter::Stretch);
-    let height = def.height.unwrap_or_else(|| rule.texture_size.y * rule.scale);
+    let height = def.height.unwrap_or(rule.texture_size.y * rule.scale);
     let mut art = UiSeparatorArt::new(rule, height);
     if let Some(ornament) = &def.ornament {
         let [width, height] = def.ornament_size;
@@ -2108,7 +2108,7 @@ pub fn slider_at<T: UiSliderValue>(
         Some(mut look) => {
             look.rail_height *= scale;
             look.fill_height *= scale;
-            look.knob_size = look.knob_size * scale;
+            look.knob_size *= scale;
             look.rail.scale *= scale;
             look.fill.scale *= scale;
             slider.with_look(look)

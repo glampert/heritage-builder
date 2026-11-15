@@ -91,10 +91,10 @@ fn cmd_fixed_dt(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let params: Params = parse_params(params)?;
 
-    if let Some(dt) = params.dt {
-        if !(dt > 0.0 && dt <= 1.0) {
-            return Err(CommandError::invalid_params(format!("dt must be more than 0 and at most 1 second, got {dt}.")));
-        }
+    if let Some(dt) = params.dt
+        && !(dt > 0.0 && dt <= 1.0)
+    {
+        return Err(CommandError::invalid_params(format!("dt must be more than 0 and at most 1 second, got {dt}.")));
     }
 
     context.engine.set_fixed_delta_time(params.dt);

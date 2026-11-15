@@ -662,12 +662,12 @@ fn realm_list(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiIte
         .with_size(Vec2::new(0.0, height))
         .on_selection_changed(|list, _| {
             let state = STATE.as_mut();
-            if let Some(realm) = list.current_selection_index().and_then(|index| Realm::iter().nth(index)) {
-                if realm != state.realm && is_unlocked(realm) {
-                    state.realm = realm;
-                    state.date = 0;
-                    state.synced = false;
-                }
+            if let Some(realm) = list.current_selection_index().and_then(|index| Realm::iter().nth(index))
+                && realm != state.realm && is_unlocked(realm)
+            {
+                state.realm = realm;
+                state.date = 0;
+                state.synced = false;
             }
         });
     list.set_current_item(current);

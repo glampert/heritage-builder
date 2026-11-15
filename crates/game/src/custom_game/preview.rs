@@ -109,7 +109,7 @@ impl PreviewGrid {
         let mut image = vec![0u8; (image_width * image_height * 4) as usize];
         let palette = &style.palette;
         let sea = to_rgba(palette.water_deep.rgb255());
-        for pixel in image.chunks_exact_mut(4) {
+        for pixel in image.as_chunks_mut::<4>().0 {
             pixel.copy_from_slice(&sea);
         }
 

@@ -213,10 +213,10 @@ impl AmbientMusicSystem {
     }
 
     fn update_current_track(&mut self, sound_sys: &SoundSystem) -> bool {
-        if let Some(key) = self.current_track_playing {
-            if !self.track(key).is_playing(sound_sys) {
-                self.current_track_playing = None;
-            }
+        if let Some(key) = self.current_track_playing
+            && !self.track(key).is_playing(sound_sys)
+        {
+            self.current_track_playing = None;
         }
 
         self.current_track_playing.is_some() // == is playing

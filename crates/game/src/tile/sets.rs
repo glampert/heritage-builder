@@ -751,10 +751,10 @@ impl TileDef {
         anim_set_index: usize,
         frame_index: usize,
     ) -> Option<&TileSprite> {
-        if let Some(anim_set) = self.anim_set_by_index(variation_index, anim_set_index) {
-            if frame_index < anim_set.frames.len() {
-                return Some(&anim_set.frames[frame_index]);
-            }
+        if let Some(anim_set) = self.anim_set_by_index(variation_index, anim_set_index)
+            && frame_index < anim_set.frames.len()
+        {
+            return Some(&anim_set.frames[frame_index]);
         }
         None
     }

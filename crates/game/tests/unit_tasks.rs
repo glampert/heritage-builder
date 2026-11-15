@@ -1135,7 +1135,7 @@ fn spawn_settler(env: &mut TestEnvironment, origin: Cell, population: u32) -> Un
         Settler::spawn(&mut cmds, &context, origin, population);
         cmds.execute(&context);
     }
-    find_unit_by_config(&env, UnitConfigKey::Settler)
+    find_unit_by_config(env, UnitConfigKey::Settler)
         .expect("Settler should have been spawned")
 }
 
@@ -1375,7 +1375,7 @@ fn test_patrol_visits_target_buildings() {
         let unit = find_unit(&env, unit_id);
         let task = unit.current_task_as::<UnitTaskRandomizedPatrol>(env.sim.task_manager())
             .expect("patrol should still own its task");
-        task.visited_buildings.as_ref().unwrap().iter().copied().collect()
+        task.visited_buildings.as_ref().unwrap().to_vec()
     };
     assert!(!visits.is_empty(), "expected at least one visited building");
     for v in &visits {

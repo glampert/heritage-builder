@@ -697,7 +697,7 @@ impl MapLook {
                         _ => ChoicePick::Next,
                     };
                     let lit = hovered == Some(pick.id().as_str());
-                    let look = if lit { UiLabelLook { color: hover, ..sub_look.clone() } } else { sub_look.clone() };
+                    let look = if lit { UiLabelLook { color: hover, ..sub_look } } else { sub_look };
                     let drawn = painter.label(Vec2::new(x, baseline), UiTextAnchor::Start, text, &look);
                     let underline = baseline + 3.0 * k;
                     let color = if lit { hover } else { Color::new(sub_look.color.r, sub_look.color.g, sub_look.color.b, sub_look.color.a * 0.45) };

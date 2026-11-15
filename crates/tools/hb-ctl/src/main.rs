@@ -335,10 +335,10 @@ pub fn launch(options: &Options, args: &LaunchArgs) -> Result<Launched, String> 
         if let Ok(Some(status)) = child.try_wait() {
             return Err(format!("The game exited ({status}) before it was ready. See {}.", log_path.display()));
         }
-        if instance_path.exists() {
-            if let Ok(instance) = Instance::read(&instance_path) {
-                break instance;
-            }
+        if instance_path.exists()
+            && let Ok(instance) = Instance::read(&instance_path)
+        {
+            break instance;
         }
         if Instant::now() > deadline {
             return Err(format!("The game didn't start within {}s. See {}.", args.wait.as_secs(), log_path.display()));

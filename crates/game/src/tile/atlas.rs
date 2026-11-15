@@ -297,7 +297,7 @@ fn load_cached_atlas_page_images(layer_name: &str, page_count: usize) -> Vec<Opt
     #[cfg(feature = "desktop")]
     let iter = (0..page_count).into_par_iter();
     #[cfg(feature = "web")]
-    let iter = (0..page_count).into_iter();
+    let iter = 0..page_count;
 
     iter.map(|page_index| {
         let image_path: FixedPath =

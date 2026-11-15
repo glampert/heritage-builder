@@ -165,12 +165,11 @@ impl Record {
                 }
             };
 
-            if let Some(object_tile) = maybe_object_tile {
-                if let Some(game_object_state) = &state.game_object_state {
-                    if let Some(game_object) = context.find_game_object_for_tile_mut(object_tile) {
-                        game_object.undo_redo_apply(game_object_state.as_ref());
-                    }
-                }
+            if let Some(object_tile) = maybe_object_tile
+                && let Some(game_object_state) = &state.game_object_state
+                    && let Some(game_object) = context.find_game_object_for_tile_mut(object_tile)
+            {
+                game_object.undo_redo_apply(game_object_state.as_ref());
             }
         }
     }
@@ -198,14 +197,14 @@ impl Record {
 
         debug_assert!(tile_def.layer_kind() == layer);
 
-        if TilePlacement::place(context, target_cell, tile_def, subtract_tile_cost, false, construction_mode).is_ok() {
-            if let Some(tile) = context.find_tile_mut(target_cell, tile_def.kind()) {
-                tile.set_variation_index(tile_variation_index as usize);
-                if !tile_flags.is_empty() {
-                    context.tile_map_mut().set_tile_flags(target_cell, tile_def.kind(), tile_flags, true);
-                }
-                return Some(tile);
+        if TilePlacement::place(context, target_cell, tile_def, subtract_tile_cost, false, construction_mode).is_ok()
+            && let Some(tile) = context.find_tile_mut(target_cell, tile_def.kind())
+        {
+            tile.set_variation_index(tile_variation_index as usize);
+            if !tile_flags.is_empty() {
+                context.tile_map_mut().set_tile_flags(target_cell, tile_def.kind(), tile_flags, true);
             }
+            return Some(tile);
         }
 
         None
@@ -264,23 +263,21 @@ impl UndoRedoSingleton {
             let cell = *cell_key.to_cell();
             let mut saved_state = SavedState::default();
 
-            if layers.intersects(EditedLayer::Terrain) {
-                if let Some(terrain_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-                    if terrain_tile.path_kind().intersects(SUPPORTED_TERRAIN_KINDS) {
-                        saved_state.terrain_tile_state = record_tile_state(terrain_tile);
-                    }
-                }
+            if layers.intersects(EditedLayer::Terrain)
+                && let Some(terrain_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+                    && terrain_tile.path_kind().intersects(SUPPORTED_TERRAIN_KINDS)
+            {
+                saved_state.terrain_tile_state = record_tile_state(terrain_tile);
             }
 
-            if layers.intersects(EditedLayer::Objects) {
-                if let Some(object_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                    if object_tile.is(SUPPORTED_OBJECT_KINDS) {
-                        saved_state.object_tile_state = record_tile_state(object_tile);
+            if layers.intersects(EditedLayer::Objects)
+                && let Some(object_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects)
+                    && object_tile.is(SUPPORTED_OBJECT_KINDS)
+            {
+                saved_state.object_tile_state = record_tile_state(object_tile);
 
-                        if let Some(game_object) = world.find_game_object_for_tile(object_tile) {
-                            saved_state.game_object_state = game_object.undo_redo_record();
-                        }
-                    }
+                if let Some(game_object) = world.find_game_object_for_tile(object_tile) {
+                    saved_state.game_object_state = game_object.undo_redo_record();
                 }
             }
 

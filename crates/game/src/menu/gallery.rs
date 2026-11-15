@@ -116,7 +116,8 @@ fn build(context: &mut GameUiContext) -> UiMenuRcMut {
 
     // One column, the interactive parts first; it scrolls. Each part is the menu's own widget, laid
     // out one after the other as drawn.
-    let parts: [(&str, fn(&mut GameUiContext) -> UiWidgetImpl); 11] = [
+    type Part = fn(&mut GameUiContext) -> UiWidgetImpl;
+    let parts: [(&str, Part); 11] = [
         ("Controls", |context| controls(context).into()),
         ("Buttons", |context| buttons(context).into()),
         ("Button states", |context| button_states(context).into()),
@@ -538,7 +539,7 @@ fn intermission(context: &mut GameUiContext) -> UiWidgetGroup {
     let briefing_canvas = UiCanvas::new(BRIEFING_SIZE * briefing_scale, move |_, painter, rect| match &panel {
         SkinPanel::NineSlice { slice, .. } => {
             // The panel at its full size, scaled down whole: its borders shrink with it.
-            let slice = UiNineSlice { scale: slice.scale * briefing_scale, ..slice.clone() };
+            let slice = UiNineSlice { scale: slice.scale * briefing_scale, ..*slice };
             painter.nine_slice(rect, &slice, common::Color::white());
         }
         SkinPanel::Sprite { texture, .. } => painter.image(*texture, rect, common::Color::white()),

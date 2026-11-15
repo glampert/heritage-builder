@@ -83,6 +83,8 @@ struct MinimapButtons {
 
 // A minimap button: the style's sprite button in the developer UI, the HUD's small icon tile in
 // game (Phase 5), named the same in widget paths. A tile reports a click until the next press().
+// The minimap holds only a dozen of these.
+#[allow(clippy::large_enum_variant)]
 enum MinimapButton {
     Sprite(UiSpriteButton),
     Tile { tile: UiIconTile, clicked: std::rc::Rc<std::cell::Cell<bool>> },
@@ -274,7 +276,7 @@ impl BaseMinimapRenderer {
                 .on_pressed(|_, context| ui::widgets::context_as_mut::<GameUiContext>(context).tile_map.minimap_mut().set_open(true));
             open_button_menu.add_widget(open_button);
         } else {
-            let open_button = UiSpriteButton::new(context, &format!("{}/open", style.buttons), Vec2::new(BUTTON_SIZE, BUTTON_SIZE))
+            let open_button = UiSpriteButton::new(context, format!("{}/open", style.buttons), Vec2::new(BUTTON_SIZE, BUTTON_SIZE))
                 .with_tooltip(open_tooltip)
                 .with_sounds(sounds)
                 .on_state_changed(|button, context, _| {
@@ -698,7 +700,7 @@ impl BaseMinimapRenderer {
         painter.circle_filled(center, 7.0, style.badge.color());
         painter.circle_stroke(center, 7.0, 1.2, style.badge_text.color());
         let text = if count > 9 { format_fixed_string!(8, "9+") } else { format_fixed_string!(8, "{count}") };
-        painter.text_centered(center, style.badge_text.color(), 0.55, &text);
+        painter.text_centered(center, style.badge_text.color(), 0.55, text);
     }
 
     // Names what's under the cursor on the map.
@@ -860,10 +862,10 @@ impl DevUiMinimapRenderer {
             if ui::combo(ui_sys, "Style", &mut choice, &realms) {
                 realm::set_override(choice.checked_sub(1).and_then(|index| Realm::iter().nth(index)));
             }
-            if ui::small_button(ui_sys, "Reload Style") {
-                if let Err(err) = style::reload(realm::ui_realm()) {
-                    engine::log::error!(engine::log::channel!("minimap"), "{err}");
-                }
+            if ui::small_button(ui_sys, "Reload Style")
+                && let Err(err) = style::reload(realm::ui_realm())
+            {
+                engine::log::error!(engine::log::channel!("minimap"), "{err}");
             }
 
             ui::separator(ui_sys);

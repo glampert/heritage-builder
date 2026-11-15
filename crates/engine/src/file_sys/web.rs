@@ -81,7 +81,7 @@ impl WebFileSystemBackend {
     }
 
     fn insert_asset(&mut self, path: &str, data: Vec<u8>) {
-        let (normalized_path, path_hash) = Self::hash_path(&path);
+        let (normalized_path, path_hash) = Self::hash_path(path);
         let entry = AssetCacheEntry { path: normalized_path.to_string(), data };
 
         if self.asset_cache.insert(path_hash, entry).is_some() {

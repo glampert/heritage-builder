@@ -137,11 +137,11 @@ impl GameMenusSystem for InGameMenus {
             }
             // [ESCAPE]: Close the dialog on top, or its popup (only that: the dialogs don't close
             // themselves on Escape).
-            if key == InputKey::Escape && action == InputAction::Press {
-                if dialog::close_current_on_escape(context) {
-                    dialog::preview::return_if_closed(context);
-                    return UiInputEvent::Handled; // Key press is handled.
-                }
+            if key == InputKey::Escape && action == InputAction::Press
+                && dialog::close_current_on_escape(context)
+            {
+                dialog::preview::return_if_closed(context);
+                return UiInputEvent::Handled; // Key press is handled.
             }
         }
 

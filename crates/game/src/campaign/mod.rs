@@ -181,17 +181,15 @@ pub fn start_mission_if_loadable(campaign_id: usize, mission_index: usize) -> Re
 pub fn advance_to_next_mission() -> Option<MissionMap> {
     let mgr = CampaignManager::get_mut();
 
-    let (campaign_id, next_index) = match mgr.progress.active.as_ref() {
-        Some(active) => {
-            let configs = CampaignConfigs::get();
-            let next = configs.campaign(active.campaign_id).and_then(|campaign| {
-                let step = campaign.next_step_after(active.mission_index)?;
-                let picked = crate::profile::get().record(&campaign.id).and_then(|record| record.choice(step));
-                Some(campaign.step_mission(step, picked))
-            });
-            (active.campaign_id, next.unwrap_or(usize::MAX))
-        }
-        None => return None,
+    let (campaign_id, next_index) = {
+        let active = mgr.progress.active.as_ref()?;
+        let configs = CampaignConfigs::get();
+        let next = configs.campaign(active.campaign_id).and_then(|campaign| {
+            let step = campaign.next_step_after(active.mission_index)?;
+            let picked = crate::profile::get().record(&campaign.id).and_then(|record| record.choice(step));
+            Some(campaign.step_mission(step, picked))
+        });
+        (active.campaign_id, next.unwrap_or(usize::MAX))
     };
 
     if let Some(mission) = CampaignConfigs::get().mission(campaign_id, next_index) {

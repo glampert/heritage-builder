@@ -729,10 +729,10 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         // Desktop waits for the copies so captures finish this frame. Web can't block,
         // so its captures finish in a later frame, once the browser has mapped the buffers.
         #[cfg(feature = "desktop")]
-        if !s.captures_in_flight.is_empty() {
-            if let Err(err) = s.device.poll(wgpu::PollType::wait_indefinitely()) {
-                log::error!(log::channel!("render"), "Wgpu device poll failed: {err}");
-            }
+        if !s.captures_in_flight.is_empty()
+            && let Err(err) = s.device.poll(wgpu::PollType::wait_indefinitely())
+        {
+            log::error!(log::channel!("render"), "Wgpu device poll failed: {err}");
         }
 
         s.finish_mapped_captures(captures);

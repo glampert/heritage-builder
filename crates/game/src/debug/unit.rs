@@ -85,11 +85,11 @@ impl Unit {
 
         ui::bullet_text(ui_sys, format_small!("Anim: {} (dir: {})", self.current_anim_name(), self.direction()));
 
-        if let Some(task_id) = self.current_task() {
-            if let Some((archetype, started)) = context.task_manager().try_get_task_archetype_and_started(task_id) {
-                let status = if started { "running" } else { "starting" };
-                ui::bullet_text(ui_sys, format_small!("Task: {archetype} | {status}"));
-            }
+        if let Some(task_id) = self.current_task()
+            && let Some((archetype, started)) = context.task_manager().try_get_task_archetype_and_started(task_id)
+        {
+            let status = if started { "running" } else { "starting" };
+            ui::bullet_text(ui_sys, format_small!("Task: {archetype} | {status}"));
         }
 
         if let Some(goal) = self.goal() {

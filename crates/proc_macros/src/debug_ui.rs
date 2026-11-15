@@ -137,17 +137,17 @@ enum FieldKind {
 }
 
 fn infer_field_kind(field: &Field) -> FieldKind {
-    if let Type::Path(TypePath { path, .. }) = &field.ty {
-        if let Some(ident) = path.get_ident() {
-            let kind = match ident.to_string().as_str() {
-                "bool" => FieldKind::Bool,
-                "u8" | "u16" | "u32" | "u64" | "usize" | "i8" | "i16" | "i32" | "i64" | "isize" => FieldKind::Int,
-                "f32" | "f64" | "Seconds" => FieldKind::Float,
-                "String" => FieldKind::String,
-                _ => FieldKind::Unknown,
-            };
-            return kind;
-        }
+    if let Type::Path(TypePath { path, .. }) = &field.ty
+        && let Some(ident) = path.get_ident()
+    {
+        let kind = match ident.to_string().as_str() {
+            "bool" => FieldKind::Bool,
+            "u8" | "u16" | "u32" | "u64" | "usize" | "i8" | "i16" | "i32" | "i64" | "isize" => FieldKind::Int,
+            "f32" | "f64" | "Seconds" => FieldKind::Float,
+            "String" => FieldKind::String,
+            _ => FieldKind::Unknown,
+        };
+        return kind;
     }
     FieldKind::Unknown
 }

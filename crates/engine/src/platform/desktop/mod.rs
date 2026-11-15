@@ -26,9 +26,9 @@ pub fn run_environment() -> RunEnvironment {
     #[cfg(target_os = "macos")]
     {
         // Example: /Applications/MyGame.app/Contents/MacOS/MyGame
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
-                if exe_dir
+        if let Ok(exe_path) = std::env::current_exe()
+            && let Some(exe_dir) = exe_path.parent()
+                && exe_dir
                     .parent()
                     .and_then(|contents| contents.parent())
                     .filter(|p| p.extension().is_some_and(|ext| ext == "app"))
@@ -36,8 +36,6 @@ pub fn run_environment() -> RunEnvironment {
                 {
                     return RunEnvironment::MacOSAppBundle;
                 }
-            }
-        }
     }
 
     RunEnvironment::Standalone

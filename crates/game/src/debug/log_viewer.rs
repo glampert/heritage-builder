@@ -65,10 +65,10 @@ impl LogViewerSingleton {
 
     // Called by the log listener callback to push new messages.
     fn push_line(&mut self, line: log::Record) {
-        if let Some(channel) = &line.channel {
-            if !self.channel_filter.contains_key(channel) {
-                self.channel_filter.insert(*channel, true); // Defaults to enabled.
-            }
+        if let Some(channel) = &line.channel
+            && !self.channel_filter.contains_key(channel)
+        {
+            self.channel_filter.insert(*channel, true); // Defaults to enabled.
         }
 
         match line.level {
@@ -124,10 +124,10 @@ impl LogViewerSingleton {
     }
 
     fn is_channel_enabled(&self, channel: &Option<log::Channel>) -> bool {
-        if let Some(channel) = channel {
-            if let Some(is_enabled) = self.channel_filter.get(channel) {
-                return *is_enabled;
-            }
+        if let Some(channel) = channel
+            && let Some(is_enabled) = self.channel_filter.get(channel)
+        {
+            return *is_enabled;
         }
         // Messages without channel or unknown channels are always shown.
         true
@@ -344,5 +344,11 @@ impl LogViewer {
         let mut viewer = log_viewer_singleton().lock().unwrap();
 
         viewer.draw(ui_sys)
+    }
+}
+
+impl Default for LogViewer {
+    fn default() -> Self {
+        Self::new()
     }
 }

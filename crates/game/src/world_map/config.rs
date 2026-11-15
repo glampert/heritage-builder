@@ -361,7 +361,7 @@ impl WorldMapDef {
                         city.id, route.route
                     )),
                     Some(def)
-                        if !def.cities.iter().any(|id| *id == city.id) || !def.cities.iter().any(|id| *id == route.from) =>
+                        if !def.cities.contains(&city.id) || !def.cities.contains(&route.from) =>
                     {
                         errors.push(format!(
                             "City '{}' trades over the route '{}', which doesn't join it to '{}'.",

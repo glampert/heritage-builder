@@ -167,7 +167,7 @@ pub fn encode_jpeg(image: &CapturedImage, quality: u8) -> Result<Vec<u8>, String
     }
 
     // JPEG has no alpha; captures are opaque.
-    let rgb: Vec<u8> = image.pixels.chunks_exact(4).flat_map(|pixel| [pixel[0], pixel[1], pixel[2]]).collect();
+    let rgb: Vec<u8> = image.pixels.as_chunks::<4>().0.iter().flat_map(|pixel| [pixel[0], pixel[1], pixel[2]]).collect();
 
     let mut jpeg = Vec::new();
     JpegEncoder::new_with_quality(&mut jpeg, quality.clamp(1, 100))

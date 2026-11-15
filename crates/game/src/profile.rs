@@ -245,10 +245,10 @@ impl Profile {
         // it, so it's the site picked. The choice point started by itself (the home menu's Campaign
         // with nothing picked) picks nothing: choice_made records a choice of its own site.
         let step = campaign.step_of(mission_index);
-        if step != mission_index {
-            if let Some(site) = campaign.site_starting(step, mission_index) {
-                record.set_choice(step, site);
-            }
+        if step != mission_index
+            && let Some(site) = campaign.site_starting(step, mission_index)
+        {
+            record.set_choice(step, site);
         }
 
         if !campaign.hidden && !self.custom_realms.contains(&campaign.realm) {

@@ -61,25 +61,25 @@ impl UnitInventory {
     #[inline]
     pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
-        if count != 0 {
-            if let Some(mut item) = self.item.take() {
-                debug_assert!(
-                    item.kind == kind && item.count != 0,
-                    "item.kind {} != {}, item.count = {}",
-                    item.kind,
-                    kind,
-                    item.count
-                );
+        if count != 0
+            && let Some(mut item) = self.item.take()
+        {
+            debug_assert!(
+                item.kind == kind && item.count != 0,
+                "item.kind {} != {}, item.count = {}",
+                item.kind,
+                kind,
+                item.count
+            );
 
-                let removed = count.min(item.count);
-                item.count -= removed;
+            let removed = count.min(item.count);
+            item.count -= removed;
 
-                if item.count > 0 {
-                    self.item = Some(item);
-                }
-
-                return removed;
+            if item.count > 0 {
+                self.item = Some(item);
             }
+
+            return removed;
         }
         0
     }

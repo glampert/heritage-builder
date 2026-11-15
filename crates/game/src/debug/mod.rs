@@ -296,12 +296,12 @@ fn register_tile_map_debug_callbacks(mut tile_map_rc: RcMut<TileMap>) {
 }
 
 fn remove_tile_map_debug_callbacks() {
-    if let Some(tile_map_weak_ref) = TILE_MAP_DEBUG_REF.as_mut() {
-        if let Some(mut tile_map_strong_ref) = tile_map_weak_ref.upgrade() {
-            tile_map_strong_ref.set_tile_placed_callback(None);
-            tile_map_strong_ref.set_removing_tile_callback(None);
-            tile_map_strong_ref.set_map_reset_callback(None);
-        }
+    if let Some(tile_map_weak_ref) = TILE_MAP_DEBUG_REF.as_mut()
+        && let Some(mut tile_map_strong_ref) = tile_map_weak_ref.upgrade()
+    {
+        tile_map_strong_ref.set_tile_placed_callback(None);
+        tile_map_strong_ref.set_removing_tile_callback(None);
+        tile_map_strong_ref.set_map_reset_callback(None);
     }
 
     // Clear the cached global tile map weak ref.
@@ -309,10 +309,10 @@ fn remove_tile_map_debug_callbacks() {
 }
 
 pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {
-    if let Some(tile_map_weak_ref) = TILE_MAP_DEBUG_REF.as_ref() {
-        if let Some(tile_map_strong_ref) = tile_map_weak_ref.upgrade() {
-            return tile_map_strong_ref.try_tile_from_layer(cell, layer).map_or("", |tile| tile.name());
-        }
+    if let Some(tile_map_weak_ref) = TILE_MAP_DEBUG_REF.as_ref()
+        && let Some(tile_map_strong_ref) = tile_map_weak_ref.upgrade()
+    {
+        return tile_map_strong_ref.try_tile_from_layer(cell, layer).map_or("", |tile| tile.name());
     }
     ""
 }

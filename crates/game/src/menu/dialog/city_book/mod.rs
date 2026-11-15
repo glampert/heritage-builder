@@ -489,7 +489,7 @@ impl<'a> Paint<'a> {
             return;
         };
         if change == 0 {
-            self.text(x, y, &ui::text::get(UiTextCategory::City, "book.steady"), px, self.c.sub, UiTextAnchor::End, false);
+            self.text(x, y, ui::text::get(UiTextCategory::City, "book.steady"), px, self.c.sub, UiTextAnchor::End, false);
             return;
         }
         let color = if change > 0 { self.c.good } else { self.c.accent };

@@ -70,7 +70,7 @@ pub(super) fn flow(p: Option<&Paint>, icons: Icons, items: &[Item], w: f32) -> f
             Section::Workers { have, need, note, short, compact: true } => {
                 // On one line (a store's).
                 if let Some(p) = p {
-                    p.section(0.0, cy, &engine::ui::text::get(UiTextCategory::Hud, "inspect.workers.title"));
+                    p.section(0.0, cy, engine::ui::text::get(UiTextCategory::Hud, "inspect.workers.title"));
                     p.text(w, cy, &format!("{have} / {need}"), VALUE, p.c.text, UiTextAnchor::End, false);
                     let color = if *short { p.c.accent } else { p.c.sub };
                     p.text(0.0, cy + 30.0, note, NOTE, color, UiTextAnchor::Start, false);
@@ -79,7 +79,7 @@ pub(super) fn flow(p: Option<&Paint>, icons: Icons, items: &[Item], w: f32) -> f
             }
             Section::Production { note, rows, progress } => {
                 if let Some(p) = p {
-                    p.section(0.0, cy, &engine::ui::text::get(UiTextCategory::Hud, "inspect.production.title"));
+                    p.section(0.0, cy, engine::ui::text::get(UiTextCategory::Hud, "inspect.production.title"));
                     p.text(w, cy, note, NOTE, p.c.sub, UiTextAnchor::End, false);
                     for (i, row) in rows.iter().enumerate() {
                         let ry = cy + 38.0 + i as f32 * 38.0;
@@ -90,7 +90,7 @@ pub(super) fn flow(p: Option<&Paint>, icons: Icons, items: &[Item], w: f32) -> f
                         p.text(w, ry, &format!("{} / {}", row.have, row.capacity), BODY, p.c.text, UiTextAnchor::End, false);
                     }
                     let ry = cy + 38.0 + rows.len() as f32 * 38.0;
-                    p.text(0.0, ry, &engine::ui::text::get(UiTextCategory::Hud, "inspect.production.next_batch"), BODY, p.c.sub, UiTextAnchor::Start, false);
+                    p.text(0.0, ry, engine::ui::text::get(UiTextCategory::Hud, "inspect.production.next_batch"), BODY, p.c.sub, UiTextAnchor::Start, false);
                     p.bar(mx, ry - 12.0, mw, 10.0, *progress);
                     p.text(w, ry, &format!("{}%", (progress * 100.0).round()), BODY, p.c.text, UiTextAnchor::End, false);
                 }
@@ -183,7 +183,7 @@ pub(super) fn flow(p: Option<&Paint>, icons: Icons, items: &[Item], w: f32) -> f
             }
             Section::Risks { rows } => {
                 if let Some(p) = p {
-                    p.section(0.0, cy, &engine::ui::text::get(UiTextCategory::Hud, "inspect.risks.title"));
+                    p.section(0.0, cy, engine::ui::text::get(UiTextCategory::Hud, "inspect.risks.title"));
                     for (i, row) in rows.iter().enumerate() {
                         let ry = cy + 34.0 + i as f32 * 29.0;
                         p.text(0.0, ry, &row.label, BODY, p.c.sub, UiTextAnchor::Start, false);
@@ -197,8 +197,8 @@ pub(super) fn flow(p: Option<&Paint>, icons: Icons, items: &[Item], w: f32) -> f
                 let rows = costs.len().max(risks.len());
                 if let Some(p) = p {
                     let xm = w / 2.0;
-                    p.section(0.0, cy, &engine::ui::text::get(UiTextCategory::Hud, "inspect.costs.title"));
-                    p.section(xm + 20.0, cy, &engine::ui::text::get(UiTextCategory::Hud, "inspect.risks.title"));
+                    p.section(0.0, cy, engine::ui::text::get(UiTextCategory::Hud, "inspect.costs.title"));
+                    p.section(xm + 20.0, cy, engine::ui::text::get(UiTextCategory::Hud, "inspect.risks.title"));
                     value_rows(p, 0.0, xm - 20.0, cy, costs);
                     for (i, row) in risks.iter().enumerate() {
                         let ry = cy + 34.0 + i as f32 * 29.0;
@@ -250,7 +250,7 @@ fn status_line(p: Option<&Paint>, status: Option<&Status>, w: f32) -> f32 {
 // empty), and the note under them (in the accent while short).
 #[allow(clippy::too_many_arguments)]
 fn figures(p: &Paint, icons: Icons, w: f32, cy: f32, title_key: &str, have: u32, need: u32, note: &str, short: bool) {
-    p.section(0.0, cy, &engine::ui::text::get(UiTextCategory::Hud, title_key));
+    p.section(0.0, cy, engine::ui::text::get(UiTextCategory::Hud, title_key));
     p.text(w, cy, &format!("{have} / {need}"), VALUE, p.c.text, UiTextAnchor::End, false);
     let step = (36.0_f32).min((w - 12.0) / need.max(1) as f32);
     let size = if step >= 30.0 { 22.0 } else { 17.0 };

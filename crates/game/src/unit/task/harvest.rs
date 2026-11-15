@@ -117,10 +117,10 @@ impl PathFilter for FindHarvestableTreeFilter<'_> {
         // Last node should be our tree prop.
         debug_assert_eq!(goal, *path.last().unwrap());
 
-        if let Some(tree) = self.context.find_prop_for_cell(goal.cell) {
-            if !tree.is_being_harvested() && tree.harvestable_amount() != 0 {
-                return true; // Accept path.
-            }
+        if let Some(tree) = self.context.find_prop_for_cell(goal.cell)
+            && !tree.is_being_harvested() && tree.harvestable_amount() != 0
+        {
+            return true; // Accept path.
         }
 
         false // Refuse path.

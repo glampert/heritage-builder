@@ -56,8 +56,11 @@ fn clear_building(env: &mut TestEnvironment, cell: Cell) {
     assert!(env.tile_map.try_clear_tile_from_layer(cell, TileMapLayerKind::Objects).is_ok());
 }
 
+type CellSnapshot = (Terrain, Cover, MinimapRoad);
+type FeatureSnapshot = (Cell, MinimapClass, Option<LandmarkKind>, FeatureState);
+
 // The grid and features of two minimaps, as comparable lists.
-fn snapshot(minimap: &Minimap) -> (Vec<(Terrain, Cover, MinimapRoad)>, Vec<(Cell, MinimapClass, Option<LandmarkKind>, FeatureState)>) {
+fn snapshot(minimap: &Minimap) -> (Vec<CellSnapshot>, Vec<FeatureSnapshot>) {
     let size = minimap.size_in_cells();
     let mut cells = Vec::new();
     for y in 0..size.height {

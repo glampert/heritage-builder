@@ -373,13 +373,12 @@ impl UnitTaskRandomizedPatrol {
 
             // Track unique buildings the patrol has queued visits to.
             // The Vec is capped; once full, additional matches are dropped.
-            if let Some(visited_buildings) = &mut self.visited_buildings {
-                if visited_buildings.len() < MAX_PATROL_VISITED_BUILDINGS
+            if let Some(visited_buildings) = &mut self.visited_buildings
+                && visited_buildings.len() < MAX_PATROL_VISITED_BUILDINGS
                     && !visited_buildings.contains(&kind_and_id)
                 {
                     visited_buildings.push(kind_and_id);
                 }
-            }
         }
     }
 

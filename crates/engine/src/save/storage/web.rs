@@ -77,10 +77,7 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
             .map_err(|_| format!("Failed to read save '{save_file}' from Browser Local Storage."))?
             .ok_or_else(|| format!("Save file '{save_file}' not found in Browser Local Storage."));
 
-        let save_data = match storage_result {
-            Ok(save_data) => save_data,
-            Err(err) => return Err(err),
-        };
+        let save_data = storage_result?;
 
         let state = new_json_save_state_with_data(false, save_data);
 

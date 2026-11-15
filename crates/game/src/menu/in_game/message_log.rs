@@ -49,7 +49,7 @@ impl MessageLog {
         // Centred, clear of the minimap at the left and the build column at the right.
         let minimap_right = context.tile_map.minimap().layout().window.max.x;
         let side = minimap_right.max(layout::column_width(context) + layout::MARGIN) + layout::GAP;
-        let width = (window.x - 2.0 * side).min(MAX_WIDTH).max(240.0);
+        let width = (window.x - 2.0 * side).clamp(240.0, MAX_WIDTH);
         let inner = Vec2::new(width - insets[0] - insets[2], SHOWN as f32 * ROW_HEIGHT);
         let lines = Vec2::new(inner.x - CLOSE_SIZE - CLOSE_GAP, inner.y);
         // A few points of slack: the menu lays its contents out in whole points, so fractional insets

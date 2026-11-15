@@ -287,6 +287,9 @@ fn tex_coords_uv(tex_coords: &RectTexCoords) -> egui::Rect {
 // UiWidgetImpl
 // ----------------------------------------------
 
+// Widgets differ in size (a tab bar is the largest); boxing one would cost every widget of its kind
+// a heap allocation for little gain, as each menu holds only a few.
+#[allow(clippy::large_enum_variant)]
 #[enum_dispatch]
 pub enum UiWidgetImpl {
     UiMenu,

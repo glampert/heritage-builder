@@ -247,6 +247,12 @@ impl GameSessionCmdQueue {
     }
 }
 
+impl Default for GameSessionCmdQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ----------------------------------------------
 // Session generation
 // ----------------------------------------------
@@ -301,10 +307,10 @@ pub fn create_initial(
     let session = GameSession::create_with_settings(engine, configs, load_map_setting, false);
 
     // A save that fails to load leaves the empty placeholder map in place.
-    if let LoadMapSetting::SaveGame { save_file } = load_map_setting {
-        if !session.tile_map().size_in_cells().is_valid() {
-            return Err(format!("Failed to load save game '{}'. See the log above for details.", save_file.display()));
-        }
+    if let LoadMapSetting::SaveGame { save_file } = load_map_setting
+        && !session.tile_map().size_in_cells().is_valid()
+    {
+        return Err(format!("Failed to load save game '{}'. See the log above for details.", save_file.display()));
     }
 
     log::info!(log::channel!("session"), "--- Game Session Created ({load_map_setting}) ---");

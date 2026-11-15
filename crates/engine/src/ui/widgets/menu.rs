@@ -475,10 +475,10 @@ impl UiMenu {
         debug_assert!(!label.is_empty());
 
         for (index, widget) in self.widgets.iter().enumerate() {
-            if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
-                if w.label() == label {
-                    return Some((UiMenuWidgetIndex(index), w));
-                }
+            if let Some(w) = widget.as_any().downcast_ref::<Widget>()
+                && w.label() == label
+            {
+                return Some((UiMenuWidgetIndex(index), w));
             }
         }
 
@@ -489,10 +489,10 @@ impl UiMenu {
         debug_assert!(!label.is_empty());
 
         for (index, widget) in self.widgets.iter_mut().enumerate() {
-            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
-                if w.label() == label {
-                    return Some((UiMenuWidgetIndex(index), w));
-                }
+            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>()
+                && w.label() == label
+            {
+                return Some((UiMenuWidgetIndex(index), w));
             }
         }
 
@@ -729,7 +729,7 @@ impl UiMenu {
                 .area(area.order(egui::Order::Foreground))
                 .frame(egui::Frame::NONE)
                 .backdrop_color(backdrop_color)
-                .show(&ctx, |ui| draw_window(ui));
+                .show(&ctx, draw_window);
 
             let escape_pressed = close_on_escape && response.is_top_modal && ctx.input(crate::ui::immediate::escape_pressed_in);
             if response.inner || escape_pressed {
@@ -737,7 +737,7 @@ impl UiMenu {
             }
         } else {
             // Regular window.
-            let response = area.order(egui::Order::Middle).show(&ctx, |ui| draw_window(ui));
+            let response = area.order(egui::Order::Middle).show(&ctx, draw_window);
             if response.inner {
                 is_open = false;
             }

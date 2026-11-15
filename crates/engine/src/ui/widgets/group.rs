@@ -195,10 +195,10 @@ impl UiWidgetGroup {
         debug_assert!(!label.is_empty());
 
         for (index, widget) in self.widgets.iter().enumerate() {
-            if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
-                if w.label() == label {
-                    return Some((UiWidgetGroupWidgetIndex(index), w));
-                }
+            if let Some(w) = widget.as_any().downcast_ref::<Widget>()
+                && w.label() == label
+            {
+                return Some((UiWidgetGroupWidgetIndex(index), w));
             }
         }
 
@@ -212,10 +212,10 @@ impl UiWidgetGroup {
         debug_assert!(!label.is_empty());
 
         for (index, widget) in self.widgets.iter_mut().enumerate() {
-            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
-                if w.label() == label {
-                    return Some((UiWidgetGroupWidgetIndex(index), w));
-                }
+            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>()
+                && w.label() == label
+            {
+                return Some((UiWidgetGroupWidgetIndex(index), w));
             }
         }
 
@@ -421,10 +421,10 @@ impl UiLabeledWidgetGroup {
         debug_assert!(!label.is_empty());
 
         for (index, (widget_label, widget)) in self.labels_and_widgets.iter().enumerate() {
-            if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
-                if widget_label.resolve() == label {
-                    return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
-                }
+            if let Some(w) = widget.as_any().downcast_ref::<Widget>()
+                && widget_label.resolve() == label
+            {
+                return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
             }
         }
 
@@ -438,10 +438,10 @@ impl UiLabeledWidgetGroup {
         debug_assert!(!label.is_empty());
 
         for (index, (widget_label, widget)) in self.labels_and_widgets.iter_mut().enumerate() {
-            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
-                if widget_label.resolve() == label {
-                    return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
-                }
+            if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>()
+                && widget_label.resolve() == label
+            {
+                return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
             }
         }
 

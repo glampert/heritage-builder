@@ -259,10 +259,7 @@ impl<T> Grid<T> {
 
     #[inline]
     fn is_node_within_bounds(&self, node: Node) -> bool {
-        if (node.cell.x < 0 || node.cell.x >= self.size.width) || (node.cell.y < 0 || node.cell.y >= self.size.height) {
-            return false;
-        }
-        true
+        !((node.cell.x < 0 || node.cell.x >= self.size.width) || (node.cell.y < 0 || node.cell.y >= self.size.height))
     }
 
     #[inline]
@@ -541,10 +538,10 @@ impl Graph {
     pub fn neighbors(&self, node: Node, wanted_node_kinds: NodeKind) -> ArrayVec<Node, 4> {
         let mut nodes = ArrayVec::new();
         for neighbor in node.neighbors() {
-            if let Some(node_kind) = self.node_kind(neighbor) {
-                if node_kind.intersects(wanted_node_kinds) {
-                    nodes.push(neighbor);
-                }
+            if let Some(node_kind) = self.node_kind(neighbor)
+                && node_kind.intersects(wanted_node_kinds)
+            {
+                nodes.push(neighbor);
             }
         }
         nodes
@@ -608,10 +605,10 @@ impl Graph {
         if has_spawn_point {
             // Moving the spawn: strip the flag from the previous cell so the grid
             // state matches the single-spawn invariant.
-            if let Some(prev) = self.settlers_spawn_point {
-                if prev != node {
-                    self.grid[prev].remove(NodeKind::SettlersSpawnPoint);
-                }
+            if let Some(prev) = self.settlers_spawn_point
+                && prev != node
+            {
+                self.grid[prev].remove(NodeKind::SettlersSpawnPoint);
             }
             self.settlers_spawn_point = Some(node);
         } else if had_spawn_point {
@@ -669,6 +666,7 @@ pub trait Heuristic {
 }
 
 // Uniform movement cost (movement_cost() always = 1).
+#[derive(Default)]
 pub struct AStarUniformCostHeuristic;
 
 impl AStarUniformCostHeuristic {
@@ -705,6 +703,7 @@ pub trait Bias {
     }
 }
 
+#[derive(Default)]
 pub struct Unbiased;
 
 impl Unbiased {
@@ -777,6 +776,7 @@ pub trait PathFilter {
 }
 
 // Default no-op filter.
+#[derive(Default)]
 pub struct DefaultPathFilter;
 
 impl DefaultPathFilter {
@@ -839,10 +839,10 @@ impl PathHistory {
 
     #[inline]
     pub fn is_last_path_hash(&self, path_hash: u64) -> bool {
-        if let Some(last_hash) = self.hashes.last() {
-            if *last_hash == path_hash {
-                return true;
-            }
+        if let Some(last_hash) = self.hashes.last()
+            && *last_hash == path_hash
+        {
+            return true;
         }
         false
     }
@@ -1085,10 +1085,10 @@ impl Search {
             self.path.clear();
         }
 
-        if Filter::TAKE_FALLBACK_PATH {
-            if let Some(node) = path_filter.choose_fallback(&self.possible_waypoints) {
-                return self.reconstruct_path(start, node);
-            }
+        if Filter::TAKE_FALLBACK_PATH
+            && let Some(node) = path_filter.choose_fallback(&self.possible_waypoints)
+        {
+            return self.reconstruct_path(start, node);
         }
 
         SearchResult::PathNotFound
@@ -1379,10 +1379,10 @@ impl Search {
         if !graph.node_kind(start).is_some_and(|k| k.intersects(traversable)) {
             return false;
         }
-        if let Some(goal) = goal {
-            if !graph.node_kind(goal).is_some_and(|k| k.intersects(traversable)) {
-                return false;
-            }
+        if let Some(goal) = goal
+            && !graph.node_kind(goal).is_some_and(|k| k.intersects(traversable))
+        {
+            return false;
         }
         true
     }

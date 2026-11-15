@@ -50,6 +50,16 @@ pub const fn new_const_hash_map<K, V>() -> PreHashedKeyMap<K, V> {
 // so iteration order is the same on every run (the simulation iterates these sets).
 pub struct SmallSet<const N: usize, T>(SmallMap<N, T, (), BuildHasherDefault<DefaultHasher>>);
 
+impl<const N: usize, T> Default for SmallSet<N, T>
+where
+    T: Eq + Hash,
+{
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const N: usize, T> SmallSet<N, T>
 where
     T: Eq + Hash,

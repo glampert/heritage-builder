@@ -118,7 +118,7 @@ pub fn version() -> u32 {
 }
 
 // The key's text in the current language, else in English, else the key itself.
-pub fn get<'a>(category: UiTextCategory, key: &'a str) -> &'a str {
+pub fn get(category: UiTextCategory, key: &str) -> &str {
     get_hashed(category, key, hash::fnv1a_from_str(key))
 }
 

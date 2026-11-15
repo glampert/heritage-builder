@@ -166,6 +166,7 @@ pub(super) fn fill_size(ui: &mut egui::Ui) -> egui::Vec2 {
 
 // Records the widget `response` is from, just drawn into `ui`. Returns a value ui.set queued for
 // it, if it's enabled.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn record(
     ui_sys: &UiSystem,
     ui: &egui::Ui,
@@ -1106,7 +1107,7 @@ pub fn pointer_tooltip(
 
 // The popup frame with no fill, outline or shadow: the same margins.
 fn transparent_popup_frame(ui_sys: &UiSystem) -> egui::Frame {
-    egui::Frame::popup(&ui_sys.egui_style()).fill(Color32::TRANSPARENT).stroke(Stroke::NONE).shadow(egui::Shadow::NONE)
+    egui::Frame::popup(ui_sys.egui_style()).fill(Color32::TRANSPARENT).stroke(Stroke::NONE).shadow(egui::Shadow::NONE)
 }
 
 fn show_styled_tooltip(
@@ -2298,8 +2299,10 @@ pub fn painter(ui_sys: &UiSystem, layer: UiLayer) -> UiPainter {
 }
 
 // The halo's directions: around the text in eight steps.
-const HALO_DIRECTIONS: [(f32, f32); 8] =
-    [(1.0, 0.0), (0.7071, 0.7071), (0.0, 1.0), (-0.7071, 0.7071), (-1.0, 0.0), (-0.7071, -0.7071), (0.0, -1.0), (0.7071, -0.7071)];
+const HALO_DIRECTIONS: [(f32, f32); 8] = {
+    use std::f32::consts::FRAC_1_SQRT_2 as D;
+    [(1.0, 0.0), (D, D), (0.0, 1.0), (-D, D), (-1.0, 0.0), (-D, -D), (0.0, -1.0), (D, -D)]
+};
 
 impl UiPainter {
     // A one point wide outline.

@@ -148,10 +148,10 @@ static CACHED_PATHS: LazyLock<CachedPaths> =
 fn find_base_path() -> paths::FixedPath {
     #[cfg(target_os = "macos")]
     {
-        if let Some(bundle_resources) = macos_bundle_resources_path() {
-            if bundle_resources.exists() {
-                return bundle_resources;
-            }
+        if let Some(bundle_resources) = macos_bundle_resources_path()
+            && bundle_resources.exists()
+        {
+            return bundle_resources;
         }
     }
 
@@ -162,10 +162,10 @@ fn find_base_path() -> paths::FixedPath {
 fn find_assets_path() -> paths::AssetPath {
     #[cfg(target_os = "macos")]
     {
-        if let Some(bundle_resources) = macos_bundle_resources_path() {
-            if bundle_resources.exists() {
-                return bundle_resources.join("assets");
-            }
+        if let Some(bundle_resources) = macos_bundle_resources_path()
+            && bundle_resources.exists()
+        {
+            return bundle_resources.join("assets");
         }
     }
 

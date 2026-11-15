@@ -1098,10 +1098,10 @@ impl Tile {
         let anim_set_index = self.anim_set_index();
         let variation_index = self.variation_index();
 
-        if let Some(anim_set) = self.tile_def().anim_set_by_index(variation_index, anim_set_index) {
-            if anim_set.frames.len() > 1 {
-                return true;
-            }
+        if let Some(anim_set) = self.tile_def().anim_set_by_index(variation_index, anim_set_index)
+            && anim_set.frames.len() > 1
+        {
+            return true;
         }
 
         false
@@ -1449,12 +1449,7 @@ impl TilePool {
 
     #[inline(always)]
     fn is_cell_within_bounds(&self, cell: Cell) -> bool {
-        if (cell.x < 0 || cell.x >= self.layer_size_in_cells.width)
-            || (cell.y < 0 || cell.y >= self.layer_size_in_cells.height)
-        {
-            return false;
-        }
-        true
+        !((cell.x < 0 || cell.x >= self.layer_size_in_cells.width) || (cell.y < 0 || cell.y >= self.layer_size_in_cells.height))
     }
 
     #[inline(always)]
@@ -1754,20 +1749,20 @@ impl TileMapLayer {
 
     #[inline]
     pub fn find_tile(&self, cell: Cell, tile_kinds: TileKind) -> Option<&Tile> {
-        if let Some(tile) = self.try_tile(cell) {
-            if tile.is(tile_kinds) {
-                return Some(tile);
-            }
+        if let Some(tile) = self.try_tile(cell)
+            && tile.is(tile_kinds)
+        {
+            return Some(tile);
         }
         None
     }
 
     #[inline]
     pub fn find_tile_mut(&mut self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
-        if let Some(tile) = self.try_tile_mut(cell) {
-            if tile.is(tile_kinds) {
-                return Some(tile);
-            }
+        if let Some(tile) = self.try_tile_mut(cell)
+            && tile.is(tile_kinds)
+        {
+            return Some(tile);
         }
         None
     }
@@ -2388,10 +2383,7 @@ impl TileMap {
 
     #[inline]
     pub fn is_cell_within_bounds(&self, cell: Cell) -> bool {
-        if (cell.x < 0 || cell.x >= self.size_in_cells.width) || (cell.y < 0 || cell.y >= self.size_in_cells.height) {
-            return false;
-        }
-        true
+        !((cell.x < 0 || cell.x >= self.size_in_cells.width) || (cell.y < 0 || cell.y >= self.size_in_cells.height))
     }
 
     #[inline]
@@ -2759,10 +2751,10 @@ impl TileMap {
             return placement::err!(Clearing::EmptyMap, "Map has no layers!");
         }
 
-        if let Some(callback) = self.callbacks.on_removing_tile {
-            if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
-                callback(tile);
-            }
+        if let Some(callback) = self.callbacks.on_removing_tile
+            && let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind)
+        {
+            callback(tile);
         }
 
         let layers = self.layers();

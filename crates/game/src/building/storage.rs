@@ -552,7 +552,6 @@ impl StorageSlots {
     }
 
     #[inline]
-
     pub(crate) fn slot_capacity(&self) -> u32 {
         self.slot_capacity
     }
@@ -629,10 +628,10 @@ impl StorageSlots {
 
         // See if this resource kind is already being stored somewhere:
         for (slot_index, slot) in self.slots.iter().enumerate() {
-            if let Some(allocated_kind) = slot.allocated_resource_kind {
-                if allocated_kind == kind && !self.is_slot_full(slot_index) {
-                    return Some(slot_index);
-                }
+            if let Some(allocated_kind) = slot.allocated_resource_kind
+                && allocated_kind == kind && !self.is_slot_full(slot_index)
+            {
+                return Some(slot_index);
             }
         }
 

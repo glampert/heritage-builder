@@ -226,6 +226,12 @@ impl GameSystems {
     }
 }
 
+impl Default for GameSystems {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ----------------------------------------------
 // Save/Load for GameSystems
 // ----------------------------------------------

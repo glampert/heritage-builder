@@ -143,26 +143,26 @@ fn can_place_road(tile_map: &TileMap, cell: Cell) -> bool {
         return false;
     }
 
-    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-        if tile.kind().intersects(TileKind::Building | TileKind::Blocker | TileKind::Rocks | TileKind::Vegetation) {
-            return false;
-        }
+    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects)
+        && tile.kind().intersects(TileKind::Building | TileKind::Blocker | TileKind::Rocks | TileKind::Vegetation)
+    {
+        return false;
     }
 
-    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-        if tile.path_kind().intersects(PathNodeKind::Water | PathNodeKind::VacantLot) {
-            return false;
-        }
+    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+        && tile.path_kind().intersects(PathNodeKind::Water | PathNodeKind::VacantLot)
+    {
+        return false;
     }
 
     true
 }
 
 fn is_road(tile_map: &TileMap, cell: Cell) -> bool {
-    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-        if tile.path_kind().is_road() || tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement) {
-            return true;
-        }
+    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+        && (tile.path_kind().is_road() || tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement))
+    {
+        return true;
     }
     false
 }
@@ -330,10 +330,10 @@ pub fn update_junctions(tile_map: &mut TileMap, cell: Cell) {
 
 fn update_tile_junction(tile_map: &mut TileMap, cell: Cell) {
     let variation_index = junction_mask(tile_map, cell);
-    if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {
-        if tile.path_kind().is_road() {
-            tile.set_variation_index(variation_index);
-        }
+    if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain)
+        && tile.path_kind().is_road()
+    {
+        tile.set_variation_index(variation_index);
     }
 }
 

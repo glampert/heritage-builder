@@ -13,12 +13,11 @@ members = [
 ]
 
 # -------------------------
-#   Ignored Clippy lints
+#   Lints
 # -------------------------
 
+# Every member inherits these (`[lints] workspace = true`). CI runs clippy with warnings as errors.
 [workspace.lints.clippy]
-new_without_default = "allow"
-collapsible_if = "allow"
 
 # -------------------------
 #   Dev profile overrides

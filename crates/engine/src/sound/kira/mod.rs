@@ -523,10 +523,10 @@ where
     }
 
     fn is_playing(&self, sound_handle: SoundHandle) -> bool {
-        if sound_handle.is_valid() && sound_handle.kind == self.kind {
-            if let Some(sound) = self.try_get_sound(sound_handle) {
-                return sound.is_playing();
-            }
+        if sound_handle.is_valid() && sound_handle.kind == self.kind
+            && let Some(sound) = self.try_get_sound(sound_handle)
+        {
+            return sound.is_playing();
         }
         false
     }
@@ -579,20 +579,20 @@ where
 
     #[inline]
     fn try_get_sound(&self, sound_handle: SoundHandle) -> Option<&Inst> {
-        if let Some(sound) = self.sounds.get(sound_handle.index as usize) {
-            if sound_handle.generation == sound.generation() {
-                return Some(sound);
-            }
+        if let Some(sound) = self.sounds.get(sound_handle.index as usize)
+            && sound_handle.generation == sound.generation()
+        {
+            return Some(sound);
         }
         None
     }
 
     #[inline]
     fn try_get_sound_mut(&mut self, sound_handle: SoundHandle) -> Option<&mut Inst> {
-        if let Some(sound) = self.sounds.get_mut(sound_handle.index as usize) {
-            if sound_handle.generation == sound.generation() {
-                return Some(sound);
-            }
+        if let Some(sound) = self.sounds.get_mut(sound_handle.index as usize)
+            && sound_handle.generation == sound.generation()
+        {
+            return Some(sound);
         }
         None
     }

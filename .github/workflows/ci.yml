@@ -71,6 +71,40 @@ jobs:
         run: cargo test --workspace
 
   # ----------------------------------------------------------
+  # Clippy: lint the desktop and web builds, warnings as errors.
+  # ----------------------------------------------------------
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          # Build deps as in the desktop job.
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols \
+            libgl1-mesa-dev
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          toolchain: stable
+          components: clippy
+          target: wasm32-unknown-unknown
+          build-warnings: warn
+
+      - name: Clippy (desktop)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # The web feature set compiles code the desktop build leaves out (platform/web, web audio).
+      - name: Clippy (web)
+        run: cargo clippy --target wasm32-unknown-unknown --no-default-features --features web -p HeritageBuilder -- -D warnings
+
+  # ----------------------------------------------------------
   # Scenarios: run the game's automation scripts (--script) on a
   # virtual display, check determinism, keep the screenshots.
   # ----------------------------------------------------------

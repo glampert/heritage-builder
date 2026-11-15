@@ -32,9 +32,9 @@ pub fn intermission_panel(context: &mut GameUiContext, scales: Scales, padding: 
     };
     slice.scale *= scales.size;
     let decorations = decorations.into_iter().map(|mut decoration| {
-        decoration.size = decoration.size * scales.size;
-        decoration.offset = decoration.offset * scales.size;
-        decoration.min_panel_size = decoration.min_panel_size * scales.size;
+        decoration.size *= scales.size;
+        decoration.offset *= scales.size;
+        decoration.min_panel_size *= scales.size;
         decoration
     });
     if !content.relative {

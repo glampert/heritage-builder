@@ -129,13 +129,13 @@ pub mod internal {
 
                 // Ports/wharfs must be contained withing water tiles...
                 for cell in &cell_range {
-                    if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
-                        if !tile.path_kind().is_water() {
-                            return err!(
-                                Placement::RequiresProximity(PathNodeKind::Water),
-                                "Building must be placed near the water edge."
-                            );
-                        }
+                    if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell)
+                        && !tile.path_kind().is_water()
+                    {
+                        return err!(
+                            Placement::RequiresProximity(PathNodeKind::Water),
+                            "Building must be placed near the water edge."
+                        );
                     }
                 }
 
@@ -143,11 +143,11 @@ pub mod internal {
                 // they are only placeable at a water edge tile boundary.
                 let mut is_near_land = false;
                 pathfind::for_each_surrounding_cell(cell_range, |cell| {
-                    if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
-                        if !tile.path_kind().is_water() {
-                            is_near_land = true;
-                            return false; // done
-                        }
+                    if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell)
+                        && !tile.path_kind().is_water()
+                    {
+                        is_near_land = true;
+                        return false; // done
                     }
                     true // continue
                 });
@@ -239,8 +239,8 @@ pub mod internal {
                 }
             }
         } else if tile_def_to_place.path_kind.is_vacant_lot() {
-            if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
-                if tile.path_kind().intersects(
+            if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell)
+                && tile.path_kind().intersects(
                     PathNodeKind::Road | PathNodeKind::Water | PathNodeKind::Building | PathNodeKind::SettlersSpawnPoint,
                 ) {
                     return err!(
@@ -249,7 +249,6 @@ pub mod internal {
                         tile.name()
                     );
                 }
-            }
 
             // Objects layer mut be empty.
             if let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile(target_cell) {
@@ -259,26 +258,26 @@ pub mod internal {
                 );
             }
         } else if tile_def_to_place.path_kind.intersects(PathNodeKind::Road | PathNodeKind::SettlersSpawnPoint) {
-            if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
-                if tile.path_kind().is_water() {
-                    return err!(
-                        Placement::Obstruction(tile.tile_def()),
-                        "Cannot place road over terrain tile '{}'.",
-                        tile.name()
-                    );
-                }
+            if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell)
+                && tile.path_kind().is_water()
+            {
+                return err!(
+                    Placement::Obstruction(tile.tile_def()),
+                    "Cannot place road over terrain tile '{}'.",
+                    tile.name()
+                );
             }
         } else if tile_def_to_place.path_kind.intersects(PathNodeKind::EmptyLand | PathNodeKind::Water) {
             // Land/water can only be placed over other land/water tiles.
-            if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
-                if !tile.path_kind().intersects(PathNodeKind::EmptyLand | PathNodeKind::Water) {
-                    return err!(
-                        Placement::Obstruction(tile.tile_def()),
-                        "Cannot place '{}' tile over terrain tile '{}'.",
-                        tile_def_to_place.name,
-                        tile.name()
-                    );
-                }
+            if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell)
+                && !tile.path_kind().intersects(PathNodeKind::EmptyLand | PathNodeKind::Water)
+            {
+                return err!(
+                    Placement::Obstruction(tile.tile_def()),
+                    "Cannot place '{}' tile over terrain tile '{}'.",
+                    tile_def_to_place.name,
+                    tile.name()
+                );
             }
 
             // Cannot place water under existing objects.
@@ -352,16 +351,16 @@ pub mod internal {
             }
 
             if allow_stacking {
-                if let Some(existing_tile) = layer.try_tile(cell) {
-                    if !existing_tile.is(TileKind::Unit) {
-                        return err!(
-                            Placement::Obstruction(existing_tile.tile_def()),
-                            "'{}' - {}: Target cell {cell} for this unit is already occupied by '{}'",
-                            tile_def_to_place.name,
-                            layer.kind(),
-                            debug::tile_name_at(cell, layer.kind())
-                        );
-                    }
+                if let Some(existing_tile) = layer.try_tile(cell)
+                    && !existing_tile.is(TileKind::Unit)
+                {
+                    return err!(
+                        Placement::Obstruction(existing_tile.tile_def()),
+                        "'{}' - {}: Target cell {cell} for this unit is already occupied by '{}'",
+                        tile_def_to_place.name,
+                        layer.kind(),
+                        debug::tile_name_at(cell, layer.kind())
+                    );
                 }
             } else if let Some(existing_tile) = layer.try_tile(cell) {
                 return err!(

@@ -146,7 +146,7 @@ pub(super) fn remove_row_padding(padded: &[u8], row_bytes: usize, padded_row_byt
 
 // Swaps the red and blue channels of RGBA8 or BGRA8 pixels.
 pub(super) fn swap_red_blue(pixels: &mut [u8]) {
-    for pixel in pixels.chunks_exact_mut(4) {
+    for pixel in pixels.as_chunks_mut::<4>().0 {
         pixel.swap(0, 2);
     }
 }
@@ -154,7 +154,7 @@ pub(super) fn swap_red_blue(pixels: &mut [u8]) {
 // Sets every alpha value to 255. Blending leaves partial alpha in the framebuffer wherever
 // translucent UI was drawn, but what's on screen is opaque.
 pub(super) fn make_opaque(pixels: &mut [u8]) {
-    for pixel in pixels.chunks_exact_mut(4) {
+    for pixel in pixels.as_chunks_mut::<4>().0 {
         pixel[3] = 255;
     }
 }

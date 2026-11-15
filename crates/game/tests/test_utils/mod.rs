@@ -384,7 +384,7 @@ where
 // Assertion helpers
 // ----------------------------------------------
 
-pub fn find_unit<'world>(env: &'world TestEnvironment, id: UnitId) -> &'world Unit {
+pub fn find_unit(env: &TestEnvironment, id: UnitId) -> &Unit {
     env.world.find_unit(id)
         .unwrap_or_else(|| panic!("Unit {id} is not spawned!"))
 }
@@ -419,12 +419,12 @@ pub fn find_building_id(env: &TestEnvironment, kind: BuildingKind) -> BuildingKi
     found.unwrap_or_else(|| panic!("No building of kind {kind} found in world"))
 }
 
-pub fn find_building<'world>(env: &'world TestEnvironment, handle: BuildingKindAndId) -> &'world Building {
+pub fn find_building(env: &TestEnvironment, handle: BuildingKindAndId) -> &Building {
     env.world.find_building(handle.kind, handle.id)
         .unwrap_or_else(|| panic!("Building {} #{} not found", handle.kind, handle.id))
 }
 
-pub fn find_building_mut<'world>(env: &'world mut TestEnvironment, handle: BuildingKindAndId) -> &'world mut Building {
+pub fn find_building_mut(env: &mut TestEnvironment, handle: BuildingKindAndId) -> &mut Building {
     env.world.find_building_mut(handle.kind, handle.id)
         .unwrap_or_else(|| panic!("Building {} #{} not found", handle.kind, handle.id))
 }

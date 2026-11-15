@@ -424,6 +424,7 @@ struct WebAudioSoundInstance {
 }
 
 impl WebAudioSoundInstance {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         ctx: &web_sys::AudioContext,
         buffer: &web_sys::AudioBuffer,
@@ -570,21 +571,21 @@ impl SoundPool {
     }
 
     fn is_playing(&self, handle: SoundHandle) -> bool {
-        if let Some(sound) = self.sounds.get(handle.index as usize) {
-            if sound.generation == handle.generation {
-                // We can't easily get ctx.current_time() here without storing it,
-                // so we check the stopping flag as a proxy.
-                return !sound.stopping;
-            }
+        if let Some(sound) = self.sounds.get(handle.index as usize)
+            && sound.generation == handle.generation
+        {
+            // We can't easily get ctx.current_time() here without storing it,
+            // so we check the stopping flag as a proxy.
+            return !sound.stopping;
         }
         false
     }
 
     fn stop_one(&mut self, ctx: &web_sys::AudioContext, handle: SoundHandle, fade_out: Seconds) {
-        if let Some(sound) = self.sounds.get_mut(handle.index as usize) {
-            if sound.generation == handle.generation {
-                sound.stop(ctx, fade_out);
-            }
+        if let Some(sound) = self.sounds.get_mut(handle.index as usize)
+            && sound.generation == handle.generation
+        {
+            sound.stop(ctx, fade_out);
         }
     }
 

@@ -206,10 +206,7 @@ const PORT_VARIATION_WEST_BANK:  usize = 3;
 // These buildings must be placed over a water edge tile.
 #[inline]
 pub fn is_port_or_wharf(tile_def: &TileDef) -> bool {
-    if tile_def.is(TileKind::Building) && tile_def.hash == FISHING_WHARF.hash {
-        return true;
-    }
-    false
+    tile_def.is(TileKind::Building) && tile_def.hash == FISHING_WHARF.hash
 }
 
 pub fn update_port_wharf_orientation(tile_map: &mut TileMap, cell: Cell) {

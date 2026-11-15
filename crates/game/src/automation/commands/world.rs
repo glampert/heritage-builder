@@ -911,10 +911,10 @@ fn tile_json(context: &CommandContext, tile: &Tile) -> Value {
         "variation_name": tile.variation_name(),
     });
 
-    if tile.game_object_handle().is_valid() {
-        if let Some(id) = object_id_at(context, tile.base_cell()) {
-            reply["object"] = id.to_json();
-        }
+    if tile.game_object_handle().is_valid()
+        && let Some(id) = object_id_at(context, tile.base_cell())
+    {
+        reply["object"] = id.to_json();
     }
 
     reply

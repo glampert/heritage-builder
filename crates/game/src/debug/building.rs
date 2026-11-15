@@ -187,95 +187,95 @@ impl Building {
 
         self.configs().draw_debug_ui(ui_sys);
 
-        if let Some(mut population) = self.archetype().population() {
-            if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Population", false) {
-                population.draw_debug_ui(ui_sys);
+        if let Some(mut population) = self.archetype().population()
+            && let Some(_path) = ui::collapsing_header_scope(ui_sys, "Population", false)
+        {
+            population.draw_debug_ui(ui_sys);
 
-                if ui::button(ui_sys, "Increase Population (+1)") {
-                    self.archetype_mut().add_population(cmds, context, 1);
-                }
+            if ui::button(ui_sys, "Increase Population (+1)") {
+                self.archetype_mut().add_population(cmds, context, 1);
+            }
 
-                if ui::button(ui_sys, "Evict Resident (-1)") {
-                    self.archetype_mut().remove_population(cmds, context, 1);
-                }
+            if ui::button(ui_sys, "Evict Resident (-1)") {
+                self.archetype_mut().remove_population(cmds, context, 1);
+            }
 
-                if ui::button(ui_sys, "Evict All Residents") {
-                    self.remove_all_population(cmds, context.sim_ctx);
-                }
+            if ui::button(ui_sys, "Evict All Residents") {
+                self.remove_all_population(cmds, context.sim_ctx);
             }
         }
 
-        if let Some(workers) = self.archetype().workers() {
-            if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Workers", false) {
-                let is_household_worker_pool = workers.is_household_worker_pool();
-                let is_employer = workers.is_employer();
+        if let Some(workers) = self.archetype().workers()
+            && let Some(_path) = ui::collapsing_header_scope(ui_sys, "Workers", false)
+        {
+            let is_household_worker_pool = workers.is_household_worker_pool();
+            let is_employer = workers.is_employer();
 
-                super::sim::draw_workers_debug_ui(workers, context.sim_ctx.world(), ui_sys);
-                ui::separator(ui_sys);
+            super::sim::draw_workers_debug_ui(workers, context.sim_ctx.world(), ui_sys);
+            ui::separator(ui_sys);
 
-                let source = {
-                    static BUILDING_KIND_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
-                    static BUILDING_GEN: UiStaticVar<u32> = UiStaticVar::new(0);
-                    static BUILDING_ID: UiStaticVar<usize> = UiStaticVar::new(0);
+            let source = {
+                static BUILDING_KIND_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
+                static BUILDING_GEN: UiStaticVar<u32> = UiStaticVar::new(0);
+                static BUILDING_ID: UiStaticVar<usize> = UiStaticVar::new(0);
 
-                    if is_household_worker_pool {
-                        ui::text(ui_sys, "Select Employer:");
+                if is_household_worker_pool {
+                    ui::text(ui_sys, "Select Employer:");
+                } else {
+                    ui::text(ui_sys, "Select Worker Household:");
+                }
+
+                let kind = {
+                    if is_employer {
+                        // Employers only source workers from houses.
+                        BUILDING_KIND_IDX.set(0);
+                        ui::combo(ui_sys, "Kind", BUILDING_KIND_IDX.as_mut(), &["House"]);
+                        BuildingKind::House
                     } else {
-                        ui::text(ui_sys, "Select Worker Household:");
-                    }
-
-                    let kind = {
-                        if is_employer {
-                            // Employers only source workers from houses.
-                            BUILDING_KIND_IDX.set(0);
-                            ui::combo(ui_sys, "Kind", BUILDING_KIND_IDX.as_mut(), &["House"]);
-                            BuildingKind::House
-                        } else {
-                            let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
-                            for kind in BuildingKind::FLAGS {
-                                if *kind.value() != BuildingKind::House {
-                                    building_kind_names.push(kind.name());
-                                }
+                        let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
+                        for kind in BuildingKind::FLAGS {
+                            if *kind.value() != BuildingKind::House {
+                                building_kind_names.push(kind.name());
                             }
-                            ui::combo(ui_sys, "Kind", BUILDING_KIND_IDX.as_mut(), &building_kind_names);
-                            *BuildingKind::FLAGS[*BUILDING_KIND_IDX + 1].value() // We've skipped House @ [0]
                         }
-                    };
-
-                    ui::input_scalar(ui_sys, "Gen", BUILDING_GEN.as_mut(), 1);
-                    ui::input_scalar(ui_sys, "Idx", BUILDING_ID.as_mut(), 1);
-
-                    BuildingKindAndId { kind, id: BuildingId::new(*BUILDING_GEN, *BUILDING_ID) }
+                        ui::combo(ui_sys, "Kind", BUILDING_KIND_IDX.as_mut(), &building_kind_names);
+                        *BuildingKind::FLAGS[*BUILDING_KIND_IDX + 1].value() // We've skipped House @ [0]
+                    }
                 };
 
-                if ui::button(ui_sys, "Add Worker (+1)") && !self.workers_is_maxed() {
-                    if let Some(building) = context.sim_ctx.find_building_mut(source.kind, source.id) {
-                        let removed_count = building.remove_workers(1, self.kind_and_id());
-                        let added_count = self.add_workers(removed_count, source);
-                        debug_assert!(removed_count == added_count);
-                    } else {
-                        log::error!("Add Worker: Invalid source building id!");
-                    }
-                }
+                ui::input_scalar(ui_sys, "Gen", BUILDING_GEN.as_mut(), 1);
+                ui::input_scalar(ui_sys, "Idx", BUILDING_ID.as_mut(), 1);
 
-                if ui::button(ui_sys, "Remove Worker (-1)") && self.workers_count() != 0 {
-                    if let Some(building) = context.sim_ctx.find_building_mut(source.kind, source.id) {
-                        let added_count = building.add_workers(1, self.kind_and_id());
-                        let removed_count = self.remove_workers(added_count, source);
-                        debug_assert!(added_count == removed_count);
-                    } else {
-                        log::error!("Remove Worker: Invalid source building id!");
-                    }
-                }
+                BuildingKindAndId { kind, id: BuildingId::new(*BUILDING_GEN, *BUILDING_ID) }
+            };
 
-                if ui::button(ui_sys, "Remove All Workers") {
-                    self.remove_all_workers(context.sim_ctx);
+            if ui::button(ui_sys, "Add Worker (+1)") && !self.workers_is_maxed() {
+                if let Some(building) = context.sim_ctx.find_building_mut(source.kind, source.id) {
+                    let removed_count = building.remove_workers(1, self.kind_and_id());
+                    let added_count = self.add_workers(removed_count, source);
+                    debug_assert!(removed_count == added_count);
+                } else {
+                    log::error!("Add Worker: Invalid source building id!");
                 }
+            }
 
-                if is_employer {
-                    // Only employers need to search for workers.
-                    self.workers_update_timer_mut().draw_debug_ui_with_header("Update", ui_sys);
+            if ui::button(ui_sys, "Remove Worker (-1)") && self.workers_count() != 0 {
+                if let Some(building) = context.sim_ctx.find_building_mut(source.kind, source.id) {
+                    let added_count = building.add_workers(1, self.kind_and_id());
+                    let removed_count = self.remove_workers(added_count, source);
+                    debug_assert!(added_count == removed_count);
+                } else {
+                    log::error!("Remove Worker: Invalid source building id!");
                 }
+            }
+
+            if ui::button(ui_sys, "Remove All Workers") {
+                self.remove_all_workers(context.sim_ctx);
+            }
+
+            if is_employer {
+                // Only employers need to search for workers.
+                self.workers_update_timer_mut().draw_debug_ui_with_header("Update", ui_sys);
             }
         }
 
@@ -607,8 +607,8 @@ impl ProducerBuilding {
     }
 
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
-        if self.production_input_stock.requires_any_resource() {
-            if let Some(_path) =
+        if self.production_input_stock.requires_any_resource()
+            && let Some(_path) =
                 ui::collapsing_header_scope(ui_sys, "Raw Materials In Stock", false)
             {
                 self.production_input_stock.draw_debug_ui(ui_sys);
@@ -622,7 +622,6 @@ impl ProducerBuilding {
                     }
                 });
             }
-        }
     }
 
     fn draw_debug_ui_production_output(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
@@ -872,17 +871,17 @@ impl HouseBuilding {
         };
 
         let mut level_num: u8 = self.upgrade_state().level.into();
-        if ui::input_scalar(ui_sys, "Level", &mut level_num, 1) {
-            if let Ok(level) = HouseLevel::try_from_primitive(level_num) {
-                match level.cmp(&self.upgrade_state().level) {
-                    std::cmp::Ordering::Greater => {
-                        self.perform_upgrade(cmds, context, HouseUpgradeDirection::Upgrade);
-                    }
-                    std::cmp::Ordering::Less => {
-                        self.perform_upgrade(cmds, context, HouseUpgradeDirection::Downgrade);
-                    }
-                    std::cmp::Ordering::Equal => {} // nothing
+        if ui::input_scalar(ui_sys, "Level", &mut level_num, 1)
+            && let Ok(level) = HouseLevel::try_from_primitive(level_num)
+        {
+            match level.cmp(&self.upgrade_state().level) {
+                std::cmp::Ordering::Greater => {
+                    self.perform_upgrade(cmds, context, HouseUpgradeDirection::Upgrade);
                 }
+                std::cmp::Ordering::Less => {
+                    self.perform_upgrade(cmds, context, HouseUpgradeDirection::Downgrade);
+                }
+                std::cmp::Ordering::Equal => {} // nothing
             }
         }
 

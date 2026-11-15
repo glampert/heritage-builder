@@ -55,6 +55,7 @@ impl PreSaveContext {
 // PostSaveContext
 // ----------------------------------------------
 
+#[derive(Default)]
 pub struct PostSaveContext {
 }
 

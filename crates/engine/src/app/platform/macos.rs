@@ -77,10 +77,10 @@ fn patch_quit_item(menu: &NSMenu) -> bool {
     for i in 0..count {
         let Some(item) = (unsafe { menu.itemAtIndex(i) }) else { continue };
 
-        if let Some(submenu) = unsafe { item.submenu() } {
-            if patch_quit_item(&submenu) {
-                return true;
-            }
+        if let Some(submenu) = unsafe { item.submenu() }
+            && patch_quit_item(&submenu)
+        {
+            return true;
         }
 
         if unsafe { item.action() } == Some(sel!(terminate:)) {

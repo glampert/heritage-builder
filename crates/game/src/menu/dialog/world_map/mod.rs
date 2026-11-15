@@ -608,12 +608,12 @@ fn open_choice_popup(context: &mut GameUiContext, campaign: usize, step: usize, 
         let (title, body) = if site.phrased {
             (
                 ui::text::format(UiTextCategory::Menu, "popup.choose_site.title.phrase", &[("site", &site.phrase)]),
-                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body.phrase", &[("mission", &mission), ("site", &site.phrase)]),
+                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body.phrase", &[("mission", mission), ("site", &site.phrase)]),
             )
         } else {
             (
                 ui::text::format(UiTextCategory::Menu, "popup.choose_site.title", &[("site", &site.name)]),
-                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body", &[("mission", &mission), ("site", &site.name)]),
+                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body", &[("mission", mission), ("site", &site.name)]),
             )
         };
         let body = [(UiString::from(body), "ink"), (UiString::key(UiTextCategory::Menu, "popup.choose_site.unsaved"), "sub")];

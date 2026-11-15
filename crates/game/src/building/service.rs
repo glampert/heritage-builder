@@ -249,12 +249,11 @@ impl BuildingBehavior for ServiceBuilding {
         let service_delta_secs = delta_time_secs * self.work_efficiency();
 
         // Procure resources from storage periodically if we need them.
-        if has_stock_requirements && has_min_required_workers && !self.debug.freeze_stock_update() {
-            if let ServiceStock::Stock { update_timer, .. } = &mut self.service_stock {
-                if update_timer.tick(service_delta_secs).should_update() {
-                    self.stock_update(cmds, context);
-                }
-            }
+        if has_stock_requirements && has_min_required_workers && !self.debug.freeze_stock_update()
+            && let ServiceStock::Stock { update_timer, .. } = &mut self.service_stock
+                && update_timer.tick(service_delta_secs).should_update()
+        {
+            self.stock_update(cmds, context);
         }
 
         if has_patrol_unit

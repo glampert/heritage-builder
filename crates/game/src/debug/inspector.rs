@@ -101,11 +101,11 @@ impl TileInspectorDevMenu {
 
     pub fn on_removing_tile(&mut self, tile: &Tile) {
         // Tidy cached tile reference if it is being removed.
-        if let Some(selected_tile) = self.try_get_selected_tile() {
-            if selected_tile.base_cell() == tile.base_cell() {
-                self.last_tile_cell = selected_tile.base_cell();
-                self.close();
-            }
+        if let Some(selected_tile) = self.try_get_selected_tile()
+            && selected_tile.base_cell() == tile.base_cell()
+        {
+            self.last_tile_cell = selected_tile.base_cell();
+            self.close();
         }
     }
 
@@ -171,22 +171,14 @@ impl TileInspectorDevMenu {
         if !self.is_open {
             return None;
         }
-        let tile_ref = match &self.selected {
-            Some(tile_ref) => tile_ref,
-            None => return None,
-        };
-        tile_ref.try_tile()
+        self.selected.as_ref()?.try_tile()
     }
 
     fn try_get_selected_tile_mut(&mut self) -> Option<&mut Tile> {
         if !self.is_open {
             return None;
         }
-        let tile_ref = match &mut self.selected {
-            Some(tile_ref) => tile_ref,
-            None => return None,
-        };
-        tile_ref.try_tile_mut()
+        self.selected.as_mut()?.try_tile_mut()
     }
 
     fn make_stable_window_label(tile: &Tile) -> ArrayString<128> {
@@ -515,34 +507,33 @@ impl TileInspectorDevMenu {
             ui::separator(ui_sys);
 
             let mut variation_offset = tile.variation_offset();
-            if ui::input_f32_xy(context.ui_sys, "Var Offset:", &mut variation_offset, false, None, None) {
-                if let Some(editable_def) = tile.try_get_editable_tile_def() {
-                    editable_def.variations[tile.variation_index()].iso_offset = variation_offset;
-                    context.tile_map.on_tile_def_edited(tile);
-                }
+            if ui::input_f32_xy(context.ui_sys, "Var Offset:", &mut variation_offset, false, None, None)
+                && let Some(editable_def) = tile.try_get_editable_tile_def()
+            {
+                editable_def.variations[tile.variation_index()].iso_offset = variation_offset;
+                context.tile_map.on_tile_def_edited(tile);
             }
         }
 
         ui::separator(ui_sys);
 
         let mut color = tile.tint_color();
-        if ui::input_color(context.ui_sys, "Color:", &mut color) {
-            if let Some(editable_def) = tile.try_get_editable_tile_def() {
-                // Prevent invalid values.
-                editable_def.color = color.clamp();
-            }
+        if ui::input_color(context.ui_sys, "Color:", &mut color)
+            && let Some(editable_def) = tile.try_get_editable_tile_def()
+        {
+            // Prevent invalid values.
+            editable_def.color = color.clamp();
         }
 
         ui::separator(ui_sys);
 
         let mut draw_size = tile.draw_size();
-        if ui::input_i32_xy(context.ui_sys, "Draw Size:", &mut draw_size, false, None, Some(["W", "H"])) {
-            if let Some(editable_def) = tile.try_get_editable_tile_def() {
-                if draw_size.is_valid() {
-                    editable_def.draw_size = draw_size;
-                    context.tile_map.on_tile_def_edited(tile);
-                }
-            }
+        if ui::input_i32_xy(context.ui_sys, "Draw Size:", &mut draw_size, false, None, Some(["W", "H"]))
+            && let Some(editable_def) = tile.try_get_editable_tile_def()
+                && draw_size.is_valid()
+        {
+            editable_def.draw_size = draw_size;
+            context.tile_map.on_tile_def_edited(tile);
         }
 
         // Terrain tile logical size is always fixed - disallow editing.
@@ -560,17 +551,15 @@ impl TileInspectorDevMenu {
             false,
             Some([BASE_TILE_WIDTH_I32, BASE_TILE_HEIGHT_I32]),
             Some(["W", "H"]),
-        ) {
-            if let Some(editable_def) = tile.try_get_editable_tile_def() {
-                if logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
+        )
+            && let Some(editable_def) = tile.try_get_editable_tile_def()
+                && logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
                     && (logical_size.width  % BASE_TILE_WIDTH_I32)  == 0
                     && (logical_size.height % BASE_TILE_HEIGHT_I32) == 0
                 {
                     editable_def.logical_size = logical_size;
                     context.tile_map.on_tile_def_edited(tile);
                 }
-            }
-        }
 
         ui::separator(ui_sys);
 

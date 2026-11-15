@@ -1352,19 +1352,18 @@ impl Building {
         }
 
         // Search for employees if we're an Employer and not already at max capacity.
-        if let Some(workers) = self.archetype().workers() {
-            if let Some(employer) = workers.as_employer() {
-                if !employer.is_at_max_capacity() {
-                    cmds.defer_building_update(self.kind_and_id(), |context, building| {
-                        if let Some(house) = building.find_house_with_available_workers_mut(context) {
-                            let workers_available = house.workers_count();
-                            let workers_added = building.add_workers(workers_available, house.kind_and_id());
-                            let workers_removed = house.remove_workers(workers_added, building.kind_and_id());
-                            debug_assert!(workers_added == workers_removed);
-                        }
-                    });
+        if let Some(workers) = self.archetype().workers()
+            && let Some(employer) = workers.as_employer()
+                && !employer.is_at_max_capacity()
+        {
+            cmds.defer_building_update(self.kind_and_id(), |context, building| {
+                if let Some(house) = building.find_house_with_available_workers_mut(context) {
+                    let workers_available = house.workers_count();
+                    let workers_added = building.add_workers(workers_available, house.kind_and_id());
+                    let workers_removed = house.remove_workers(workers_added, building.kind_and_id());
+                    debug_assert!(workers_added == workers_removed);
                 }
-            }
+            });
         }
     }
 
@@ -1803,10 +1802,10 @@ impl<'game> BuildingContext<'game> {
 
     #[inline]
     pub fn debug_name(&self) -> &'static str {
-        if cfg!(debug_assertions) {
-            if let Some(building) = self.sim_ctx.find_building(self.kind, self.id) {
-                return building.name();
-            }
+        if cfg!(debug_assertions)
+            && let Some(building) = self.sim_ctx.find_building(self.kind, self.id)
+        {
+            return building.name();
         }
         "<unavailable>"
     }
@@ -1843,10 +1842,10 @@ impl<'game> BuildingContext<'game> {
 
     // Road link if valid, any unobstructed surrounding cell otherwise.
     pub fn road_link_or_building_access_tile(&self) -> Cell {
-        if let Some(road_link) = self.road_link {
-            if road_link.is_valid() {
-                return road_link;
-            }
+        if let Some(road_link) = self.road_link
+            && road_link.is_valid()
+        {
+            return road_link;
         }
 
         let tile_map = self.sim_ctx.tile_map();

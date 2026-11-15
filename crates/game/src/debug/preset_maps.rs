@@ -835,10 +835,10 @@ fn build_tile_map(preset: &'static PresetTiles, world: &mut World) -> TileMap {
     for y in 0..map_size_in_cells.height {
         for x in 0..map_size_in_cells.width {
             let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
-            if let Some(tile_def) = find_building_tile(tile_id) {
-                if let Err(err) = spawner.try_spawn_building_with_tile_def(Cell::new(x, y), tile_def) {
-                    log::error!(log::channel!("debug"), "Preset: Failed to place Building tile: {} - {}", err.reason, err.message);
-                }
+            if let Some(tile_def) = find_building_tile(tile_id)
+                && let Err(err) = spawner.try_spawn_building_with_tile_def(Cell::new(x, y), tile_def)
+            {
+                log::error!(log::channel!("debug"), "Preset: Failed to place Building tile: {} - {}", err.reason, err.message);
             }
         }
     }

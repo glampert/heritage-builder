@@ -307,14 +307,14 @@ fn read_producer(context: &SimContext, building: &Building, tile_def: Option<&Ti
     let output_name = good_name(output.kind).to_lowercase();
 
     report.status = Some(workplace_status(building, true).unwrap_or_else(|| {
-        if let Some(missing) = producer.production_input_stock.slots.iter().find(|item| item.count == 0) {
-            if producer.production_input_stock.requires_any_resource() && !producer.production_input_stock.has_required_resources() {
-                return Status {
-                    word: tf("status.no_good", &[("good", &good_name(missing.kind).to_lowercase())]),
-                    tone: Tone::Bad,
-                    summary: t("summary.waiting_for_goods"),
-                };
-            }
+        if let Some(missing) = producer.production_input_stock.slots.iter().find(|item| item.count == 0)
+            && producer.production_input_stock.requires_any_resource() && !producer.production_input_stock.has_required_resources()
+        {
+            return Status {
+                word: tf("status.no_good", &[("good", &good_name(missing.kind).to_lowercase())]),
+                tone: Tone::Bad,
+                summary: t("summary.waiting_for_goods"),
+            };
         }
         if producer.production_output_stock.is_full() {
             return Status { word: t("status.storage_full"), tone: Tone::Pending, summary: t("summary.waiting_for_cart") };
@@ -475,16 +475,16 @@ fn read_service(context: &SimContext, building: &Building, tile_def: Option<&Til
             value: count_in_reach(context, building, visits, config.effect_radius).to_string(),
             warn: false,
         });
-        if let Some(risk) = watched_risk(building.kind()) {
-            if let Some((name, value)) = riskiest_in_reach(context, building, visits, config.effect_radius, risk, realm) {
-                let level = super::risk_level(value);
-                let key = match risk {
-                    RiskKind::Fire => "patrol.highest_fire",
-                    RiskKind::Collapse => "patrol.highest_collapse",
-                    RiskKind::Disease => "patrol.highest_disease",
-                };
-                rows.push(ValueRow { label: t(key), value: format!("{name} · {level}"), warn: value >= risks::RISK_HIGH });
-            }
+        if let Some(risk) = watched_risk(building.kind())
+            && let Some((name, value)) = riskiest_in_reach(context, building, visits, config.effect_radius, risk, realm)
+        {
+            let level = super::risk_level(value);
+            let key = match risk {
+                RiskKind::Fire => "patrol.highest_fire",
+                RiskKind::Collapse => "patrol.highest_collapse",
+                RiskKind::Disease => "patrol.highest_disease",
+            };
+            rows.push(ValueRow { label: t(key), value: format!("{name} · {level}"), warn: value >= risks::RISK_HIGH });
         }
         let title = if config.has_patrol_unit { t("patrol.title") } else { t("patrol.reach") };
         report.sections.push(Section::Values { title, note: Some(note), rows });
@@ -640,8 +640,8 @@ fn read_house(context: &SimContext, building: &Building, realm: Realm, report: &
 // "Small well or large well".
 fn service_group_name(group: BuildingKind) -> String {
     let names: Vec<String> = group.iter().map(|kind| spaced_name(&kind.to_string())).collect();
-    let joined = names.join(&format!(" {} ", t("or")));
-    joined
+    
+    names.join(&format!(" {} ", t("or")))
 }
 
 // What the next level still needs on top of this one's, in a line: its missing services, then its

@@ -188,7 +188,7 @@ impl UiWidget for UiRichText {
             ui.painter().galley(egui::pos2(x, rect.top()), galley, default_color);
 
             // Its text only for ui.tree: the label (if it has none) and the value.
-            let text = ui_sys.is_widget_registry_enabled().then(|| plain_text(spans)).unwrap_or_default();
+            let text = if ui_sys.is_widget_registry_enabled() { plain_text(spans) } else { Default::default() };
             let label = if self.label.is_empty() { text.as_str() } else { self.label.resolve() };
             immediate::record_lazy(ui_sys, ui, &response, "rich_text", label, None, true, || Some(serde_json::Value::String(text.clone())));
         }));

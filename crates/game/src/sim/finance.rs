@@ -500,10 +500,10 @@ impl Finance {
 pub fn yearly_upkeep(world: &World, tile_map: &TileMap) -> u64 {
     let mut total = 0;
     world.for_each_building_of_any_kind(|building| {
-        if !building.is_under_construction() {
-            if let Some(tile) = tile_map.find_tile(building.base_cell(), TileKind::Building) {
-                total += u64::from(tile.tile_def().upkeep);
-            }
+        if !building.is_under_construction()
+            && let Some(tile) = tile_map.find_tile(building.base_cell(), TileKind::Building)
+        {
+            total += u64::from(tile.tile_def().upkeep);
         }
         true
     });
@@ -580,7 +580,7 @@ mod tests {
     fn accounts_reject_unknown_categories() {
         let result: Result<YearAccounts, _> =
             serde_json::from_value(serde_json::json!({ "start_balance": 0, "totals": { "Bribes": 1 } }));
-        assert!(result.err().expect("an unknown category must fail").to_string().contains("unknown ledger category 'Bribes'"));
+        assert!(result.expect_err("an unknown category must fail").to_string().contains("unknown ledger category 'Bribes'"));
     }
 
     #[test]

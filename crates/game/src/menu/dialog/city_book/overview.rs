@@ -188,9 +188,11 @@ impl CityPage for Overview {
     }
 }
 
-// The mission's goals ("Mission 2" and a row per goal: its name, target, what the city has and
-// whether it's met), or none outside a mission.
-fn goals(context: &GameUiContext) -> (Option<String>, Vec<(String, i64, i64, bool)>) {
+// A goal's row: its name, target, what the city has and whether it's met.
+type GoalRow = (String, i64, i64, bool);
+
+// The mission's goals ("Mission 2" and a row per goal), or none outside a mission.
+fn goals(context: &GameUiContext) -> (Option<String>, Vec<GoalRow>) {
     let Some(active) = campaign::active_mission() else {
         return (None, Vec::new());
     };

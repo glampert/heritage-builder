@@ -171,6 +171,9 @@ pub struct MinimapMeshes {
     pub top: UiMesh, // Road casings, roads, outlines and buildings, in that order.
 }
 
+// A lens's colour for a feature, None for neutral.
+pub type LensColorFn<'a> = dyn Fn(&MinimapFeature) -> Option<Color> + 'a;
+
 pub struct MeshParams<'a> {
     pub transform: CellToMinimap,
     pub visible: CellBox,             // Cells on the map area, for culling.
@@ -178,7 +181,7 @@ pub struct MeshParams<'a> {
     pub style: &'a MinimapStyle,
     pub field_texture: TextureHandle,
     // A lens's colour for a feature, None for neutral. Without a lens, features keep their colour.
-    pub lens: Option<&'a dyn Fn(&MinimapFeature) -> Option<Color>>,
+    pub lens: Option<&'a LensColorFn<'a>>,
 }
 
 pub fn build_meshes(cache: &ShapeCache, params: &MeshParams) -> MinimapMeshes {

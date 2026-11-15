@@ -131,12 +131,11 @@ const MAX_OUTPUT_LINES: usize = 40;
 
 // One-line JSON when it's short, indented JSON otherwise, cut at MAX_OUTPUT_LINES.
 pub fn format_output(name: &str, output: &CommandOutput) -> String {
-    if name == "help" {
-        if let Ok(value) = output {
-            if let Some(text) = format_help(value) {
-                return text;
-            }
-        }
+    if name == "help"
+        && let Ok(value) = output
+            && let Some(text) = format_help(value)
+    {
+        return text;
     }
 
     match output {

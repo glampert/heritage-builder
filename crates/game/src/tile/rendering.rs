@@ -211,10 +211,10 @@ impl TileMapRenderer {
                 debug_assert!(tile.is(TileKind::Terrain) && tile.logical_size() == BASE_TILE_SIZE_I32);
 
                 // As an optimization, skip drawing terrain tile if fully occluded by any object.
-                if cull_occluded_terrain && let Some(object) = objects.try_tile(cell) {
-                    if object.has_flags(TileFlags::OccludesTerrain) {
-                        continue;
-                    }
+                if cull_occluded_terrain && let Some(object) = objects.try_tile(cell)
+                    && object.has_flags(TileFlags::OccludesTerrain)
+                {
+                    continue;
                 }
 
                 Self::draw_tile(render_sys, debug_draw, &mut self.stats, ui_sys, transform, tile, tile_map, flags);
@@ -284,10 +284,10 @@ impl TileMapRenderer {
         // Drawing in reverse order (bottom to top) is required to ensure
         // buildings with the same Z-sort value don't overlap in weird ways.
         for cell in visible_range.iter_rev() {
-            if let Some(tile) = objects.try_tile(cell) {
-                if !debug_draw_blocker_tile(cell, tile) {
-                    try_add_to_sort_list(tile);
-                }
+            if let Some(tile) = objects.try_tile(cell)
+                && !debug_draw_blocker_tile(cell, tile)
+            {
+                try_add_to_sort_list(tile);
             }
         }
 
@@ -408,7 +408,7 @@ impl TileMapRenderer {
                     }
                 }
 
-                nodes.sort_by(|a, b| b.1.cmp(&a.1));
+                nodes.sort_by_key(|node| std::cmp::Reverse(node.1));
 
                 for (cell, path_kind) in nodes {
                     let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
@@ -452,59 +452,59 @@ impl TileMapRenderer {
 
         let tile_screen_rect = tile.screen_rect(transform, true);
 
-        if !tile.has_flags(TileFlags::Hidden) {
-            if let Some(tile_sprite) = tile.anim_frame_tex_info() {
-                let highlight_color = {
-                    if tile.has_flags(TileFlags::Highlighted) {
-                        stats.tiles_drawn_highlighted += 1;
-                        HIGHLIGHT_TILE_COLOR
-                    } else if tile.has_flags(TileFlags::Invalidated) {
-                        stats.tiles_drawn_invalidated += 1;
-                        INVALID_TILE_COLOR
-                    } else {
-                        Color::white()
-                    }
-                };
-
-                let tex_coords = &tile_sprite.coords;
-                let texture = tile_sprite.texture;
-                let color = tile.tint_color() * highlight_color;
-
-                if let Some(stage) = building::construction_stage_from_tile_flags(tile.flags()) {
-                    if let Some((rect, scaffold)) = construction_overlay(tile, &SCAFFOLD_TILES, usize::from(stage), transform) {
-                        // Construction site: the scaffold for its footprint and stage, instead of the building.
-                        render_sys.draw_textured_colored_rect(rect, &scaffold.coords, scaffold.texture, highlight_color);
-                    } else {
-                        // No scaffold art for this size: a faint outline of the whole building, and
-                        // the part built so far rising from the ground through it.
-                        render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * CONSTRUCTION_OUTLINE_COLOR);
-                        let (rect, coords) = construction_site_rect(tile_screen_rect, tex_coords, stage);
-                        render_sys.draw_textured_colored_rect(rect, &coords, texture, color * CONSTRUCTION_SITE_COLOR);
-                    }
-                } else if tile.has_flags(TileFlags::Burning) {
-                    // On fire: darkened, with flames over each of its cells.
-                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * BURNING_COLOR);
-                    draw_cell_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color, &FIRE_TILE, FIRE_FRAME_SECS);
-                } else if tile.has_flags(TileFlags::Diseased) {
-                    // A sick house: a sickly tint, with a yellow cloth and incense smoke over each of its cells.
-                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * DISEASED_COLOR);
-                    draw_cell_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color, &SICKNESS_TILE, SICKNESS_FRAME_SECS);
-                } else if tile.has_flags(TileFlags::Renovating) {
-                    // A house being renovated before an upgrade: lightly tinted, with scaffolding over it.
-                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * RENOVATION_COLOR);
-                    if let Some((rect, overlay)) = construction_overlay(tile, &RENOVATION_TILES, 0, transform) {
-                        render_sys.draw_textured_colored_rect(rect, &overlay.coords, overlay.texture, highlight_color);
-                    }
+        if !tile.has_flags(TileFlags::Hidden)
+            && let Some(tile_sprite) = tile.anim_frame_tex_info()
+        {
+            let highlight_color = {
+                if tile.has_flags(TileFlags::Highlighted) {
+                    stats.tiles_drawn_highlighted += 1;
+                    HIGHLIGHT_TILE_COLOR
+                } else if tile.has_flags(TileFlags::Invalidated) {
+                    stats.tiles_drawn_invalidated += 1;
+                    INVALID_TILE_COLOR
                 } else {
-                    // Standard render:
-                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
+                    Color::white()
                 }
-                stats.tiles_drawn += 1;
+            };
 
-                // Road placement overlay:
-                if tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement) {
-                    Self::draw_road_placement_overlay(render_sys, transform, tile, tile_map);
+            let tex_coords = &tile_sprite.coords;
+            let texture = tile_sprite.texture;
+            let color = tile.tint_color() * highlight_color;
+
+            if let Some(stage) = building::construction_stage_from_tile_flags(tile.flags()) {
+                if let Some((rect, scaffold)) = construction_overlay(tile, &SCAFFOLD_TILES, usize::from(stage), transform) {
+                    // Construction site: the scaffold for its footprint and stage, instead of the building.
+                    render_sys.draw_textured_colored_rect(rect, &scaffold.coords, scaffold.texture, highlight_color);
+                } else {
+                    // No scaffold art for this size: a faint outline of the whole building, and
+                    // the part built so far rising from the ground through it.
+                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * CONSTRUCTION_OUTLINE_COLOR);
+                    let (rect, coords) = construction_site_rect(tile_screen_rect, tex_coords, stage);
+                    render_sys.draw_textured_colored_rect(rect, &coords, texture, color * CONSTRUCTION_SITE_COLOR);
                 }
+            } else if tile.has_flags(TileFlags::Burning) {
+                // On fire: darkened, with flames over each of its cells.
+                render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * BURNING_COLOR);
+                draw_cell_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color, &FIRE_TILE, FIRE_FRAME_SECS);
+            } else if tile.has_flags(TileFlags::Diseased) {
+                // A sick house: a sickly tint, with a yellow cloth and incense smoke over each of its cells.
+                render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * DISEASED_COLOR);
+                draw_cell_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color, &SICKNESS_TILE, SICKNESS_FRAME_SECS);
+            } else if tile.has_flags(TileFlags::Renovating) {
+                // A house being renovated before an upgrade: lightly tinted, with scaffolding over it.
+                render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * RENOVATION_COLOR);
+                if let Some((rect, overlay)) = construction_overlay(tile, &RENOVATION_TILES, 0, transform) {
+                    render_sys.draw_textured_colored_rect(rect, &overlay.coords, overlay.texture, highlight_color);
+                }
+            } else {
+                // Standard render:
+                render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
+            }
+            stats.tiles_drawn += 1;
+
+            // Road placement overlay:
+            if tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement) {
+                Self::draw_road_placement_overlay(render_sys, transform, tile, tile_map);
             }
         }
 
