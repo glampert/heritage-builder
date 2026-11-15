@@ -30,6 +30,7 @@ use engine::{
     ui::{
         self,
         UiInputEvent,
+        UiLayer,
         sound::{self, UiSoundKey},
         text::UiTextCategory,
         widgets::*,
@@ -71,6 +72,7 @@ const GRID_COLUMNS: usize = 4;
 const GRID_GAP: f32 = 10.0;
 const GRID_TITLE_HEIGHT: f32 = 20.0; // The title's row, the first row's crests below it.
 const GRID_TITLE_BASELINE: f32 = 15.0;
+const GRID_TITLE_CLEARANCE: f32 = 26.0; // Room on each side of a title wider than its tiles.
 
 // The rule between the column's groups (the column's spacing round it).
 const SEPARATOR_LINE: f32 = 2.0;
@@ -312,8 +314,23 @@ impl SectorGrid {
         let columns = children.len().clamp(1, GRID_COLUMNS);
         let rows = children.len().div_ceil(GRID_COLUMNS).max(1);
         let row_gap = gap + crest;
+
+        let title = ui::text::get(UiTextCategory::Hud, def.get_str("Title").unwrap_or_default()).to_uppercase();
+        let accent = skin::hud_color("accent", "accent");
+        let title_look = engine::ui::UiLabelLook { size: (17.0 * column_scale).max(12.0), heading_font: true, letter_spacing: 1.5, color: accent, ..Default::default() };
+        let title_width = ui::painter(context.ui_sys, UiLayer::Background)
+            .label_rect(Vec2::zero(), engine::ui::UiTextAnchor::Start, &title, &title_look)
+            .width()
+            .ceil();
+
+        // As wide as its widest row: the tiles' or the title's (a sector with one building). A
+        // title wider than the tiles is centred, clear of the frame's corner pieces on either side
+        // (Tampadesa's reach into the panel).
+        let tiles_width = columns as f32 * tile.x + (columns - 1) as f32 * gap;
+        let title_room = title_width + 2.0 * (GRID_TITLE_CLEARANCE * column_scale).round();
+        let title_centred = title_room > tiles_width;
         let inner = Vec2::new(
-            columns as f32 * tile.x + (columns - 1) as f32 * gap,
+            tiles_width.max(title_room),
             title_height + crest + rows as f32 * tile.y + (rows - 1) as f32 * row_gap,
         );
         let size = Vec2::new(inner.x + insets[0] + insets[2], inner.y + insets[1] + insets[3] + 8.0);
@@ -323,12 +340,10 @@ impl SectorGrid {
         let y = (tile_y - insets[1] - title_height).min(lowest).max((layout::MARGIN + 90.0).min(lowest));
         let position = Vec2::new((column_x - size.x - 8.0).max(0.0), y);
 
-        let title = ui::text::get(UiTextCategory::Hud, def.get_str("Title").unwrap_or_default()).to_string();
-        let accent = skin::hud_color("accent", "accent");
-        let title_look = engine::ui::UiLabelLook { size: (17.0 * column_scale).max(12.0), heading_font: true, letter_spacing: 1.5, color: accent, ..Default::default() };
         let baseline = GRID_TITLE_BASELINE * column_scale;
         let heading = UiCanvas::new(Vec2::new(inner.x, title_height + crest), move |_, painter, rect| {
-            painter.label(Vec2::new(rect.min.x, rect.min.y + baseline), engine::ui::UiTextAnchor::Start, &title.to_uppercase(), &title_look);
+            let (x, anchor) = if title_centred { (rect.center().x, engine::ui::UiTextAnchor::Middle) } else { (rect.min.x, engine::ui::UiTextAnchor::Start) };
+            painter.label(Vec2::new(x, rect.min.y + baseline), anchor, &title, &title_look);
         });
 
         let mut menu = panel.apply_to_menu(
