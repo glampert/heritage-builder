@@ -702,6 +702,7 @@
     "book.requests.none": "No requests from the court yet.",
     "book.accounts": "Accounts",
     "book.accounts.taxes": "Taxes",
+    "book.accounts.offerings": "Offerings",
     "book.accounts.income": "Income",
     "book.accounts.construction": "Construction",
     "book.accounts.wages": "Wages",

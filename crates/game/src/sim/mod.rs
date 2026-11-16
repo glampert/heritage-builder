@@ -255,6 +255,12 @@ impl Simulation {
             crate::building::destruction::run_requests(&context);
         }
 
+        // Blessings and misfortunes the World Debug window asked for last frame.
+        if crate::faith::events::has_requests() {
+            let context = self.new_sim_context(0.0, tile_map, world);
+            crate::faith::events::run_requests(&context);
+        }
+
         // Paused simulation update.
         if self.is_paused {
             if self.paused_update_timer.tick(delta_time_secs).should_update() {
@@ -276,10 +282,19 @@ impl Simulation {
                 systems.on_calendar_events(engine, cmds, context, &step.calendar_events);
             });
 
-            // Month-end charges and the new year's accounts, once the world is unlocked; then the
-            // patrons' favour.
-            self.finance.on_calendar_events(&step.calendar_events, world, tile_map);
-            self.faith.on_calendar_events(&step.calendar_events, world, tile_map, &GameConfigs::get().sim.faith);
+            // Month-end charges and the new year's accounts, once the world is unlocked (upkeep
+            // scaled by the patrons' effects under way); then the patrons' favour, and their
+            // blessings and misfortunes, which may set buildings on fire or collapse them.
+            let upkeep_scale = self.faith.upkeep_scale();
+            self.finance.on_calendar_events(&step.calendar_events, world, tile_map, upkeep_scale);
+            let new_months =
+                step.calendar_events.iter().filter(|event| matches!(event, calendar::CalendarEvent::NewMonth(_))).count();
+            if new_months != 0 {
+                let context = self.new_sim_context(0.0, tile_map, world);
+                for _ in 0..new_months {
+                    crate::faith::events::on_new_month(&context, &GameConfigs::get().sim.faith);
+                }
+            }
         }
     }
 

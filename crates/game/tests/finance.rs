@@ -80,7 +80,7 @@ fn end_month(env: &mut TestEnvironment, month: u32, employed: u32) {
     env.world.refresh_stats(env.sim.finance());
     env.world.stats_mut().population.employed = employed;
     let (world, tile_map) = (&env.world, &env.tile_map);
-    env.sim.finance_mut().on_calendar_events(&month_events(month), world, tile_map);
+    env.sim.finance_mut().on_calendar_events(&month_events(month), world, tile_map, 1.0);
 }
 
 fn clear(env: &mut TestEnvironment, cell: Cell) -> bool {

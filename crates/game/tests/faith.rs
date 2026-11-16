@@ -2,7 +2,8 @@ use common::coords::Cell;
 use game::{
     building::{BuildingKind, BuildingKindAndId, construction::ConstructionMode},
     campaign::config::MissionFaithDef,
-    config::GameConfigs,
+    cheats,
+    config::{FaithRules, GameConfigs},
     debug::game_object_debug::GameObjectDebugVarRef,
     faith::{
         self,
@@ -10,10 +11,15 @@ use game::{
         Mood,
         RealmFaithDef,
         config::{self, FaithEffectDef, FaithEventDef, FaithRequirement},
+        events,
     },
     menu::{PlaceOrClearResult, TilePlacement},
     realm::Realm,
-    sim::{CityFaith, SimCmdQueue},
+    sim::{
+        CityFaith,
+        SimCmdQueue,
+        finance::{self, LedgerCategory},
+    },
     tile::{
         minimap::{
             MinimapLens,
@@ -23,6 +29,7 @@ use game::{
         sets::TileDef,
     },
     undo_redo,
+    unit::config::UnitConfigKey,
 };
 use strum::IntoEnumIterator;
 
@@ -58,6 +65,14 @@ fn main() {
         test_utils::test_fn!(test_favour_drifts_toward_coverage),
         test_utils::test_fn!(test_favour_holds_while_off_or_with_no_one),
         test_utils::test_fn!(test_the_faith_lens),
+        // Blessings and misfortunes:
+        test_utils::test_fn!(test_events_follow_favour_and_the_cooldown),
+        test_utils::test_fn!(test_rolls_repeat_with_the_same_seed),
+        test_utils::test_fn!(test_events_that_wait_are_never_picked),
+        test_utils::test_fn!(test_a_harvest_scales_production_and_runs_out),
+        test_utils::test_fn!(test_upkeep_effects_scale_the_upkeep),
+        test_utils::test_fn!(test_misfortunes_through_the_city_risks),
+        test_utils::test_fn!(test_set_off_now_refuses_what_cant_happen),
         // Saves:
         test_utils::test_fn!(test_faith_round_trips_through_a_save),
     ]);
@@ -273,6 +288,15 @@ fn test_faith_round_trips_through_a_save() {
     assert_eq!(loaded.favour("sky_deva"), Some(63.5));
     assert!(loaded.is_favour_enabled());
     assert!(!loaded.is_festivals_enabled());
+
+    // An effect under way is saved with its months left, and does what it did after the load.
+    faith.add_effect("sky_deva", "lean_year", 6);
+    let saved = serde_json::to_value(&faith).unwrap();
+    assert_eq!(saved["effects"][0]["event"], "lean_year");
+    assert_eq!(saved["effects"][0]["months_left"], 6);
+    let loaded: CityFaith = serde_json::from_value(saved).unwrap();
+    assert_eq!(loaded.effects().len(), 1);
+    assert_eq!(loaded.upkeep_scale(), 1.5);
 }
 
 // ----------------------------------------------
@@ -496,5 +520,209 @@ fn test_the_faith_lens() {
         "No patron",
         "Every patron"
     ]);
+    undo_redo::clear();
+}
+
+// ----------------------------------------------
+// Blessings and misfortunes
+// ----------------------------------------------
+
+// Rules under which every roll past a threshold comes, with no cooldown.
+fn sure_rules() -> FaithRules {
+    FaithRules { blessing_chance: 1.0, misfortune_chance: 1.0, event_cooldown_months: 0, ..FaithRules::default() }
+}
+
+fn roll(env: &mut TestEnvironment, rules: &FaithRules) -> Vec<(String, String)> {
+    let context = env.new_sim_context(0.0);
+    events::roll_events(&context, rules)
+}
+
+fn set_off(env: &mut TestEnvironment, patron: &str, event: &str) -> Result<(), String> {
+    let context = env.new_sim_context(0.0);
+    events::set_off_now(&context, patron, event)
+}
+
+fn came(patron: &str, event: &str) -> Vec<(String, String)> {
+    vec![(patron.to_string(), event.to_string())]
+}
+
+fn count_buildings(env: &TestEnvironment, test: impl Fn(&game::building::Building) -> bool) -> usize {
+    let mut count = 0;
+    env.world.for_each_building_of_any_kind(|building| {
+        count += usize::from(test(building));
+        true
+    });
+    count
+}
+
+// A blessing at or above 70, a misfortune at or below 30, nothing between; an event's patron waits
+// out its cooldown; each event needs something to act on.
+fn test_events_follow_favour_and_the_cooldown() {
+    let mut env = TestEnvironment::new();
+    assert!(roll(&mut env, &sure_rules()).is_empty(), "no one lives here");
+    house_with(&mut env, Cell::new(5, 5), "house2", 6);
+    assert!(roll(&mut env, &sure_rules()).is_empty(), "every patron at 50: between the thresholds");
+
+    // The Ancestors' scholars wait for education, so their gifts come.
+    env.sim.faith_mut().set_favour("ancestors", 100.0);
+    assert_eq!(roll(&mut env, &sure_rules()), came("ancestors", "family_gifts"));
+    assert_eq!(env.sim.finance().this_year().total(LedgerCategory::Offerings), 150, "a windfall is an offering");
+    assert_eq!(env.sim.finance().this_year().income(), 150, "offerings are income");
+    let notice = env.sim.faith_mut().take_notices().pop().expect("a notice for the message log");
+    assert!(notice.blessing);
+    assert!(notice.text.starts_with(&config::patron_name(Realm::DaiLong, "ancestors")), "{}", notice.text);
+    assert!(notice.text.contains("gifts"), "{}", notice.text);
+    assert_eq!(env.sim.faith().patron("ancestors").unwrap().months_since_event, 0, "its cooldown starts");
+
+    // With the default cooldown, nothing more for six months.
+    let waiting = FaithRules { blessing_chance: 1.0, misfortune_chance: 1.0, ..FaithRules::default() };
+    assert!(roll(&mut env, &waiting).is_empty(), "cooling down");
+    for _ in 0..waiting.event_cooldown_months {
+        env.sim
+            .faith_mut()
+            .on_new_month(&env.world, &env.tile_map, &FaithRules { favour_drift: 0.0, ..FaithRules::default() });
+    }
+    assert_eq!(roll(&mut env, &waiting), came("ancestors", "family_gifts"), "after the cooldown");
+
+    // No chance, no event; favour off, no event.
+    let never =
+        FaithRules { blessing_chance: 0.0, misfortune_chance: 0.0, event_cooldown_months: 0, ..FaithRules::default() };
+    assert!(roll(&mut env, &never).is_empty());
+    env.sim.faith_mut().set_favour_enabled(false);
+    assert!(roll(&mut env, &sure_rules()).is_empty(), "favour off for the mission");
+    env.sim.faith_mut().set_favour_enabled(true);
+
+    // A neglected Village Guardian sends blight, but only once there are fields for it.
+    env.sim.faith_mut().set_favour("ancestors", 50.0);
+    env.sim.faith_mut().set_favour("village_guardian", 0.0);
+    assert!(roll(&mut env, &sure_rules()).is_empty(), "no farm for the blight");
+    test_utils::spawn_building(&mut env, Cell::new(20, 20), "rice_farm");
+    assert_eq!(roll(&mut env, &sure_rules()), came("village_guardian", "blight"));
+    let notice = env.sim.faith_mut().take_notices().pop().unwrap();
+    assert!(!notice.blessing, "a misfortune");
+    undo_redo::clear();
+}
+
+// The rolls draw from the simulation's RNG in a fixed order: the same seed gives the same events,
+// and a chance between 0 and 1 gives some months with one and some without.
+fn test_rolls_repeat_with_the_same_seed() {
+    let run = || {
+        let mut env = TestEnvironment::new();
+        house_with(&mut env, Cell::new(5, 5), "house2", 6);
+        let rules = FaithRules { blessing_chance: 0.5, event_cooldown_months: 0, ..FaithRules::default() };
+        let mut months = Vec::new();
+        for _ in 0..40 {
+            env.sim.faith_mut().set_favour("ancestors", 100.0);
+            months.push(!roll(&mut env, &rules).is_empty());
+        }
+        undo_redo::clear();
+        months
+    };
+    let first = run();
+    assert_eq!(first, run(), "the same seed, the same events");
+    assert!(first.contains(&true) && first.contains(&false), "{first:?}");
+}
+
+// An event whose system the game lacks is never picked: the Mountain Lord's gentle flood waits for
+// M7, so a pleased Mountain Lord always sends steady hills.
+fn test_events_that_wait_are_never_picked() {
+    let mut env = TestEnvironment::new();
+    house_with(&mut env, Cell::new(5, 5), "house2", 6);
+    env.sim.faith_mut().set_favour("mountain_lord", 100.0);
+    for _ in 0..10 {
+        assert_eq!(roll(&mut env, &sure_rules()), came("mountain_lord", "steady_hills"));
+    }
+    assert_eq!(env.sim.faith().effects().len(), 1, "the same effect again runs on, not twice");
+    let error = set_off(&mut env, "mountain_lord", "gentle_flood").unwrap_err();
+    assert!(error.contains("floods"), "{error}");
+    undo_redo::clear();
+}
+
+// A rich harvest makes farms produce 1.5 times as fast for three months, and a blight beside it
+// halves that; then they run out.
+fn test_a_harvest_scales_production_and_runs_out() {
+    let mut env = TestEnvironment::new();
+    house_with(&mut env, Cell::new(5, 5), "house2", 6);
+    test_utils::spawn_building(&mut env, Cell::new(20, 20), "rice_farm");
+    assert_eq!(env.sim.faith().production_scale(BuildingKind::Farm), 1.0);
+
+    set_off(&mut env, "village_guardian", "rich_harvest").unwrap();
+    let faith = env.sim.faith();
+    assert_eq!(faith.production_scale(BuildingKind::Farm), 1.5);
+    assert_eq!(faith.production_scale(BuildingKind::Mine), 1.0, "farms only");
+    assert_eq!(faith.effects()[0].months_left, 3);
+
+    set_off(&mut env, "village_guardian", "blight").unwrap();
+    assert_eq!(env.sim.faith().production_scale(BuildingKind::Farm), 0.75, "both under way");
+
+    for month in 1..=3 {
+        env.sim.faith_mut().on_new_month(&env.world, &env.tile_map, rules());
+        let left = env.sim.faith().effects().iter().map(|effect| effect.months_left).max().unwrap_or(0);
+        assert_eq!(left, 3 - month);
+    }
+    assert!(env.sim.faith().effects().is_empty(), "run out");
+    assert_eq!(env.sim.faith().production_scale(BuildingKind::Farm), 1.0);
+    undo_redo::clear();
+}
+
+// Kambara's lean year makes every building cost half as much again to keep, its willing hands half as
+// much; the month-end charges the upkeep times their product.
+fn test_upkeep_effects_scale_the_upkeep() {
+    let mut env = TestEnvironment::new();
+    env.sim.faith_mut().start(Realm::Kambara, rules());
+    house_with(&mut env, Cell::new(5, 5), "house2", 6);
+    assert_eq!(env.sim.faith().upkeep_scale(), 1.0);
+
+    set_off(&mut env, "sky_deva", "lean_year").unwrap();
+    assert_eq!(env.sim.faith().upkeep_scale(), 1.5);
+    set_off(&mut env, "compassionate_one", "willing_hands").unwrap();
+    assert_eq!(env.sim.faith().upkeep_scale(), 0.75);
+
+    assert_eq!(finance::scaled_upkeep(120, 1.5), 180);
+    assert_eq!(finance::scaled_upkeep(120, 0.75), 90);
+    assert_eq!(finance::scaled_upkeep(120, 1.0), 120);
+    assert_eq!(finance::scaled_upkeep(120, -1.0), 0);
+    undo_redo::clear();
+}
+
+// Fires, collapses and sickness land through the city risks: a building set burning, one destroyed,
+// a house fallen sick.
+fn test_misfortunes_through_the_city_risks() {
+    cheats::get_mut().no_city_risks = false;
+    let mut env = TestEnvironment::new();
+    house_with(&mut env, Cell::new(5, 5), "house2", 6);
+    house_with(&mut env, Cell::new(30, 5), "house2", 12);
+
+    set_off(&mut env, "ancestors", "fever").unwrap();
+    assert_eq!(count_buildings(&env, |building| building.has_outbreak()), 1, "a fever in one house");
+
+    let standing = count_buildings(&env, |_| true);
+    set_off(&mut env, "mountain_lord", "rockfall").unwrap();
+    assert_eq!(count_buildings(&env, |_| true), standing - 1, "rockfall: a building collapses");
+    // Its residents left as settlers: gone, so no unit task is left behind.
+    while let Some(settler) = test_utils::find_unit_by_config(&env, UnitConfigKey::Settler) {
+        let context = env.new_sim_context(0.0);
+        let cmds = context.cmds_mut();
+        cmds.despawn_unit_with_id(settler);
+        cmds.execute(&context);
+    }
+
+    env.sim.faith_mut().start(Realm::Tampadesa, rules());
+    set_off(&mut env, "house_guardian", "fires").unwrap();
+    assert_eq!(count_buildings(&env, |building| building.is_burning()), 1, "the one house left burns");
+    cheats::get_mut().no_city_risks = true;
+    undo_redo::clear();
+}
+
+// set_off_now refuses a patron or an event the realm doesn't have, an event that isn't the patron's,
+// and one with nothing to act on: fires while risks are off.
+fn test_set_off_now_refuses_what_cant_happen() {
+    let mut env = TestEnvironment::new();
+    house_with(&mut env, Cell::new(5, 5), "house2", 6);
+    assert!(set_off(&mut env, "nobody", "blight").unwrap_err().contains("No patron"));
+    assert!(set_off(&mut env, "ancestors", "blight").unwrap_err().contains("isn't one of"));
+    assert!(set_off(&mut env, "ancestors", "fever").is_err(), "risks are off (the harness's cheat)");
+    assert!(env.sim.faith().notices().is_empty(), "nothing came");
+    assert_eq!(env.sim.faith().patron("ancestors").unwrap().months_since_event, 0);
     undo_redo::clear();
 }

@@ -1,5 +1,6 @@
 // The HUD's message log (docs/plans/realm-ui.md, Phase 5: P5d; hud-<realm>.jpg): the notices the
-// game raised lately (a building completed, a fire or collapse, debt and its warnings), newest
+// game raised lately (a building completed, a fire or collapse, debt and its warnings, a patron's
+// blessing or misfortune), newest
 // first, which the HUD shows at the bottom of the screen. A small store until M11's messages
 // replace it with typed messages and their popups. Runtime only: a new or loaded game starts empty.
 
@@ -17,6 +18,7 @@ pub enum MessageKind {
     Construction, // A building completed.
     Warning,      // A fire, a collapse, an outbreak, debt.
     Finance,      // Good news about the treasury.
+    Faith,        // A patron's blessing (a misfortune is a Warning).
 }
 
 impl MessageKind {
@@ -26,6 +28,7 @@ impl MessageKind {
             Self::Construction => "monument",
             Self::Warning => "warn",
             Self::Finance => "coin",
+            Self::Faith => "temple",
         }
     }
 }

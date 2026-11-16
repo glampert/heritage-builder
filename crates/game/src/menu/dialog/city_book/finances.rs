@@ -80,6 +80,7 @@ fn accounts(context: &GameUiContext, page: &PageContext) -> UiCanvas {
     let both = |f: &dyn Fn(&YearAccounts) -> i64| [f(&last), f(&this)];
     let mut lines: Vec<(String, [i64; 2], Line)> = Vec::new();
     lines.push((get("book.accounts.taxes"), both(&|a| signed(a, LedgerCategory::Taxes)), Line::Row));
+    lines.push((get("book.accounts.offerings"), both(&|a| signed(a, LedgerCategory::Offerings)), Line::Row));
     lines.push((get("book.accounts.income"), both(&|a| a.income()), Line::Total));
     for (key, category) in [
         ("construction", LedgerCategory::Construction),

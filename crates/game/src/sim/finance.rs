@@ -35,6 +35,7 @@ use crate::{
 pub enum LedgerCategory {
     // Income:
     Taxes,
+    Offerings, // Gifts a pleased patron's faithful bring (faith: a windfall).
 
     // Spending:
     Construction,
@@ -47,7 +48,7 @@ pub const LEDGER_CATEGORY_COUNT: usize = LedgerCategory::COUNT;
 impl LedgerCategory {
     #[inline]
     pub fn is_income(self) -> bool {
-        matches!(self, Self::Taxes)
+        matches!(self, Self::Taxes | Self::Offerings)
     }
 
     #[inline]
@@ -59,6 +60,7 @@ impl LedgerCategory {
     pub fn name(self) -> &'static str {
         match self {
             Self::Taxes => "Taxes",
+            Self::Offerings => "Offerings",
             Self::Construction => "Construction",
             Self::Wages => "Wages",
             Self::Upkeep => "Upkeep",
@@ -411,13 +413,14 @@ impl Finance {
 
     // A world step's calendar events, after its commands ran: each new month's charges, then
     // the new year's accounts, so a month's charges count in the year it belongs to. The world
-    // stats were recounted by the step's update, so they hold the month's employed workers.
-    pub fn on_calendar_events(&mut self, events: &[CalendarEvent], world: &World, tile_map: &TileMap) {
+    // stats were recounted by the step's update, so they hold the month's employed workers. The
+    // upkeep is multiplied by `upkeep_scale`, the patrons' effects under way (faith; 1 for none).
+    pub fn on_calendar_events(&mut self, events: &[CalendarEvent], world: &World, tile_map: &TileMap, upkeep_scale: f32) {
         for event in events {
             match event {
                 CalendarEvent::NewMonth(_) => {
                     let employed = world.stats().population.employed;
-                    let upkeep = yearly_upkeep(world, tile_map);
+                    let upkeep = scaled_upkeep(yearly_upkeep(world, tile_map), upkeep_scale);
                     self.on_month_end(employed, upkeep, &GameConfigs::get().sim.finance);
                 }
                 CalendarEvent::NewYear(_) => self.on_new_year(),
@@ -495,6 +498,14 @@ impl Finance {
             self.notices.push(message);
         }
     }
+}
+
+// A yearly upkeep times a scale, rounded to whole gold; a scale below 0 counts as 0.
+pub fn scaled_upkeep(yearly_upkeep: u64, scale: f32) -> u64 {
+    if scale == 1.0 {
+        return yearly_upkeep;
+    }
+    (yearly_upkeep as f64 * f64::from(scale.max(0.0))).round() as u64
 }
 
 // Gold per year the city's finished buildings cost to keep: each one's tile def `upkeep`.

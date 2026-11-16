@@ -303,6 +303,7 @@ impl RunLoop for GameLoop {
         self.notify_minimap_alerts();
         self.record_finished_missions();
         self.notify_risks();
+        self.notify_faith();
         self.update_after_save();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
@@ -797,6 +798,22 @@ impl GameLoop {
     fn notify_risks(&mut self) {
         for message in building::risks::take_notices() {
             self.post_message(crate::messages::MessageKind::Warning, message);
+        }
+    }
+
+    // A message for each blessing and misfortune that came last frame (faith::events): a blessing
+    // is a Faith message and plays Notification, a misfortune a Warning and plays Alert (a fire's,
+    // a collapse's and an outbreak's own notices and minimap alerts come from the risks).
+    fn notify_faith(&mut self) {
+        let notices = self.session.sim_mut().faith_mut().take_notices();
+        for notice in notices {
+            let (kind, sound) = if notice.blessing {
+                (crate::messages::MessageKind::Faith, UiSoundKey::Notification)
+            } else {
+                (crate::messages::MessageKind::Warning, UiSoundKey::Alert)
+            };
+            self.post_message(kind, notice.text);
+            ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
 

@@ -8,11 +8,11 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    building::BuildingKind,
     campaign::config::MissionFaithDef,
     config::FaithRules,
-    faith::{self, FaithConfigs, Mood},
+    faith::{self, FaithConfigs, Mood, config::FaithEffectDef},
     realm::Realm,
-    sim::calendar::CalendarEvent,
     tile::TileMap,
     world::World,
 };
@@ -50,6 +50,15 @@ pub struct ActiveFaithEffect {
     pub months_left: u32,
 }
 
+// A blessing or a misfortune that came, for the HUD's message log (GameLoop::notify_faith).
+#[derive(Clone, Debug)]
+pub struct FaithNotice {
+    pub patron: String,
+    pub event: String,
+    pub blessing: bool,
+    pub text: String, // The event's message, with the patron's name.
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CityFaith {
     // The game's realm, whose patrons and festivals it has: a campaign's, a custom game's, or Đại
@@ -65,6 +74,11 @@ pub struct CityFaith {
     plan: Option<FestivalPlan>,
     log: Vec<FestivalRecord>,
     effects: Vec<ActiveFaithEffect>,
+
+    // The blessings and misfortunes that came since the game loop last took them. Runtime only,
+    // as the finance's notices are.
+    #[serde(skip)]
+    notices: Vec<FaithNotice>,
 }
 
 impl CityFaith {
@@ -78,6 +92,7 @@ impl CityFaith {
             plan: None,
             log: Vec::new(),
             effects: Vec::new(),
+            notices: Vec::new(),
         };
         faith.start(Realm::DaiLong, rules);
         faith
@@ -91,6 +106,7 @@ impl CityFaith {
         self.plan = None;
         self.log.clear();
         self.effects.clear();
+        self.notices.clear();
         self.sync_patrons(rules);
     }
 
@@ -121,20 +137,16 @@ impl CityFaith {
         self.realm
     }
 
-    // A world step's calendar events, after its commands ran: each new month moves the
-    // patrons' favour (on_new_month).
-    pub fn on_calendar_events(&mut self, events: &[CalendarEvent], world: &World, tile_map: &TileMap, rules: &FaithRules) {
-        for event in events {
-            if matches!(event, CalendarEvent::NewMonth(_)) {
-                self.on_new_month(world, tile_map, rules);
-            }
-        }
-    }
-
-    // A new month (§2, decision Q4): each patron's favour moves `favour_drift` of the way to
-    // 100 x its coverage, and its months since an event go up. While favour is off for the
-    // mission, or no one lives in the city (no one to tend a patron or neglect it), favour holds.
+    // A new month (§2, decision Q4): the effects under way run down, each patron's months since
+    // an event go up, and its favour moves `favour_drift` of the way to 100 x its coverage. While
+    // favour is off for the mission, or no one lives in the city (no one to tend a patron or
+    // neglect it), favour holds. The month's rolls follow (faith::events::on_new_month).
     pub fn on_new_month(&mut self, world: &World, tile_map: &TileMap, rules: &FaithRules) {
+        for effect in &mut self.effects {
+            effect.months_left = effect.months_left.saturating_sub(1);
+        }
+        self.effects.retain(|effect| effect.months_left != 0);
+
         for patron in self.patrons.values_mut() {
             patron.months_since_event = patron.months_since_event.saturating_add(1);
         }
@@ -147,6 +159,70 @@ impl CityFaith {
             let target = 100.0 * coverage.get(id).map_or(0.0, |coverage| coverage.coverage);
             patron.favour = (patron.favour + drift * (target - patron.favour)).clamp(0.0, 100.0);
         }
+    }
+
+    // A blessing or a misfortune came (faith::events): the patron's cooldown starts again, and its
+    // notice waits for the game loop.
+    pub fn on_event(&mut self, notice: FaithNotice) {
+        if let Some(patron) = self.patrons.get_mut(&notice.patron) {
+            patron.months_since_event = 0;
+        }
+        self.notices.push(notice);
+    }
+
+    // A lasting effect starts, for `months`; the same patron's same event again runs for whichever
+    // is longer, its months left or `months`.
+    pub fn add_effect(&mut self, patron: &str, event: &str, months: u32) {
+        if months == 0 {
+            return;
+        }
+        match self.effects.iter_mut().find(|effect| effect.patron == patron && effect.event == event) {
+            Some(effect) => effect.months_left = effect.months_left.max(months),
+            None => self.effects.push(ActiveFaithEffect {
+                patron: patron.to_string(),
+                event: event.to_string(),
+                months_left: months,
+            }),
+        }
+    }
+
+    // The effects under way, each with its event's effect from the realm's file (one the file no
+    // longer lists is left out).
+    fn active_effects(&self) -> impl Iterator<Item = &'static FaithEffectDef> + '_ {
+        let def = if self.effects.is_empty() { None } else { FaithConfigs::get_or_load().for_realm(self.realm) };
+        self.effects.iter().filter_map(move |effect| def?.event(&effect.event).map(|event| &event.effect))
+    }
+
+    // How fast a building of `kind` produces now: the harvests' and blights' scales under way that
+    // name it, multiplied (a rich harvest's 1.5; with a blight as well, 0.75).
+    pub fn production_scale(&self, kind: BuildingKind) -> f32 {
+        self.active_effects()
+            .filter_map(|effect| match effect {
+                FaithEffectDef::Harvest { buildings, scale, .. } if buildings.intersects(kind) => Some(*scale),
+                _ => None,
+            })
+            .product()
+    }
+
+    // What the month's upkeep is multiplied by now: the upkeep effects under way, multiplied.
+    pub fn upkeep_scale(&self) -> f32 {
+        self.active_effects()
+            .filter_map(|effect| match effect {
+                FaithEffectDef::Upkeep { scale, .. } => Some(*scale),
+                _ => None,
+            })
+            .product()
+    }
+
+    // The blessings and misfortunes that came and the game loop hasn't taken yet.
+    #[inline]
+    pub fn notices(&self) -> &[FaithNotice] {
+        &self.notices
+    }
+
+    // The blessings and misfortunes that came since the last call.
+    pub fn take_notices(&mut self) -> Vec<FaithNotice> {
+        std::mem::take(&mut self.notices)
     }
 
     // The patrons' states, by id.

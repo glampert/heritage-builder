@@ -232,7 +232,9 @@ impl BuildingBehavior for ProducerBuilding {
         // Under-staffed producers run slower: the production cycle advances at a
         // rate proportional to how staffed the building is (the hard min-worker
         // gate below still halts it entirely if it drops under the minimum).
-        let production_delta_secs = delta_time_secs * self.work_efficiency();
+        // A patron's harvest or blight scales it too (faith).
+        let production_delta_secs =
+            delta_time_secs * self.work_efficiency() * context.sim_ctx.faith().production_scale(context.kind);
 
         // Update producer states:
         if self.production_update_timer.tick(production_delta_secs).should_update() && self.has_min_required_workers() {

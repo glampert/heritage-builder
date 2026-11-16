@@ -214,6 +214,8 @@
       "realms": {"dailong": {"bleed": [5.5, 2.5, 7.5, 2.0]}, "kambara": {"bleed": [-8.5, -4.0, -6.5, 2.5]}, "tampadesa": {"bleed": [8.0, 9.5, 10.0, 4.5]}} },
     {"id": "icon_{each}", "group": "hud", "call": "hud_icon", "args": {"icon": "{each}", "s": 1.0}, "size": [36, 36], "out": "skins/{realm}/hud/icons/{each}.png", "bleed": [4, 4, 4, 4],
       "each": ["population", "coin", "food", "request", "trade", "warn", "monument"] },
+    {"id": "icon_temple", "group": "hud", "call": "hud_icon", "args": {"icon": "temple", "s": 0.9}, "size": [36, 36], "out": "skins/{realm}/hud/icons/temple.png", "bleed": [4, 4, 4, 4],
+      "notes": "The message log's faith icon: the temple's roof reaches past the others' box, so it's drawn at 0.9." },
     {"id": "page_icon_{each}", "group": "hud", "call": "page_icon", "args": {"icon": "{each}", "s": 1.0}, "size": [36, 36], "out": "skins/{realm}/city/icons/{each}.png", "bleed": [4, 4, 4, 4],
       "each": ["learning", "population", "jar", "coin", "star", "industry", "food", "monument", "farm", "water", "house"] },
     {"id": "page_icon_temple", "group": "hud", "call": "page_icon", "args": {"icon": "temple", "s": 0.9}, "size": [36, 36], "out": "skins/{realm}/city/icons/temple.png", "bleed": [4, 4, 4, 4],

@@ -87,7 +87,7 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/wages", "kind": "canvas"}, "path": "/widgets/0/value/wage", "value": 7}}
 {"method": "ui.set", "params": {"path": "CityManagement/Finances/Wage", "value": "6"}}
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/wage", "value": 6}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/accounts", "kind": "canvas"}, "path": "/widgets/0/value/6/line", "value": "Net"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/accounts", "kind": "canvas"}, "path": "/widgets/0/value/7/line", "value": "Net"}}
 
 # ---- The kinds that open the book on a page: in place while it's open ----
 {"method": "dialog.open", "params": {"name": "PopulationManagement"}}

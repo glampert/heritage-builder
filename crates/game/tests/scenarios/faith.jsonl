@@ -1,7 +1,8 @@
 # Faith and festivals (docs/plans/faith.md): the game's patrons and their favour, the patrons'
 # shrines and temples, picked in the build palette's submenu (a building whose variations the
 # player picks) and placed as that patron's, favour drifting each month with the residents they
-# reach, the minimap's Faith lens and the City book's Patrons tab. From the repository root:
+# reach, the minimap's Faith lens, the City book's Patrons tab, and blessings and misfortunes set
+# off by faith.event. From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/faith.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [40, 40]}}
@@ -82,4 +83,22 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Patrons/patrons", "fields": ["value"]}, "path": "/widgets/0/value/patrons/0/mood", "value": "Restless"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "dialog.close"}
+
+# Blessings and misfortunes, set off now by faith.event (the monthly rolls wait out each patron's
+# six-month cooldown): the Ancestors' families bring gifts into the Offerings account, a Faith message
+# in the log; the Village Guardian's rich harvest makes the farms produce half as fast again for three
+# months; the Ancestors' fever, with risks on, makes a house sick, a Warning.
+{"method": "faith.event", "params": {"patron": "ancestors", "event": "family_gifts"}}
+{"method": "assert.eq", "params": {"query": "faith.state", "path": "/patrons/3/months_since_event", "value": 0}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Offerings", "value": 150}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "faith"}}
+{"method": "world.place", "params": {"tile": "rice_farm", "cell": [33, 23]}}
+{"method": "faith.event", "params": {"patron": "village_guardian", "event": "rich_harvest"}}
+{"method": "assert.eq", "params": {"query": "faith.state", "path": "/production_scale/Farm", "value": 1.5}}
+{"method": "assert.eq", "params": {"query": "faith.state", "path": "/effects/0/months_left", "value": 3}}
+{"method": "faith.event", "params": {"patron": "ancestors", "event": "fever"}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/sick", "value": 1}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "warning"}}
 {"method": "faith.state"}

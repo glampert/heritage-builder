@@ -2052,6 +2052,18 @@
       "source_hash": "780a2fe60e020a5c",
       "state": null
     },
+    "assets/ui/skins/dailong/hud/icons/temple.png": {
+      "catalog_hash": "ad03bd0de9d05eae",
+      "id": "icon_temple",
+      "png_hash": "122e8f5f01fdd615",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "a3f4a62d9939b951",
+      "state": null
+    },
     "assets/ui/skins/dailong/hud/icons/trade.png": {
       "catalog_hash": "c04f10de60134ebf",
       "id": "icon_trade",
@@ -4870,6 +4882,18 @@
       ],
       "realm": "kambara",
       "source_hash": "a0301229fce4784e",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/icons/temple.png": {
+      "catalog_hash": "e9129234f90b08f1",
+      "id": "icon_temple",
+      "png_hash": "706d0ab7b7f3f058",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "a9af73a07970560a",
       "state": null
     },
     "assets/ui/skins/kambara/hud/icons/trade.png": {
@@ -7726,6 +7750,18 @@
       ],
       "realm": "tampadesa",
       "source_hash": "2a1209ded6bc2b6b",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/icons/temple.png": {
+      "catalog_hash": "3f234c96933dcb2b",
+      "id": "icon_temple",
+      "png_hash": "481f9c6f387d7287",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9c08b7cfe04b5c12",
       "state": null
     },
     "assets/ui/skins/tampadesa/hud/icons/trade.png": {

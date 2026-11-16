@@ -1,6 +1,6 @@
 # Faith and festivals
 
-**Status (2026-11-16): Phases 0 to 2 done; Phase 3 next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
+**Status (2026-11-16): Phases 0 to 3 done; Phase 4 next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
 - patron spirits or deities per realm;
 - favour, raised by shrines and temples;
 - blessings and misfortunes;
@@ -274,6 +274,7 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 | Inspector, festival square | The next festival planned. | 4 | same |
 | Build palette | The festival square, data only. | 4 | `tile_set.json`, `configs.json` |
 | Message log | A `Faith` message kind with its line icon. | 3 | `messages.rs`, `menu/in_game/message_log.rs` |
+| City book, Finances page | An Offerings line in the accounts (the windfalls). | 3 | `menu/dialog/city_book/finances.rs` |
 | Developer UI only | World Debug's Faith tab. | 0 | `debug/world.rs` |
 | Map drawing | Each patron's shrine and temple (Phase 1); a festival square's festive overlay while a festival is held (Phase 4). Not UI, but visible. | 1, 4 | `tile/rendering.rs`, tile sets |
 
@@ -382,11 +383,44 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 
 ### Phase 3: Blessings and misfortunes (small to medium)
 
-- [ ] The rolls and the cooldown; the effects in the table, with `requires` for later systems.
-- [ ] Farms' scale, the windfall's ledger category, the fire and sickness through M6.
-- [ ] `MessageKind::Faith`; misfortunes' alerts.
-- [ ] `faith.event`.
-- [ ] Tests: rolls, each effect, expiry.
+- [x] The rolls and the cooldown; the effects in the table, with `requires` for later systems.
+- [x] Farms' scale, the windfall's ledger category, the fire and sickness through M6.
+- [x] `MessageKind::Faith`; misfortunes' alerts.
+- [x] `faith.event`.
+- [x] Tests: rolls, each effect, expiry.
+- **Notes (2026-11-16):**
+  - **The rolls** are `faith::events` (`faith/events.rs`), after the drift: `Simulation::update` runs `events::on_new_month` on a mutable context once per new month, after the finance's month-end.
+    - A patron draws from the RNG only once its cooldown is over and its favour is past a threshold, and draws again to pick among its events only when more than one can happen. The patrons go in the file's order, so runs repeat.
+    - An event comes only if it can happen now (`events::can_happen`): its system exists, and it has something to act on. A harvest needs a finished building of its kinds; a fire, a collapse or a sickness needs risks on (disease on for a sickness) and a building that can burn, collapse or fall sick. A roll whose events can't happen brings nothing, and the cooldown doesn't start.
+    - Nothing comes while favour is off for the mission or no one lives in the city, as favour holds then. Each patron's first event waits out the cooldown from the city's start.
+  - **The effects:**
+    - A harvest or blight scales its buildings' production cycle (`CityFaith::production_scale`, multiplied into the producer's update with its work efficiency), so farms produce faster or slower without fractional goods.
+    - An upkeep effect scales the month-end upkeep (`CityFaith::upkeep_scale`, passed to `Finance::on_calendar_events`, `finance::scaled_upkeep`).
+    - Lasting effects run for their months, counted down at each month's end before the rolls; the same patron's same event again runs on for the longer of the two, not twice. They're looked up in the realm's file by event id, so the save is unchanged (no version bump).
+    - A windfall is income in a new `LedgerCategory::Offerings`, which the City book's accounts list under Taxes (a UI change, below).
+    - Fires, collapses and sickness go through M6: `ignite_now`, `destruction::destroy_building` and `start_outbreak_now` on buildings picked at random with the RNG, which raise their own notices and minimap alerts.
+  - **Messages:** each event queues a `FaithNotice` on `CityFaith` (runtime only, as the finance's notices are). `GameLoop::notify_faith` posts a blessing as a new `MessageKind::Faith` message with the Notification sound, and a misfortune as a Warning with Alert. A blight also pings each farm on the minimap.
+  - **Art:** the message log's Faith icon is the HUD line icon `temple` (ui-art's `icon_temple`, drawn at 0.9 so its roof stays inside its bleed, as the page icon's is).
+  - **Automation and debug:**
+    - `faith.event patron=... event=...` sets off one of a patron's events now, whatever its favour, cooldown and the dice (`events::set_off_now`). It fails for an event that isn't the patron's, one that waits for its system, or one with nothing to act on.
+    - `faith.state` adds `production_scale` (farms, fishing wharves, mines) and `upkeep_scale`. `messages.push` takes `kind=faith`.
+    - World Debug's Faith tab has a button per event that can happen (+ for a blessing, - for a misfortune), set off at the start of the next frame (`events::request`, as the inspector's collapses are), and lists the effects under way.
+  - **UI changes, beyond the plan's message kind:** the City book's Finances page has an Offerings line in its accounts, so `ui_city.jsonl` finds Net one row lower.
+  - **Verified:**
+    - `cargo test --workspace`, with 26 tests in `tests/faith.rs`:
+      - the rolls follow the thresholds, the cooldown, the chance and the switch;
+      - the same seed gives the same events;
+      - events that wait are never picked;
+      - a harvest's scale, a blight beside it, and their expiry;
+      - upkeep effects;
+      - fever, rockfall and fires through the city risks;
+      - what `set_off_now` refuses;
+      - an effect through a save.
+    - All 25 CI scenarios in release. `faith.jsonl` now also sets off a windfall (Offerings 150, a Faith message), a rich harvest (farms 1.5 for 3 months) and a fever with risks on (a sick house, a Warning).
+    - `determinism.jsonl` twice: checksum `6daf93014da3b8ab`, unchanged (no patron reaches a threshold past its cooldown there).
+    - Record and replay of `ui_build` and `determinism`.
+    - Clippy on desktop and web, nightly rustfmt, ui-art's `--check`.
+    - Screenshots of the message log with a blessing and a misfortune, and of the accounts with Offerings.
 
 ### Phase 4: Festivals (medium)
 

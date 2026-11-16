@@ -2,10 +2,13 @@ use common::{Color, format_small};
 use engine::ui::{self, DrawDebugUi, UiNumberFormat, UiStaticVar, UiSystem};
 
 use crate::{
-    building::risks::{RISK_HIGH, RiskEntry, RiskKind, RiskSummary},
+    building::{
+        BuildingKind,
+        risks::{RISK_HIGH, RiskEntry, RiskKind, RiskSummary},
+    },
     camera::Camera,
     cheats,
-    faith::{FaithConfigs, Mood, config as faith_config},
+    faith::{FaithConfigs, Mood, config as faith_config, events as faith_events},
     sim::{CityFaith, Finance, risks::CityRisks},
     world::{World, stats::WorldStats},
 };
@@ -147,7 +150,8 @@ impl World {
     }
 }
 
-// The Faith tab: the game's realm, the switches, and each patron's favour as a slider, with its mood.
+// The Faith tab: the game's realm, the switches, each patron's favour as a slider, with its mood and
+// a button per blessing (+) and misfortune (-) to set it off, and the effects under way.
 fn draw_faith_debug_ui(faith: &mut CityFaith, ui_sys: &UiSystem) {
     let realm = faith.realm();
     ui::text(ui_sys, format_small!("Realm : {realm}"));
@@ -178,6 +182,34 @@ fn draw_faith_debug_ui(faith: &mut CityFaith, ui_sys: &UiSystem) {
         }
         let months = faith.patron(&patron.id).map_or(0, |state| state.months_since_event);
         ui::text(ui_sys, format_small!("    {}, {months} months since an event", Mood::from_favour(favour).display_name()));
+
+        // A button per event that can happen in this game, set off at the start of the next frame
+        // (faith::events::request): the window draws while the world is borrowed.
+        ui::horizontal(ui_sys, |ui_sys| {
+            for (id, blessing) in
+                patron.blessings.iter().map(|id| (id, true)).chain(patron.misfortunes.iter().map(|id| (id, false)))
+            {
+                if def.event(id).is_none_or(|event| !event.is_available()) {
+                    continue;
+                }
+                let label = format!("{}{id}##{}_{id}", if blessing { "+ " } else { "- " }, patron.id);
+                if ui::small_button(ui_sys, &label) {
+                    faith_events::request(&patron.id, id);
+                }
+            }
+        });
+    }
+
+    if !faith.effects().is_empty() {
+        ui::separator(ui_sys);
+        ui::bullet_text(ui_sys, "Effects under way:");
+        for effect in faith.effects() {
+            ui::text(ui_sys, format_small!("{} ({}): {} months left", effect.event, effect.patron, effect.months_left));
+        }
+        ui::text(
+            ui_sys,
+            format_small!("Farms x{:.2}, upkeep x{:.2}", faith.production_scale(BuildingKind::Farm), faith.upkeep_scale()),
+        );
     }
 }
 

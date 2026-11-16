@@ -12,7 +12,7 @@ use crate::{
 pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "messages.state",
-        help: "The message log's messages, newest first (kind: construction, warning or finance; text), and count. \
+        help: "The message log's messages, newest first (kind: construction, warning, finance or faith; text), and count. \
                A new or loaded game starts it empty.",
         params: &[],
         run: cmd_state,
@@ -21,7 +21,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "messages.push",
         help: "Adds a message to the log, the newest, as the game's notices do (no sound).",
         params: &[
-            ParamDef { name: "kind", kind: "string", required: true, help: "construction, warning or finance." },
+            ParamDef { name: "kind", kind: "string", required: true, help: "construction, warning, finance or faith." },
             ParamDef { name: "text", kind: "string", required: true, help: "The message's text." },
         ],
         run: cmd_push,
@@ -46,8 +46,11 @@ fn cmd_push(_context: &mut CommandContext, params: Value) -> CommandResult {
         "construction" => MessageKind::Construction,
         "warning" => MessageKind::Warning,
         "finance" => MessageKind::Finance,
+        "faith" => MessageKind::Faith,
         other => {
-            return Err(CommandError::invalid_params(format!("Unknown kind '{other}': construction, warning or finance.")));
+            return Err(CommandError::invalid_params(format!(
+                "Unknown kind '{other}': construction, warning, finance or faith."
+            )));
         }
     };
     messages::push(kind, params.text);

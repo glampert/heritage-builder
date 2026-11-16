@@ -4,9 +4,11 @@
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
+use super::refresh_world_stats;
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
-    faith::{FaithConfigs, Mood, config},
+    building::BuildingKind,
+    faith::{FaithConfigs, Mood, config, events},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -14,7 +16,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "faith.state",
         help: "The game's realm and its patrons (name, favour 0 to 100, mood, months since their last blessing or \
                misfortune), whether favour moves and festivals can be planned, the festival year (month, patron), \
-               the festival planned, the festivals held and the effects under way.",
+               the festival planned, the festivals held, the effects under way (patron, event, months left) and \
+               what they do now (production_scale of farms, fishing wharves and mines; upkeep_scale).",
         params: &[],
         run: cmd_state,
     },
@@ -34,6 +37,19 @@ pub(super) const COMMANDS: &[CommandDef] = &[
             ParamDef { name: "festivals_enabled", kind: "bool", required: false, help: "Whether festivals can be planned." },
         ],
         run: cmd_set,
+    },
+    CommandDef {
+        name: "faith.event",
+        help: "Set off one of a patron's blessings or misfortunes now, whatever its favour, cooldown and the dice: \
+               a harvest or blight, a windfall into the Offerings account, a fire, a collapse, a sickness or an \
+               upkeep change. It starts the patron's cooldown and posts its message. Fails for an event whose \
+               system the game doesn't have yet, or one with nothing to act on (no farms, risks off). Reports \
+               the message and faith.state.",
+        params: &[
+            ParamDef { name: "patron", kind: "string", required: true, help: "A patron id of the game's realm." },
+            ParamDef { name: "event", kind: "string", required: true, help: "One of its blessings or misfortunes, by id." },
+        ],
+        run: cmd_event,
     },
 ];
 
@@ -87,6 +103,35 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
         faith.set_festivals_enabled(enabled);
     }
     done(state_json(context))
+}
+
+fn cmd_event(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        patron: String,
+        event: String,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    context
+        .session
+        .with_sim_context(delta_time_secs, |sim_context| events::set_off_now(sim_context, &params.patron, &params.event))
+        .map_err(CommandError::failed)?;
+    refresh_world_stats(context);
+
+    let notice = context.session.sim().faith().notices().last().cloned();
+    let mut reply = state_json(context);
+    reply["came"] = json!(notice.map(|notice| json!({
+        "patron": notice.patron,
+        "event": notice.event,
+        "blessing": notice.blessing,
+        "message": notice.text,
+    })));
+    done(reply)
 }
 
 fn state_json(context: &CommandContext) -> Value {
@@ -147,6 +192,14 @@ fn state_json(context: &CommandContext) -> Value {
             "event": effect.event,
             "months_left": effect.months_left,
         })).collect::<Vec<_>>(),
+        // What the effects under way do now: farms', fishing wharves' and mines' production, and
+        // the upkeep.
+        "production_scale": {
+            "Farm": round(faith.production_scale(BuildingKind::Farm)),
+            "FishingWharf": round(faith.production_scale(BuildingKind::FishingWharf)),
+            "Mine": round(faith.production_scale(BuildingKind::Mine)),
+        },
+        "upkeep_scale": round(faith.upkeep_scale()),
     })
 }
 
