@@ -563,7 +563,15 @@ impl TilePlacement {
 
             if target_cell.is_valid() {
                 let sim_context = context.new_sim_context();
-                return Self::place(&sim_context, target_cell, tile_def, true, true, construction_mode);
+                return Self::place_variation(
+                    &sim_context,
+                    target_cell,
+                    tile_def,
+                    selection.variation(),
+                    true,
+                    true,
+                    construction_mode,
+                );
             }
         } else if selection.is_clear() {
             // Clear/remove tile:
@@ -594,9 +602,25 @@ impl TilePlacement {
         undo_redo: bool,
         construction_mode: ConstructionMode,
     ) -> PlaceOrClearResult {
+        Self::place_variation(context, target_cell, tile_def, None, subtract_tile_cost, undo_redo, construction_mode)
+    }
+
+    // place(), building `variation` of the tile if one was picked (a shrine's patron, from the
+    // build palette); None: a random one, of those offered in the game's realm for a tile whose
+    // variations the player picks.
+    pub fn place_variation(
+        context: &SimContextMut,
+        target_cell: Cell,
+        tile_def: &'static TileDef,
+        variation: Option<usize>,
+        subtract_tile_cost: bool,
+        undo_redo: bool,
+        construction_mode: ConstructionMode,
+    ) -> PlaceOrClearResult {
         let mut spawner = Spawner::new(context);
         spawner.set_subtract_tile_cost(subtract_tile_cost);
         spawner.set_construction_mode(construction_mode);
+        spawner.set_variation(variation);
 
         let spawn_result = spawner.try_spawn_tile_with_def(target_cell, tile_def);
         match &spawn_result {
@@ -732,7 +756,9 @@ pub enum TilePaletteSelection {
     #[default]
     None,
     Clear,
-    Tile(TileDefHandle),
+    // A tile, and the variation picked for it, if the player picks its variations (a shrine's
+    // patron): placement builds that one.
+    Tile(TileDefHandle, Option<usize>),
 }
 
 impl TilePaletteSelection {
@@ -749,7 +775,7 @@ impl TilePaletteSelection {
     }
 
     pub fn is_tile(&self) -> bool {
-        matches!(self, Self::Tile(_))
+        matches!(self, Self::Tile(..))
     }
 
     pub fn is_tile_kind(&self, kinds: TileKind) -> bool {
@@ -761,7 +787,15 @@ impl TilePaletteSelection {
 
     pub fn as_tile_def(&self) -> Option<&'static TileDef> {
         match self {
-            Self::Tile(handle) => TileSets::get().handle_to_tile_def(*handle),
+            Self::Tile(handle, _) => TileSets::get().handle_to_tile_def(*handle),
+            _ => None,
+        }
+    }
+
+    // The variation picked for the tile, if one was.
+    pub fn variation(&self) -> Option<usize> {
+        match self {
+            Self::Tile(_, variation) => *variation,
             _ => None,
         }
     }

@@ -53,12 +53,23 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Place a tile (building, road, terrain, ...) at a cell as a player would: pays its cost, records undo, and \
                starts a building as a construction site unless its tier is Instant (object.construction says how long; \
                the instant_construction cheat skips it).",
-        params: &[ParamDef { name: "tile", kind: "string", required: true, help: "Tile name, see tiles.list." }, ParamDef {
-            name: "cell",
-            kind: "cell",
-            required: true,
-            help: "[x, y]. For bigger tiles, the cell with the lowest x and y.",
-        }],
+        params: &[
+            ParamDef { name: "tile", kind: "string", required: true, help: "Tile name, see tiles.list." },
+            ParamDef {
+                name: "cell",
+                kind: "cell",
+                required: true,
+                help: "[x, y]. For bigger tiles, the cell with the lowest x and y.",
+            },
+            ParamDef {
+                name: "variation",
+                kind: "string",
+                required: false,
+                help: "The tile's variation by name, as the build palette's submenu picks it (a shrine's patron, \
+                       e.g. water_lord). Left out: a random one, of those offered in the game's realm for a tile \
+                       whose variations the player picks.",
+            },
+        ],
         run: cmd_place,
     },
     CommandDef {
@@ -301,6 +312,7 @@ fn cmd_place(context: &mut CommandContext, params: Value) -> CommandResult {
     struct Params {
         tile: String,
         cell: CellParam,
+        variation: Option<String>,
     }
 
     let params: Params = parse_params(params)?;
@@ -308,6 +320,17 @@ fn cmd_place(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let (tile_def, _) = find_tile_def(&params.tile, None)?;
     let cell = params.cell.0;
+    let variation = match &params.variation {
+        Some(name) => Some(tile_def.find_variation(name).ok_or_else(|| {
+            let names: Vec<&str> = tile_def.variations.iter().map(|variation| variation.name.as_str()).collect();
+            CommandError::invalid_params(format!(
+                "'{}' has no variation '{name}'. Variations: {}.",
+                tile_def.name,
+                names.join(", ")
+            ))
+        })?),
+        None => None,
+    };
 
     // The whole footprint must be on the map.
     let footprint = tile_def.cell_range(cell);
@@ -319,7 +342,7 @@ fn cmd_place(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let delta_time_secs = context.engine.frame_clock().delta_time();
     let result = context.session.with_sim_context(delta_time_secs, |sim_context| {
-        TilePlacement::place(sim_context, cell, tile_def, true, true, ConstructionMode::Site)
+        TilePlacement::place_variation(sim_context, cell, tile_def, variation, true, true, ConstructionMode::Site)
     });
 
     if let PlaceOrClearResult::Failed { message, .. } = result {
@@ -685,6 +708,9 @@ fn cmd_building_at(context: &mut CommandContext, params: Value) -> CommandResult
     reply["workers"] = building.workers().map_or(Value::Null, workers_json);
     reply["stock"] = stock_items_json(building.stock().iter().filter(|item| item.count != 0));
     reply["risks"] = super::risks::building_risks_json(building);
+    // A shrine's or a temple's patron (docs/plans/faith.md, §2a); null for other buildings.
+    reply["patron"] = crate::faith::dedicated_patron_in(session.sim().realm(), session.tile_map(), building)
+        .map_or(Value::Null, |patron| json!(patron.id));
 
     if building.is(BuildingKind::House) && !building.is_under_construction() {
         let house = building.as_house();

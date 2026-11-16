@@ -33,6 +33,7 @@ use super::{
 use crate::{
     building::construction::{ConstructionMaterials, ConstructionTier},
     pathfind::NodeKind as PathNodeKind,
+    realm::Realm,
 };
 
 // ----------------------------------------------
@@ -554,6 +555,40 @@ pub struct TileVariation {
     // Optional draw offset applied to the isometric tile coordinated before rendering.
     #[serde(default)]
     pub iso_offset: Vec2,
+
+    // For a tile whose variations the player picks (TileDef::pick_variation): its button's label
+    // and tooltip in the build palette, as Realm text keys (empty: the name in title case, and no
+    // tooltip), and the realms it's offered in (empty: every realm). A shrine's or a temple's are
+    // its patron's (docs/plans/faith.md, §2a).
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub tooltip: String,
+    #[serde(default)]
+    pub realms: SmallVec<[Realm; 1]>,
+}
+
+impl TileVariation {
+    // Whether the build palette offers it in a game of `realm`.
+    #[inline]
+    pub fn is_offered_in(&self, realm: Realm) -> bool {
+        self.realms.is_empty() || self.realms.contains(&realm)
+    }
+
+    // Its label in the build palette, in the current language.
+    pub fn label_text(&self) -> String {
+        if self.label.is_empty() {
+            common::fixed_string::snake_case_to_title::<128>(&self.name).to_string()
+        } else {
+            engine::ui::text::get(engine::ui::text::UiTextCategory::Realm, &self.label).to_string()
+        }
+    }
+
+    // Its tooltip in the build palette, if it has one.
+    pub fn tooltip_text(&self) -> Option<String> {
+        (!self.tooltip.is_empty())
+            .then(|| engine::ui::text::get(engine::ui::text::UiTextCategory::Realm, &self.tooltip).to_string())
+    }
 }
 
 // ----------------------------------------------
@@ -595,6 +630,12 @@ pub struct TileDef {
     // If true, always select a random variation when placing this tile.
     #[serde(default)]
     pub randomize_placement: bool,
+
+    // If true, the player picks the variation in the build palette (a submenu of its variations
+    // offered in the game's realm), and placement builds that one: a shrine's or a temple's patron
+    // (docs/plans/faith.md, §2a). Placed without a pick, it gets a random one of those offered.
+    #[serde(default)]
+    pub pick_variation: bool,
 
     // True if this is an aerial/flying object (e.g. bird).
     #[serde(default)]
@@ -820,6 +861,22 @@ impl TileDef {
     #[inline]
     pub fn has_variations(&self) -> bool {
         self.variations.len() > 1
+    }
+
+    // The indices of the variations the build palette offers in a game of `realm`, in order: every
+    // one for a tile whose variations the player doesn't pick.
+    pub fn offered_variations(&self, realm: Realm) -> SmallVec<[usize; 8]> {
+        self.variations
+            .iter()
+            .enumerate()
+            .filter(|(_, variation)| !self.pick_variation || variation.is_offered_in(realm))
+            .map(|(index, _)| index)
+            .collect()
+    }
+
+    // The index of the variation named `name`.
+    pub fn find_variation(&self, name: &str) -> Option<usize> {
+        self.variations.iter().position(|variation| variation.name == name)
     }
 
     fn post_load(
@@ -1249,7 +1306,7 @@ impl TileSet {
 // Stores:
 //  (tileset_index, tileset_category_index, category_tiledef_index)
 //
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct TileDefHandle(u16, u16, u16);
 
 impl TileDefHandle {

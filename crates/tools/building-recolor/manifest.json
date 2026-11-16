@@ -1,0 +1,44 @@
+{
+  "sprites": {
+    "shrine/ancestors": {
+      "source": "60c513cbb4ad9321",
+      "recipe": "14fe2dc0e0ac353d",
+      "output": "be30f2ad883b8b2b"
+    },
+    "shrine/mountain_lord": {
+      "source": "9b024063a6058def",
+      "recipe": "f23c88cea84b9eed",
+      "output": "50958ca7804e9de4"
+    },
+    "shrine/village_guardian": {
+      "source": "9b024063a6058def",
+      "recipe": "18847dc6b41523f7",
+      "output": "d51b9182bf579bd4"
+    },
+    "shrine/water_lord": {
+      "source": "60c513cbb4ad9321",
+      "recipe": "3e38c58e227e0ca3",
+      "output": "381542a8dd14d478"
+    },
+    "temple/ancestors": {
+      "source": "30ad40070cdf044a",
+      "recipe": "e515b83385a07422",
+      "output": "2b62ff9103675a35"
+    },
+    "temple/mountain_lord": {
+      "source": "bb23956b54213571",
+      "recipe": "4924a18e1a1f42f9",
+      "output": "f7bffeb5208871b6"
+    },
+    "temple/village_guardian": {
+      "source": "6d083490bd3ca272",
+      "recipe": "850a1ac09a6a3969",
+      "output": "d1c0c3c23114646e"
+    },
+    "temple/water_lord": {
+      "source": "30ad40070cdf044a",
+      "recipe": "77157c9e02a60ed9",
+      "output": "e87278026b364cc3"
+    }
+  }
+}

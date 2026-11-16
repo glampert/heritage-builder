@@ -520,6 +520,10 @@ pub struct Spawner<'game> {
     restore_tile_cost: bool, // Refund the tile's cost when despawning? Default false.
     // Site: a building whose tier takes time starts as a construction site. Default Finished.
     construction_mode: ConstructionMode,
+    // The tile variation a building spawns with, if one was picked (a shrine's patron, from the
+    // build palette). None: a random one (of those offered in the game's realm for a tile whose
+    // variations the player picks).
+    variation: Option<usize>,
 }
 
 pub enum SpawnerResult<'game> {
@@ -545,7 +549,18 @@ impl SpawnerResult<'_> {
 impl<'game> Spawner<'game> {
     #[inline]
     pub fn new(context: &'game SimContextMut) -> Self {
-        Self { context, subtract_tile_cost: false, restore_tile_cost: false, construction_mode: ConstructionMode::Finished }
+        Self {
+            context,
+            subtract_tile_cost: false,
+            restore_tile_cost: false,
+            construction_mode: ConstructionMode::Finished,
+            variation: None,
+        }
+    }
+
+    #[inline]
+    pub fn set_variation(&mut self, variation: Option<usize>) {
+        self.variation = variation;
     }
 
     #[inline]
@@ -645,7 +660,10 @@ impl<'game> Spawner<'game> {
 
         if let Ok(building) = result {
             let (paid_gold, withdrawal) = self.subtract_tile_cost(building_tile_def);
-            building.set_random_variation(self.context);
+            match self.variation.filter(|index| *index < building_tile_def.variations.len()) {
+                Some(index) => building.set_variation(self.context, index),
+                None => building.set_random_variation(self.context),
+            }
 
             if self.construction_mode == ConstructionMode::Site {
                 let secs = construction::construction_secs(building_tile_def);

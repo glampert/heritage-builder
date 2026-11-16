@@ -576,6 +576,7 @@
     "inspect.patrol.reach": "Reach",
     "inspect.patrol.within": "Within {distance}",
     "inspect.patrol.in_reach": "In reach",
+    "inspect.faith.dedicated": "Dedicated to",
     "inspect.patrol.highest_fire": "Highest fire risk",
     "inspect.patrol.highest_collapse": "Highest collapse risk",
     "inspect.patrol.highest_disease": "Highest disease risk",

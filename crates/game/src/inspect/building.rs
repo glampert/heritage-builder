@@ -526,6 +526,17 @@ fn read_service(
             };
             rows.push(ValueRow { label: t(key), value: format!("{name} · {level}"), warn: value >= risks::RISK_HIGH });
         }
+        // A shrine's or a temple's patron, and how it feels (docs/plans/faith.md, §2a).
+        if let Some(patron) = crate::faith::dedicated_patron(context, building) {
+            let name = crate::faith::config::patron_name(context.realm(), &patron.id);
+            let favour = context.faith().favour(&patron.id).unwrap_or_default();
+            let mood = crate::faith::Mood::from_favour(favour);
+            rows.insert(0, ValueRow {
+                label: t("faith.dedicated"),
+                value: format!("{name} · {}", mood.display_name()),
+                warn: matches!(mood, crate::faith::Mood::Restless | crate::faith::Mood::Neglected),
+            });
+        }
         let title = if config.has_patrol_unit { t("patrol.title") } else { t("patrol.reach") };
         report.sections.push(Section::Values { title, note: Some(note), rows });
     }

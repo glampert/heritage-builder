@@ -1,0 +1,133 @@
+{
+  "notes": "Building tile variations recoloured from the hand-made art in sources/ (recolor.py). Each shift moves the roofs', trims' and lanterns' reds and red-browns (hues -10 to 26 degrees, saturation 0.28 and up) to the variation's colour; the ochre walls, stone and greenery keep theirs. The shrine's and the temple's variations are the patrons of their realm (docs/plans/faith.md, §2a): each patron its colour, on the hand-made design its old variation index had, so old saves keep their buildings' shapes.",
+  "recipes": [
+    {
+      "tile": "shrine",
+      "variation": "mountain_lord",
+      "source": "shrine/a.png",
+      "shifts": [
+        {
+          "hue": [
+            -10,
+            26
+          ],
+          "min_saturation": 0.28,
+          "feather": 6,
+          "to_hue": 140,
+          "saturation": 0.45,
+          "value": 0.92
+        }
+      ],
+      "notes": "The Mountain Lord: moss and stone green-grey, on shrine A (the old var0)."
+    },
+    {
+      "tile": "shrine",
+      "variation": "water_lord",
+      "source": "shrine/b.png",
+      "shifts": [
+        {
+          "hue": [
+            -10,
+            26
+          ],
+          "min_saturation": 0.28,
+          "feather": 6,
+          "to_hue": 195,
+          "saturation": 0.85,
+          "value": 1.0
+        }
+      ],
+      "notes": "The Water Lord: river blue, on shrine B (the old var1)."
+    },
+    {
+      "tile": "shrine",
+      "variation": "village_guardian",
+      "source": "shrine/a.png",
+      "notes": "The Village Guardian: shrine A as it was, in its red."
+    },
+    {
+      "tile": "shrine",
+      "variation": "ancestors",
+      "source": "shrine/b.png",
+      "shifts": [
+        {
+          "hue": [
+            -10,
+            26
+          ],
+          "min_saturation": 0.28,
+          "feather": 6,
+          "to_hue": 38,
+          "saturation": 0.95,
+          "value": 1.22,
+          "spread": 0.45
+        }
+      ],
+      "notes": "The Ancestors: gilded yellow, on shrine B."
+    },
+    {
+      "tile": "temple",
+      "variation": "mountain_lord",
+      "source": "temple/a.png",
+      "shifts": [
+        {
+          "hue": [
+            -10,
+            26
+          ],
+          "min_saturation": 0.28,
+          "feather": 6,
+          "to_hue": 140,
+          "saturation": 0.45,
+          "value": 0.92
+        }
+      ],
+      "notes": "The Mountain Lord: moss and stone green-grey, on temple A (the old var0)."
+    },
+    {
+      "tile": "temple",
+      "variation": "water_lord",
+      "source": "temple/b.png",
+      "shifts": [
+        {
+          "hue": [
+            -10,
+            26
+          ],
+          "min_saturation": 0.28,
+          "feather": 6,
+          "to_hue": 195,
+          "saturation": 0.85,
+          "value": 1.0
+        }
+      ],
+      "notes": "The Water Lord: river blue, on temple B (the old var1)."
+    },
+    {
+      "tile": "temple",
+      "variation": "village_guardian",
+      "source": "temple/c.png",
+      "notes": "The Village Guardian: temple C (the old var2) as it was, in its red."
+    },
+    {
+      "tile": "temple",
+      "variation": "ancestors",
+      "source": "temple/b.png",
+      "shifts": [
+        {
+          "hue": [
+            -10,
+            26
+          ],
+          "min_saturation": 0.28,
+          "feather": 6,
+          "to_hue": 38,
+          "saturation": 0.95,
+          "value": 1.22,
+          "spread": 0.45
+        }
+      ],
+      "notes": "The Ancestors: gilded yellow, on temple B."
+    }
+  ]
+}

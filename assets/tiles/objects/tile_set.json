@@ -621,6 +621,7 @@
           "name": "shrine",
           "cost": 2,
           "sector": "CultureAndReligion",
+          "pick_variation": true,
           "logical_size": {
             "width": 64,
             "height": 32
@@ -631,7 +632,10 @@
           },
           "variations": [
             {
-              "name": "var0",
+              "name": "mountain_lord",
+              "label": "patron.dailong.mountain_lord",
+              "tooltip": "patron.dailong.mountain_lord.domain",
+              "realms": ["dailong"],
               "anim_sets": [
                 {
                   "frames": [
@@ -643,7 +647,40 @@
               ]
             },
             {
-              "name": "var1",
+              "name": "water_lord",
+              "label": "patron.dailong.water_lord",
+              "tooltip": "patron.dailong.water_lord.domain",
+              "realms": ["dailong"],
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "shrine"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "village_guardian",
+              "label": "patron.dailong.village_guardian",
+              "tooltip": "patron.dailong.village_guardian.domain",
+              "realms": ["dailong"],
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "shrine"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ancestors",
+              "label": "patron.dailong.ancestors",
+              "tooltip": "patron.dailong.ancestors.domain",
+              "realms": ["dailong"],
               "anim_sets": [
                 {
                   "frames": [
@@ -663,6 +700,7 @@
           "upkeep": 12,
           "construction": "Civic",
           "sector": "CultureAndReligion",
+          "pick_variation": true,
           "minimap": { "landmark": "Temple" },
           "logical_size": {
             "width": 192,
@@ -674,7 +712,10 @@
           },
           "variations": [
             {
-              "name": "var0",
+              "name": "mountain_lord",
+              "label": "patron.dailong.mountain_lord",
+              "tooltip": "patron.dailong.mountain_lord.domain",
+              "realms": ["dailong"],
               "anim_sets": [
                 {
                   "frames": [
@@ -686,7 +727,10 @@
               ]
             },
             {
-              "name": "var1",
+              "name": "water_lord",
+              "label": "patron.dailong.water_lord",
+              "tooltip": "patron.dailong.water_lord.domain",
+              "realms": ["dailong"],
               "anim_sets": [
                 {
                   "frames": [
@@ -698,7 +742,25 @@
               ]
             },
             {
-              "name": "var2",
+              "name": "village_guardian",
+              "label": "patron.dailong.village_guardian",
+              "tooltip": "patron.dailong.village_guardian.domain",
+              "realms": ["dailong"],
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "temple"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ancestors",
+              "label": "patron.dailong.ancestors",
+              "tooltip": "patron.dailong.ancestors.domain",
+              "realms": ["dailong"],
               "anim_sets": [
                 {
                   "frames": [

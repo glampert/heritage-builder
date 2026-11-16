@@ -1133,9 +1133,17 @@ impl Building {
         false
     }
 
+    // A random variation of its tile: for a tile whose variations the player picks (a shrine's
+    // patron), one of those offered in the game's realm.
     pub fn set_random_variation(&self, context: &SimContextMut) {
         let context = self.new_context_mut(context);
         context.set_random_building_variation();
+    }
+
+    // The variation of its tile at `index` (a variation picked in the build palette).
+    pub fn set_variation(&self, context: &SimContextMut, index: usize) {
+        let context = self.new_context_mut(context);
+        context.find_tile_mut().set_variation_index(index);
     }
 
     #[inline]
@@ -1723,9 +1731,23 @@ impl BuildingContextMut<'_> {
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
-    #[inline]
     pub fn set_random_building_variation(&self) {
+        let realm = self.sim_ctx.realm();
         let tile = self.find_tile_mut();
+        let tile_def = tile.tile_def();
+        if tile_def.pick_variation {
+            let offered = tile_def.offered_variations(realm);
+            if !offered.is_empty() {
+                // One offered: no draw from the RNG.
+                let pick = if offered.len() == 1 {
+                    offered[0]
+                } else {
+                    offered[self.sim_ctx.rng_mut().random_range(0..offered.len())]
+                };
+                tile.set_variation_index(pick);
+                return;
+            }
+        }
         tile.set_random_variation_index(self.sim_ctx.rng_mut());
     }
 }

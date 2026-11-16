@@ -1,14 +1,20 @@
+use common::coords::Cell;
 use game::{
+    building::{BuildingKind, construction::ConstructionMode},
     campaign::config::MissionFaithDef,
     config::GameConfigs,
     faith::{
+        self,
         FaithConfigs,
         Mood,
         RealmFaithDef,
         config::{self, FaithEffectDef, FaithEventDef, FaithRequirement},
     },
+    menu::{PlaceOrClearResult, TilePlacement},
     realm::Realm,
     sim::CityFaith,
+    tile::sets::TileDef,
+    undo_redo,
 };
 use strum::IntoEnumIterator;
 
@@ -34,6 +40,11 @@ fn main() {
         test_utils::test_fn!(test_mood_bands),
         test_utils::test_fn!(test_patrons_follow_the_realms_file_after_a_load),
         test_utils::test_fn!(test_the_simulation_has_the_faith_state),
+        // Dedicated shrines and temples:
+        test_utils::test_fn!(test_every_dai_long_patron_has_its_shrine_and_temple),
+        test_utils::test_fn!(test_a_shrines_patron_is_its_variation),
+        test_utils::test_fn!(test_a_shrine_without_a_pick_gets_an_offered_patron),
+        test_utils::test_fn!(test_undo_and_redo_keep_the_patron),
         // Saves:
         test_utils::test_fn!(test_faith_round_trips_through_a_save),
     ]);
@@ -249,4 +260,99 @@ fn test_faith_round_trips_through_a_save() {
     assert_eq!(loaded.favour("sky_deva"), Some(63.5));
     assert!(loaded.is_favour_enabled());
     assert!(!loaded.is_festivals_enabled());
+}
+
+// ----------------------------------------------
+// Dedicated shrines and temples
+// ----------------------------------------------
+
+fn place_dedicated(env: &mut TestEnvironment, cell: Cell, tile: &str, variation: Option<&str>) {
+    let tile_def: &'static TileDef = test_utils::find_building_def(tile);
+    let variation = variation.map(|name| tile_def.find_variation(name).unwrap_or_else(|| panic!("{tile} has no {name}")));
+    let context = env.new_sim_context(0.0);
+    let result = TilePlacement::place_variation(&context, cell, tile_def, variation, false, true, ConstructionMode::Site);
+    if let PlaceOrClearResult::Failed { message, .. } = result {
+        panic!("placing {tile} at {cell} failed: {message}");
+    }
+}
+
+fn patron_at(env: &mut TestEnvironment, cell: Cell) -> Option<String> {
+    let context = env.new_sim_context(0.0);
+    let building = context.world().find_building_for_cell(cell, context.tile_map())?;
+    faith::dedicated_patron(&context, building).map(|patron| patron.id.clone())
+}
+
+// Each Đại Long patron has its shrine and its temple, picked in the palette (pick_variation),
+// offered in Đại Long and in no other realm, labelled and described by the patron's strings.
+fn test_every_dai_long_patron_has_its_shrine_and_temple() {
+    for tile in ["shrine", "temple"] {
+        let tile_def = test_utils::find_building_def(tile);
+        assert!(tile_def.pick_variation, "{tile}");
+        assert!(tile_def.offered_variations(Realm::Kambara).is_empty(), "{tile}: no Kambara art yet");
+        let offered: Vec<&str> = tile_def
+            .offered_variations(Realm::DaiLong)
+            .iter()
+            .map(|index| tile_def.variations[*index].name.as_str())
+            .collect();
+        let patrons: Vec<&str> = realm_def(Realm::DaiLong).patrons.iter().map(|patron| patron.id.as_str()).collect();
+        assert_eq!(offered, patrons, "{tile}: a variation per patron, in the file's order");
+        let water = &tile_def.variations[tile_def.find_variation("water_lord").unwrap()];
+        assert_eq!(water.label_text(), "The Water Lord");
+        assert_eq!(water.tooltip_text().as_deref(), Some("The river and its floods"));
+    }
+    // The old variations' indices name the first patrons: old saves keep their buildings' shapes.
+    let shrine = test_utils::find_building_def("shrine");
+    assert_eq!(shrine.variation_name(0), "mountain_lord");
+    assert_eq!(shrine.variation_name(1), "water_lord");
+    assert_eq!(test_utils::find_building_def("temple").variation_name(2), "village_guardian");
+}
+
+fn test_a_shrines_patron_is_its_variation() {
+    let mut env = TestEnvironment::new();
+    place_dedicated(&mut env, Cell::new(5, 5), "shrine", Some("water_lord"));
+    place_dedicated(&mut env, Cell::new(10, 5), "temple", Some("ancestors"));
+    assert_eq!(patron_at(&mut env, Cell::new(5, 5)).as_deref(), Some("water_lord"));
+    assert_eq!(patron_at(&mut env, Cell::new(11, 6)).as_deref(), Some("ancestors"), "any cell of the temple");
+
+    // Other buildings tend no one, and neither does a shrine in a realm whose patrons it doesn't name.
+    test_utils::spawn_building(&mut env, Cell::new(20, 5), "small_well");
+    assert_eq!(patron_at(&mut env, Cell::new(20, 5)), None);
+    env.sim.faith_mut().start(Realm::Kambara, rules());
+    assert_eq!(patron_at(&mut env, Cell::new(5, 5)), None);
+    undo_redo::clear();
+}
+
+fn test_a_shrine_without_a_pick_gets_an_offered_patron() {
+    let mut env = TestEnvironment::new();
+    let ids: Vec<String> = realm_def(Realm::DaiLong).patrons.iter().map(|patron| patron.id.clone()).collect();
+    for x in 0..6 {
+        let cell = Cell::new(2 + x * 3, 8);
+        place_dedicated(&mut env, cell, "shrine", None);
+        let patron = patron_at(&mut env, cell).expect("a random shrine is a patron's");
+        assert!(ids.contains(&patron), "{patron}");
+    }
+    let mut shrines = 0;
+    env.world.for_each_building(BuildingKind::Shrine, |_| {
+        shrines += 1;
+        true
+    });
+    assert_eq!(shrines, 6);
+    undo_redo::clear();
+}
+
+fn test_undo_and_redo_keep_the_patron() {
+    let mut env = TestEnvironment::new();
+    let cell = Cell::new(6, 6);
+    place_dedicated(&mut env, cell, "temple", Some("ancestors"));
+    {
+        let context = env.new_sim_context(0.0);
+        undo_redo::undo(&context);
+    }
+    assert_eq!(patron_at(&mut env, cell), None, "undone");
+    {
+        let context = env.new_sim_context(0.0);
+        undo_redo::redo(&context);
+    }
+    assert_eq!(patron_at(&mut env, cell).as_deref(), Some("ancestors"), "redone as the same patron's");
+    undo_redo::clear();
 }

@@ -8,6 +8,32 @@ pub use config::{FaithConfigs, PatronDef, RealmFaithDef};
 use engine::ui::text::{self, UiTextCategory};
 use strum::{Display, EnumIter, EnumString};
 
+use crate::{
+    building::{Building, BuildingKind},
+    realm::Realm,
+    sim::SimContext,
+    tile::{TileKind, TileMap},
+};
+
+// The building kinds dedicated to a patron when they're built (§2a).
+pub const DEDICATED_KINDS: BuildingKind = BuildingKind::Shrine.union(BuildingKind::Temple);
+
+// The patron a shrine or a temple is dedicated to: its tile's variation, named by the patron's id
+// (docs/plans/faith.md, §2a). None for other buildings, and for one whose variation names no patron
+// of the game's realm (a Kambara shrine before its art exists).
+pub fn dedicated_patron(context: &SimContext, building: &Building) -> Option<&'static PatronDef> {
+    dedicated_patron_in(context.realm(), context.tile_map(), building)
+}
+
+// dedicated_patron(), for code without a SimContext: the game's realm and its tile map.
+pub fn dedicated_patron_in(realm: Realm, tile_map: &TileMap, building: &Building) -> Option<&'static PatronDef> {
+    if !building.is(DEDICATED_KINDS) {
+        return None;
+    }
+    let tile = tile_map.find_tile(building.base_cell(), TileKind::Building)?;
+    FaithConfigs::get().for_realm(realm)?.patron(tile.variation_name())
+}
+
 // ----------------------------------------------
 // Mood
 // ----------------------------------------------

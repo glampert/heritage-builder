@@ -5,9 +5,15 @@
 // realm name, size, cost and materials against the storage yards, and why it can't be built (no
 // gold, debt, materials short, or locked by the mission: BuildingAvailability); a building that
 // can't be built stays in the grid, disabled. Clicking one picks it and closes the grid.
+// A building whose variations the player picks (TileDef::pick_variation: a shrine's or a temple's
+// patron, docs/plans/faith.md §2a) opens a submenu of its variations offered in the game's realm
+// instead, a text button each; a button picks the building and that variation. Escape or a right
+// click closes the submenu and leaves the grid open.
 // Paths: the column is `TilePaletteMenu`, its tiles named by their labels (`TilePaletteMenu/services`,
 // tooltip "Services"); a grid is `TilePaletteChildMenu: <label>`, its tiles named by the building's
-// tile name in title case ("Apothecary", "Dirt Road"), stable in every realm.
+// tile name in title case ("Apothecary", "Dirt Road"), stable in every realm; a building's
+// submenu is `TilePaletteVariationMenu: <tile name in title case>`, its buttons named by their
+// labels (`TilePaletteVariationMenu: Shrine/The Water Lord`).
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -76,6 +82,10 @@ const GRID_GAP: f32 = 10.0;
 const GRID_TITLE_HEIGHT: f32 = 20.0; // The title's row, the first row's crests below it.
 const GRID_TITLE_BASELINE: f32 = 15.0;
 const GRID_TITLE_CLEARANCE: f32 = 26.0; // Room on each side of a title wider than its tiles.
+
+// The variation submenu: the room between its buttons, and between it and the grid.
+const VARIATION_GAP: f32 = 6.0;
+const VARIATION_MENU_GAP: f32 = 8.0;
 
 // The rule between the column's groups (the column's spacing round it).
 const SEPARATOR_LINE: f32 = 2.0;
@@ -194,12 +204,12 @@ impl TilePaletteMainButtonDef {
             TilePaletteMainButtonDef::ClearLand => TilePaletteSelection::Clear,
             TilePaletteMainButtonDef::Housing => {
                 if let Some(tile_def) = PresetTiles::VacantLot.find_tile_def() {
-                    TilePaletteSelection::Tile(TileDefHandle::from_tile_def(tile_def))
+                    TilePaletteSelection::Tile(TileDefHandle::from_tile_def(tile_def), None)
                 } else {
                     TilePaletteSelection::None
                 }
             }
-            _ => TilePaletteSelection::Tile(tile_def_handle.unwrap()),
+            _ => TilePaletteSelection::Tile(tile_def_handle.unwrap(), None),
         }
     }
 }
@@ -294,6 +304,7 @@ fn building_tooltip(context: &GameUiContext, tile_def: &TileDef, reason: Option<
 enum PaletteAction {
     Sector(TilePaletteMainButtonDef),
     Pick(TilePaletteMainButtonDef, TileDefHandle),
+    PickVariation(TilePaletteMainButtonDef, TileDefHandle, usize),
 }
 
 type PaletteActions = Rc<RefCell<Vec<PaletteAction>>>;
@@ -305,6 +316,8 @@ type PaletteActions = Rc<RefCell<Vec<PaletteAction>>>;
 // A sector's buildings, four to a row, on the HUD's large panel: built when the sector opens.
 struct SectorGrid {
     menu: UiMenuRcMut,
+    position: Vec2, // Its window's top left, in window points.
+    scale: f32,     // The column's scale it was built at.
     grid: UiMenuWidgetIndex,
     tiles: Vec<(UiWidgetGroupWidgetIndex, UiWidgetGroupWidgetIndex, TileDefHandle)>, // Row, tile in the row.
     shown: Vec<Option<String>>, // Each tile's unbuildable reason, as last set.
@@ -418,7 +431,15 @@ impl SectorGrid {
             .flat_map(|(row, in_row)| in_row.into_iter().map(move |(index, handle)| (row, index, handle)))
             .collect::<Vec<_>>();
         let shown = vec![None; tiles.len()];
-        let mut grid = Self { menu: menu.into_rc(), grid: grid_index, tiles, shown, stock_key: (i64::MIN, Vec::new()) };
+        let mut grid = Self {
+            menu: menu.into_rc(),
+            position,
+            scale: column_scale,
+            grid: grid_index,
+            tiles,
+            shown,
+            stock_key: (i64::MIN, Vec::new()),
+        };
         grid.refresh(context, true);
         grid
     }
@@ -459,6 +480,77 @@ impl SectorGrid {
 }
 
 // ----------------------------------------------
+// VariationMenu
+// ----------------------------------------------
+
+// A building's variations offered in the game's realm, a text button each in the realm's style,
+// on the HUD's panel left of the grid: built when the building is clicked in the grid.
+struct VariationMenu {
+    menu: UiMenuRcMut,
+    handle: TileDefHandle,
+}
+
+impl VariationMenu {
+    fn new(
+        context: &mut GameUiContext,
+        def: TilePaletteMainButtonDef,
+        handle: TileDefHandle,
+        offered: &[usize],
+        grid: &SectorGrid,
+        actions: &PaletteActions,
+    ) -> Self {
+        let tile_def = tile_def_of(handle);
+        let panel = skin::panel(context, "hud_panel");
+        let insets = match &panel {
+            SkinPanel::NineSlice { content, .. } => [content.left, content.top, content.right, content.bottom],
+            SkinPanel::Sprite { .. } => [12.0; 4],
+        };
+
+        // A button per variation, as wide as the widest.
+        let buttons: Vec<UiTextButton> = offered
+            .iter()
+            .map(|&index| {
+                let variation = &tile_def.variations[index];
+                let actions = actions.clone();
+                let mut button = skin::button(context, skin::ButtonRole::Secondary, variation.label_text(), move |_, _| {
+                    actions.borrow_mut().push(PaletteAction::PickVariation(def, handle, index));
+                });
+                if let Some(tooltip) = variation.tooltip_text() {
+                    button = button.with_tooltip(skin::tooltip_beside(context, tooltip));
+                }
+                button
+            })
+            .collect();
+        let width = buttons.iter().map(|button| button.measure(context).x).fold(0.0_f32, f32::max).ceil();
+        let gap = (VARIATION_GAP * grid.scale).round().max(2.0);
+        let mut group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, gap));
+        for button in buttons {
+            group.add_widget(button.with_width(UiTextButtonWidth::Min(width)));
+        }
+        let inner = group.measure(context);
+
+        let size = Vec2::new(inner.x + insets[0] + insets[2], inner.y + insets[1] + insets[3] + 8.0);
+        let window = ui::screen_size(context.ui_sys);
+        let x = (grid.position.x - size.x - (VARIATION_MENU_GAP * grid.scale).round()).max(0.0);
+        let y = grid.position.y.min((window.y - size.y - layout::MARGIN).max(0.0));
+        let title = common::fixed_string::snake_case_to_title::<128>(&tile_def.name).to_string();
+        let mut menu = panel.apply_to_menu(
+            UiMenu::new(format!("TilePaletteVariationMenu: {title}"))
+                .with_flags(UiMenuFlags::IsOpen)
+                .with_position(Vec2::new(x, y))
+                .with_size(size)
+                .with_widget_spacing(Vec2::zero()),
+        );
+        menu.add_widget(group);
+        Self { menu: menu.into_rc(), handle }
+    }
+
+    fn draw(&mut self, context: &mut GameUiContext) {
+        self.menu.draw(context);
+    }
+}
+
+// ----------------------------------------------
 // TilePaletteMenu
 // ----------------------------------------------
 
@@ -479,6 +571,7 @@ pub struct TilePaletteMenu {
     column_scale: f32, // Its tiles' scale, which the sectors' grids take.
     window: Vec2,      // The window's size it was built for.
     open: Option<(TilePaletteMainButtonDef, SectorGrid)>,
+    variations: Option<VariationMenu>, // The open grid's building whose variation is being picked.
     picked_from: Option<TilePaletteMainButtonDef>, // The sector whose tool is picked.
     actions: PaletteActions,
 }
@@ -535,6 +628,11 @@ impl TilePalette for TilePaletteMenu {
     }
 
     fn on_tile_placement_canceled(&mut self, context: &mut GameUiContext) {
+        // Escape or a right click with a building's variations open closes them, and only them.
+        if self.variations.take().is_some() {
+            return;
+        }
+
         if self.current_selection.is_some() {
             sound::play(*context.sound_sys(), UiSoundKey::TilePlacementCanceled);
         }
@@ -570,6 +668,7 @@ impl TilePaletteMenu {
             column_scale: column.scale,
             window: column.window,
             open: None,
+            variations: None,
             picked_from: None,
             actions,
         })
@@ -675,6 +774,7 @@ impl TilePaletteMenu {
         self.column_x = column.column_x;
         self.column_scale = column.scale;
         self.window = column.window;
+        self.variations = None;
         if let Some((def, _)) = self.open.take()
             && let Some(button) = self.main_buttons.iter().find(|button| button.def == def)
         {
@@ -705,6 +805,9 @@ impl TilePaletteMenu {
         self.menu.draw(context);
         if let Some((_, grid)) = &mut self.open {
             grid.draw(context);
+        }
+        if let Some(variations) = &mut self.variations {
+            variations.draw(context);
         }
 
         let actions: Vec<PaletteAction> = self.actions.borrow_mut().drain(..).collect();
@@ -750,11 +853,37 @@ impl TilePaletteMenu {
                 }
             }
             PaletteAction::Pick(def, handle) => {
-                self.open = None;
-                self.set_selection_internal(def.to_tile_selection(Some(handle)));
-                self.picked_from = Some(def);
+                // A building whose variations the player picks opens them, if there's a choice.
+                let tile_def = tile_def_of(handle);
+                let offered = if tile_def.pick_variation {
+                    tile_def.offered_variations(context.sim.realm())
+                } else {
+                    Default::default()
+                };
+                if offered.len() > 1 {
+                    let reopened = self.variations.as_ref().is_some_and(|open| open.handle == handle);
+                    self.variations = None;
+                    if !reopened && let Some((_, grid)) = &self.open {
+                        self.variations = Some(VariationMenu::new(context, def, handle, &offered, grid, &self.actions));
+                    }
+                    return;
+                }
+                self.pick(def, handle, offered.first().copied());
             }
+            PaletteAction::PickVariation(def, handle, index) => self.pick(def, handle, Some(index)),
         }
+    }
+
+    // Picks the building (and its variation): the grid and the submenu close.
+    fn pick(&mut self, def: TilePaletteMainButtonDef, handle: TileDefHandle, variation: Option<usize>) {
+        self.open = None;
+        self.variations = None;
+        let selection = match def.to_tile_selection(Some(handle)) {
+            TilePaletteSelection::Tile(handle, _) => TilePaletteSelection::Tile(handle, variation),
+            other => other,
+        };
+        self.set_selection_internal(selection);
+        self.picked_from = Some(def);
     }
 
     fn reset_selection_internal(&mut self, _context: &mut GameUiContext) {
@@ -762,6 +891,7 @@ impl TilePaletteMenu {
         self.current_selection = TilePaletteSelection::None;
         self.picked_from = None;
         self.open = None;
+        self.variations = None;
     }
 
     fn set_selection_internal(&mut self, selection: TilePaletteSelection) {
@@ -810,7 +940,9 @@ impl TileSelectionRenderer {
             let cursor_transform = WorldToScreenTransform::new(transform.scaling, offset);
             let highlight_color = if has_valid_placement { Color::white() } else { INVALID_TILE_COLOR };
 
-            if let Some(sprite_frame) = selected_tile.anim_frame_by_index(0, 0, 0) {
+            // The variation picked (a shrine's patron), else the first.
+            let variation = current_selection.variation().unwrap_or(0);
+            if let Some(sprite_frame) = selected_tile.anim_frame_by_index(variation, 0, 0) {
                 let tile_color = Color::new(
                     selected_tile.color.r,
                     selected_tile.color.g,

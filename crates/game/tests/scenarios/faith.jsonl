@@ -1,0 +1,54 @@
+# Faith and festivals (docs/plans/faith.md): the game's patrons and their favour, and the patrons'
+# shrines and temples, picked in the build palette's submenu (a building whose variations the
+# player picks) and placed as that patron's. From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/faith.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [40, 40]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.road", "params": {"from": [2, 20], "to": [38, 20]}}
+
+# A new game is Đại Long's: its four patrons at the starting favour, favour and festivals on.
+{"method": "assert.eq", "params": {"query": "faith.state", "path": "/realm", "value": "dailong"}}
+{"method": "assert.eq", "params": {"query": "faith.state", "path": "/patrons/1/id", "value": "water_lord"}}
+{"method": "assert.eq", "params": {"query": "faith.state", "path": "/patrons/1/favour", "value": 50.0}}
+{"method": "assert.eq", "params": {"query": "faith.state", "path": "/patrons/1/mood", "value": "content"}}
+{"method": "faith.set", "params": {"patron": "ancestors", "favour": 25, "festivals_enabled": false}}
+{"method": "assert.eq", "params": {"query": "faith.state", "path": "/patrons/3/mood", "value": "neglected"}}
+{"method": "assert.eq", "params": {"query": "faith.state", "path": "/festivals_enabled", "value": false}}
+
+# The shrine opens its patrons as text buttons beside the Culture grid, within their panel; one
+# picks the Water Lord's, and the shrine placed is his.
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/culture_and_religion"}}
+{"method": "ui.click", "params": {"path": "Shrine"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteVariationMenu: Shrine/", "fields": ["path"]}, "path": "/widgets/1/path", "value": "TilePaletteVariationMenu: Shrine/The Water Lord"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "TilePaletteVariationMenu: Shrine/The Water Lord"}}
+{"method": "input.click", "params": {"cell": [12, 21]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 21]}, "path": "/patron", "value": "water_lord"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [12, 21]}, "path": "/sections/0/rows/0/value", "value": "The Water Lord · Content"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+
+# Escape closes the submenu and leaves the grid open; Escape again puts the grid away.
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/culture_and_religion"}}
+{"method": "ui.click", "params": {"path": "Temple"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteVariationMenu: Temple/The Ancestors"}, "path": "/widgets/0"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteVariationMenu"}, "path": "/widgets", "value": []}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: culture_and_religion/Temple"}, "path": "/widgets/0"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu"}, "path": "/widgets", "value": []}}
+
+# Automation names the variation; a shrine or temple placed without one is a patron's still.
+{"method": "world.place", "params": {"tile": "temple", "cell": [20, 21], "variation": "ancestors"}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [21, 22]}, "path": "/patron", "value": "ancestors"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [20, 21]}, "path": "/objects/0/variation_name", "value": "ancestors"}}
+{"method": "world.place", "params": {"tile": "shrine", "cell": [30, 21]}}
+{"method": "assert.exists", "params": {"query": "world.building_at", "args": {"cell": [30, 21]}, "path": "/patron"}}
+{"method": "faith.state"}

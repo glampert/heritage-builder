@@ -241,6 +241,12 @@ impl<'game> SimContext<'game> {
         &self.faith
     }
 
+    // The game's realm: its campaign's, its custom game's, else Đại Long's (kept with its faith).
+    #[inline]
+    pub fn realm(&self) -> crate::realm::Realm {
+        self.faith.realm()
+    }
+
     #[inline]
     pub fn find_tile_def(
         &self,

@@ -34,6 +34,7 @@ pub struct TilePaletteDevMenu {
     current_selection: TilePaletteSelection,
     selected_index: HashMap<TileKind, usize>, // For highlighting the selected button.
     clear_button_image: TextureHandle,
+    realm: crate::realm::Realm, // The game's, as of the last draw: the variations it offers.
 }
 
 impl TilePalette for TilePaletteDevMenu {
@@ -85,6 +86,7 @@ impl TilePaletteDevMenu {
 
     pub fn draw(&mut self, context: &mut GameUiContext, debug_draw: &mut DebugDraw, show_selection_bounds: bool) {
         let ui_sys = context.ui_sys;
+        self.realm = context.sim.realm();
 
         let tiles_per_row = 2;
         let spacing_between_tiles = 4.0;
@@ -145,6 +147,22 @@ impl TilePaletteDevMenu {
                     self.reset_selection_internal();
                     self.current_selection = TilePaletteSelection::Clear;
                 }
+
+                // A tile whose variations the player picks (a shrine's patron): which one to build,
+                // of those offered in the game's realm (`Tile Selection/Tools/Variation`).
+                if let TilePaletteSelection::Tile(handle, Some(variation)) = self.current_selection
+                    && let Some(tile_def) = self.current_selection.as_tile_def()
+                    && tile_def.pick_variation
+                {
+                    let offered = tile_def.offered_variations(self.realm);
+                    let labels: Vec<String> = offered.iter().map(|index| tile_def.variations[*index].label_text()).collect();
+                    let mut current = offered.iter().position(|index| *index == variation).unwrap_or(0);
+                    if ui::combo(ui_sys, "Variation", &mut current, &labels)
+                        && let Some(index) = offered.get(current)
+                    {
+                        self.current_selection = TilePaletteSelection::Tile(handle, Some(*index));
+                    }
+                }
             }
 
             let sections = [
@@ -191,7 +209,8 @@ impl TilePaletteDevMenu {
             let cursor_transform = WorldToScreenTransform::new(transform.scaling, offset);
             let highlight_color = if has_valid_placement { Color::white() } else { INVALID_TILE_COLOR };
 
-            if let Some(sprite_frame) = selected_tile.anim_frame_by_index(0, 0, 0) {
+            let variation = self.current_selection().variation().unwrap_or(0);
+            if let Some(sprite_frame) = selected_tile.anim_frame_by_index(variation, 0, 0) {
                 let tile_color = Color::new(
                     selected_tile.color.r,
                     selected_tile.color.g,
@@ -347,7 +366,12 @@ impl TilePaletteDevMenu {
 
         if clicked || selected_by_name {
             self.reset_selection_internal();
-            self.current_selection = TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def));
+            // A tile whose variations the player picks starts with the first offered in the game's
+            // realm (the Tools' Variation dropdown changes it); others get a random one.
+            let variation =
+                if tile_def.pick_variation { tile_def.offered_variations(self.realm).first().copied() } else { None };
+            self.current_selection =
+                TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def), variation);
             self.selected_index.insert(tile_kind, tile_index);
         }
     }

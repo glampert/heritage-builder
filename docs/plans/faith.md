@@ -1,6 +1,6 @@
 # Faith and festivals
 
-**Status (2026-11-16): Phase 0 done; Phase 1 next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
+**Status (2026-11-16): Phases 0 and 1 done; Phase 2 next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
 - patron spirits or deities per realm;
 - favour, raised by shrines and temples;
 - blessings and misfortunes;
@@ -315,13 +315,36 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 
 ### Phase 1: Dedicated shrines and temples (medium)
 
-- [ ] `pick_variation` and per-variation `realms` in tile defs and the generator's catalog; labels as `tile_variation.<tile>.<variation>` strings.
-- [ ] Art: adopt `shrine` and `temple`, a recipe each with a patron parameter, Đại Long's four variations of each (renaming `var0` onwards in place, appending the rest), `tilegen.sh`.
-- [ ] `TileSelection` with a variation; `TilePlacement::place`, undo and redo place it; spawns without one pick a random offered one.
-- [ ] The build palette's variation submenu (general for any tile that picks its variation), in the realm's style; the developer editor's `Variation` dropdown.
-- [ ] A shrine's or a temple's patron from its variation; the inspector's "Dedicated to" line.
-- [ ] `world.place variation=`, `tile.at` and `world.building_at` report it.
-- [ ] Tests: the variation picked and kept through undo and redo; a random offered one; the patron. A `ui_build`-style check of the submenu (`ui.layout_issues` 0).
+- [x] `pick_variation` and per-variation `realms` in tile defs; labels as Realm text keys (see the notes).
+- [x] Art: Đại Long's four variations of each, renaming `var0` onwards in place and appending the rest (recoloured hand-made art, not Blender: see the notes).
+- [x] The palette's pick (`TilePaletteSelection::Tile`) with a variation; `TilePlacement::place_variation`, undo and redo place it; spawns without one pick a random offered one.
+- [x] The build palette's variation submenu (general for any tile that picks its variation), in the realm's style; the developer editor's `Variation` dropdown.
+- [x] A shrine's or a temple's patron from its variation; the inspector's "Dedicated to" line.
+- [x] `world.place variation=`, `tile.at` and `world.building_at` report it.
+- [x] Tests: the variation picked and kept through undo and redo; a random offered one; the patron. A scenario of the submenu (`faith.jsonl`, `ui.layout_issues` 0).
+- **Notes (2026-11-16):**
+  - **The art (deviation, the user's call):**
+    - The plan had the tile generator adopt the shrine and the temple and render four Blender models each. The hand-made sprites are detailed painted art, and the Blender placeholders much plainer, so the user chose to recolour the hand-made art per patron instead.
+    - The colours: the Mountain Lord moss and stone green-grey, the Water Lord river blue, the Village Guardian the original red, the Ancestors gilded yellow.
+    - A new tool, `crates/tools/building-recolor`, does it: the hand-made sprites moved into its `sources/` (shrines A and B, temples A, B and C), and `recipes.json` names each output's source and hue shifts. It moves the roofs', trims' and lanterns' reds (hues −10° to 26°, saturation 0.28 and up) to the patron's colour, and leaves the ochre walls, stone and greenery alone.
+    - Each patron is on the hand-made design its old variation index had: index 0 was art A, now the Mountain Lord's; index 1 was B, now the Water Lord's; the temple's index 2 was C, now the Village Guardian's. Old saves' shrines and temples keep their shapes, now in a patron's colour; no migration.
+    - It records what it wrote in its `manifest.json` and never overwrites hand-made art. `--check` (plain Python) and its unit tests run in CI, as the tile generator's do.
+    - The generator's catalog isn't involved, so it gained no `pick_variation`.
+  - **Labels:** a variation's `label` and `tooltip` name Realm text keys (the patron's name and domain), rather than new `tile_variation.<tile>.<variation>` keys that would repeat them. Left empty, the label is the variation's name in title case.
+  - **The game's realm:** `SimContext::realm()` and `Simulation::realm()` read it from the faith state. The palettes and placement offer the variations whose `realms` include it. In Kambara or Tampadesa, which have no shrine or temple art yet, none is offered: the palette picks the tile at once, placement gives it a random variation, and it tends no one.
+  - **The palette:**
+    - `PaletteAction::Pick` opens a `VariationMenu` (on `hud_panel`, left of the grid, at the grid's top) when the tile picks its variation and more than one is offered.
+    - Its buttons are `skin::button` secondary text buttons at the widest one's width, each with its tooltip beside it.
+    - Clicking the same tile again closes it. A window resize closes it.
+    - The cursor's ghost draws the picked variation.
+  - **Random picks:** a tile whose variations the player picks, spawned without a pick, draws from the RNG only when more than one is offered, so placing one with a single offer doesn't move the random numbers after it.
+  - **Verified:**
+    - `cargo test --workspace`, with 15 tests in `tests/faith.rs`.
+    - Clippy on desktop and web, nightly rustfmt, the recolour tool's `--check` and unit tests, `sync_tileset.py --check`, and `--smoke-test-saves` on all 12 saves.
+    - All 25 CI scenarios in release, the new `faith.jsonl` among them.
+    - `determinism.jsonl` twice: checksum `7ca92921d3187567`, unchanged.
+    - Record and replay of `ui_build` and `determinism`.
+    - Screenshots of the submenu with a patron's domain in its tooltip, the inspector's "Dedicated to The Water Lord · Content", and the four patrons' temples and shrines on the map.
 
 ### Phase 2: Favour, the Patrons tab and the lens (medium)
 
