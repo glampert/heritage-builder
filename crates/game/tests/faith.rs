@@ -12,15 +12,21 @@ use game::{
         RealmFaithDef,
         config::{self, FaithEffectDef, FaithEventDef, FaithRequirement},
         events,
+        festivals::{self, FestivalState, NotHeld, PlanOutcome},
     },
     menu::{PlaceOrClearResult, TilePlacement},
     realm::Realm,
     sim::{
         CityFaith,
         SimCmdQueue,
+        calendar::CalendarDate,
+        faith::FaithNoticeKind,
         finance::{self, LedgerCategory},
+        resources::ResourceKind,
     },
     tile::{
+        TileFlags,
+        TileKind,
         minimap::{
             MinimapLens,
             lens::{self, LensContext, LensData},
@@ -73,6 +79,16 @@ fn main() {
         test_utils::test_fn!(test_upkeep_effects_scale_the_upkeep),
         test_utils::test_fn!(test_misfortunes_through_the_city_risks),
         test_utils::test_fn!(test_set_off_now_refuses_what_cant_happen),
+        // Festivals:
+        test_utils::test_fn!(test_festival_terms_follow_the_scale),
+        test_utils::test_fn!(test_the_festival_year),
+        test_utils::test_fn!(test_a_festival_is_held_at_the_start_of_its_month),
+        test_utils::test_fn!(test_a_festival_in_its_month_is_held_at_once),
+        test_utils::test_fn!(test_an_every_patron_festival_pleases_them_all),
+        test_utils::test_fn!(test_a_short_festival_isnt_held),
+        test_utils::test_fn!(test_an_unstaffed_square_holds_nothing),
+        test_utils::test_fn!(test_one_plan_at_a_time_and_cancel),
+        test_utils::test_fn!(test_festivals_off_refuse_plans),
         // Saves:
         test_utils::test_fn!(test_faith_round_trips_through_a_save),
     ]);
@@ -569,7 +585,7 @@ fn test_events_follow_favour_and_the_cooldown() {
     assert_eq!(env.sim.finance().this_year().total(LedgerCategory::Offerings), 150, "a windfall is an offering");
     assert_eq!(env.sim.finance().this_year().income(), 150, "offerings are income");
     let notice = env.sim.faith_mut().take_notices().pop().expect("a notice for the message log");
-    assert!(notice.blessing);
+    assert_eq!(notice.kind, FaithNoticeKind::Blessing);
     assert!(notice.text.starts_with(&config::patron_name(Realm::DaiLong, "ancestors")), "{}", notice.text);
     assert!(notice.text.contains("gifts"), "{}", notice.text);
     assert_eq!(env.sim.faith().patron("ancestors").unwrap().months_since_event, 0, "its cooldown starts");
@@ -599,7 +615,7 @@ fn test_events_follow_favour_and_the_cooldown() {
     test_utils::spawn_building(&mut env, Cell::new(20, 20), "rice_farm");
     assert_eq!(roll(&mut env, &sure_rules()), came("village_guardian", "blight"));
     let notice = env.sim.faith_mut().take_notices().pop().unwrap();
-    assert!(!notice.blessing, "a misfortune");
+    assert_eq!(notice.kind, FaithNoticeKind::Misfortune);
     undo_redo::clear();
 }
 
@@ -724,5 +740,261 @@ fn test_set_off_now_refuses_what_cant_happen() {
     assert!(set_off(&mut env, "ancestors", "fever").is_err(), "risks are off (the harness's cheat)");
     assert!(env.sim.faith().notices().is_empty(), "nothing came");
     assert_eq!(env.sim.faith().patron("ancestors").unwrap().months_since_event, 0);
+    undo_redo::clear();
+}
+
+// ----------------------------------------------
+// Festivals
+// ----------------------------------------------
+
+// A city to hold festivals in: a house with people, a festival square, a granary with `rice`, a
+// storage yard with `wine`, and `gold` in the treasury. Returns the square.
+fn festival_city(env: &mut TestEnvironment, rice: u32, wine: u32, gold: i64) -> BuildingKindAndId {
+    let house = house_with(env, Cell::new(5, 5), "house2", 6);
+    let square = test_utils::spawn_building(env, Cell::new(20, 5), "festival_square");
+    assert_eq!(test_utils::find_building_mut(env, square).add_workers(1, house), 1, "a worker for the square");
+    let granary = test_utils::spawn_building(env, Cell::new(5, 20), "granary");
+    if rice != 0 {
+        assert_eq!(test_utils::find_building_mut(env, granary).receive_resources(ResourceKind::Rice, rice), rice);
+    }
+    let yard = test_utils::spawn_building(env, Cell::new(20, 20), "storage_yard");
+    if wine != 0 {
+        assert_eq!(test_utils::find_building_mut(env, yard).receive_resources(ResourceKind::Wine, wine), wine);
+    }
+    env.sim.finance_mut().set_balance_unrecorded(gold);
+    env.world.refresh_stats(env.sim.finance(), env.sim.faith());
+    square
+}
+
+// A date in the calendar's current year.
+fn in_month(env: &TestEnvironment, month: u32) -> CalendarDate {
+    let today = festivals::date_of(env.sim.calendar());
+    CalendarDate { year: today.year, month, day: 1 }
+}
+
+fn set_month(env: &mut TestEnvironment, month: u32) {
+    let configs = &GameConfigs::get().sim;
+    let date = in_month(env, month);
+    env.sim.calendar_mut().set_date(date, configs.days_per_month, configs.seconds_per_month).unwrap();
+}
+
+fn plan(env: &mut TestEnvironment, festival: &str, scale: &str) -> Result<PlanOutcome, String> {
+    let context = env.new_sim_context(0.0);
+    festivals::plan(&context, festival, scale)
+}
+
+fn new_month(env: &mut TestEnvironment, month: u32) {
+    let date = in_month(env, month);
+    let context = env.new_sim_context(0.0);
+    festivals::on_new_month(&context, date);
+}
+
+fn stored(env: &TestEnvironment, kind: ResourceKind) -> u32 {
+    festivals::held(&env.world, kind)
+}
+
+fn is_festive(env: &TestEnvironment, square: BuildingKindAndId) -> bool {
+    let cell = test_utils::find_building(env, square).base_cell();
+    env.tile_map.find_tile(cell, TileKind::Building).is_some_and(|tile| tile.has_flags(TileFlags::Festive))
+}
+
+// A festival's costs and effects are its middle scale's times the scale's: Đại Long's Floodwater
+// offering is 240 gold, 60 rice and 12 wine for +18 at Grand; half the costs for 0.55 of the
+// effects at Modest, twice for one and a half at Imperial.
+fn test_festival_terms_follow_the_scale() {
+    let def = realm_def(Realm::DaiLong);
+    let festival = def.festival("floodwater_offering").unwrap();
+    let terms = |scale: &str| festivals::terms(festival, def.scale(scale).unwrap());
+    let goods = |scale: &str| -> Vec<(ResourceKind, u32)> {
+        terms(scale).goods.iter().map(|item| (item.kind, item.count)).collect()
+    };
+
+    let grand = terms("grand");
+    assert_eq!(grand.gold, 240);
+    assert_eq!(goods("grand"), [(ResourceKind::Rice, 60), (ResourceKind::Wine, 12)]);
+    assert_eq!(grand.favour, 18.0);
+    assert_eq!((terms("modest").gold, goods("modest")), (120, vec![(ResourceKind::Rice, 30), (ResourceKind::Wine, 6)]));
+    assert!((terms("modest").favour - 9.9).abs() < 1e-4);
+    assert_eq!((terms("imperial").gold, terms("imperial").favour), (480, 27.0));
+    assert_eq!(festivals::default_scale(def).unwrap().id, "grand", "the middle scale");
+}
+
+// Where each festival stands this year, and the one the planner shows first.
+fn test_the_festival_year() {
+    let mut env = TestEnvironment::new();
+    let def = realm_def(Realm::DaiLong);
+    let state = |env: &TestEnvironment, id: &str| {
+        festivals::state(env.sim.faith(), def.festival(id).unwrap(), festivals::date_of(env.sim.calendar()))
+    };
+    set_month(&mut env, 5);
+    assert_eq!(state(&env, "new_year"), FestivalState::Missed, "month 1 passed");
+    assert_eq!(state(&env, "dragon_boat_races"), FestivalState::Now);
+    assert_eq!(state(&env, "floodwater_offering"), FestivalState::ToCome);
+    let date = festivals::date_of(env.sim.calendar());
+    assert_eq!(festivals::next_festival(def, env.sim.faith(), date).unwrap().id, "dragon_boat_races", "this month's");
+
+    set_month(&mut env, 6);
+    let date = festivals::date_of(env.sim.calendar());
+    assert_eq!(festivals::next_festival(def, env.sim.faith(), date).unwrap().id, "floodwater_offering", "the next");
+    set_month(&mut env, 10);
+    let date = festivals::date_of(env.sim.calendar());
+    assert_eq!(festivals::next_festival(def, env.sim.faith(), date).unwrap().id, "new_year", "next year's first");
+    undo_redo::clear();
+}
+
+// Planned before its month, a festival is held at the start of it: its gold and goods are taken
+// (rice from the granary, wine from the yard), its patron's favour rises, it's logged, the square is
+// dressed for the month and a message says so; the plan is done with.
+fn test_a_festival_is_held_at_the_start_of_its_month() {
+    let mut env = TestEnvironment::new();
+    set_month(&mut env, 6);
+    let square = festival_city(&mut env, 64, 20, 1000);
+    env.sim.faith_mut().set_favour("water_lord", 40.0);
+
+    assert_eq!(plan(&mut env, "floodwater_offering", "grand"), Ok(PlanOutcome::Planned));
+    assert_eq!(env.sim.faith().plan().unwrap().festival, "floodwater_offering");
+    new_month(&mut env, 7);
+    assert!(env.sim.faith().log().is_empty(), "not its month yet");
+
+    new_month(&mut env, 8);
+    let faith = env.sim.faith();
+    assert_eq!(faith.festivals_held(), 1);
+    let record = &faith.log()[0];
+    assert_eq!((record.festival.as_str(), record.scale.as_str()), ("floodwater_offering", "grand"));
+    assert_eq!(record.ordinal_month % 12 + 1, 8);
+    assert_eq!(faith.favour("water_lord"), Some(58.0), "40 + 18");
+    assert_eq!(faith.favour("ancestors"), Some(rules().starting_favour), "only its patron");
+    assert!(faith.plan().is_none(), "done with");
+    assert_eq!(env.sim.finance().balance(), 760);
+    assert_eq!(env.sim.finance().this_year().total(LedgerCategory::Festivals), 240);
+    assert_eq!((stored(&env, ResourceKind::Rice), stored(&env, ResourceKind::Wine)), (4, 8));
+    assert_eq!(env.world.stats().resources.granaries.count(ResourceKind::Rice), 4, "the stats follow");
+    assert!(is_festive(&env, square), "dressed for the month");
+    let notice = env.sim.faith_mut().take_notices().pop().unwrap();
+    assert_eq!(notice.kind, FaithNoticeKind::FestivalHeld);
+    assert!(notice.text.contains("Floodwater offering"), "{}", notice.text);
+
+    // The goal counts it once the stats are counted again.
+    env.world.refresh_stats(env.sim.finance(), env.sim.faith());
+    assert!(game::campaign::config::MissionGoal::FestivalsHeld { min: 1 }.is_met(env.world.stats()));
+
+    new_month(&mut env, 9);
+    assert!(!is_festive(&env, square), "the month is over");
+    undo_redo::clear();
+}
+
+// In its own month a festival planned is held at once; once held, planning it again is for next
+// year.
+fn test_a_festival_in_its_month_is_held_at_once() {
+    let mut env = TestEnvironment::new();
+    set_month(&mut env, 5);
+    festival_city(&mut env, 64, 20, 1000);
+    assert_eq!(plan(&mut env, "dragon_boat_races", "modest"), Ok(PlanOutcome::Held));
+    assert_eq!(env.sim.faith().festivals_held(), 1);
+    assert!(env.sim.faith().plan().is_none());
+    assert_eq!(env.sim.finance().balance(), 900, "modest: half of 200");
+
+    assert_eq!(plan(&mut env, "dragon_boat_races", "grand"), Ok(PlanOutcome::Planned), "next year's");
+    let def = realm_def(Realm::DaiLong);
+    let date = festivals::date_of(env.sim.calendar());
+    assert_eq!(festivals::state(env.sim.faith(), def.festival("dragon_boat_races").unwrap(), date), FestivalState::Planned);
+    undo_redo::clear();
+}
+
+// New Year is for every patron: each one's favour rises (Modest: 0.55 of its 10).
+fn test_an_every_patron_festival_pleases_them_all() {
+    let mut env = TestEnvironment::new();
+    set_month(&mut env, 1);
+    festival_city(&mut env, 64, 20, 1000);
+    let before: Vec<f32> =
+        realm_def(Realm::DaiLong).patrons.iter().map(|patron| env.sim.faith().favour(&patron.id).unwrap()).collect();
+    assert_eq!(plan(&mut env, "new_year", "modest"), Ok(PlanOutcome::Held));
+    for (patron, before) in realm_def(Realm::DaiLong).patrons.iter().zip(before) {
+        let favour = env.sim.faith().favour(&patron.id).unwrap();
+        assert!((favour - (before + 5.5)).abs() < 1e-4, "{}: {favour}", patron.id);
+    }
+    let notice = env.sim.faith_mut().take_notices().pop().unwrap();
+    assert!(notice.text.contains("Every patron"), "{}", notice.text);
+    undo_redo::clear();
+}
+
+// Without a staffed festival square, or short of gold or goods, a festival isn't held: nothing is
+// taken, a message says what was short, and the plan is dropped.
+fn test_a_short_festival_isnt_held() {
+    let mut env = TestEnvironment::new();
+    set_month(&mut env, 6);
+    let square = festival_city(&mut env, 50, 20, 100);
+    assert_eq!(plan(&mut env, "floodwater_offering", "grand"), Ok(PlanOutcome::Planned));
+    new_month(&mut env, 8);
+    assert!(env.sim.faith().log().is_empty());
+    assert!(env.sim.faith().plan().is_none(), "dropped");
+    assert_eq!(env.sim.finance().balance(), 100, "nothing taken");
+    assert_eq!(stored(&env, ResourceKind::Rice), 50);
+    let notice = env.sim.faith_mut().take_notices().pop().unwrap();
+    assert_eq!(notice.kind, FaithNoticeKind::FestivalNotHeld);
+    assert!(notice.text.contains("140 gold") && notice.text.contains("10 Rice"), "{}", notice.text);
+
+    // In its month a hold that falls short says why, and plans nothing.
+    set_month(&mut env, 8);
+    match plan(&mut env, "floodwater_offering", "modest") {
+        Ok(PlanOutcome::NotHeld(NotHeld::Short(short))) => {
+            assert_eq!((short.venue, short.gold, short.goods.len()), (false, 20, 0), "120 gold against 100");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(env.sim.faith().plan().is_none());
+    assert_eq!(env.sim.faith_mut().take_notices().pop().unwrap().kind, FaithNoticeKind::FestivalNotHeld);
+
+    // No square, no festival, whatever the treasury holds.
+    test_utils::despawn_building(&mut env, square);
+    env.sim.finance_mut().set_balance_unrecorded(1000);
+    match plan(&mut env, "floodwater_offering", "modest") {
+        Ok(PlanOutcome::NotHeld(NotHeld::Short(short))) => assert!(short.venue && short.gold == 0),
+        other => panic!("{other:?}"),
+    }
+    undo_redo::clear();
+}
+
+// An unstaffed festival square can't hold a festival (without the harness's cheat).
+fn test_an_unstaffed_square_holds_nothing() {
+    let mut env = TestEnvironment::new();
+    test_utils::spawn_building(&mut env, Cell::new(20, 5), "festival_square");
+    cheats::get_mut().ignore_worker_requirements = false;
+    let venues = festivals::venues(&env.world).len();
+    cheats::get_mut().ignore_worker_requirements = true;
+    assert_eq!(venues, 0, "no workers");
+    assert_eq!(festivals::venues(&env.world).len(), 1, "the cheat staffs it");
+    undo_redo::clear();
+}
+
+// One plan at a time: a second replaces the first; cancel drops it.
+fn test_one_plan_at_a_time_and_cancel() {
+    let mut env = TestEnvironment::new();
+    set_month(&mut env, 2);
+    assert_eq!(plan(&mut env, "floodwater_offering", "grand"), Ok(PlanOutcome::Planned));
+    assert_eq!(plan(&mut env, "mid_autumn_lanterns", "imperial"), Ok(PlanOutcome::Planned));
+    let planned = env.sim.faith().plan().unwrap().clone();
+    assert_eq!((planned.festival.as_str(), planned.scale.as_str()), ("mid_autumn_lanterns", "imperial"));
+    assert!(festivals::cancel(env.sim.faith_mut()));
+    assert!(env.sim.faith().plan().is_none());
+    assert!(!festivals::cancel(env.sim.faith_mut()), "nothing left to cancel");
+    assert!(plan(&mut env, "harvest_moon", "grand").unwrap_err().contains("No festival"));
+    assert!(plan(&mut env, "new_year", "royal").unwrap_err().contains("No scale"), "Kambara's, not Đại Long's");
+    undo_redo::clear();
+}
+
+// A mission that turns festivals off refuses plans, and a plan made before isn't held, without a
+// message (the mission's switch, not a shortage).
+fn test_festivals_off_refuse_plans() {
+    let mut env = TestEnvironment::new();
+    set_month(&mut env, 6);
+    festival_city(&mut env, 64, 20, 1000);
+    assert_eq!(plan(&mut env, "floodwater_offering", "grand"), Ok(PlanOutcome::Planned));
+    env.sim.faith_mut().set_festivals_enabled(false);
+    assert!(plan(&mut env, "floodwater_offering", "grand").unwrap_err().contains("off"));
+    new_month(&mut env, 8);
+    assert!(env.sim.faith().log().is_empty());
+    assert!(env.sim.faith().plan().is_none());
+    assert!(env.sim.faith().notices().is_empty());
     undo_redo::clear();
 }

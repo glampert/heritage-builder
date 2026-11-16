@@ -364,6 +364,16 @@ pub fn patron_name(realm: Realm, id: &str) -> String {
     text::get(UiTextCategory::Realm, &patron_name_key(realm, id)).to_string()
 }
 
+// A festival's name in the current language: "Floodwater offering".
+pub fn festival_name(realm: Realm, id: &str) -> String {
+    text::get(UiTextCategory::Realm, &festival_name_key(realm, id)).to_string()
+}
+
+// A festival scale's name in the current language: "Grand".
+pub fn scale_name(realm: Realm, id: &str) -> String {
+    text::get(UiTextCategory::Realm, &scale_name_key(realm, id)).to_string()
+}
+
 // ----------------------------------------------
 // FaithConfigs
 // ----------------------------------------------

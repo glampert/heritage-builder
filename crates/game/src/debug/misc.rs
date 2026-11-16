@@ -248,6 +248,7 @@ impl CampaignConfigs {
                     MissionGoal::Resource { kind, min } => {
                         ui::bullet_text(ui_sys, format_small!("Resource {kind} >= {min}"))
                     }
+                    MissionGoal::FestivalsHeld { min } => ui::bullet_text(ui_sys, format_small!("Festivals held >= {min}")),
                 }
             }
         }

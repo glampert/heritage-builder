@@ -8,6 +8,7 @@ use engine::{Engine, save::*};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use super::{
     config::GameConfigs,
@@ -255,10 +256,15 @@ impl Simulation {
             crate::building::destruction::run_requests(&context);
         }
 
-        // Blessings and misfortunes the World Debug window asked for last frame.
+        // Blessings and misfortunes the World Debug window asked for last frame, and festivals the
+        // City book planned.
         if crate::faith::events::has_requests() {
             let context = self.new_sim_context(0.0, tile_map, world);
             crate::faith::events::run_requests(&context);
+        }
+        if crate::faith::festivals::has_requests() {
+            let context = self.new_sim_context(0.0, tile_map, world);
+            crate::faith::festivals::run_requests(&context);
         }
 
         // Paused simulation update.
@@ -283,16 +289,23 @@ impl Simulation {
             });
 
             // Month-end charges and the new year's accounts, once the world is unlocked (upkeep
-            // scaled by the patrons' effects under way); then the patrons' favour, and their
-            // blessings and misfortunes, which may set buildings on fire or collapse them.
+            // scaled by the patrons' effects under way); then the patrons' favour, the month's
+            // festival, and the blessings and misfortunes, which may set buildings on fire or
+            // collapse them.
             let upkeep_scale = self.faith.upkeep_scale();
             self.finance.on_calendar_events(&step.calendar_events, world, tile_map, upkeep_scale);
-            let new_months =
-                step.calendar_events.iter().filter(|event| matches!(event, calendar::CalendarEvent::NewMonth(_))).count();
-            if new_months != 0 {
+            let new_months: SmallVec<[calendar::CalendarDate; 2]> = step
+                .calendar_events
+                .iter()
+                .filter_map(|event| match event {
+                    calendar::CalendarEvent::NewMonth(date) => Some(*date),
+                    _ => None,
+                })
+                .collect();
+            if !new_months.is_empty() {
                 let context = self.new_sim_context(0.0, tile_map, world);
-                for _ in 0..new_months {
-                    crate::faith::events::on_new_month(&context, &GameConfigs::get().sim.faith);
+                for date in new_months {
+                    crate::faith::events::on_new_month(&context, &GameConfigs::get().sim.faith, date);
                 }
             }
         }

@@ -41,6 +41,7 @@ pub enum LedgerCategory {
     Construction,
     Wages,
     Upkeep,
+    Festivals, // The gold the festivals held cost (faith::festivals).
 }
 
 pub const LEDGER_CATEGORY_COUNT: usize = LedgerCategory::COUNT;
@@ -64,6 +65,7 @@ impl LedgerCategory {
             Self::Construction => "Construction",
             Self::Wages => "Wages",
             Self::Upkeep => "Upkeep",
+            Self::Festivals => "Festivals",
         }
     }
 }

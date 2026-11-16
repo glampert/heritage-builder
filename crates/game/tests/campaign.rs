@@ -202,6 +202,12 @@ fn test_mission_goal_is_met() {
 
     assert!(MissionGoal::Treasury { min_gold: 1000 }.is_met(&stats));
     assert!(!MissionGoal::Treasury { min_gold: 1001 }.is_met(&stats));
+
+    // Festivals held in the city (faith): the world stats count them from the festival log.
+    assert!(!MissionGoal::FestivalsHeld { min: 1 }.is_met(&stats));
+    stats.faith.festivals_held = 1;
+    assert!(MissionGoal::FestivalsHeld { min: 1 }.is_met(&stats));
+    assert!(!MissionGoal::FestivalsHeld { min: 2 }.is_met(&stats));
 }
 
 fn test_mission_goal_resource() {

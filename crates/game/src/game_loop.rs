@@ -807,7 +807,7 @@ impl GameLoop {
     fn notify_faith(&mut self) {
         let notices = self.session.sim_mut().faith_mut().take_notices();
         for notice in notices {
-            let (kind, sound) = if notice.blessing {
+            let (kind, sound) = if notice.is_good_news() {
                 (crate::messages::MessageKind::Faith, UiSoundKey::Notification)
             } else {
                 (crate::messages::MessageKind::Warning, UiSoundKey::Alert)

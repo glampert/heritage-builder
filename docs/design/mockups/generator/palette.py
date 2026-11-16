@@ -41,7 +41,8 @@ SECTORS = [
     ("services", "Services", "Guards, taxes, health and fire",
      ["police_station", "tax_office", "fire_watch", "builders_guild", "apothecary", "hospital"]),
     ("infrastructure", "Infrastructure", "Water and government", ["small_well", "large_well", "governor_palace", "citadel"]),
-    ("culture", "Culture and religion", "Faith, learning and theatre", ["shrine", "temple", "theater", "university"]),
+    ("culture", "Culture and religion", "Faith, learning and theatre",
+     ["shrine", "temple", "festival_square", "theater", "university"]),
     ("trade", "Trade and economy", "Nothing to build here yet", []),
     ("beauty", "Beautification", "Gardens and plazas", ["garden"]),
     None,
@@ -66,15 +67,16 @@ COSTS = {
     "citadel": (1000, {"Bricks": 24, "Wood": 8, "Metal": 8, "Roof Tiles": 8}, "5×5"),
     "shrine": (2, {}, "1×1"), "temple": (15, {"Wood": 6, "Bricks": 8, "Roof Tiles": 4}, "3×3"),
     "theater": (15, {"Wood": 8, "Bricks": 6, "Roof Tiles": 4}, "2×2"), "university": (20, {"Wood": 8, "Bricks": 10, "Roof Tiles": 5}, "3×3"),
-    "garden": (10, {}, "3×3"),
+    "garden": (10, {}, "3×3"), "festival_square": (20, {"Wood": 4, "Bricks": 4}, "3×3"),
 }
 STOCK = {"Wood": 140, "Bricks": 2, "Roof Tiles": 42, "Metal": 0}
 
 # Realm names for the buildings whose look and name are the realm's own.
 REALM_NAMES = {
     "dailong": {"shrine": "Spirit shrine", "temple": "Temple", "university": "Temple of Literature"},
-    "kambara": {"shrine": "Neak ta shrine", "temple": "Prasat", "university": "Library"},
-    "tampadesa": {"shrine": "Nat shrine", "temple": "Stupa", "university": "Monastery school"},
+    "kambara": {"shrine": "Neak ta shrine", "temple": "Prasat", "university": "Library", "festival_square": "Festival court"},
+    "tampadesa": {"shrine": "Nat shrine", "temple": "Stupa", "university": "Monastery school",
+                  "festival_square": "Festival ground"},
 }
 
 

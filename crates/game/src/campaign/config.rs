@@ -402,6 +402,8 @@ pub enum MissionGoal {
     Employment { min_employed: u32 },
     Treasury { min_gold: u32 },
     Resource { kind: ResourceKind, min: u32 },
+    // Festivals held in the mission's city (faith, docs/plans/faith.md §4): I-3's "one festival".
+    FestivalsHeld { min: u32 },
 }
 
 impl MissionGoal {
@@ -413,6 +415,7 @@ impl MissionGoal {
             Self::Employment { min_employed } => stats.population.employed >= *min_employed,
             Self::Treasury { min_gold } => stats.treasury.gold_units_total >= i64::from(*min_gold),
             Self::Resource { kind, min } => stats.resources.all.count(*kind) >= *min,
+            Self::FestivalsHeld { min } => stats.faith.festivals_held >= *min,
         }
     }
 }

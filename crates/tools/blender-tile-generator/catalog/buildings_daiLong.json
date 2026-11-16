@@ -20,6 +20,12 @@
       "recipe": "builders_guild",
       "notes": "M6: a 2x2 hall and yard whose builders reset collapse risk (service config 'Builders' Guild', city-risks Phase 2).",
       "tile_set": { "cost": 15, "materials": { "Wood": 4, "Bricks": 2 }, "upkeep": 6, "construction": "Civic", "sector": "Services" }
+    },
+    {
+      "tile": "festival_square",
+      "recipe": "festival_square",
+      "notes": "M8: a 3x3 open square with a stage pavilion where the city holds its festivals (service config 'Festival Square', faith Phase 4). Dressed for a festival, it's festival_square_festive (overlays.json).",
+      "tile_set": { "cost": 20, "materials": { "Wood": 4, "Bricks": 4 }, "upkeep": 8, "construction": "Civic", "sector": "CultureAndReligion", "minimap": { "class": "Plaza" } }
     }
   ]
 }

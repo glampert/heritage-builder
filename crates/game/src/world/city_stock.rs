@@ -27,6 +27,10 @@ use crate::{
 // The buildings whose stock counts: storage yards. Granaries hold only food.
 const CITY_STOCK_BUILDINGS: BuildingKind = BuildingKind::StorageYard;
 
+// The stores a festival's goods come from: the storage yards and the granaries, where the rice
+// is (docs/plans/faith.md §4, decision Q11).
+pub const FESTIVAL_STOCK_BUILDINGS: BuildingKind = BuildingKind::StorageYard.union(BuildingKind::Granary);
+
 // ----------------------------------------------
 // MissingCost
 // ----------------------------------------------
@@ -261,6 +265,57 @@ impl CityStock {
         lost
     }
 
+    // Units of `kind` in the stores of `stores` (FESTIVAL_STOCK_BUILDINGS: yards and granaries).
+    pub fn available_in(world: &World, stores: BuildingKind, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.is_single_resource());
+
+        let mut count = 0;
+        world.for_each_building(stores, |building| {
+            if Self::is_store(building, stores) {
+                count += building.as_storage().storage_slots.available_resources(kind);
+            }
+            true
+        });
+        count
+    }
+
+    // Takes `items` from the stores of `stores`, each good from the first stores that hold it, in
+    // pool order so it's the same on every run. Call available_in first: a shortfall is taken as
+    // far as it goes. Returns what was taken of each. The world stats are updated straight away.
+    pub fn withdraw_from(world: &mut World, stores: BuildingKind, items: &[StockItem]) -> SmallVec<[StockItem; 4]> {
+        let mut taken_items = SmallVec::new();
+        for item in items {
+            debug_assert!(item.kind.is_single_resource());
+            let mut remaining = item.count;
+            let (mut from_yards, mut from_granaries) = (0, 0);
+
+            world.for_each_building_mut(stores, |building| {
+                if Self::is_store(building, stores) {
+                    let taken = building.as_storage_mut().storage_slots.remove_resources(item.kind, remaining);
+                    if building.is(BuildingKind::Granary) {
+                        from_granaries += taken;
+                    } else {
+                        from_yards += taken;
+                    }
+                    remaining -= taken;
+                }
+                remaining != 0 // Continue until satisfied.
+            });
+
+            let resources = &mut world.stats_mut().resources;
+            for (stock, taken) in [(&mut resources.storage_yards, from_yards), (&mut resources.granaries, from_granaries)] {
+                if taken != 0 {
+                    stock.remove(item.kind, taken);
+                }
+            }
+            if from_yards + from_granaries != 0 {
+                resources.all.remove(item.kind, from_yards + from_granaries);
+            }
+            taken_items.push(StockItem { kind: item.kind, count: item.count - remaining });
+        }
+        taken_items
+    }
+
     // ----------------------
     // Internal:
     // ----------------------
@@ -268,7 +323,13 @@ impl CityStock {
     // Every finished storage yard counts, staffed or not, unless it's on fire.
     #[inline]
     fn is_stock_building(building: &Building) -> bool {
-        building.is(CITY_STOCK_BUILDINGS) && !building.is_under_construction() && !building.is_burning()
+        Self::is_store(building, CITY_STOCK_BUILDINGS)
+    }
+
+    // A finished store of `stores`, staffed or not, unless it's on fire.
+    #[inline]
+    fn is_store(building: &Building, stores: BuildingKind) -> bool {
+        building.is(stores) && !building.is_under_construction() && !building.is_burning()
     }
 
     // Puts `count` units of `kind` into any yards with room, in pool order. Returns the count

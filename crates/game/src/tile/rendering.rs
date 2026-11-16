@@ -545,6 +545,11 @@ impl TileMapRenderer {
                 if let Some((rect, overlay)) = construction_overlay(tile, &RENOVATION_TILES, 0, transform) {
                     render_sys.draw_textured_colored_rect(rect, &overlay.coords, overlay.texture, highlight_color);
                 }
+            } else if tile.has_flags(TileFlags::Festive)
+                && let Some((rect, festive)) = festive_overlay(tile, transform)
+            {
+                // A festival square during a festival: dressed for it, in its place.
+                render_sys.draw_textured_colored_rect(rect, &festive.coords, festive.texture, color);
             } else {
                 // Standard render:
                 render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
@@ -734,6 +739,26 @@ fn construction_overlay(
     let def = overlay_tile_def(tiles, tile.logical_size().width / BASE_TILE_WIDTH_I32)?;
     let frames = &def.anim_set_by_index(0, 0)?.frames;
     let sprite = frames.get(frame.min(frames.len().checked_sub(1)?))?;
+    let iso = super::calc_object_iso_coords(TileKind::Building, tile.base_cell(), tile.logical_size(), def.draw_size);
+    Some((coords::iso_to_screen_rect_f32(iso, def.draw_size, transform), &sprite.tex_info))
+}
+
+// A festival square dressed for a festival (faith::festivals, TileFlags::Festive), from the tile
+// generator, drawn in the square's place and anchored as it is.
+const FESTIVE_TILE: StrHashPair = StrHashPair::from_str("festival_square_festive");
+
+// The festive square's sprite and the rect to draw it in, for a tile of its footprint. None without
+// the art, or for another footprint.
+fn festive_overlay(tile: &Tile, transform: WorldToScreenTransform) -> Option<(Rect, &'static TileTexInfo)> {
+    let def = TileSets::get().try_find_tile_def_by_hash(
+        TileMapLayerKind::Objects,
+        OBJECTS_OVERLAYS_CATEGORY.hash,
+        FESTIVE_TILE.hash,
+    )?;
+    if def.logical_size != tile.logical_size() {
+        return None;
+    }
+    let sprite = def.anim_set_by_index(0, 0)?.frames.first()?;
     let iso = super::calc_object_iso_coords(TileKind::Building, tile.base_cell(), tile.logical_size(), def.draw_size);
     Some((coords::iso_to_screen_rect_f32(iso, def.draw_size, transform), &sprite.tex_info))
 }

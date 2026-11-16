@@ -487,7 +487,9 @@ fn read_service(
                 summary: tc("summary.supplies_houses", i64::from(houses), &[]),
             };
         }
-        let summary = if market || config.visits.building_kinds() == BuildingKind::House {
+        let summary = if building.is(BuildingKind::FestivalSquare) {
+            t("summary.hosts_festivals")
+        } else if market || config.visits.building_kinds() == BuildingKind::House {
             tc("summary.serves_houses", i64::from(houses), &[])
         } else {
             let buildings = count_in_reach(context, building, config.visits.building_kinds(), config.effect_radius);
@@ -541,11 +543,54 @@ fn read_service(
         report.sections.push(Section::Values { title, note: Some(note), rows });
     }
 
+    if building.is(BuildingKind::FestivalSquare) {
+        report.sections.push(festivals_section(context));
+    }
+
     push_errand(&mut report.sections, context, service.runner.unit_id(), realm);
     push_errand(&mut report.sections, context, service.patrol.unit_id(), realm);
     report.sections.push(costs_section(context, building, tile_def));
     report.sections.extend(risks_section(building));
     report.actions = workplace_actions(building);
+}
+
+// A festival square's festivals (docs/plans/faith.md §5): the one planned, with its scale and
+// month, and the last one held.
+fn festivals_section(context: &SimContext) -> Section {
+    use crate::faith::config::{festival_name, scale_name};
+    let realm = context.realm();
+    let faith = context.faith();
+    let next = match faith.plan() {
+        Some(plan) => {
+            let month = crate::faith::FaithConfigs::get()
+                .for_realm(realm)
+                .and_then(|def| def.festival(&plan.festival))
+                .map_or(0, |festival| festival.month);
+            tf("festivals.planned", &[
+                ("festival", &festival_name(realm, &plan.festival)),
+                ("scale", &scale_name(realm, &plan.scale).to_lowercase()),
+                ("month", &month.to_string()),
+            ])
+        }
+        None if !faith.is_festivals_enabled() => t("festivals.off"),
+        None => t("festivals.none_planned"),
+    };
+    let last = match faith.log().last() {
+        Some(record) => tf("festivals.held", &[
+            ("festival", &festival_name(realm, &record.festival)),
+            ("month", &(record.ordinal_month % 12 + 1).to_string()),
+        ]),
+        None => t("festivals.none_held"),
+    };
+    Section::Values {
+        title: t("festivals.title"),
+        note: None,
+        rows: vec![ValueRow { label: t("festivals.next"), value: next, warn: false }, ValueRow {
+            label: t("festivals.last"),
+            value: last,
+            warn: false,
+        }],
+    }
 }
 
 // The risk a service's walkers watch: the fire watch's fires, the builders' collapses, the

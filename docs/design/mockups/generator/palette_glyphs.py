@@ -236,6 +236,31 @@ def university(realm):
             + book(0, 22, 1.15, False))
 
 
+def festival_square(realm):
+    """A festival pole in a square: bunting strung from it to posts at the sides, pennants and
+    lanterns on the strings, and the realm's finial."""
+    out = ground_line(-42, 42) + [R(-30, 30, 60, 4), P("M-16,30 V34 M0,30 V34 M16,30 V34", False, 1.2)]
+    out += [R(-1.6, -34, 3.2, 64), R(-5, 26, 10, 4)]
+    out += [R(-39, 6, 4, 28), R(35, 6, 4, 28), R(-40, 4, 6, 3), R(34, 4, 6, 3)]
+    for side in (-1, 1):
+        p0, p1, p2 = (0, -26), (side * 16, -6), (side * 37, 5)
+        out.append(P(f"M{p0[0]},{p0[1]} Q{p1[0]},{p1[1]} {p2[0]},{p2[1]}", True, 1.6))
+        for t in (0.22, 0.42, 0.62, 0.82):
+            x = (1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0]
+            y = (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1]
+            if t == 0.62:
+                out += [P(f"M{f(x)},{f(y)} V{f(y + 3)}", True, 1.2), E(x, y + 7, 3.4, 4.2)]
+            else:
+                out.append(P(f"M{f(x - 3.4)},{f(y)} L{f(x + 3.4)},{f(y)} L{f(x)},{f(y + 7)}Z"))
+    if realm == "kambara":  # a tiered parasol on the pole
+        out += [P("M-12,-30 Q0,-36 12,-30Z"), P("M-9,-36 Q0,-41 9,-36Z"), P("M-6,-41 Q0,-45 6,-41Z"), Ci(0, -46, 2)]
+    elif realm == "tampadesa":  # a long streamer from a crossbar
+        out += [R(-1, -42, 2, 8), P("M1,-40 H14 V-14 L9,-18 L4,-14 V-34 H1Z")]
+    else:  # a pennant
+        out += [Ci(0, -36, 2.4), P("M1.6,-33 L20,-27 L1.6,-21Z")]
+    return out
+
+
 def palace(realm):
     out = ground_line(-42, 42) + [R(-32, 28, 64, 6), R(-24, 22, 48, 6), P("M-30,28 H30 M-22,22 H22", False, 1.4)]
     out += [R(-36, 2, 72, 20)]
@@ -523,6 +548,7 @@ BUILDINGS = {
     "theater": ("Theatre", theater),
     "university": ("University", university),
     "garden": ("Garden", garden),
+    "festival_square": ("Festival square", festival_square),
 }
 
 

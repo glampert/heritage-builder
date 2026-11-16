@@ -298,6 +298,11 @@ pub(crate) fn goal_line(goal: &MissionGoal, stats: &WorldStats) -> (String, i64,
             i64::from(*min),
             i64::from(stats.resources.all.count(*kind)),
         ),
+        MissionGoal::FestivalsHeld { min } => (
+            ui::text::get(UiTextCategory::Menu, "debrief.goal.festivals").to_string(),
+            i64::from(*min),
+            i64::from(stats.faith.festivals_held),
+        ),
     }
 }
 

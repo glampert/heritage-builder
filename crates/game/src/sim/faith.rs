@@ -13,8 +13,9 @@ use crate::{
     config::FaithRules,
     faith::{self, FaithConfigs, Mood, config::FaithEffectDef},
     realm::Realm,
+    sim::calendar::MONTHS_PER_YEAR,
     tile::TileMap,
-    world::World,
+    world::{World, stats::WorldStats},
 };
 
 // A patron's state, by its id.
@@ -50,13 +51,31 @@ pub struct ActiveFaithEffect {
     pub months_left: u32,
 }
 
-// A blessing or a misfortune that came, for the HUD's message log (GameLoop::notify_faith).
+// What a faith notice tells.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum FaithNoticeKind {
+    Blessing,
+    Misfortune,
+    FestivalHeld,
+    FestivalNotHeld, // Its venue or its costs were short (faith::festivals).
+}
+
+// A blessing or a misfortune that came, or a festival held or not, for the HUD's message log
+// (GameLoop::notify_faith).
 #[derive(Clone, Debug)]
 pub struct FaithNotice {
-    pub patron: String,
-    pub event: String,
-    pub blessing: bool,
-    pub text: String, // The event's message, with the patron's name.
+    pub kind: FaithNoticeKind,
+    pub patron: String, // The event's patron, or the festival's (EVERY_PATRON for all of them).
+    pub id: String,     // The event's or the festival's id.
+    pub text: String,   // The message, with the patron's or the festival's name.
+}
+
+impl FaithNotice {
+    // A blessing or a festival held: the log's Faith message; else a warning.
+    #[inline]
+    pub fn is_good_news(&self) -> bool {
+        matches!(self.kind, FaithNoticeKind::Blessing | FaithNoticeKind::FestivalHeld)
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -170,6 +189,18 @@ impl CityFaith {
         self.notices.push(notice);
     }
 
+    // A notice for the game loop that starts no cooldown (a festival's).
+    pub fn push_notice(&mut self, notice: FaithNotice) {
+        self.notices.push(notice);
+    }
+
+    // Raises a patron's favour by `amount`, capped at 100 (a festival's).
+    pub fn add_favour(&mut self, id: &str, amount: f32) {
+        if let Some(patron) = self.patrons.get_mut(id) {
+            patron.favour = (patron.favour + amount).clamp(0.0, 100.0);
+        }
+    }
+
     // A lasting effect starts, for `months`; the same patron's same event again runs for whichever
     // is longer, its months left or `months`.
     pub fn add_effect(&mut self, patron: &str, event: &str, months: u32) {
@@ -280,9 +311,42 @@ impl CityFaith {
         self.plan.as_ref()
     }
 
+    // Plans a festival (faith::festivals::plan checks it): one at a time, so it replaces any other.
+    pub fn set_plan(&mut self, plan: Option<FestivalPlan>) {
+        self.plan = plan;
+    }
+
     #[inline]
     pub fn log(&self) -> &[FestivalRecord] {
         &self.log
+    }
+
+    // A festival held (faith::festivals::hold).
+    pub fn record_festival(&mut self, record: FestivalRecord) {
+        self.log.push(record);
+    }
+
+    // The latest time `festival` was held, if ever.
+    pub fn last_held(&self, festival: &str) -> Option<&FestivalRecord> {
+        self.log.iter().rev().find(|record| record.festival == festival)
+    }
+
+    // Whether `festival` was held in `year` (a calendar year).
+    pub fn was_held_in(&self, festival: &str, year: u32) -> bool {
+        self.log.iter().any(|record| record.festival == festival && record.ordinal_month / MONTHS_PER_YEAR == year)
+    }
+
+    // The festivals held in this city (the mission's: the log starts with it), for the
+    // FestivalsHeld goal.
+    #[inline]
+    pub fn festivals_held(&self) -> u32 {
+        self.log.len() as u32
+    }
+
+    // The world stats' faith figures, recounted with them (World::update, refresh_stats).
+    #[inline]
+    pub fn tally(&self, stats: &mut WorldStats) {
+        stats.faith.festivals_held = self.festivals_held();
     }
 
     #[inline]

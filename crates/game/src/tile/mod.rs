@@ -157,6 +157,9 @@ bitflags_with_display! {
         // A sick house (building::risks): drawn with a sickly tint, a yellow cloth and incense
         // smoke over its cells.
         const Diseased           = 1 << 17;
+
+        // A festival square during a festival's month (faith::festivals): drawn dressed for it.
+        const Festive            = 1 << 18;
     }
 }
 

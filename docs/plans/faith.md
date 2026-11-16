@@ -1,6 +1,6 @@
 # Faith and festivals
 
-**Status (2026-11-16): Phases 0 to 3 done; Phase 4 next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
+**Status (2026-11-17): Phases 0 to 4 done; Phase 5 (the docs pass) next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
 - patron spirits or deities per realm;
 - favour, raised by shrines and temples;
 - blessings and misfortunes;
@@ -272,11 +272,11 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 | Developer UI only | `Tile Selection`'s `Variation` dropdown. | 1 | `debug/palette.rs` |
 | Inspector, shrine and temple | "Dedicated to" with the patron's mood, read-only. | 1 | `inspect/building.rs`, `menu/in_game/inspector/` |
 | Inspector, festival square | The next festival planned. | 4 | same |
-| Build palette | The festival square, data only. | 4 | `tile_set.json`, `configs.json` |
+| Build palette | The festival square, data only, and its glyph in each realm (a fifth tile in the Culture grid). | 4 | `tile_set.json`, `configs.json`, ui-art |
 | Message log | A `Faith` message kind with its line icon. | 3 | `messages.rs`, `menu/in_game/message_log.rs` |
-| City book, Finances page | An Offerings line in the accounts (the windfalls). | 3 | `menu/dialog/city_book/finances.rs` |
+| City book, Finances page | An Offerings line in the accounts (the windfalls), and a Festivals line (Phase 4), the lines closer where they'd reach the footnote. | 3, 4 | `menu/dialog/city_book/finances.rs` |
 | Developer UI only | World Debug's Faith tab. | 0 | `debug/world.rs` |
-| Map drawing | Each patron's shrine and temple (Phase 1); a festival square's festive overlay while a festival is held (Phase 4). Not UI, but visible. | 1, 4 | `tile/rendering.rs`, tile sets |
+| Map drawing | Each patron's shrine and temple (Phase 1); a festival square dressed for a festival, drawn in its place while one is held (Phase 4). Not UI, but visible. | 1, 4 | `tile/rendering.rs`, tile sets |
 
 ## Phases
 
@@ -424,12 +424,72 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 
 ### Phase 4: Festivals (medium)
 
-- [ ] The festival square: building kind, config, art (Blender recipe and catalog entry, and the festive overlay).
-- [ ] Plans, holding at the month's start, the costs across yards and granaries, `LedgerCategory::Festivals`, effects and the log.
-- [ ] `MissionGoal::FestivalsHeld`.
-- [ ] The Heritage page's Festivals tab; the festival square's inspector line.
-- [ ] `faith.plan`, `faith.cancel`.
-- [ ] Tests and `faith.jsonl`.
+- [x] The festival square: building kind, config, art (Blender recipe and catalog entry, and the festive overlay).
+- [x] Plans, holding at the month's start, the costs across yards and granaries, `LedgerCategory::Festivals`, effects and the log.
+- [x] `MissionGoal::FestivalsHeld`.
+- [x] The Heritage page's Festivals tab; the festival square's inspector line.
+- [x] `faith.plan`, `faith.cancel`.
+- [x] Tests and `faith.jsonl`.
+- **Notes (2026-11-17):**
+  - **The festival square** is `BuildingKind::FestivalSquare`, a service with 1 to 4 workers, no reach and no walker (`configs.json`'s `Festival Square`), in the Culture sector, 20 gold, 4 wood and 4 bricks, 8 gold a year of upkeep, a Civic build. It shows on the minimap as a plaza. Kambara calls it the festival court and Tampadesa the festival ground (Realm strings `building.<realm>.festival_square`).
+  - **Art:**
+    - The Blender pipeline's `festival_square` recipe (`hbgen/recipes/faith.py`): an open paved square with a stage pavilion in its back corner, a drum, low walls along the back edges, a pole with a pennant and lantern posts at its front corners.
+    - Its `festive` version is a second tile, `festival_square_festive` in the overlays category (`catalog/overlays.json`): the same square with bunting from the pole, garlands between the posts, lanterns, two food stalls, mats and an offering table.
+    - The renderer draws it in the square's place while the square's tile has `TileFlags::Festive`, as a scaffold is drawn in a site's place. A dressed square is a full render, so nothing overlaps wrongly, rather than an overlay drawn over the building as the plan said.
+    - The build palette's glyph (a pole with bunting, the realm's finial) is drawn by the mockup generator's `palette_glyphs.py` and rendered by ui-art in each realm.
+    - The square's art is Đại Long's in every realm, as the other generated buildings are.
+  - **Holding** (`faith::festivals`):
+    - A festival is held at the start of its month, between the favour's drift and the rolls, so its favour counts toward the month's roll. Each `NewMonth` event's date says which month, so a fast-forward over several months misses none.
+    - **Deviation from Q9:** a festival can also be held at once while its own month runs, if it hasn't been held that year. Planning it then holds it, and the planner's button says Hold now. Otherwise a festival whose month had just begun would wait a year, which is what a new city in month 1 meets with New Year.
+    - It needs an operational festival square: finished, staffed and not burning.
+    - The treasury must not be in debt. Unlike placement, the tile cost cheat doesn't cover festivals.
+    - The goods come from the storage yards and the granaries, staffed or not (`CityStock::available_in`, `withdraw_from`, `FESTIVAL_STOCK_BUILDINGS`). The world stats follow at once.
+    - Short of a venue, gold or goods, a festival isn't held and its plan is dropped, and a warning says what was short. A plan made while festivals are off for the mission is refused, and one left from before is dropped without a message.
+    - **The costs and effects:** the file's figures (the middle scale's) times the scale's `cost` and `effect` (`festivals::terms`), the costs rounded to whole gold and goods.
+    - **What it does:** it raises its patron's favour (every patron's for an "all" festival) and logs it with its culture and legitimacy for M9. Every festival calms unrest for a season, so game Phase 2 can read that from the log's dates; it has no field of its own.
+    - **The square's dress:** each operational square is dressed for the month, and the next month undresses it.
+  - **Planning:**
+    - One plan at a time: a new plan replaces the old one.
+    - Changing the scale of a planned festival in the planner re-plans it at that scale, so what the planner shows is what's planned.
+    - The City book queues its plans and cancels as requests (`festivals::request`) that `Simulation::update` runs at the start of the next frame, as the World Debug event buttons do. Nothing changes the world while the UI draws.
+  - **The goal:** `MissionGoal::FestivalsHeld { min }` reads `WorldStats::faith.festivals_held`, which `CityFaith::tally` writes whenever the world stats are counted. The log starts with the mission, so it counts the mission's festivals. No mission uses the goal until M13 writes I-3.
+  - **The Festivals tab:**
+    - It follows the mockup: the year as a month strip with "now", a dot per festival (larger for the planner's, grey once held or missed) and the names under it.
+    - Each festival is a row: name, month, its patron, and where it stands this year (planned · scale, held this year, this month, to come, next year).
+    - Last held sits at the list's foot.
+    - The planner shows the name, venue and text, the scales as a step selector of buttons, and Hold in month N, Hold now or Cancel (disabled while festivals are off). Its costs list each amount against what the city holds, in red when short. Its effects are the patron's favour, Culture, the realm's legitimacy rating's name and "Unrest: calmed for a season". A status line under them says when no square is staffed, festivals are off, it's planned, it's this month's, or it was held this year.
+    - The rows are cards that pick the planner's festival. The book keeps the planner's festival and scale in `STATE`, starting each opening at the next festival, and rebuilds when the plan, the log, the staffed squares or the pick change (`heritage::festivals_key`).
+  - **The inspector:** a festival square's panel says "Hosts the city's festivals", with a Festivals section showing the festival planned (name, scale, month) and the last held.
+  - **Automation:**
+    - `faith.plan festival=... [scale=...]` reports `outcome` (planned, held, or not_held with `why`). `faith.cancel` reports `cancelled`.
+    - `faith.state` adds the festival year (each festival's state and its terms at each scale), `festivals_held`, the log's culture and legitimacy, and `squares` (built, staffed, festive).
+    - `FaithNotice` gains a kind (Blessing, Misfortune, FestivalHeld, FestivalNotHeld). `faith.event` still reports `blessing`.
+  - **UI changes, beyond the plan's:**
+    - The City book's Finances page has a Festivals line in its accounts. Its lines are set closer where they'd reach the footnote, and `ui_city.jsonl` finds Net one row lower again.
+    - The Culture grid has a fifth tile, on a second row.
+  - **Save:** no version bump. The new tile flag, building kind and ledger category are saved by name or as unused bits, and the plan and log were saved since Phase 0. `--smoke-test-saves` loads all 13 saves.
+  - **Verified:**
+    - `cargo test --workspace`, with 35 tests in `tests/faith.rs`:
+      - the terms at each scale;
+      - the festival year's states and the planner's first festival;
+      - holding at the month's start (gold, rice from the granary, wine from the yard, the stats, favour, the log, the dress and its end, the message, the goal);
+      - holding at once in its month, then planning for next year;
+      - an every-patron festival;
+      - short of gold and rice, short of gold in its month, and with no square;
+      - an unstaffed square;
+      - one plan at a time and cancel;
+      - festivals off.
+    - `tests/campaign.rs` checks the goal.
+    - All 25 CI scenarios in release. `faith.jsonl` (137 steps):
+      - places the square from the Culture grid;
+      - plans the Floodwater offering on the Festivals tab and changes its scale there;
+      - fast-forwards to month 8 and checks the costs, the favour, the dressed square, the Faith message and the square's panel;
+      - checks a festival short of rice and pottery isn't held.
+    - `ui_dev_screens.jsonl` failed once in the full run, on its world map's Choose Site popup (covered), and passed on two reruns.
+    - `determinism.jsonl` twice: checksum `6daf93014da3b8ab`, unchanged.
+    - Record and replay of `ui_build` and `determinism`.
+    - Clippy on desktop and web, nightly rustfmt, ui-art's `--check` (732 sprites), the tile generator's `sync_tileset.py --check` and both pipelines' unit tests.
+    - Screenshots of the Festivals tab before and after planning and once one is held (Đại Long and Tampadesa), the festive square, the square's panel and the Finances page.
 
 ### Phase 5: Documentation (small)
 

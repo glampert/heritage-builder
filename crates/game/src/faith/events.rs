@@ -24,18 +24,27 @@ use crate::{
         destruction::{self, Destruction},
     },
     config::FaithRules,
-    sim::{SimContext, SimContextMut, faith::FaithNotice, finance::LedgerCategory},
+    sim::{
+        SimContext,
+        SimContextMut,
+        calendar::CalendarDate,
+        faith::{FaithNotice, FaithNoticeKind},
+        finance::LedgerCategory,
+    },
     tile::minimap::{MINIMAP_ICON_DEFAULT_LIFETIME, MinimapIcon},
 };
 
 // The minimap's ping on the buildings a harvest misfortune falls on (blight).
 pub const FAITH_ALERT_TINT: Color = Color::new(0.62, 0.38, 0.75, 1.0);
 
-// A new month's faith (Simulation::update, after the finance's month-end): the patrons' favour
-// drifts and the effects under way run down (CityFaith::on_new_month), then each patron rolls for
-// a blessing or a misfortune. Returns the events that came, as (patron, event) ids.
-pub fn on_new_month(context: &SimContextMut, rules: &FaithRules) -> Vec<(String, String)> {
+// A new month's faith (Simulation::update, after the finance's month-end; `date` is the month's
+// first day): the patrons' favour drifts and the effects under way run down
+// (CityFaith::on_new_month), the festival planned for the month is held (faith::festivals), then
+// each patron rolls for a blessing or a misfortune. Returns the events that came, as (patron,
+// event) ids.
+pub fn on_new_month(context: &SimContextMut, rules: &FaithRules, date: CalendarDate) -> Vec<(String, String)> {
     context.faith_mut().on_new_month(context.world(), context.tile_map(), rules);
+    super::festivals::on_new_month(context, date);
     roll_events(context, rules)
 }
 
@@ -194,9 +203,9 @@ fn set_off(context: &SimContextMut, patron: &PatronDef, event: &FaithEventDef) -
         event.id
     );
     context.faith_mut().on_event(FaithNotice {
+        kind: if blessing { FaithNoticeKind::Blessing } else { FaithNoticeKind::Misfortune },
         patron: patron.id.clone(),
-        event: event.id.clone(),
-        blessing,
+        id: event.id.clone(),
         text: message,
     });
     true

@@ -22,6 +22,28 @@
       "tile": "builders_guild",
       "variation": ""
     },
+    "assets/tiles/objects/buildings/festival_square/festival_square.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 120,
+        "width": 192
+      },
+      "fast": false,
+      "frame": "festival_square",
+      "hash": "6f472896a5113204",
+      "layer": "objects",
+      "logical_size": {
+        "height": 96,
+        "width": 192
+      },
+      "png_size": [
+        1536,
+        960
+      ],
+      "tile": "festival_square",
+      "variation": ""
+    },
     "assets/tiles/objects/buildings/fire_watch/fire_watch.png": {
       "category": "buildings",
       "density": 8,
@@ -64,6 +86,28 @@
         760
       ],
       "tile": "roof_tile_kiln",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/festival_square_festive/festival_square_festive.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 120,
+        "width": 192
+      },
+      "fast": false,
+      "frame": "festival_square_festive",
+      "hash": "929bcfff23a403d0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 96,
+        "width": 192
+      },
+      "png_size": [
+        1536,
+        960
+      ],
+      "tile": "festival_square_festive",
       "variation": ""
     },
     "assets/tiles/objects/overlays/fire_1x1/frame0.png": {

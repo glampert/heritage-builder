@@ -7,7 +7,7 @@ hashes the recipe's module file, so editing one module re-renders only the tiles
 whose recipes live in it.
 """
 
-from . import disease, fortress, overlays, risks, services, test, workshop
+from . import disease, faith, fortress, overlays, risks, services, test, workshop
 
 RECIPES = {
     "fortress": fortress.build_fortress,
@@ -22,6 +22,7 @@ RECIPES = {
     "sickness": disease.build_sickness,
     "fire_watch": services.build_fire_watch,
     "builders_guild": services.build_builders_guild,
+    "festival_square": faith.build_festival_square,
 }
 
 # The fortress studies predate the engine camera and keep the original one (--cells, 6 px pad).

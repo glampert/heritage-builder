@@ -315,6 +315,19 @@
       "visits": "AllBuildings"
     },
     {
+      "kind": "FestivalSquare",
+      "name": "Festival Square",
+      "tile_def_name": "festival_square",
+      "risks": {
+        "fire": 1.0,
+        "collapse": 1.0
+      },
+      "min_workers": 1,
+      "max_workers": 4,
+      "effect_radius": 0,
+      "requires_road_access": true
+    },
+    {
       "kind": "Theater",
       "name": "Theater",
       "tile_def_name": "theater",

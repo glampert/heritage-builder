@@ -1,10 +1,11 @@
 // Faith and festivals (docs/plans/faith.md, roadmap M8): each realm's patrons, their favour, the
 // blessings and misfortunes it brings, and the realm's festival year. The data is `config`, one
 // file per realm; the game's state is `sim::faith::CityFaith`, saved in the simulation; `events`
-// rolls and sets off the blessings and misfortunes.
+// rolls and sets off the blessings and misfortunes; `festivals` plans and holds the festivals.
 
 pub mod config;
 pub mod events;
+pub mod festivals;
 
 use std::collections::BTreeMap;
 

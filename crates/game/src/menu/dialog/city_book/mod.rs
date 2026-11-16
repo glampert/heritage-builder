@@ -74,18 +74,25 @@ pub(super) const BODY: Vec2 = Vec2::new(1116.0, 690.0);
 struct BookState {
     page: usize,         // In PAGES.
     heritage_tab: usize, // The Heritage page's tab.
+    // The festival the Festivals tab's planner shows, and the scale picked for it (None: the
+    // plan's, else the middle one), by id.
+    festival: Option<String>,
+    scale: Option<String>,
     built: Option<BuildKey>,
 }
 
-static STATE: UiStaticVar<BookState> = UiStaticVar::new(BookState { page: 0, heritage_tab: 2, built: None });
+static STATE: UiStaticVar<BookState> =
+    UiStaticVar::new(BookState { page: 0, heritage_tab: 2, festival: None, scale: None, built: None });
 
-// What the open book is built from: the window's size, the game's month, the tax level and wage.
+// What the open book is built from: the window's size, the game's month, the tax level and wage,
+// and the festivals' plans, log and planner (heritage::festivals_key).
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 struct BuildKey {
     window: (u32, u32),
     month: u32,
     tax_level: usize,
     wage: u32,
+    festivals: u64,
 }
 
 fn build_key(context: &GameUiContext) -> BuildKey {
@@ -96,11 +103,13 @@ fn build_key(context: &GameUiContext) -> BuildKey {
         month: city::history::current_month(context.sim),
         tax_level: finance.tax_level().index(),
         wage: finance.wage(),
+        festivals: heritage::festivals_key(context),
     }
 }
 
-// Whether the open book must be built again: a month passed, the window's size changed, or the
-// tax level or wage (the page shown and the Heritage tab are kept).
+// Whether the open book must be built again: a month passed, the window's size changed, the tax
+// level or wage, or the festivals (one planned or held, the planner's pick; the page shown and the
+// Heritage tab are kept).
 pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
     !in_home_menu() && STATE.as_ref().built != Some(build_key(context))
 }
@@ -123,6 +132,9 @@ pub(super) fn prepare(page: Option<usize>) {
     if let Some(page) = page {
         state.page = page.min(PAGES.len() - 1);
     }
+    // The planner starts at the next festival.
+    state.festival = None;
+    state.scale = None;
     state.built = None;
 }
 

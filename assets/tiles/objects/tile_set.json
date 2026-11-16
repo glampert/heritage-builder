@@ -1153,6 +1153,36 @@
               ]
             }
           ]
+        },
+        {
+          "name": "festival_square",
+          "cost": 20,
+          "materials": { "Wood": 4, "Bricks": 4 },
+          "upkeep": 8,
+          "construction": "Civic",
+          "sector": "CultureAndReligion",
+          "minimap": { "class": "Plaza" },
+          "logical_size": {
+            "width": 192,
+            "height": 96
+          },
+          "draw_size": {
+            "width": 192,
+            "height": 120
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "festival_square"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -3046,6 +3076,30 @@
                     },
                     {
                       "name": "frame3"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "festival_square_festive",
+          "logical_size": {
+            "width": 192,
+            "height": 96
+          },
+          "draw_size": {
+            "width": 192,
+            "height": 120
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "festival_square_festive"
                     }
                   ]
                 }

@@ -86,6 +86,7 @@ fn accounts(context: &GameUiContext, page: &PageContext) -> UiCanvas {
         ("construction", LedgerCategory::Construction),
         ("wages", LedgerCategory::Wages),
         ("upkeep", LedgerCategory::Upkeep),
+        ("festivals", LedgerCategory::Festivals),
     ] {
         lines.push((get(&format!("book.accounts.{key}")), both(&|a| signed(a, category)), Line::Row));
     }
@@ -112,10 +113,12 @@ fn accounts(context: &GameUiContext, page: &PageContext) -> UiCanvas {
         let header = 84.0;
         p.text(c1, header, &columns[0], 18.0, p.c.sub, UiTextAnchor::End, false);
         p.text(c2, header, &columns[1], 18.0, p.c.sub, UiTextAnchor::End, false);
+        // A line every 50 px, closer where there are more lines than fit above the footnote.
+        let step = ((BODY.y - 70.0 - (header + 52.0) - 26.0) / (lines.len() - 1) as f32).min(50.0);
         let mut y = header + 52.0;
         for (name, values, line) in &lines {
             if matches!(line, Line::Total | Line::Net) {
-                p.painter.line(p.at(24.0, y - 34.0), p.at(w - 24.0, y - 34.0), 1.5 * p.k, p.c.text);
+                p.painter.line(p.at(24.0, y - step * 0.68), p.at(w - 24.0, y - step * 0.68), 1.5 * p.k, p.c.text);
             }
             if *line == Line::Note && name == &lines[lines.len() - 2].0 {
                 y += 26.0;
@@ -136,7 +139,7 @@ fn accounts(context: &GameUiContext, page: &PageContext) -> UiCanvas {
             if *line == Line::Row {
                 p.rule(48.0, w - 24.0, y + 16.0);
             }
-            y += 50.0;
+            y += step;
         }
         p.text(24.0, BODY.y - 30.0, &footnote, 17.0, p.c.sub, UiTextAnchor::Start, false);
     })

@@ -226,6 +226,15 @@
         "ground": false
       },
       "notes": "Drawn over a renovating house of this footprint."
+    },
+    {
+      "tile": "festival_square_festive",
+      "category": "overlays",
+      "recipe": "festival_square",
+      "params": {
+        "festive": true
+      },
+      "notes": "Drawn instead of a festival square while a festival is held there (TileFlags::Festive): bunting, lanterns, stalls and mats."
     }
   ]
 }

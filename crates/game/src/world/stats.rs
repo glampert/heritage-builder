@@ -67,6 +67,12 @@ pub struct TreasuryStats {
     pub tax_collected: u32,
 }
 
+// What the city's faith adds to the stats (sim::CityFaith::tally).
+#[derive(Default)]
+pub struct FaithStats {
+    pub festivals_held: u32, // In this city: the mission's goals count them.
+}
+
 pub struct HousingStats {
     pub total: u32,
     pub lowest_level: HouseLevel,
@@ -94,6 +100,7 @@ pub struct WorldStats {
     pub population: PopulationStats,
     pub workers: WorkerStats,
     pub treasury: TreasuryStats,
+    pub faith: FaithStats,
 
     // Housing stats:
     pub houses: HousingStats,
@@ -108,6 +115,7 @@ impl Default for WorldStats {
             population: PopulationStats::default(),
             workers: WorkerStats::default(),
             treasury: TreasuryStats::default(),
+            faith: FaithStats::default(),
             houses: HousingStats { total: 0, lowest_level: HouseLevel::max(), highest_level: HouseLevel::min() },
             resources: GlobalResourceCounts {
                 all: ResourceStock::accept_all(),

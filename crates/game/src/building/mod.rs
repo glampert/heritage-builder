@@ -123,6 +123,7 @@ bitflags_with_display! {
         const Garden         = 1 << 21;
         const FireWatch      = 1 << 22;
         const BuildersGuild  = 1 << 23;
+        const FestivalSquare = 1 << 24; // Where the city holds its festivals (faith).
     }
 }
 
@@ -186,7 +187,8 @@ impl BuildingKind {
                 | Self::Hospital.bits()
                 | Self::Garden.bits()
                 | Self::FireWatch.bits()
-                | Self::BuildersGuild.bits(),
+                | Self::BuildersGuild.bits()
+                | Self::FestivalSquare.bits(),
         )
     }
 

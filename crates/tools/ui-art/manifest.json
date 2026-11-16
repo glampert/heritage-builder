@@ -576,6 +576,30 @@
       "source_hash": "449ecf7a5daa3403",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/building/festival_square_idle.png": {
+      "catalog_hash": "2bffb6728c0b426f",
+      "id": "glyph_building_festival_square",
+      "png_hash": "06d132691328736f",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "2403fdd8221822d0",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/festival_square_pressed.png": {
+      "catalog_hash": "26e4bca5ffc41545",
+      "id": "glyph_building_festival_square",
+      "png_hash": "9ca4b83e4f7ead42",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "5f41ea49cf617688",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/building/fire_watch_idle.png": {
       "catalog_hash": "c5010d0d309eb45f",
       "id": "glyph_building_fire_watch",
@@ -3406,6 +3430,30 @@
       ],
       "realm": "kambara",
       "source_hash": "aad2e459175c4263",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/festival_square_idle.png": {
+      "catalog_hash": "ddc5dd60be5798fd",
+      "id": "glyph_building_festival_square",
+      "png_hash": "8ea03014494abf29",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "fcb599a658107acf",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/festival_square_pressed.png": {
+      "catalog_hash": "edee199790b496c6",
+      "id": "glyph_building_festival_square",
+      "png_hash": "966fadcf9315eff4",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "ca9d773c61bd5322",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/hud/glyphs/building/fire_watch_idle.png": {
@@ -6274,6 +6322,30 @@
       ],
       "realm": "tampadesa",
       "source_hash": "0c06b4bb6dcf8b79",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/festival_square_idle.png": {
+      "catalog_hash": "90326ef5a7d29111",
+      "id": "glyph_building_festival_square",
+      "png_hash": "f269617f3923231e",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "cbb1f7d61f5744d5",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/festival_square_pressed.png": {
+      "catalog_hash": "18aa7ea2cae4d7e2",
+      "id": "glyph_building_festival_square",
+      "png_hash": "2cd78a38afe3b592",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "03d3a78c33773729",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/hud/glyphs/building/fire_watch_idle.png": {

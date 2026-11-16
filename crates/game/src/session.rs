@@ -502,7 +502,7 @@ impl GameSession {
 
     // Recounts the world stats from the current state (see World::refresh_stats).
     pub(crate) fn refresh_world_stats(&mut self) {
-        self.world.refresh_stats(self.sim.finance());
+        self.world.refresh_stats(self.sim.finance(), self.sim.faith());
     }
 
     // Runs `edit_fn` with a mutable SimContext over this session, for world edits made outside
