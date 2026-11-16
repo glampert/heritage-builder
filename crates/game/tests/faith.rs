@@ -1,8 +1,9 @@
 use common::coords::Cell;
 use game::{
-    building::{BuildingKind, construction::ConstructionMode},
+    building::{BuildingKind, BuildingKindAndId, construction::ConstructionMode},
     campaign::config::MissionFaithDef,
     config::GameConfigs,
+    debug::game_object_debug::GameObjectDebugVarRef,
     faith::{
         self,
         FaithConfigs,
@@ -12,8 +13,15 @@ use game::{
     },
     menu::{PlaceOrClearResult, TilePlacement},
     realm::Realm,
-    sim::CityFaith,
-    tile::sets::TileDef,
+    sim::{CityFaith, SimCmdQueue},
+    tile::{
+        minimap::{
+            MinimapLens,
+            lens::{self, LensContext, LensData},
+            style::MinimapStyle,
+        },
+        sets::TileDef,
+    },
     undo_redo,
 };
 use strum::IntoEnumIterator;
@@ -45,6 +53,11 @@ fn main() {
         test_utils::test_fn!(test_a_shrines_patron_is_its_variation),
         test_utils::test_fn!(test_a_shrine_without_a_pick_gets_an_offered_patron),
         test_utils::test_fn!(test_undo_and_redo_keep_the_patron),
+        // Favour:
+        test_utils::test_fn!(test_coverage_counts_the_residents_in_reach),
+        test_utils::test_fn!(test_favour_drifts_toward_coverage),
+        test_utils::test_fn!(test_favour_holds_while_off_or_with_no_one),
+        test_utils::test_fn!(test_the_faith_lens),
         // Saves:
         test_utils::test_fn!(test_faith_round_trips_through_a_save),
     ]);
@@ -354,5 +367,134 @@ fn test_undo_and_redo_keep_the_patron() {
         undo_redo::redo(&context);
     }
     assert_eq!(patron_at(&mut env, cell).as_deref(), Some("ancestors"), "redone as the same patron's");
+    undo_redo::clear();
+}
+
+// ----------------------------------------------
+// Favour
+// ----------------------------------------------
+
+// A house of `tile` at `cell` with `population` residents, frozen (no growth, upgrades or needs).
+fn house_with(env: &mut TestEnvironment, cell: Cell, tile: &str, population: u32) -> BuildingKindAndId {
+    let house = test_utils::spawn_building(env, cell, tile);
+    for name in ["freeze_upgrade_update", "freeze_population_update", "freeze_stock_update", "freeze_deprivation"] {
+        let mut value = true;
+        let ok = test_utils::find_building_mut(env, house)
+            .debug_options()
+            .set_debug_option_by_name(name, GameObjectDebugVarRef::Bool(&mut value));
+        assert!(ok, "houses have a '{name}' debug option");
+    }
+    let context = env.new_sim_context(0.0);
+    let cmds = context.cmds_mut();
+    let added = context.find_building_mut(house.kind, house.id).unwrap().add_population(cmds, &context, population);
+    cmds.execute(&context);
+    assert_eq!(added, population, "the house should take {population}");
+    house
+}
+
+// A Water Lord shrine beside one house (6 residents) and far from another (12): the Water Lord
+// covers 6 of 18, over half the city (coverage_needed): 6 / 9. An Ancestors temple, whose reach (40)
+// takes both, counts three times over and covers them all.
+fn city_with_shrine_and_temple(env: &mut TestEnvironment) {
+    house_with(env, Cell::new(5, 5), "house2", 6);
+    house_with(env, Cell::new(30, 5), "house2", 12);
+    place_dedicated(env, Cell::new(9, 5), "shrine", Some("water_lord"));
+    place_dedicated(env, Cell::new(14, 10), "temple", Some("ancestors"));
+}
+
+fn test_coverage_counts_the_residents_in_reach() {
+    let mut env = TestEnvironment::new();
+    city_with_shrine_and_temple(&mut env);
+    let coverage = faith::coverage(&env.world, &env.tile_map, Realm::DaiLong, rules());
+    let needed = 18.0 * rules().coverage_needed;
+
+    let water = &coverage["water_lord"];
+    assert_eq!((water.shrines, water.temples, water.residents), (1, 0, 6));
+    assert!((water.coverage - (6.0 / needed).min(1.0)).abs() < 1e-5, "{}", water.coverage);
+
+    let ancestors = &coverage["ancestors"];
+    assert_eq!((ancestors.shrines, ancestors.temples, ancestors.residents), (0, 1, 18));
+    assert_eq!(ancestors.coverage, 1.0, "a temple counts three times: capped");
+
+    assert_eq!(coverage["mountain_lord"].coverage, 0.0);
+    assert_eq!(faith::population(&env.world), 18);
+    undo_redo::clear();
+}
+
+fn test_favour_drifts_toward_coverage() {
+    let mut env = TestEnvironment::new();
+    city_with_shrine_and_temple(&mut env);
+    let start = rules().starting_favour;
+    let drift = rules().favour_drift;
+    let water_target = 100.0 * (6.0 / (18.0 * rules().coverage_needed)).min(1.0);
+
+    env.sim.faith_mut().on_new_month(&env.world, &env.tile_map, rules());
+    let faith = env.sim.faith();
+    assert!((faith.favour("water_lord").unwrap() - (start + drift * (water_target - start))).abs() < 1e-3);
+    assert!((faith.favour("ancestors").unwrap() - (start + drift * (100.0 - start))).abs() < 1e-3);
+    assert!((faith.favour("mountain_lord").unwrap() - start * (1.0 - drift)).abs() < 1e-3, "untended: falls");
+    assert_eq!(faith.patron("mountain_lord").unwrap().months_since_event, 1);
+
+    // Month after month, favour closes in on the target.
+    for _ in 0..40 {
+        env.sim.faith_mut().on_new_month(&env.world, &env.tile_map, rules());
+    }
+    let faith = env.sim.faith();
+    assert!((faith.favour("water_lord").unwrap() - water_target).abs() < 0.1);
+    assert!(faith.favour("ancestors").unwrap() > 99.9);
+    assert!(faith.favour("mountain_lord").unwrap() < 0.1);
+    assert_eq!(faith.mood("mountain_lord"), Some(Mood::Neglected));
+    undo_redo::clear();
+}
+
+fn test_favour_holds_while_off_or_with_no_one() {
+    let mut env = TestEnvironment::new();
+    place_dedicated(&mut env, Cell::new(9, 5), "shrine", Some("water_lord"));
+    env.sim.faith_mut().on_new_month(&env.world, &env.tile_map, rules());
+    assert_eq!(env.sim.faith().favour("mountain_lord"), Some(rules().starting_favour), "no one lives here");
+
+    house_with(&mut env, Cell::new(5, 5), "house2", 6);
+    env.sim.faith_mut().set_favour_enabled(false);
+    env.sim.faith_mut().on_new_month(&env.world, &env.tile_map, rules());
+    assert_eq!(env.sim.faith().favour("mountain_lord"), Some(rules().starting_favour), "favour off");
+    assert_eq!(env.sim.faith().patron("mountain_lord").unwrap().months_since_event, 2, "the months still count");
+    undo_redo::clear();
+}
+
+// The Faith lens colours shrines and temples by patron and houses by how many patrons reach them.
+fn test_the_faith_lens() {
+    assert!(MinimapLens::available().contains(&MinimapLens::Faith), "in the lens bar");
+    let mut env = TestEnvironment::new();
+    city_with_shrine_and_temple(&mut env);
+
+    let style = MinimapStyle::default();
+    let mut data = LensData::default();
+    let context = env.new_sim_context(0.0);
+    let map_size = context.tile_map().size_in_cells();
+    let lens_context =
+        LensContext { sim: &context, features: context.tile_map().minimap().features(), map_size, style: &style };
+    lens::provider(MinimapLens::Faith).expect("a provider").compute(&lens_context, &mut data);
+
+    let def = realm_def(Realm::DaiLong);
+    let colour = |id: &str| def.patron(id).unwrap().colour();
+    assert_eq!(data.building_colors[&(5, 9)], colour("water_lord"), "the shrine");
+    assert_eq!(data.building_colors[&(10, 14)], colour("ancestors"), "the temple");
+    let (none, all) = (style.lenses.faith_none.color(), style.lenses.faith_all.color());
+    let near = data.building_colors[&(5, 5)];
+    let half = |a: f32, b: f32| a + (b - a) * 0.5;
+    assert!((near.r - half(none.r, all.r)).abs() < 1e-4, "two of four patrons reach the near house");
+    let far = data.building_colors[&(5, 30)];
+    assert!((far.r - (none.r + (all.r - none.r) * 0.25)).abs() < 1e-4, "one of four, the temple");
+    assert!(data.values.iter().any(|value| *value > 0), "the reach's heat");
+
+    let legend: Vec<&str> = data.legend.iter().map(|(_, label)| label.as_str()).collect();
+    assert_eq!(legend, [
+        "The Mountain Lord",
+        "The Water Lord",
+        "The Village Guardian",
+        "The Ancestors",
+        "No patron",
+        "Every patron"
+    ]);
     undo_redo::clear();
 }

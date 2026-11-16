@@ -152,7 +152,7 @@ fn minimap_state(context: &CommandContext) -> Value {
 fn lens_data_json(data: &LensData) -> Value {
     json!({
         "lens": data.lens.to_string(),
-        "legend": data.legend.iter().map(|(_, label)| *label).collect::<Vec<_>>(),
+        "legend": data.legend.iter().map(|(_, label)| label.as_str()).collect::<Vec<_>>(),
         "buildings": data.building_colors.len(),
         "heat_cells": data.values.iter().filter(|value| **value > 0).count(),
     })

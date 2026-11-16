@@ -66,17 +66,21 @@ impl MinimapLayout {
     }
 
     // In the bottom left corner of a screen of `screen_size` points, with `tool_count` tools, a map
-    // of `map_size` points and `legend_entries` legend entries (0 without a lens) at `legend_scale`.
+    // of `map_size` points and `legend_entries` legend entries (0 without a lens) at `legend_scale`,
+    // in at most `legend_max_columns` columns (0: as many as fit; a lens with long labels asks for
+    // fewer: LensData::legend_max_columns).
     pub fn new(
         screen_size: Vec2,
         tool_count: usize,
         map_size: Vec2,
         legend_entries: usize,
+        legend_max_columns: usize,
         legend_scale: f32,
         frame: MinimapFrame,
     ) -> Self {
         let [left, top, right, bottom] = frame.insets;
-        let legend_columns = Self::legend_columns(map_size.x, legend_scale);
+        let fitting = Self::legend_columns(map_size.x, legend_scale);
+        let legend_columns = if legend_max_columns > 0 { fitting.min(legend_max_columns) } else { fitting };
         let legend_rows = legend_entries.div_ceil(legend_columns);
         let legend_height = if legend_rows > 0 { GAP + legend_rows as f32 * LEGEND_ROW_HEIGHT * legend_scale } else { 0.0 };
 

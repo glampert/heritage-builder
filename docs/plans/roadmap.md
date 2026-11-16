@@ -53,7 +53,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | Done: risk state (save v7); fire, collapse, rubble; fire watch, builders' guild; disease and hospital dispatch (save v8); the Risk lens, the info panel's risk lines and the World Debug Risks tab |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
-| M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | In progress: Phase 0 (data, state, save v10) and Phase 1 (the patrons' shrines and temples, the palette's variation submenu) done; favour next |
+| M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | In progress: Phase 0 (data, state, save v10) and Phase 1 (the patrons' shrines and temples, the palette's variation submenu) and Phase 2 (favour, the Patrons tab, the Faith lens) done; blessings and misfortunes next |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
 | M10 | Trade v1 and court requests | Large | M1, M4, M5 | — | Not started |
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
@@ -61,7 +61,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
-| MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6; Faith, Flood and Fertility come with M8, M7) |
+| MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6, the Faith lens with M8; Flood and Fertility come with M7) |
 | UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–8 done (skins, main menus, world map, intermission and briefing, story comics, HUD, City book, old assets, the inspector's panels) |
 
 Suggested order:

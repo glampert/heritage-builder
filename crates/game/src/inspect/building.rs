@@ -562,16 +562,6 @@ fn watched_risk(kind: BuildingKind) -> Option<RiskKind> {
     }
 }
 
-// Within `radius` cells of the building (its footprint's nearest cell, as the crow flies along
-// the grid): roughly the reach its walkers have, without a path search.
-fn in_reach(building: &Building, other: &Building, radius: i32) -> bool {
-    let a = building.cell_range();
-    let b = other.cell_range();
-    let dx = (b.start.x - a.end.x).max(a.start.x - b.end.x).max(0);
-    let dy = (b.start.y - a.end.y).max(a.start.y - b.end.y).max(0);
-    dx.max(dy) <= radius
-}
-
 // Every finished building of `kinds` (any archetypes) in reach of `building`, but itself.
 fn for_each_in_reach(
     context: &SimContext,
@@ -585,7 +575,7 @@ fn for_each_in_reach(
         if other.is(kinds)
             && other.kind_and_id() != this
             && !other.is_under_construction()
-            && in_reach(building, other, radius)
+            && building.is_within_reach_of(other, radius)
         {
             visit(other);
         }

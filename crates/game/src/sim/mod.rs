@@ -276,8 +276,10 @@ impl Simulation {
                 systems.on_calendar_events(engine, cmds, context, &step.calendar_events);
             });
 
-            // Month-end charges and the new year's accounts, once the world is unlocked.
+            // Month-end charges and the new year's accounts, once the world is unlocked; then the
+            // patrons' favour.
             self.finance.on_calendar_events(&step.calendar_events, world, tile_map);
+            self.faith.on_calendar_events(&step.calendar_events, world, tile_map, &GameConfigs::get().sim.faith);
         }
     }
 

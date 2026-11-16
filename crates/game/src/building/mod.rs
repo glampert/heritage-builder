@@ -1030,6 +1030,13 @@ impl Building {
         self.map_cells
     }
 
+    // Whether `other` is within `radius` cells of this building: from its footprint's nearest
+    // cell, as the crow flies along the grid (the larger of the two axes' gaps). Roughly a
+    // service's reach, without a path search: the inspector's "in reach", a patron's coverage.
+    pub fn is_within_reach_of(&self, other: &Building, radius: i32) -> bool {
+        footprints_within_reach(self.map_cells, other.map_cells, radius)
+    }
+
     #[inline]
     pub fn base_cell(&self) -> Cell {
         self.map_cells.start
@@ -2059,6 +2066,14 @@ pub fn construction_stage_from_tile_flags(flags: TileFlags) -> Option<u8> {
     let low = u8::from(flags.intersects(TileFlags::ConstructionStage0));
     let high = u8::from(flags.intersects(TileFlags::ConstructionStage1));
     Some(low | (high << 1))
+}
+
+// Whether two footprints are within `radius` cells of each other, along the grid (the larger of
+// the two axes' gaps between their nearest cells): Building::is_within_reach_of.
+pub fn footprints_within_reach(a: CellRange, b: CellRange, radius: i32) -> bool {
+    let dx = (b.start.x - a.end.x).max(a.start.x - b.end.x).max(0);
+    let dy = (b.start.y - a.end.y).max(a.start.y - b.end.y).max(0);
+    dx.max(dy) <= radius
 }
 
 #[cfg(test)]

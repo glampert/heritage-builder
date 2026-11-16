@@ -132,6 +132,18 @@
       "source_hash": "4da51b4e509dc537",
       "state": null
     },
+    "assets/ui/skins/dailong/city/icons/farm.png": {
+      "catalog_hash": "f351d20184595707",
+      "id": "page_icon_farm",
+      "png_hash": "f5d2a49baaedfb82",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "4a4856c968dd972e",
+      "state": null
+    },
     "assets/ui/skins/dailong/city/icons/food.png": {
       "catalog_hash": "f56354ed30111a9c",
       "id": "page_icon_food",
@@ -142,6 +154,18 @@
       ],
       "realm": "dailong",
       "source_hash": "e56e5fc0cee92572",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/house.png": {
+      "catalog_hash": "c55179a9b7e788f8",
+      "id": "page_icon_house",
+      "png_hash": "a1173afc23584059",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "4eeddc01650f5010",
       "state": null
     },
     "assets/ui/skins/dailong/city/icons/industry.png": {
@@ -214,6 +238,30 @@
       ],
       "realm": "dailong",
       "source_hash": "36362adbc2f79046",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/temple.png": {
+      "catalog_hash": "a5c650858dcaa142",
+      "id": "page_icon_temple",
+      "png_hash": "0c82a8385b3f7194",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "2ee8404f4358b852",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/water.png": {
+      "catalog_hash": "d43a1625637d9fca",
+      "id": "page_icon_water",
+      "png_hash": "a13853c49562380a",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "f5b5f6e244330734",
       "state": null
     },
     "assets/ui/skins/dailong/crest.png": {
@@ -1560,6 +1608,30 @@
       "source_hash": "65e83c00f85299ef",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/religion_idle.png": {
+      "catalog_hash": "ac3e48cf7846c2f7",
+      "id": "glyph_minimap_religion",
+      "png_hash": "044fed4cdfa68ec6",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "0186ba0898bf7fe6",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/religion_pressed.png": {
+      "catalog_hash": "7aeba31e1f101228",
+      "id": "glyph_minimap_religion",
+      "png_hash": "5bc36523e4d8ecc7",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "ca639ee4c83d188d",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/minimap/sectors_idle.png": {
       "catalog_hash": "235c8da607447cc8",
       "id": "glyph_minimap_sectors",
@@ -2892,6 +2964,18 @@
       "source_hash": "4da51b4e509dc537",
       "state": null
     },
+    "assets/ui/skins/kambara/city/icons/farm.png": {
+      "catalog_hash": "8bfb7a79e0c7ce3a",
+      "id": "page_icon_farm",
+      "png_hash": "f5d2a49baaedfb82",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "4a4856c968dd972e",
+      "state": null
+    },
     "assets/ui/skins/kambara/city/icons/food.png": {
       "catalog_hash": "75a88c8b75bbf195",
       "id": "page_icon_food",
@@ -2902,6 +2986,18 @@
       ],
       "realm": "kambara",
       "source_hash": "e56e5fc0cee92572",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/house.png": {
+      "catalog_hash": "bc2492f76011961f",
+      "id": "page_icon_house",
+      "png_hash": "a1173afc23584059",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "4eeddc01650f5010",
       "state": null
     },
     "assets/ui/skins/kambara/city/icons/industry.png": {
@@ -2974,6 +3070,30 @@
       ],
       "realm": "kambara",
       "source_hash": "36362adbc2f79046",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/temple.png": {
+      "catalog_hash": "8ae27681a5062326",
+      "id": "page_icon_temple",
+      "png_hash": "0c82a8385b3f7194",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "2ee8404f4358b852",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/water.png": {
+      "catalog_hash": "bfa0b4c1c0aa0550",
+      "id": "page_icon_water",
+      "png_hash": "a13853c49562380a",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "f5b5f6e244330734",
       "state": null
     },
     "assets/ui/skins/kambara/dropdown_arrow.png": {
@@ -4308,6 +4428,30 @@
       "source_hash": "56dd12499060f3f8",
       "state": "pressed"
     },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/religion_idle.png": {
+      "catalog_hash": "82de14831674aa2b",
+      "id": "glyph_minimap_religion",
+      "png_hash": "03e3dc282469c832",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "12d0913efbd08bf7",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/religion_pressed.png": {
+      "catalog_hash": "7c8a362edbd44194",
+      "id": "glyph_minimap_religion",
+      "png_hash": "06bce0509056ea33",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "6def6c72c116d155",
+      "state": "pressed"
+    },
     "assets/ui/skins/kambara/hud/glyphs/minimap/sectors_idle.png": {
       "catalog_hash": "26404e1a5cd35dad",
       "id": "glyph_minimap_sectors",
@@ -5640,6 +5784,18 @@
       "source_hash": "4da51b4e509dc537",
       "state": null
     },
+    "assets/ui/skins/tampadesa/city/icons/farm.png": {
+      "catalog_hash": "846c4e932687dc7a",
+      "id": "page_icon_farm",
+      "png_hash": "f5d2a49baaedfb82",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4a4856c968dd972e",
+      "state": null
+    },
     "assets/ui/skins/tampadesa/city/icons/food.png": {
       "catalog_hash": "b9e89a47e2d0d03a",
       "id": "page_icon_food",
@@ -5650,6 +5806,18 @@
       ],
       "realm": "tampadesa",
       "source_hash": "e56e5fc0cee92572",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/house.png": {
+      "catalog_hash": "cf4491c3500adced",
+      "id": "page_icon_house",
+      "png_hash": "a1173afc23584059",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4eeddc01650f5010",
       "state": null
     },
     "assets/ui/skins/tampadesa/city/icons/industry.png": {
@@ -5722,6 +5890,30 @@
       ],
       "realm": "tampadesa",
       "source_hash": "36362adbc2f79046",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/temple.png": {
+      "catalog_hash": "cb347a4eda25fdf9",
+      "id": "page_icon_temple",
+      "png_hash": "0c82a8385b3f7194",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2ee8404f4358b852",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/water.png": {
+      "catalog_hash": "c8ebaa1f1f97d20a",
+      "id": "page_icon_water",
+      "png_hash": "a13853c49562380a",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "f5b5f6e244330734",
       "state": null
     },
     "assets/ui/skins/tampadesa/dropdown_arrow.png": {
@@ -7090,6 +7282,30 @@
       ],
       "realm": "tampadesa",
       "source_hash": "be6eb6bd4b66e39b",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/religion_idle.png": {
+      "catalog_hash": "edbffaf36a3d2f7b",
+      "id": "glyph_minimap_religion",
+      "png_hash": "15ae4fae3752b0ea",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9a058ce4aeb9c719",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/religion_pressed.png": {
+      "catalog_hash": "f413a8b699d5b737",
+      "id": "glyph_minimap_religion",
+      "png_hash": "4b86991d929e006b",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2bde524588626e47",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/hud/glyphs/minimap/sectors_idle.png": {

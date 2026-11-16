@@ -64,6 +64,9 @@
     "risk_disease": "#6fae2a",
     "risk_burning": "#3b2620",
     "risk_diseased": "#1f5a3a",
+    "faith_ramp": ["#c9a23a00", "#c9a23aa8"],
+    "faith_none": "#d8cfb8",
+    "faith_all": "#8a3fa0",
     "refresh_secs": 1.0
   }
 }

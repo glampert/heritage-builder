@@ -114,6 +114,7 @@ impl MinimapButton {
             "lens_sectors" => "sectors",
             "lens_water" => "water",
             "lens_risk" => "fire",
+            "lens_faith" => "religion",
             "landmarks_on" | "landmarks_off" => "pin",
             "zoom_in" => "plus",
             "zoom_out" => "minus",
@@ -739,7 +740,7 @@ impl BaseMinimapRenderer {
     // The legend in its rows under the map, on the widget's frame.
     fn paint_legend(
         painter: &UiPainter,
-        legend: &[(Color, &'static str)],
+        legend: &[(Color, String)],
         layout: &MinimapLayout,
         style: &MinimapStyle,
         text_color: Color,
@@ -759,7 +760,7 @@ impl BaseMinimapRenderer {
             let swatch = Rect::from_extents(origin + swatch.min, origin + swatch.max);
             painter.rect_filled(swatch, *color, 1.5 * k);
             painter.rect_stroke(swatch, 1.5 * k, 0.8, style.palette.outline.color());
-            painter.text_scaled(origin + Vec2::new(11.0 * k, 0.0), text_color, style.legend.text_scale, *label);
+            painter.text_scaled(origin + Vec2::new(11.0 * k, 0.0), text_color, style.legend.text_scale, label.as_str());
         }
     }
 

@@ -1,6 +1,6 @@
 # Faith and festivals
 
-**Status (2026-11-16): Phases 0 and 1 done; Phase 2 next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
+**Status (2026-11-16): Phases 0 to 2 done; Phase 3 next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
 - patron spirits or deities per realm;
 - favour, raised by shrines and temples;
 - blessings and misfortunes;
@@ -348,10 +348,37 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 
 ### Phase 2: Favour, the Patrons tab and the lens (medium)
 
-- [ ] Coverage and drift on each new month; mood.
-- [ ] The Heritage page's Patrons tab.
-- [ ] The Faith lens.
-- [ ] Tests: coverage, drift, mood, the switch.
+- [x] Coverage and drift on each new month; mood.
+- [x] The Heritage page's Patrons tab.
+- [x] The Faith lens.
+- [x] Tests: coverage, drift, mood, the switch.
+- **Notes (2026-11-16):**
+  - **Coverage** (`faith::coverage`, with `faith::population`), computed when it's needed and never saved:
+    - Each patron's coverage counts its working (operational) shrines and temples, and the residents of the finished houses in their effect radius.
+    - Reach is measured along the grid between footprints: `building::footprints_within_reach`, which the inspector's "in reach" now shares through `Building::is_within_reach_of`.
+    - A house counts once per patron, at its best weight (a temple `temple_weight`, 3; a shrine 1).
+    - Coverage is that weighted count over the population times `coverage_needed`, capped at 1.
+    - It also returns each patron's shrines, temples and residents reached, for the Patrons tab.
+  - **Drift** (`CityFaith::on_new_month`, called from `Simulation::update` after the finance's month-end): each patron's months since an event go up, then favour moves `favour_drift` of the way to 100 × coverage.
+    - Favour holds while it's off for the mission, and while no one lives in the city. A new city would otherwise slide every patron to neglect before its first house, and Phase 3's misfortunes would follow.
+  - **The Patrons tab:**
+    - A canvas per the mockup generator's `patron_row`: the patron's icon in a ring (red-brown, the sub colour, while it's below 40), its name and domain, its mood and favour with a meter, and what it sends.
+    - What it sends is "Above 70: …" its first blessing that can happen now, or "Below 30: …" a misfortune while it's below 40. The events got short names: Realm `faith.event.<realm>.<id>`, checked with the data.
+    - A third line gives its shrines, temples and the residents they reach out of the city's.
+    - The card's note says favour moves each month, or holds in this mission.
+    - It's recorded as `CityManagement/Heritage/Patrons/patrons`, its value the rows.
+    - The book reads it when it's built, and again each month as it rebuilds.
+  - **The Faith lens:**
+    - Shrines and temples in their patron's colour (the faith file's), houses from `faith_none` to `faith_all` by the share of patrons that reach them, and the heat field the working ones' reach, as the wells'.
+    - The legend lists the patrons, then No patron and Every patron, so a lens legend is now owned text (`LensData::legend: Vec<(Color, String)>`).
+    - The patrons' names ran into each other in three columns, so a lens can cap its legend's columns (`LensData::legend_max_columns`, which `MinimapLayout::new` takes); the Faith lens takes two.
+    - The colours are in `dailong.json`'s `lenses`.
+  - **Art (ui-art, rendered with Playwright, installed for it with the user's go-ahead):**
+    - The City book's page icons gained farm, water, house and temple (the patrons' icons; monument and learning were there). `skin::CITY_ICONS` lists them.
+    - The HUD minimap's glyphs gained `religion`, the Faith lens button's (`MINIMAP_GLYPHS`; the developer minimap's sprite existed).
+  - **Verified:**
+    - `cargo test --workspace`, with 19 tests in `tests/faith.rs`.
+    - `faith.jsonl` now also checks a month's drift (the untended Mountain Lord 50 to 37.5), the lens through its button and the Patrons tab's rows and layout.
 
 ### Phase 3: Blessings and misfortunes (small to medium)
 

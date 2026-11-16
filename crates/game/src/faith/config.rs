@@ -2,7 +2,7 @@
 // §1): one file per realm, assets/configs/game/faith/<realm>.json, loaded once at boot after
 // campaigns.json (FaithConfigs::load) and checked. Names and texts are keys in en.json: a patron's
 // `patron.<realm>.<id>` and `.domain` (Realm), an event's message `faith.event.<realm>.<id>`
-// (Messages), a scale's `festival_scale.<realm>.<id>` (Realm), a festival's `festival.<realm>.<id>`
+// (Messages) and short name, the same key in Realm, a scale's `festival_scale.<realm>.<id>` (Realm), a festival's `festival.<realm>.<id>`
 // and `.venue` (Realm) and `.text` (Story).
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -294,6 +294,7 @@ impl RealmFaithDef {
         }
         for event in &self.events {
             keys.push((UiTextCategory::Messages, event_message_key(realm, &event.id)));
+            keys.push((UiTextCategory::Realm, event_name_key(realm, &event.id)));
         }
         for scale in &self.scales {
             keys.push((UiTextCategory::Realm, scale_name_key(realm, &scale.id)));
@@ -342,6 +343,11 @@ pub fn patron_domain_key(realm: Realm, id: &str) -> String {
 }
 
 pub fn event_message_key(realm: Realm, id: &str) -> String {
+    format!("faith.event.{realm}.{id}")
+}
+
+// An event's short name, for the Heritage page: "A rich harvest".
+pub fn event_name_key(realm: Realm, id: &str) -> String {
     format!("faith.event.{realm}.{id}")
 }
 

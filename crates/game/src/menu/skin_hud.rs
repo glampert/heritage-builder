@@ -125,7 +125,7 @@ pub const SECTOR_GLYPHS: &[&str] = &[
 pub const HUD_GLYPHS: &[&str] =
     &["pause", "play", "fast", "faster", "goals", "menu", "save", "gear", "book", "briefing", "close"];
 pub const MINIMAP_GLYPHS: &[&str] =
-    &["pin", "fire", "water", "sectors", "city", "plus", "minus", "alert", "home", "world", "collapse"];
+    &["pin", "fire", "water", "sectors", "city", "plus", "minus", "alert", "home", "world", "collapse", "religion"];
 pub const HUD_ICONS: &[&str] = &["population", "coin", "food", "request", "trade", "warn", "monument"];
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

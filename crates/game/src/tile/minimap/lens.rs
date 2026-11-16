@@ -2,12 +2,16 @@
 // drawn as a small smoothly filtered texture) and colours for the buildings it cares about.
 //
 // Each lens comes from a provider, a game system that owns its data. City (the plain map),
-// Sectors, Water and Risks (M6) exist now; Faith (M8), Floods and Fertility (M7) land with their
-// milestones, each with its provider, and only then show in the lens bar.
+// Sectors, Water, Risks (M6) and Faith (M8) exist now; Floods and Fertility (M7) land with their
+// milestone, each with its provider, and only then show in the lens bar.
 
 use std::collections::BTreeMap;
 
-use common::{Color, Size, coords::Cell};
+use common::{
+    Color,
+    Size,
+    coords::{Cell, CellRange},
+};
 use strum::{Display, EnumIter, EnumString};
 
 use super::{model::MinimapFeatures, style::MinimapStyle};
@@ -15,8 +19,10 @@ use crate::{
     building::{
         BuildingKind,
         config::BuildingConfigs,
+        footprints_within_reach,
         risks::{MAX_RISK, RiskKind},
     },
+    faith,
     sim::SimContext,
     tile::sets::TileSector,
 };
@@ -64,7 +70,7 @@ impl MinimapLens {
 
     // Lenses with a provider, in the lens bar's order. City has none: it's the plain map.
     pub fn available() -> &'static [MinimapLens] {
-        &[Self::City, Self::Sectors, Self::Water, Self::Risk]
+        &[Self::City, Self::Sectors, Self::Water, Self::Risk, Self::Faith]
     }
 }
 
@@ -80,7 +86,8 @@ pub struct LensData {
     pub ramp: [Color; 2],
     pub building_colors: BTreeMap<(i32, i32), Color>, // By base cell (y, x); others are neutral.
     pub sector_colors: bool,                          // Colour every building by its sector instead.
-    pub legend: Vec<(Color, &'static str)>,
+    pub legend: Vec<(Color, String)>,                 // Swatches and their labels, under the map.
+    pub legend_max_columns: usize,                    // At most this many columns of them (0: as many as fit).
     pub version: u64,
 }
 
@@ -91,6 +98,7 @@ impl LensData {
         self.building_colors.clear();
         self.sector_colors = false;
         self.legend.clear();
+        self.legend_max_columns = 0;
         self.version += 1;
     }
 
@@ -145,6 +153,7 @@ pub fn provider(lens: MinimapLens) -> Option<&'static dyn LensProvider> {
         MinimapLens::Sectors => Some(&SectorsLens),
         MinimapLens::Water => Some(&WaterLens),
         MinimapLens::Risk => Some(&RiskLens),
+        MinimapLens::Faith => Some(&FaithLens),
         _ => None,
     }
 }
@@ -164,7 +173,7 @@ impl LensProvider for SectorsLens {
     fn compute(&self, context: &LensContext, out: &mut LensData) {
         out.sector_colors = true;
         let colors = &context.style.lenses.sector_colors;
-        out.legend = vec![
+        out.legend = legend(&[
             (colors.housing.color(), "Housing"),
             (colors.food_and_farming.color(), "Food"),
             (colors.industry_and_resources.color(), "Industry"),
@@ -173,7 +182,7 @@ impl LensProvider for SectorsLens {
             (colors.culture_and_religion.color(), "Culture"),
             (colors.trade_and_economy.color(), "Trade"),
             (colors.beautification.color(), "Beauty"),
-        ];
+        ]);
     }
 }
 
@@ -239,7 +248,7 @@ impl LensProvider for WaterLens {
             true
         });
 
-        out.legend = vec![(access, "Has water"), (no_access, "No water"), (out.ramp[1], "Well reach")];
+        out.legend = legend(&[(access, "Has water"), (no_access, "No water"), (out.ramp[1], "Well reach")]);
     }
 }
 
@@ -316,15 +325,106 @@ impl LensProvider for RiskLens {
             true
         });
 
-        out.legend = vec![
+        out.legend = legend(&[
             (low, "Low risk"),
             (fire, "Fire risk"),
             (collapse, "Collapse risk"),
             (disease, "Disease risk"),
             (burning, "On fire"),
             (diseased, "Sickness"),
-        ];
+        ]);
     }
+}
+
+// ----------------------------------------------
+// Faith
+// ----------------------------------------------
+
+// The patrons (docs/plans/faith.md, §5): each shrine and temple in its patron's colour (the realm's
+// faith file), each house from faith_none to faith_all by how many patrons' working shrines and
+// temples reach it, and the heat field their reach, fading to their effect radius as the wells'
+// does. The legend lists the patrons.
+pub struct FaithLens;
+
+impl LensProvider for FaithLens {
+    fn lens(&self) -> MinimapLens {
+        MinimapLens::Faith
+    }
+
+    fn compute(&self, context: &LensContext, out: &mut LensData) {
+        let style = &context.style.lenses;
+        let (width, height) = (context.map_size.width, context.map_size.height);
+        out.values = vec![0; (width.max(0) * height.max(0)) as usize];
+        out.ramp = [style.faith_ramp[0].color(), style.faith_ramp[1].color()];
+        let (none, all) = (style.faith_none.color(), style.faith_all.color());
+
+        let realm = context.sim.realm();
+        let Some(def) = faith::FaithConfigs::get().for_realm(realm) else {
+            return;
+        };
+        let world = context.sim.world();
+
+        // Shrines and temples in their patron's colour; the working ones' reach.
+        let mut tenders: Vec<(usize, CellRange, i32)> = Vec::new();
+        world.for_each_building(faith::DEDICATED_KINDS, |building| {
+            let Some(index) = faith::dedicated_patron(context.sim, building)
+                .and_then(|patron| def.patrons.iter().position(|other| other.id == patron.id))
+            else {
+                return true;
+            };
+            let base = building.base_cell();
+            out.building_colors.insert((base.y, base.x), def.patrons[index].colour());
+            if building.is_under_construction() || !building.is_operational() {
+                return true;
+            }
+            let radius = BuildingConfigs::get().find_service_config(building.kind()).effect_radius.max(1);
+            let range = building.cell_range();
+            tenders.push((index, range, radius));
+
+            let (cx, cy) = ((range.start.x + range.end.x) as f32 * 0.5, (range.start.y + range.end.y) as f32 * 0.5);
+            let reach = radius as f32 + 0.5;
+            for y in ((cy - reach).floor() as i32).max(0)..=((cy + reach).ceil() as i32).min(height - 1) {
+                for x in ((cx - reach).floor() as i32).max(0)..=((cx + reach).ceil() as i32).min(width - 1) {
+                    let distance = ((x as f32 - cx).powi(2) + (y as f32 - cy).powi(2)).sqrt();
+                    if distance > reach {
+                        continue;
+                    }
+                    let value = (0.45 + 0.55 * (1.0 - distance / reach)) * 255.0;
+                    let cell = &mut out.values[(x + y * width) as usize];
+                    *cell = (*cell).max(value.round() as u8);
+                }
+            }
+            true
+        });
+
+        // Houses by how many patrons tend them.
+        let count = def.patrons.len().max(1) as f32;
+        world.for_each_building(BuildingKind::House, |house| {
+            let mut tended = vec![false; def.patrons.len()];
+            for (index, footprint, radius) in &tenders {
+                if footprints_within_reach(*footprint, house.cell_range(), *radius) {
+                    tended[*index] = true;
+                }
+            }
+            let share = tended.iter().filter(|tended| **tended).count() as f32 / count;
+            let base = house.base_cell();
+            out.building_colors.insert((base.y, base.x), mix(none, all, share));
+            true
+        });
+
+        out.legend = def
+            .patrons
+            .iter()
+            .map(|patron| (patron.colour(), faith::config::patron_name(realm, &patron.id)))
+            .chain([(none, "No patron".to_string()), (all, "Every patron".to_string())])
+            .collect();
+        out.legend_max_columns = 2; // The patrons' names are long.
+    }
+}
+
+// A legend from fixed labels.
+fn legend(entries: &[(Color, &str)]) -> Vec<(Color, String)> {
+    entries.iter().map(|(color, label)| (*color, label.to_string())).collect()
 }
 
 // `a` to `b` by `t` (0 to 1), channel by channel.

@@ -1801,7 +1801,9 @@ pub struct SkinCityDef {
 
 // The page icons every skin draws, by name (the mockup generator's glyphs): Overview, Population,
 // Goods, Finances, Ratings, Labour, Food and Heritage.
-pub const CITY_ICONS: &[&str] = &["learning", "population", "jar", "coin", "star", "industry", "food", "monument"];
+// The patrons' icons (faith, the Heritage page) are farm, water, house and temple, with monument and learning.
+pub const CITY_ICONS: &[&str] =
+    &["learning", "population", "jar", "coin", "star", "industry", "food", "monument", "farm", "water", "house", "temple"];
 
 pub fn city() -> &'static SkinCityDef {
     &current().city

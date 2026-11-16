@@ -254,7 +254,10 @@ pub struct LensStyle {
     pub risk_collapse: HexColor,  // ... collapse.
     pub risk_disease: HexColor,   // ... disease (houses only).
     pub risk_burning: HexColor,
-    pub risk_diseased: HexColor, // A sick house.
+    pub risk_diseased: HexColor,   // A sick house.
+    pub faith_ramp: [HexColor; 2], // The Faith lens's heat field: the shrines' and temples' reach.
+    pub faith_none: HexColor,      // A house no patron's shrine or temple reaches...
+    pub faith_all: HexColor,       // ...to one every patron's reaches.
     pub refresh_secs: f32,
 }
 
@@ -397,6 +400,9 @@ impl Default for LensStyle {
             risk_disease: HexColor::rgb(0x6fae2a),
             risk_burning: HexColor::rgb(0x3b2620),
             risk_diseased: HexColor::rgb(0x1f5a3a),
+            faith_ramp: [HexColor::rgba(0xc9a23a00), HexColor::rgba(0xc9a23aa8)],
+            faith_none: HexColor::rgb(0xd8cfb8),
+            faith_all: HexColor::rgb(0x8a3fa0),
             refresh_secs: 1.0,
         }
     }

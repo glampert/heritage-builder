@@ -10,8 +10,11 @@ use serde::{Deserialize, Serialize};
 use crate::{
     campaign::config::MissionFaithDef,
     config::FaithRules,
-    faith::{FaithConfigs, Mood},
+    faith::{self, FaithConfigs, Mood},
     realm::Realm,
+    sim::calendar::CalendarEvent,
+    tile::TileMap,
+    world::World,
 };
 
 // A patron's state, by its id.
@@ -116,6 +119,34 @@ impl CityFaith {
     #[inline]
     pub fn realm(&self) -> Realm {
         self.realm
+    }
+
+    // A world step's calendar events, after its commands ran: each new month moves the
+    // patrons' favour (on_new_month).
+    pub fn on_calendar_events(&mut self, events: &[CalendarEvent], world: &World, tile_map: &TileMap, rules: &FaithRules) {
+        for event in events {
+            if matches!(event, CalendarEvent::NewMonth(_)) {
+                self.on_new_month(world, tile_map, rules);
+            }
+        }
+    }
+
+    // A new month (§2, decision Q4): each patron's favour moves `favour_drift` of the way to
+    // 100 x its coverage, and its months since an event go up. While favour is off for the
+    // mission, or no one lives in the city (no one to tend a patron or neglect it), favour holds.
+    pub fn on_new_month(&mut self, world: &World, tile_map: &TileMap, rules: &FaithRules) {
+        for patron in self.patrons.values_mut() {
+            patron.months_since_event = patron.months_since_event.saturating_add(1);
+        }
+        if !self.favour_enabled || faith::population(world) == 0 {
+            return;
+        }
+        let coverage = faith::coverage(world, tile_map, self.realm, rules);
+        let drift = rules.favour_drift.clamp(0.0, 1.0);
+        for (id, patron) in &mut self.patrons {
+            let target = 100.0 * coverage.get(id).map_or(0.0, |coverage| coverage.coverage);
+            patron.favour = (patron.favour + drift * (target - patron.favour)).clamp(0.0, 100.0);
+        }
     }
 
     // The patrons' states, by id.

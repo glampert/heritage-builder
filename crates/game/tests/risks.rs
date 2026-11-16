@@ -1729,6 +1729,6 @@ fn test_the_risk_lens() {
     assert!(beside > 0 && beside < 128, "fading beside it: {beside}");
     assert_eq!(heat(risky_cells.end.x + 2, risky_cells.start.y), 0, "gone two cells past it");
     assert_eq!(heat(burning_cells.start.x, burning_cells.start.y), 255, "a fire at the top");
-    let legend: Vec<&str> = data.legend.iter().map(|(_, label)| *label).collect();
+    let legend: Vec<&str> = data.legend.iter().map(|(_, label)| label.as_str()).collect();
     assert_eq!(legend, ["Low risk", "Fire risk", "Collapse risk", "Disease risk", "On fire", "Sickness"]);
 }

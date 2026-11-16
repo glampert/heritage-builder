@@ -460,6 +460,7 @@ impl Minimap {
             render::TOOL_COUNT,
             style.map_size(),
             legend_entries,
+            self.lens_data.legend_max_columns,
             style.legend.scale(),
             self.frame,
         );
