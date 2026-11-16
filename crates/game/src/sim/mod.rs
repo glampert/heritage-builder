@@ -36,7 +36,9 @@ pub mod resources;
 pub mod finance;
 pub use finance::Finance;
 
+pub mod faith;
 pub mod risks;
+pub use faith::CityFaith;
 pub use risks::CityRisks;
 
 pub mod calendar;
@@ -75,6 +77,7 @@ pub struct Simulation {
     finance: Finance,
     calendar: GameCalendar,
     risks: CityRisks,
+    faith: CityFaith,
 
     // Path finding:
     #[serde(skip)]
@@ -101,6 +104,7 @@ impl Simulation {
             finance: Finance::new(configs.sim.starting_gold_units, &configs.sim.finance),
             calendar: GameCalendar::new(configs.sim.calendar.clone()),
             risks: CityRisks::new(&configs.sim.risks),
+            faith: CityFaith::new(&configs.sim.faith),
             search: Search::with_grid_size(map_size_in_cells),
             speed: configs.sim.default_speed.clamp(Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED),
             is_paused: false,
@@ -133,6 +137,7 @@ impl Simulation {
             finance: &mut self.finance,
             calendar: &mut self.calendar,
             risks: &mut self.risks,
+            faith: &mut self.faith,
             cmds: &mut self.cmds,
         }
     }
@@ -188,6 +193,16 @@ impl Simulation {
     #[inline]
     pub fn risks_mut(&mut self) -> &mut CityRisks {
         &mut self.risks
+    }
+
+    #[inline]
+    pub fn faith(&self) -> &CityFaith {
+        &self.faith
+    }
+
+    #[inline]
+    pub fn faith_mut(&mut self) -> &mut CityFaith {
+        &mut self.faith
     }
 
     #[inline]
@@ -425,7 +440,7 @@ impl Simulation {
 
     // World:
     pub fn draw_world_debug_ui(&mut self, context: &mut GameUiContext) {
-        context.world.draw_debug_ui(&mut self.finance, &mut self.risks, context.camera, context.ui_sys);
+        context.world.draw_debug_ui(&mut self.finance, &mut self.risks, &mut self.faith, context.camera, context.ui_sys);
     }
 
     // Game Systems:
@@ -550,5 +565,6 @@ impl Load for Simulation {
         self.paused_update_timer.post_load(context.configs().sim.paused_update_frequency_secs);
         self.task_manager.post_load();
         self.cmds.post_load();
+        self.faith.sync_patrons(&context.configs().sim.faith);
     }
 }

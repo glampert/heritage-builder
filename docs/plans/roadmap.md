@@ -53,7 +53,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | Done: risk state (save v7); fire, collapse, rubble; fire watch, builders' guild; disease and hospital dispatch (save v8); the Risk lens, the info panel's risk lines and the World Debug Risks tab |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
-| M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | Planned (reviewed 2026-11-16); not started |
+| M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | In progress: Phase 0 (data, state, save v10) done; dedicated shrines and temples next |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
 | M10 | Trade v1 and court requests | Large | M1, M4, M5 | — | Not started |
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
@@ -303,7 +303,8 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 7 | Fire and collapse risk per building; the city's risks switch | M6 | Done |
 | 8 | Disease risk and outbreaks per house; the city's disease switch and death count; the fire watcher's task generalised to `UnitTaskRespond` | M6 | Done |
 | 9 | A store's orders per good (refuse, accept, get, empty), set in the inspector | UI (realm-ui Phase 8) | Done |
-| 9 | Elevation map | T | Planned |
+| 10 | The city's faith: the realm, the patrons' favour, the festival plan and log, the effects under way (`sim.faith`) | M8 | Done |
+| 11 | Elevation map | T | Planned |
 | … | Flood, favour and ratings state | M7–M9 | Planned; group them where possible |
 
 ## Conventions for every milestone

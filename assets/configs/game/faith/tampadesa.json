@@ -1,0 +1,200 @@
+{
+  "patrons": [
+    {
+      "id": "teaching_of_the_elders",
+      "icon": "temple",
+      "colour": "#c0903e",
+      "blessings": [
+        "novices",
+        "alms"
+      ],
+      "misfortunes": [
+        "heavy_alms"
+      ]
+    },
+    {
+      "id": "lord_of_the_mountain",
+      "icon": "monument",
+      "colour": "#7a6a5a",
+      "blessings": [
+        "rich_seams"
+      ],
+      "misfortunes": [
+        "rockfall"
+      ]
+    },
+    {
+      "id": "river_spirit",
+      "icon": "water",
+      "colour": "#3f7fb0",
+      "blessings": [
+        "easy_trade",
+        "rich_catch"
+      ],
+      "misfortunes": [
+        "low_river"
+      ]
+    },
+    {
+      "id": "house_guardian",
+      "icon": "house",
+      "colour": "#b04a3a",
+      "blessings": [
+        "quiet_year"
+      ],
+      "misfortunes": [
+        "fires"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "novices",
+      "effect": {
+        "kind": "novices"
+      },
+      "requires": "monasteries"
+    },
+    {
+      "id": "alms",
+      "effect": {
+        "kind": "windfall",
+        "gold": 150
+      }
+    },
+    {
+      "id": "heavy_alms",
+      "effect": {
+        "kind": "upkeep",
+        "scale": 1.5,
+        "months": 6
+      }
+    },
+    {
+      "id": "rich_seams",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "Mine",
+        "scale": 1.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "rockfall",
+      "effect": {
+        "kind": "collapse",
+        "count": 1
+      }
+    },
+    {
+      "id": "easy_trade",
+      "effect": {
+        "kind": "trade_windfall"
+      },
+      "requires": "trade"
+    },
+    {
+      "id": "rich_catch",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "FishingWharf",
+        "scale": 1.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "low_river",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "Farm",
+        "scale": 0.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "quiet_year",
+      "effect": {
+        "kind": "upkeep",
+        "scale": 0.5,
+        "months": 6
+      }
+    },
+    {
+      "id": "fires",
+      "effect": {
+        "kind": "fire",
+        "count": 2
+      }
+    }
+  ],
+  "scales": [
+    {
+      "id": "modest",
+      "cost": 0.5,
+      "effect": 0.55
+    },
+    {
+      "id": "grand",
+      "cost": 1.0,
+      "effect": 1.0
+    },
+    {
+      "id": "royal",
+      "cost": 2.0,
+      "effect": 1.5
+    }
+  ],
+  "festivals": [
+    {
+      "id": "relic_procession",
+      "month": 3,
+      "patron": "teaching_of_the_elders",
+      "gold": 380,
+      "goods": {
+        "Rice": 80,
+        "Pottery": 40
+      },
+      "favour": 15,
+      "culture": 5,
+      "legitimacy": 6
+    },
+    {
+      "id": "water_festival",
+      "month": 4,
+      "patron": "river_spirit",
+      "gold": 220,
+      "goods": {
+        "Rice": 50
+      },
+      "favour": 15,
+      "culture": 6,
+      "legitimacy": 3
+    },
+    {
+      "id": "robe_offering",
+      "month": 8,
+      "patron": "teaching_of_the_elders",
+      "gold": 260,
+      "goods": {
+        "Rice": 40,
+        "Pottery": 20
+      },
+      "favour": 15,
+      "culture": 4,
+      "legitimacy": 5
+    },
+    {
+      "id": "festival_of_lights",
+      "month": 10,
+      "patron": "all",
+      "gold": 300,
+      "goods": {
+        "Rice": 60,
+        "Pottery": 30
+      },
+      "favour": 10,
+      "culture": 7,
+      "legitimacy": 5
+    }
+  ]
+}

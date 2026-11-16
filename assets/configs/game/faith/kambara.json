@@ -1,0 +1,203 @@
+{
+  "patrons": [
+    {
+      "id": "serpent_king",
+      "icon": "water",
+      "colour": "#3f8f8a",
+      "blessings": [
+        "full_reservoirs",
+        "rich_catch"
+      ],
+      "misfortunes": [
+        "dry_rains"
+      ]
+    },
+    {
+      "id": "sky_deva",
+      "icon": "monument",
+      "colour": "#8a6fc0",
+      "blessings": [
+        "envoys",
+        "temple_gifts"
+      ],
+      "misfortunes": [
+        "lean_year"
+      ]
+    },
+    {
+      "id": "lady_of_the_earth",
+      "icon": "farm",
+      "colour": "#8f9a3e",
+      "blessings": [
+        "rich_harvest"
+      ],
+      "misfortunes": [
+        "blight"
+      ]
+    },
+    {
+      "id": "compassionate_one",
+      "icon": "temple",
+      "colour": "#c08a4e",
+      "blessings": [
+        "willing_hands"
+      ],
+      "misfortunes": [
+        "sickness"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "full_reservoirs",
+      "effect": {
+        "kind": "flood",
+        "severity": 0.5
+      },
+      "requires": "floods"
+    },
+    {
+      "id": "rich_catch",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "FishingWharf",
+        "scale": 1.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "dry_rains",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "Farm",
+        "scale": 0.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "envoys",
+      "effect": {
+        "kind": "envoys"
+      },
+      "requires": "trade"
+    },
+    {
+      "id": "temple_gifts",
+      "effect": {
+        "kind": "windfall",
+        "gold": 200
+      }
+    },
+    {
+      "id": "lean_year",
+      "effect": {
+        "kind": "upkeep",
+        "scale": 1.5,
+        "months": 6
+      }
+    },
+    {
+      "id": "rich_harvest",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "Farm",
+        "scale": 1.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "blight",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "Farm",
+        "scale": 0.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "willing_hands",
+      "effect": {
+        "kind": "upkeep",
+        "scale": 0.5,
+        "months": 6
+      }
+    },
+    {
+      "id": "sickness",
+      "effect": {
+        "kind": "sickness",
+        "count": 2
+      }
+    }
+  ],
+  "scales": [
+    {
+      "id": "modest",
+      "cost": 0.5,
+      "effect": 0.55
+    },
+    {
+      "id": "grand",
+      "cost": 1.0,
+      "effect": 1.0
+    },
+    {
+      "id": "royal",
+      "cost": 2.0,
+      "effect": 1.5
+    }
+  ],
+  "festivals": [
+    {
+      "id": "new_year",
+      "month": 4,
+      "patron": "all",
+      "gold": 260,
+      "goods": {
+        "Rice": 60,
+        "Wine": 15
+      },
+      "favour": 10,
+      "culture": 9,
+      "legitimacy": 5
+    },
+    {
+      "id": "ploughing_ceremony",
+      "month": 5,
+      "patron": "lady_of_the_earth",
+      "gold": 200,
+      "goods": {
+        "Rice": 50
+      },
+      "favour": 15,
+      "culture": 5,
+      "legitimacy": 3
+    },
+    {
+      "id": "festival_of_the_waters",
+      "month": 11,
+      "patron": "serpent_king",
+      "gold": 240,
+      "goods": {
+        "Rice": 60,
+        "Wine": 10
+      },
+      "favour": 18,
+      "culture": 8,
+      "legitimacy": 4
+    },
+    {
+      "id": "lamps_on_the_baray",
+      "month": 12,
+      "patron": "sky_deva",
+      "gold": 200,
+      "goods": {
+        "Pottery": 20,
+        "Wine": 10
+      },
+      "favour": 15,
+      "culture": 6,
+      "legitimacy": 4
+    }
+  ]
+}

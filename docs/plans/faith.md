@@ -1,6 +1,6 @@
 # Faith and festivals
 
-**Status (2026-11-16): Reviewed; not started.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
+**Status (2026-11-16): Phase 0 done; Phase 1 next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
 - patron spirits or deities per realm;
 - favour, raised by shrines and temples;
 - blessings and misfortunes;
@@ -182,6 +182,7 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
   | `blight { scale, months }` | Farms produce `scale` times as much (blight: 0.5 for 3) |
   | `windfall { gold }` | Gold into the treasury, recorded as a new `LedgerCategory::Offerings` (income) |
   | `fire { count }` | Sets that many random buildings that can burn on fire (M6's `ignite`) |
+  | `collapse { count }` | Collapses that many random buildings that can collapse (M6's `destroy_building`; added in Phase 0's data: a restless mountain's rockfall) |
   | `sickness { count }` | Starts an outbreak in that many random houses with people (M6's `start_outbreak`) |
   | `upkeep { scale, months }` | Building upkeep scaled (a lean year, or a blessed one) |
 
@@ -280,13 +281,37 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 
 ### Phase 0: Data, state and the save format (medium)
 
-- [ ] `assets/configs/game/faith/<realm>.json` for the three realms, from the mockups; `FaithConfigs` loads and checks them; strings in `en.json`.
-- [ ] The knobs in `GameConfigs::sim.faith` (`FaithRules`, beside `RiskConfigs`): starting favour, drift, coverage needed, temple weight, the thresholds, chances and cooldown.
-- [ ] `sim::faith::CityFaith` in `Simulation`, `SimContext::faith()` and `SimContextMut::faith_mut()`, started per mission (`GameSession::start_mission`, `start_custom_game`).
-- [ ] The mission's `faith` block (`MissionFaithDef`).
-- [ ] Save v10, `v9_to_v10.py` (the faith state at its start), migrated sample saves, `--smoke-test-saves`.
-- [ ] `faith.state`, `faith.set`; World Debug's Faith tab.
-- [ ] Tests: the data, the round trip.
+- [x] `assets/configs/game/faith/<realm>.json` for the three realms, from the mockups; `FaithConfigs` loads and checks them; strings in `en.json`.
+- [x] The knobs in `GameConfigs::sim.faith` (`FaithRules`, beside `RiskConfigs`): starting favour, drift, coverage needed, temple weight, the thresholds, chances and cooldown.
+- [x] `sim::faith::CityFaith` in `Simulation`, `SimContext::faith()` and `SimContextMut::faith_mut()`, started per mission (`GameSession::start_mission`, `start_custom_game`).
+- [x] The mission's `faith` block (`MissionFaithDef`).
+- [x] Save v10, `v9_to_v10.py` (the faith state at its start), migrated sample saves, `--smoke-test-saves`.
+- [x] `faith.state`, `faith.set`; World Debug's Faith tab.
+- [x] Tests: the data, the round trip.
+- **Notes (2026-11-16):**
+  - **What was built:**
+    - The data is `crate::faith::config` (`FaithConfigs`, a singleton loaded at boot after the campaigns, `get_or_load` for tests), with `PatronDef`, `FaithEventDef` and its `FaithEffectDef`, `FestivalScaleDef` and `FestivalDef`.
+    - A festival's costs and effects are its middle scale's; a realm's `scales` multiply them (`cost`, `effect`: 0.5 and 0.55, 1 and 1, 2 and 1.5), so the files stay short.
+    - `validate` checks ids, colours, event and patron references, months (one festival a month), goods by name and `appears` against the campaigns. `missing_text_keys` checks every name, domain, message, scale, venue and text in `en.json`. Errors go to the `faith` log channel.
+    - The state is `sim::CityFaith`: the game's realm, the two switches, each patron's favour and months since an event (by id), the plan, the log and the effects.
+      - A new game starts in Đại Long; a mission starts in its campaign's realm with its `faith` block; a custom game in its realm with both on.
+      - `sync_patrons` (on load, and at a start) drops patrons the realm's file no longer lists and adds new ones at the starting favour.
+  - **Deviations:**
+    - `faith::Mood` (the bands, Q5) came with Phase 0, for `faith.state` and the debug tab.
+    - A `collapse` effect was added to the table, for the mountain patrons' rockfall.
+    - Each patron has a list of blessings and of misfortunes (the mockups show one each), so a patron whose only effect waits for a later system still has one that works now where it fits (the Ancestors' family gifts beside the scholars).
+  - **The save:**
+    - `v9_to_v10.py` writes `sim.faith` with the header's realm (else Đại Long's) and no patrons; the load fills them.
+    - Shrines and temples need nothing (§2a).
+    - The local saves and the sample zip were migrated; `--smoke-test-saves` passes on all 12.
+  - **Verified:**
+    - `cargo test --workspace`, with 11 tests in the new `tests/faith.rs`.
+    - Clippy on desktop and web, `cargo +nightly fmt --all`, the web check.
+    - The CI scenarios in release: 23 of 24 pass. `ui_sounds.jsonl` fails at its line 49 (the Settings dialog's texture filtering dropdown plays no `item_hovered`), and fails the same way on `fe12e57`, before this phase.
+    - `determinism.jsonl` twice: checksum `7ca92921d3187567`, new since the faith state is saved.
+    - Record and replay of `ui_build` and `determinism`.
+    - In script mode, `faith.state`, `faith.set` (and its errors), a Kambara mission starting with Kambara's patrons, and a save and load keeping them.
+    - `web/asset_manifest.json` lists the three files.
 
 ### Phase 1: Dedicated shrines and temples (medium)
 

@@ -8,6 +8,7 @@ use game::{
     cheats,
     config::GameConfigs,
     debug::preset_maps,
+    faith::FaithConfigs,
     menu::{PlaceOrClearResult, TilePlacement},
     prop::{PropId, config::PropConfigs},
     sim::{
@@ -56,6 +57,7 @@ fn setup(test_suite_name: &str) {
     UnitConfigs::load();
     PropConfigs::load();
     BuildingConfigs::load();
+    FaithConfigs::load(); // Every realm's patrons (sim::faith).
 
     // Register the runner/harvester/patrol completion callbacks so that producer
     // dispatch -> task -> on-completion routing works end-to-end in tests.

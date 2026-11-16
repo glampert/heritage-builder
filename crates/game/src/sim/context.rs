@@ -15,7 +15,7 @@ use rand::{
 };
 use smallvec::SmallVec;
 
-use super::{CityRisks, Finance, GameCalendar, RandomGenerator, SimCmds};
+use super::{CityFaith, CityRisks, Finance, GameCalendar, RandomGenerator, SimCmds};
 use crate::{
     building::{Building, BuildingId, BuildingKind},
     pathfind::{
@@ -93,6 +93,9 @@ pub struct SimContext<'game> {
     // Whether fire and collapse risks build up:
     risks: RawPtr<CityRisks>,
 
+    // Patrons' favour and festivals:
+    faith: RawPtr<CityFaith>,
+
     // Update delta time.
     delta_time_secs: Seconds,
 
@@ -128,6 +131,7 @@ pub(super) struct SimContextParts<'a> {
     pub finance: &'a mut Finance,
     pub calendar: &'a mut GameCalendar,
     pub risks: &'a mut CityRisks,
+    pub faith: &'a mut CityFaith,
     pub cmds: &'a mut SimCmds,
 }
 
@@ -150,6 +154,7 @@ impl<'game> SimContext<'game> {
             finance: RawPtr::from_ref(parts.finance),
             calendar: RawPtr::from_ref(parts.calendar),
             risks: RawPtr::from_ref(parts.risks),
+            faith: RawPtr::from_ref(parts.faith),
             delta_time_secs,
             is_world_teardown,
             _borrow: PhantomData,
@@ -229,6 +234,11 @@ impl<'game> SimContext<'game> {
     #[inline(always)]
     pub fn risks(&self) -> &CityRisks {
         &self.risks
+    }
+
+    #[inline]
+    pub fn faith(&self) -> &CityFaith {
+        &self.faith
     }
 
     #[inline]
@@ -652,6 +662,11 @@ impl<'game> SimContextMut<'game> {
     #[inline]
     pub fn risks_mut(&self) -> &mut CityRisks {
         self.risks.mut_ref_cast()
+    }
+
+    #[inline]
+    pub fn faith_mut(&self) -> &mut CityFaith {
+        self.faith.mut_ref_cast()
     }
 
     #[inline]

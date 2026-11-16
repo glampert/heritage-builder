@@ -14,6 +14,7 @@ mod assert;
 mod camera;
 mod city;
 mod config;
+mod faith;
 mod finance;
 mod input;
 mod inspect;
@@ -43,6 +44,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     world::COMMANDS,
     finance::COMMANDS,
     risks::COMMANDS,
+    faith::COMMANDS,
     camera::COMMANDS,
     minimap::COMMANDS,
     city::COMMANDS,

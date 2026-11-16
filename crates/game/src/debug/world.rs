@@ -1,11 +1,12 @@
 use common::{Color, format_small};
-use engine::ui::{self, DrawDebugUi, UiStaticVar, UiSystem};
+use engine::ui::{self, DrawDebugUi, UiNumberFormat, UiStaticVar, UiSystem};
 
 use crate::{
     building::risks::{RISK_HIGH, RiskEntry, RiskKind, RiskSummary},
     camera::Camera,
     cheats,
-    sim::{Finance, risks::CityRisks},
+    faith::{FaithConfigs, Mood, config as faith_config},
+    sim::{CityFaith, Finance, risks::CityRisks},
     world::{World, stats::WorldStats},
 };
 
@@ -21,16 +22,19 @@ impl World {
         &mut self,
         finance: &mut Finance,
         risks: &mut CityRisks,
+        faith: &mut CityFaith,
         camera: &mut Camera,
         ui_sys: &UiSystem,
     ) {
-        const TABS: [&str; 4] = ["Population/Workers/Housing", "Tax/Treasury", "Resources", "Risks"];
+        const TABS: [&str; 5] = ["Population/Workers/Housing", "Tax/Treasury", "Resources", "Risks", "Faith"];
         let Some(tab) = ui::tab_bar(ui_sys, "World Stats Tab Bar", &TABS) else {
             return;
         };
 
         if tab.index == 3 {
             self.draw_risks_debug_ui(risks, camera, ui_sys);
+        } else if tab.index == 4 {
+            draw_faith_debug_ui(faith, ui_sys);
         } else {
             self.stats_mut().draw_debug_ui(tab.index, finance, ui_sys);
         }
@@ -140,6 +144,40 @@ impl World {
         if let Some(cell) = go_to {
             camera.teleport(cell);
         }
+    }
+}
+
+// The Faith tab: the game's realm, the switches, and each patron's favour as a slider, with its mood.
+fn draw_faith_debug_ui(faith: &mut CityFaith, ui_sys: &UiSystem) {
+    let realm = faith.realm();
+    ui::text(ui_sys, format_small!("Realm : {realm}"));
+
+    ui::bullet_text(ui_sys, "Switches:");
+    let mut favour_enabled = faith.is_favour_enabled();
+    if ui::checkbox(ui_sys, "Favour Enabled", &mut favour_enabled) {
+        faith.set_favour_enabled(favour_enabled);
+    }
+    let mut festivals_enabled = faith.is_festivals_enabled();
+    if ui::checkbox(ui_sys, "Festivals Enabled", &mut festivals_enabled) {
+        faith.set_festivals_enabled(festivals_enabled);
+    }
+    ui::separator(ui_sys);
+
+    ui::bullet_text(ui_sys, "Patrons:");
+    let Some(def) = FaithConfigs::get().for_realm(realm) else {
+        ui::text(ui_sys, "No patrons: the realm's faith file didn't load.");
+        return;
+    };
+    for patron in &def.patrons {
+        let Some(mut favour) = faith.favour(&patron.id) else {
+            continue;
+        };
+        let label = format!("{}##{}", faith_config::patron_name(realm, &patron.id), patron.id);
+        if ui::slider(ui_sys, &label, 0.0, 100.0, UiNumberFormat::Decimals(1), &mut favour) {
+            faith.set_favour(&patron.id, favour);
+        }
+        let months = faith.patron(&patron.id).map_or(0, |state| state.months_since_event);
+        ui::text(ui_sys, format_small!("    {}, {months} months since an event", Mood::from_favour(favour).display_name()));
     }
 }
 

@@ -17,7 +17,7 @@ pub mod config;
 pub mod preview;
 pub mod stele;
 
-use config::{CampaignConfigs, MissionFinanceDef, MissionMap, MissionRisksDef};
+use config::{CampaignConfigs, MissionFaithDef, MissionFinanceDef, MissionMap, MissionRisksDef};
 use engine::log;
 use serde::{Deserialize, Serialize};
 
@@ -291,6 +291,19 @@ pub fn active_mission_finance() -> Option<MissionFinanceDef> {
     let active = CampaignManager::get().progress.active.clone()?;
     let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
     campaign.missions.get(active.mission_index)?.finance.clone()
+}
+
+// The faith switches of the active mission, if it sets them. None outside a campaign.
+pub fn active_mission_faith() -> Option<MissionFaithDef> {
+    let active = CampaignManager::get().progress.active.clone()?;
+    let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
+    campaign.missions.get(active.mission_index)?.faith.clone()
+}
+
+// The realm of the active mission's campaign. None outside a campaign.
+pub fn active_mission_realm() -> Option<crate::realm::Realm> {
+    let active = CampaignManager::get().progress.active.clone()?;
+    CampaignConfigs::get().campaign(active.campaign_id).map(|campaign| campaign.realm)
 }
 
 // The risks setting of the active mission, if it sets one. None outside a campaign.

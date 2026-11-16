@@ -1,0 +1,203 @@
+{
+  "patrons": [
+    {
+      "id": "mountain_lord",
+      "icon": "farm",
+      "colour": "#6f8a4e",
+      "blessings": [
+        "gentle_flood",
+        "steady_hills"
+      ],
+      "misfortunes": [
+        "rockfall"
+      ]
+    },
+    {
+      "id": "water_lord",
+      "icon": "water",
+      "colour": "#3f7fb0",
+      "blessings": [
+        "rich_catch"
+      ],
+      "misfortunes": [
+        "severe_flood"
+      ]
+    },
+    {
+      "id": "village_guardian",
+      "icon": "house",
+      "colour": "#c0612f",
+      "blessings": [
+        "rich_harvest"
+      ],
+      "misfortunes": [
+        "blight"
+      ]
+    },
+    {
+      "id": "ancestors",
+      "icon": "learning",
+      "colour": "#b08a2e",
+      "blessings": [
+        "scholars",
+        "family_gifts"
+      ],
+      "misfortunes": [
+        "fever"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "gentle_flood",
+      "effect": {
+        "kind": "flood",
+        "severity": 0.5
+      },
+      "requires": "floods"
+    },
+    {
+      "id": "steady_hills",
+      "effect": {
+        "kind": "upkeep",
+        "scale": 0.5,
+        "months": 6
+      }
+    },
+    {
+      "id": "rockfall",
+      "effect": {
+        "kind": "collapse",
+        "count": 1
+      }
+    },
+    {
+      "id": "rich_catch",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "FishingWharf",
+        "scale": 1.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "severe_flood",
+      "effect": {
+        "kind": "flood",
+        "severity": 1.5
+      },
+      "requires": "floods"
+    },
+    {
+      "id": "rich_harvest",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "Farm",
+        "scale": 1.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "blight",
+      "effect": {
+        "kind": "harvest",
+        "buildings": "Farm",
+        "scale": 0.5,
+        "months": 3
+      }
+    },
+    {
+      "id": "scholars",
+      "effect": {
+        "kind": "scholars",
+        "count": 2
+      },
+      "requires": "education"
+    },
+    {
+      "id": "family_gifts",
+      "effect": {
+        "kind": "windfall",
+        "gold": 150
+      }
+    },
+    {
+      "id": "fever",
+      "effect": {
+        "kind": "sickness",
+        "count": 1
+      }
+    }
+  ],
+  "scales": [
+    {
+      "id": "modest",
+      "cost": 0.5,
+      "effect": 0.55
+    },
+    {
+      "id": "grand",
+      "cost": 1.0,
+      "effect": 1.0
+    },
+    {
+      "id": "imperial",
+      "cost": 2.0,
+      "effect": 1.5
+    }
+  ],
+  "festivals": [
+    {
+      "id": "new_year",
+      "month": 1,
+      "patron": "all",
+      "gold": 300,
+      "goods": {
+        "Rice": 80,
+        "Wine": 16
+      },
+      "favour": 10,
+      "culture": 7,
+      "legitimacy": 3
+    },
+    {
+      "id": "dragon_boat_races",
+      "month": 5,
+      "patron": "water_lord",
+      "gold": 200,
+      "goods": {
+        "Rice": 40,
+        "Wine": 10
+      },
+      "favour": 15,
+      "culture": 5,
+      "legitimacy": 2
+    },
+    {
+      "id": "floodwater_offering",
+      "month": 8,
+      "patron": "water_lord",
+      "gold": 240,
+      "goods": {
+        "Rice": 60,
+        "Wine": 12
+      },
+      "favour": 18,
+      "culture": 6,
+      "legitimacy": 3
+    },
+    {
+      "id": "mid_autumn_lanterns",
+      "month": 9,
+      "patron": "village_guardian",
+      "gold": 180,
+      "goods": {
+        "Rice": 40,
+        "Pottery": 10
+      },
+      "favour": 15,
+      "culture": 6,
+      "legitimacy": 2
+    }
+  ]
+}

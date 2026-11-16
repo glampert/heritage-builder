@@ -553,6 +553,9 @@ impl GameLoop {
         crate::story::StoryConfigs::load(); // After the campaigns: one file per campaign that has a story.
         log::info!(log::channel!("game"), "StoryConfigs loaded.");
 
+        crate::faith::FaithConfigs::load(); // After the campaigns: a patron's `appears` names a mission.
+        log::info!(log::channel!("game"), "FaithConfigs loaded.");
+
         let tex_cache = engine.texture_cache_mut();
         TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets, false);
         log::info!(log::channel!("game"), "TileSets loaded.");

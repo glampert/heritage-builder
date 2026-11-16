@@ -14,6 +14,7 @@ pub mod config;
 pub mod constants;
 pub mod custom_game;
 pub mod debug;
+pub mod faith;
 pub mod inspect;
 pub mod launch;
 pub mod menu;

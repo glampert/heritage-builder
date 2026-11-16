@@ -190,6 +190,10 @@ pub struct SimConfigs {
     #[debug_ui(nested)]
     pub risks: RiskConfigs,
 
+    // Patrons' favour, blessings and misfortunes (docs/plans/faith.md).
+    #[debug_ui(nested)]
+    pub faith: FaithRules,
+
     // Workers/Population:
     pub workers_search_radius: i32,
     pub workers_update_frequency_secs: Seconds,
@@ -218,6 +222,7 @@ impl Default for SimConfigs {
             construction: ConstructionConfigs::default(),
             finance: FinanceConfigs::default(),
             risks: RiskConfigs::default(),
+            faith: FaithRules::default(),
             // Workers/Population:
             workers_search_radius: 20,
             workers_update_frequency_secs: 20.0,
@@ -366,6 +371,50 @@ impl Default for RiskConfigs {
             death_fraction: 0.1,
             death_fraction_step: 0.05,
             death_fraction_max: 0.3,
+        }
+    }
+}
+
+// How patrons' favour moves and what it brings (docs/plans/faith.md, §2 and §3). The patrons, events
+// and festivals themselves are data (faith::config). To be balanced in M13.
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FaithRules {
+    // Every patron's favour in a new game or mission, 0 to 100.
+    pub starting_favour: f32,
+
+    // Each month a patron's favour moves this fraction of the way to its target, 100 x coverage.
+    pub favour_drift: f32,
+
+    // A patron's coverage is the residents its shrines and temples reach, weighted, over the city's
+    // population times this, capped at 1: tended in half the city is fully covered.
+    pub coverage_needed: f32,
+
+    // A staffed temple counts this many times a shrine.
+    pub temple_weight: f32,
+
+    // A patron at or above `blessing_favour` has `blessing_chance` a month of a blessing; one at or
+    // below `misfortune_favour` `misfortune_chance` of a misfortune; at most one event every
+    // `event_cooldown_months` each.
+    pub blessing_favour: f32,
+    pub blessing_chance: f32,
+    pub misfortune_favour: f32,
+    pub misfortune_chance: f32,
+    pub event_cooldown_months: u32,
+}
+
+impl Default for FaithRules {
+    fn default() -> Self {
+        Self {
+            starting_favour: 50.0,
+            favour_drift: 0.25,
+            coverage_needed: 0.5,
+            temple_weight: 3.0,
+            blessing_favour: 70.0,
+            blessing_chance: 0.15,
+            misfortune_favour: 30.0,
+            misfortune_chance: 0.15,
+            event_cooldown_months: 6,
         }
     }
 }

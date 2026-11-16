@@ -118,3 +118,7 @@ harness = false
 [[test]]
 name    = "story"
 harness = false
+
+[[test]]
+name    = "faith"
+harness = false

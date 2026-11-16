@@ -674,6 +674,10 @@ impl GameSession {
         if let Some(risks) = campaign::active_mission_risks() {
             self.sim.risks_mut().start_mission(&risks, &GameConfigs::get().sim.risks);
         }
+        if let Some(realm) = campaign::active_mission_realm() {
+            self.sim.faith_mut().start(realm, &GameConfigs::get().sim.faith);
+            self.sim.faith_mut().start_mission(&campaign::active_mission_faith().unwrap_or_default());
+        }
     }
 
     // A custom game's start, on the map it was created with: its calendar from the first day of the
@@ -687,6 +691,8 @@ impl GameSession {
         let finance = MissionFinanceDef { starting_gold: Some(settings.starting_gold), tax_level: None, wage: None };
         self.sim.finance_mut().start_mission(&finance, &configs.sim.finance);
         self.sim.risks_mut().set_enabled(settings.fires_and_collapses);
+        self.sim.faith_mut().start(settings.realm, &configs.sim.faith);
+        self.sim.faith_mut().start_mission(&Default::default());
         // TODO(realm-ui): the difficulty, once M4 and M9 read it; seasons and floods (M7) and raids
         // (game Phase 2) once they exist. Stored with the game until then (CustomGameRecord).
         custom_game::set_active(Some(ActiveCustomGame::from_settings(settings)));
@@ -956,7 +962,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 9;
+const CURRENT_SAVE_VERSION: u32 = 10;
 
 // What the menus show of a save without loading it (the home menu's Continue, the Load / Save
 // dialog): whether this game can load it (its save version is this game's) and its header (blank

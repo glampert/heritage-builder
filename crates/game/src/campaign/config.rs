@@ -205,6 +205,9 @@ pub struct MissionDef {
     // Whether fire and collapse risks build up. None: RiskConfigs::enabled.
     #[serde(default)]
     pub risks: Option<MissionRisksDef>,
+    // Whether patrons' favour moves and festivals can be planned. None: both on.
+    #[serde(default)]
+    pub faith: Option<MissionFaithDef>,
     // The city the mission founds, on its campaign's world map: the player's once the mission is
     // finished, and while it's played. None: it founds none.
     #[serde(default)]
@@ -366,6 +369,14 @@ pub struct MissionFinanceDef {
 pub struct MissionRisksDef {
     pub enabled: Option<bool>,
     pub disease: Option<bool>,
+}
+
+// A mission's faith switches (docs/plans/faith.md, decision Q13). None: on.
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MissionFaithDef {
+    pub favour: Option<bool>,
+    pub festivals: Option<bool>,
 }
 
 // How a mission's starting map is loaded.
