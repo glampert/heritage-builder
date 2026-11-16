@@ -162,7 +162,7 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
   - `TileSelection` carries an optional variation. `TilePlacement::place` places that variation instead of a random one, and so do undo and redo, which already keep the tile.
   - A picked tile's cost, tooltip and disabled state are the tile's, as now.
   - A tile that picks its variation, placed with none chosen (presets, `SimCmds` spawns), gets a random one of those offered in the realm.
-- **The developer editor:** its `Tile Selection` palette shows a `Variation` dropdown under the tools while a tile that picks its variation is selected, set to the first offered.
+- **The developer editor:** its `Tile Selection` palette opens a tile that picks its variation as a popup window left of the palette, level with the tile's button, a button per variation offered (`Tile Variations/<label>`); a button selects the tile with that variation. Until 2026-11-17 it was a `Variation` dropdown under the tools; the user asked for a popup, as the build palette's submenu.
 - **Automation:** `world.place` takes `variation=` (a name), and `tile.at` and `world.building_at` report it.
 - **The inspector** shows "Dedicated to <patron>" with the patron's mood on a shrine's or a temple's panel. It's read-only.
 
@@ -269,7 +269,7 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 | City book, Heritage page | The Patrons tab's rows (Phase 2) and the Festivals tab's year, list and planner (Phase 4), after the mockup. The Monument tab is unchanged. | 2, 4 | `menu/dialog/city_book/heritage.rs` |
 | Minimap lens bar | The Faith lens button shows (its sprite exists), with its legend. | 2 | `tile/minimap/lens.rs`, minimap styles (`faith_*` colours) |
 | Build palette | A tile that picks its variation (the shrine, the temple) opens a submenu of text buttons in the realm's style, one per variation offered, beside the grid; a button picks the tile and the variation. General for any tile. | 1 | `menu/in_game/palette.rs`, `tile/selection.rs` |
-| Developer UI only | `Tile Selection`'s `Variation` dropdown. | 1 | `debug/palette.rs` |
+| Developer UI only | `Tile Selection`'s variation popup window (a `Variation` dropdown until 2026-11-17). | 1 | `debug/palette.rs` |
 | Inspector, shrine and temple | "Dedicated to" with the patron's mood, read-only. | 1 | `inspect/building.rs`, `menu/in_game/inspector/` |
 | Inspector, festival square | The next festival planned. | 4 | same |
 | Build palette | The festival square, data only, and its glyph in each realm (a fifth tile in the Culture grid). | 4 | `tile_set.json`, `configs.json`, ui-art |
@@ -319,7 +319,7 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 - [x] `pick_variation` and per-variation `realms` in tile defs; labels as Realm text keys (see the notes).
 - [x] Art: Đại Long's four variations of each, renaming `var0` onwards in place and appending the rest (recoloured hand-made art, not Blender: see the notes).
 - [x] The palette's pick (`TilePaletteSelection::Tile`) with a variation; `TilePlacement::place_variation`, undo and redo place it; spawns without one pick a random offered one.
-- [x] The build palette's variation submenu (general for any tile that picks its variation), in the realm's style; the developer editor's `Variation` dropdown.
+- [x] The build palette's variation submenu (general for any tile that picks its variation), in the realm's style; the developer editor's `Variation` dropdown (a popup window since 2026-11-17, §2a).
 - [x] A shrine's or a temple's patron from its variation; the inspector's "Dedicated to" line.
 - [x] `world.place variation=`, `tile.at` and `world.building_at` report it.
 - [x] Tests: the variation picked and kept through undo and redo; a random offered one; the patron. A scenario of the submenu (`faith.jsonl`, `ui.layout_issues` 0).
@@ -485,7 +485,7 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
       - plans the Floodwater offering on the Festivals tab and changes its scale there;
       - fast-forwards to month 8 and checks the costs, the favour, the dressed square, the Faith message and the square's panel;
       - checks a festival short of rice and pottery isn't held.
-    - `ui_dev_screens.jsonl` failed once in the full run, on its world map's Choose Site popup (covered), and passed on two reruns.
+    - `ui_dev_screens.jsonl` fails in about half the local runs, on a world map popup it opens from the Screens menu (Choose Site Popup, Finish Mission Popup: "covered"). It fails the same way on Phase 3's build (`c5dd9540`), so it's older than this phase (known-issues); CI's Linux job passed it.
     - `determinism.jsonl` twice: checksum `6daf93014da3b8ab`, unchanged.
     - Record and replay of `ui_build` and `determinism`.
     - Clippy on desktop and web, nightly rustfmt, ui-art's `--check` (732 sprites), the tile generator's `sync_tileset.py --check` and both pipelines' unit tests.

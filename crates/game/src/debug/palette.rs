@@ -35,6 +35,19 @@ pub struct TilePaletteDevMenu {
     selected_index: HashMap<TileKind, usize>, // For highlighting the selected button.
     clear_button_image: TextureHandle,
     realm: crate::realm::Realm, // The game's, as of the last draw: the variations it offers.
+    variations: Option<VariationPopup>, // The tile whose variations are open beside the palette.
+    palette_left: f32,          // The palette window's left edge, as of the last draw.
+}
+
+// A tile whose variations the player picks (a shrine's or a temple's patron), its variations
+// offered in the game's realm open in a popup window beside the palette, as the in-game build
+// palette's variation submenu: which tile, its button, and where its button's top is.
+#[derive(Copy, Clone)]
+struct VariationPopup {
+    handle: TileDefHandle,
+    tile_kind: TileKind,
+    tile_index: usize,
+    button_top: f32, // In window points: the popup's top.
 }
 
 impl TilePalette for TilePaletteDevMenu {
@@ -52,6 +65,10 @@ impl TilePalette for TilePaletteDevMenu {
     }
 
     fn on_tile_placement_canceled(&mut self, _context: &mut GameUiContext) {
+        // Escape or a right click with a tile's variations open closes them, and only them.
+        if self.variations.take().is_some() {
+            return;
+        }
         self.reset_selection_internal();
     }
 
@@ -74,6 +91,9 @@ const TILE_BUTTON_SIZE: Vec2 = Vec2::new(BASE_TILE_WIDTH_F32, BASE_TILE_WIDTH_F3
 
 // The clear tool's icon (icons/red_x_icon.png, 819 × 620): the aspect it's drawn at.
 const CLEAR_ICON_ASPECT: Vec2 = Vec2::new(819.0, 620.0);
+
+// Between the palette window and its variation popup.
+const VARIATION_POPUP_GAP: f32 = 4.0;
 
 impl TilePaletteDevMenu {
     pub fn new(context: &mut GameUiContext) -> Self {
@@ -107,7 +127,9 @@ impl TilePaletteDevMenu {
             .right_aligned()
             .item_spacing(Vec2::new(spacing_between_tiles, spacing_between_tiles));
 
-        ui::window(ui_sys, window, |ui_sys| {
+        let shown = ui::window(ui_sys, window, |ui_sys| {
+            self.palette_left = ui::window_rect(ui_sys).min.x;
+
             let set_selection = ui::take_window_set_value(ui_sys);
             let set_selection = set_selection.as_ref().and_then(|value| value.as_str());
 
@@ -147,22 +169,6 @@ impl TilePaletteDevMenu {
                     self.reset_selection_internal();
                     self.current_selection = TilePaletteSelection::Clear;
                 }
-
-                // A tile whose variations the player picks (a shrine's patron): which one to build,
-                // of those offered in the game's realm (`Tile Selection/Tools/Variation`).
-                if let TilePaletteSelection::Tile(handle, Some(variation)) = self.current_selection
-                    && let Some(tile_def) = self.current_selection.as_tile_def()
-                    && tile_def.pick_variation
-                {
-                    let offered = tile_def.offered_variations(self.realm);
-                    let labels: Vec<String> = offered.iter().map(|index| tile_def.variations[*index].label_text()).collect();
-                    let mut current = offered.iter().position(|index| *index == variation).unwrap_or(0);
-                    if ui::combo(ui_sys, "Variation", &mut current, &labels)
-                        && let Some(index) = offered.get(current)
-                    {
-                        self.current_selection = TilePaletteSelection::Tile(handle, Some(*index));
-                    }
-                }
             }
 
             let sections = [
@@ -176,9 +182,62 @@ impl TilePaletteDevMenu {
                 let _path = ui::path_scope(ui_sys, if label.is_empty() { "Buildings" } else { label });
                 self.draw_tile_list(label, tile_kind, ui_sys, tiles_per_row, spacing_between_tiles, set_selection);
             }
+        })
+        .is_some();
+
+        // A collapsed palette shows no tile buttons: a tile's variations close with it.
+        if !shown {
+            self.variations = None;
+        }
+        self.draw_variations(ui_sys);
+        self.draw_selected_tile(context, debug_draw, show_selection_bounds);
+    }
+
+    // The open tile's variations offered in the game's realm, a button each, in a popup window
+    // (`Tile Variations`, titled by the tile) left of the palette, level with the tile's button.
+    // A button picks the tile and that variation and closes the popup; its close button, Escape or
+    // a right click close it without picking (on_tile_placement_canceled).
+    fn draw_variations(&mut self, ui_sys: &UiSystem) {
+        let Some(popup) = self.variations else {
+            return;
+        };
+        let Some(tile_def) = TileSets::get().handle_to_tile_def(popup.handle) else {
+            self.variations = None;
+            return;
+        };
+
+        let title = format!("{}###tile_variations", common::fixed_string::snake_case_to_title::<64>(&tile_def.name));
+        let mut open = true;
+        let window = UiWindow::new(&title)
+            .name("Tile Variations")
+            .open(&mut open)
+            .auto_resize()
+            .no_resize()
+            .no_collapse()
+            .fit_on_screen()
+            .position(Vec2::new(self.palette_left - VARIATION_POPUP_GAP, popup.button_top), UiCondition::Always)
+            .right_aligned();
+
+        let mut picked = None;
+        ui::window(ui_sys, window, |ui_sys| {
+            for index in tile_def.offered_variations(self.realm) {
+                let variation = &tile_def.variations[index];
+                if ui::button(ui_sys, &variation.label_text()) {
+                    picked = Some(index);
+                }
+                if let Some(tooltip) = variation.tooltip_text() {
+                    ui::item_tooltip_text(ui_sys, tooltip.as_str());
+                }
+            }
         });
 
-        self.draw_selected_tile(context, debug_draw, show_selection_bounds);
+        if let Some(index) = picked {
+            self.reset_selection_internal();
+            self.current_selection = TilePaletteSelection::Tile(popup.handle, Some(index));
+            self.selected_index.insert(popup.tile_kind, popup.tile_index);
+        } else if !open {
+            self.variations = None;
+        }
     }
 
     fn draw_selected_tile(&self, context: &mut GameUiContext, debug_draw: &mut DebugDraw, show_selection_bounds: bool) {
@@ -332,7 +391,10 @@ impl TilePaletteDevMenu {
         tile_def: &TileDef,
         select: Option<&str>,
     ) {
-        let selected = self.selected_index.get(&tile_kind) == Some(&tile_index);
+        // Selected, or its variations open.
+        let selected = self.selected_index.get(&tile_kind) == Some(&tile_index)
+            || self.variations.is_some_and(|popup| popup.tile_kind == tile_kind && popup.tile_index == tile_index);
+        let button_top = ui::available_rect(ui_sys).min.y;
 
         let tile_sprite = tile_def.texture_by_index(0, 0, 0);
 
@@ -365,13 +427,21 @@ impl TilePaletteDevMenu {
             select.is_some_and(|name| name.eq_ignore_ascii_case(&btn_id) || name.eq_ignore_ascii_case(&tile_def.name));
 
         if clicked || selected_by_name {
+            let handle = TileDefHandle::new(tile_set, tile_category, tile_def);
+            // A tile whose variations the player picks opens them beside the palette, if there's a
+            // choice (clicked again, it closes them); others are selected at once, the variation
+            // random (or the only one offered).
+            let offered = if tile_def.pick_variation { tile_def.offered_variations(self.realm) } else { Default::default() };
+            if offered.len() > 1 {
+                let reopened = self.variations.is_some_and(|popup| popup.handle == handle);
+                self.reset_selection_internal();
+                if !reopened {
+                    self.variations = Some(VariationPopup { handle, tile_kind, tile_index, button_top });
+                }
+                return;
+            }
             self.reset_selection_internal();
-            // A tile whose variations the player picks starts with the first offered in the game's
-            // realm (the Tools' Variation dropdown changes it); others get a random one.
-            let variation =
-                if tile_def.pick_variation { tile_def.offered_variations(self.realm).first().copied() } else { None };
-            self.current_selection =
-                TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def), variation);
+            self.current_selection = TilePaletteSelection::Tile(handle, offered.first().copied());
             self.selected_index.insert(tile_kind, tile_index);
         }
     }
@@ -402,5 +472,6 @@ impl TilePaletteDevMenu {
         self.left_mouse_button_pressed = false;
         self.current_selection = TilePaletteSelection::None;
         self.selected_index.clear();
+        self.variations = None;
     }
 }

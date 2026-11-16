@@ -38,6 +38,8 @@ Last verified against the code on 2026-11-14. Remove an entry once it's resolved
 
 ## Open bugs / design questions
 
+- `ui_dev_screens.jsonl` is flaky on macOS: in about half the local release runs, a click on a world map popup that the developer editor's Screens menu opens (`Choose Site Popup/Begin the mission`, `Finish Mission Popup/Ok`) fails because the button is "covered". The failing frame differs from run to run. It happens on `c5dd9540` (M8 Phase 3) as well, and CI's Linux scenarios job passed it. Likely cause, unconfirmed: something tied to wall-clock time (a tooltip or a menu's fade) still covers the button when the click lands — `crates/game/tests/scenarios/ui_dev_screens.jsonl`, `crates/game/src/menu/dialog/preview.rs`.
+
 - `ProducerBuilding` clears its stock as soon as it hands resources to a delivery unit, so the resources are lost if that unit fails to spawn. The TODO judges this low priority, since a spawn failure would itself be a bug — `crates/game/src/building/producer.rs`.
 - Fire watches and hospitals don't share out emergencies: each sends its walker to the nearest fire or sick house in reach, so two may go to the same one (the second goes on to the next). A unit task can't safely look through other walkers' tasks while units update — `crates/game/src/unit/task/respond.rs`, docs/plans/city-risks.md.
 - House access to a service is decided by proximity to the service building, measured from the house's road-link tile, not by a service patrol unit actually visiting. A TODO asks whether to switch to visit-based access — `crates/game/src/building/house.rs`.

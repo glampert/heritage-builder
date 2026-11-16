@@ -1,5 +1,5 @@
-# Drives the developer editor's menus (Ctrl+/) through the widget registry: the tile palette,
-# the menu bar, the minimap's debug panel, the tile inspector and its panels, the debug windows
+# Drives the developer editor's menus (Ctrl+/) through the widget registry: the tile palette and
+# its variation popup, the menu bar, the minimap's debug panel, the tile inspector and its panels, the debug windows
 # and the log viewer's console. The realm UI's widgets are driven in ui_skins.jsonl, on the Skin
 # Gallery. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_dev_menus.jsonl
@@ -12,6 +12,20 @@
 {"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [8, 8]}, "path": "/objects/0/name", "value": "small_well"}}
 {"method": "ui.click", "params": {"path": "Tile Selection/Tools/Undo"}}
 {"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [8, 8]}, "path": "/objects", "value": []}}
+# A tile whose variations the player picks (a shrine's patron) opens them in a popup window left
+# of the palette instead (Escape closes it); a variation picked selects the tile with it.
+{"method": "ui.set", "params": {"path": "Tile Selection", "value": "Shrine"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Tile Variations/The Water Lord"}, "path": "/widgets/0"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Tile Variations"}, "path": "/widgets", "value": []}}
+{"method": "ui.set", "params": {"path": "Tile Selection", "value": "Shrine"}}
+{"method": "ui.click", "params": {"path": "Tile Variations/The Water Lord"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Tile Selection", "kind": "tile_palette"}, "path": "/widgets/0/value", "value": "Shrine"}}
+{"method": "input.click", "params": {"cell": [8, 8]}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 8]}, "path": "/patron", "value": "water_lord"}}
+{"method": "ui.click", "params": {"path": "Tile Selection/Tools/Undo"}}
+{"method": "input.key", "params": {"key": "Escape"}}
 # Menu bar: a menu's items are listed while it's open.
 {"method": "ui.click", "params": {"path": "Debug"}}
 {"method": "ui.set", "params": {"path": "Debug/Draw grid", "value": true}}

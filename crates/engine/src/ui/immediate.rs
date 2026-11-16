@@ -420,6 +420,15 @@ pub fn available_rect(ui_sys: &UiSystem) -> Rect {
     ui_sys.with_ui(|ui| to_rect(ui.available_rect_before_wrap()))
 }
 
+// The rect of the window being drawn (inside ui::window's contents), frame included, in window
+// points, as it was last laid out: e.g. to put another window beside it.
+pub fn window_rect(ui_sys: &UiSystem) -> Rect {
+    ui_sys.with_ui(|ui| {
+        let rect = ui.ctx().memory(|memory| memory.area_rect(ui.layer_id().id));
+        to_rect(rect.unwrap_or_else(|| ui.max_rect()))
+    })
+}
+
 // Physical pixels per window point, e.g. 2 on a Retina display.
 pub fn pixels_per_point(ui_sys: &UiSystem) -> f32 {
     ui_sys.ctx().pixels_per_point()
