@@ -290,6 +290,9 @@ trait SoundAssetRegistry: Sized {
     fn load_narration(&mut self, path: PathRef) -> NarrationSoundKey;
     fn unload_all(&mut self);
     fn sounds_loaded(&self) -> usize;
+    // A sound effect file's length, from its WAV header (None: not a WAV, or unreadable). Kept
+    // once read. It doesn't need the sound loaded or an audio device.
+    fn sfx_length(&mut self, path: PathRef) -> Option<Seconds>;
 }
 
 // ----------------------------------------------
@@ -485,6 +488,12 @@ impl SoundSystem {
         }
     }
 
+    // A sound effect file's length in seconds, read from its WAV header, with or without an audio
+    // device (the UI sounds' exclusivity runs on it: ui::sound). None: not a WAV, or unreadable.
+    pub fn sfx_length(&mut self, path: PathRef) -> Option<Seconds> {
+        self.registry.sfx_length(path)
+    }
+
     // True if the sound is advancing and producing audio output (Fading-in, Playing, Fading-out).
     // False if the sound is not advancing (Paused, Stopped).
     pub fn is_playing(&self, sound_handle: SoundHandle) -> bool {
@@ -504,6 +513,33 @@ impl SoundSystem {
 // Utilities
 // ----------------------------------------------
 
+// The length of a WAV file's audio, in seconds, from its header: the `data` chunk's size over the
+// `fmt ` chunk's byte rate. None if the bytes aren't a RIFF WAVE file with both chunks.
+pub fn wav_length(bytes: &[u8]) -> Option<Seconds> {
+    if bytes.len() < 12 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
+        return None;
+    }
+    let read_u32 = |at: usize| bytes.get(at..at + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
+
+    let mut byte_rate = None;
+    let mut data_size = None;
+    let mut at = 12;
+    while at + 8 <= bytes.len() && (byte_rate.is_none() || data_size.is_none()) {
+        let id = &bytes[at..at + 4];
+        let size = read_u32(at + 4)? as usize;
+        let body = at + 8;
+        match id {
+            b"fmt " => byte_rate = read_u32(body + 8),
+            b"data" => data_size = Some(size),
+            _ => {}
+        }
+        at = body.checked_add(size)?.checked_add(size & 1)?; // Chunks are padded to an even size.
+    }
+
+    let byte_rate = byte_rate.filter(|rate| *rate > 0)?;
+    Some(data_size? as f32 / byte_rate as f32)
+}
+
 #[inline]
 fn linear_to_decibels(mut volume: f32) -> f32 {
     volume = volume.clamp(0.0, 1.0);
@@ -514,4 +550,53 @@ fn linear_to_decibels(mut volume: f32) -> f32 {
     }
 
     20.0 * volume.log10()
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::wav_length;
+
+    // A PCM WAV header for `data_size` bytes at `byte_rate`, with an extra chunk before the data.
+    fn wav(byte_rate: u32, data_size: u32, odd_chunk: bool) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&0u32.to_le_bytes()); // The size isn't read.
+        bytes.extend_from_slice(b"WAVE");
+        bytes.extend_from_slice(b"fmt ");
+        bytes.extend_from_slice(&16u32.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // PCM.
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // Mono.
+        bytes.extend_from_slice(&44_100u32.to_le_bytes());
+        bytes.extend_from_slice(&byte_rate.to_le_bytes());
+        bytes.extend_from_slice(&2u16.to_le_bytes());
+        bytes.extend_from_slice(&16u16.to_le_bytes());
+        if odd_chunk {
+            bytes.extend_from_slice(b"LIST");
+            bytes.extend_from_slice(&3u32.to_le_bytes());
+            bytes.extend_from_slice(&[1, 2, 3, 0]); // Three bytes and the pad.
+        }
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&data_size.to_le_bytes());
+        bytes
+    }
+
+    #[test]
+    fn reads_the_length_from_the_header() {
+        // 44.1 kHz, 16-bit mono: 88,200 bytes a second.
+        assert_eq!(wav_length(&wav(88_200, 2_205, false)), Some(0.025));
+        assert_eq!(wav_length(&wav(88_200, 88_200, true)), Some(1.0), "past a padded chunk");
+    }
+
+    #[test]
+    fn rejects_what_isnt_a_wav() {
+        assert_eq!(wav_length(b"OggS\0\0\0\0\0\0\0\0"), None);
+        assert_eq!(wav_length(&wav(0, 100, false)), None, "no byte rate");
+        let mut no_data = wav(88_200, 100, false);
+        no_data.truncate(no_data.len() - 8);
+        assert_eq!(wav_length(&no_data), None, "no data chunk");
+    }
 }

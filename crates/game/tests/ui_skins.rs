@@ -553,7 +553,8 @@ fn test_every_colour_and_widget_part_resolves() {
     }
 }
 
-// Every sound file a skin names exists, and Đại Long's names every role (the defaults).
+// Every sound file a skin names exists and is a WAV whose length reads (exclusivity runs on it:
+// ui::sound), and Đại Long's names every role (the defaults).
 fn test_every_sound_exists() {
     for (realm, skin) in skins() {
         let (mapping, problems) = sound::mapping_from_names(skin.sounds.clone().into_iter().collect());
@@ -565,6 +566,12 @@ fn test_every_sound_exists() {
             if let Some(Some(file)) = mapping.get(&role) {
                 let path = repo_path("assets/sounds/sfx/ui").join(file);
                 assert!(path.is_file(), "{realm}: '{role}' names {}, which doesn't exist", path.display());
+                let bytes = std::fs::read(&path).unwrap();
+                assert!(
+                    engine::sound::wav_length(&bytes).is_some_and(|length| length > 0.0),
+                    "{realm}: '{role}' names {}, whose length doesn't read as a WAV's",
+                    path.display()
+                );
             }
         }
     }

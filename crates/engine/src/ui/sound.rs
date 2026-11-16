@@ -5,7 +5,10 @@
 // current realm skin's), and a role neither names plays nothing.
 //
 // Each role has its own flags and cooldown (UiSoundKey::default_flags, default_cooldown), measured
-// in frame time. Retained widgets play their roles through UiWidgetSounds, which lets a widget swap
+// in frame time. Exclusivity is too: a role counts as playing from the frame it starts for its
+// file's length (SoundSystem::sfx_length, from the WAV header), on the same clock, not as the audio
+// device reports it, so what plays is the same with a device or without one, and repeats with a
+// fixed time step. Retained widgets play their roles through UiWidgetSounds, which lets a widget swap
 // a role for another or silence it. Two roles mapped to the same file that start in the same frame
 // play it once, e.g. a button's press and the dialog it opens.
 //
@@ -26,6 +29,7 @@ use strum::{Display, EnumCount, EnumIter, EnumString, IntoEnumIterator, IntoStat
 use super::widgets::UiWidgetContext;
 use crate::{
     file_sys::paths::AssetPath,
+    log,
     sound::{SfxSoundKey, SoundHandle, SoundKey, SoundKind, SoundSystem},
 };
 
@@ -336,17 +340,24 @@ impl UiWidgetSounds {
 // UiSound
 // ----------------------------------------------
 
-// A role's sound: its file, loaded, and when it last played.
+// A role's sound: its file, loaded, its length, and when it last played.
 struct UiSound {
     file: Option<String>,
     key: SfxSoundKey,
     handle: SoundHandle,
+    length: Seconds,             // The file's (0 for no file, or one whose length can't be read).
     last_play_time: Option<f64>, // On the manager's clock.
 }
 
 impl UiSound {
     fn new() -> Self {
-        Self { file: None, key: SfxSoundKey::invalid(), handle: SoundHandle::invalid(SoundKind::Sfx), last_play_time: None }
+        Self {
+            file: None,
+            key: SfxSoundKey::invalid(),
+            handle: SoundHandle::invalid(SoundKind::Sfx),
+            length: 0.0,
+            last_play_time: None,
+        }
     }
 
     // Plays `file` from now on. Keeps the cooldown running.
@@ -357,16 +368,29 @@ impl UiSound {
 
         self.file = file.map(str::to_string);
         self.handle = SoundHandle::invalid(SoundKind::Sfx);
-        self.key = match file {
+        (self.key, self.length) = match file {
             // All UI sound assets are under "sfx/ui/{file}".
-            Some(file) => sound_sys.load_sfx((&AssetPath::from_str("ui").join(file)).into()),
-            None => SfxSoundKey::invalid(),
+            Some(file) => {
+                let path = AssetPath::from_str("ui").join(file);
+                let key = sound_sys.load_sfx((&path).into());
+                let length = sound_sys.sfx_length((&path).into()).unwrap_or_else(|| {
+                    log::warning!(
+                        log::channel!("sound"),
+                        "Can't read the length of the UI sound '{file}' (a WAV file): it won't hold back other sounds."
+                    );
+                    0.0
+                });
+                (key, length)
+            }
+            None => (SfxSoundKey::invalid(), 0.0),
         };
     }
 
+    // Whether it's playing at `time_now` on the manager's clock: it started less than its length
+    // ago. Not the audio device's view, so it's the same without one.
     #[inline]
-    fn is_playing(&self, sound_sys: &SoundSystem) -> bool {
-        sound_sys.is_playing(self.handle)
+    fn is_playing(&self, time_now: f64) -> bool {
+        self.file.is_some() && self.last_play_time.is_some_and(|start| time_now - start < f64::from(self.length))
     }
 }
 
@@ -419,15 +443,15 @@ impl UiSoundManagerSingleton {
         cooldown: Seconds,
         flags: UiPlaySoundFlags,
     ) {
-        if flags.intersects(UiPlaySoundFlags::GloballyExclusive) && self.is_any_playing(sound_sys) {
+        let time_now = self.time_secs;
+        if flags.intersects(UiPlaySoundFlags::GloballyExclusive) && self.is_any_playing(time_now) {
             return;
         }
 
-        let time_now = self.time_secs;
         let sound = &self.sounds[sound_key as usize];
 
         let exclusive = flags.intersects(UiPlaySoundFlags::Exclusive | UiPlaySoundFlags::GloballyExclusive);
-        if exclusive && sound.is_playing(sound_sys) {
+        if exclusive && sound.is_playing(time_now) {
             return;
         }
 
@@ -467,8 +491,8 @@ impl UiSoundManagerSingleton {
         self.recent.push_back(UiSoundPlayed { role: sound_key, frame: self.frame, file });
     }
 
-    fn is_any_playing(&self, sound_sys: &SoundSystem) -> bool {
-        self.sounds.iter().any(|sound| sound.is_playing(sound_sys))
+    fn is_any_playing(&self, time_now: f64) -> bool {
+        self.sounds.iter().any(|sound| sound.is_playing(time_now))
     }
 }
 

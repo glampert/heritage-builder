@@ -287,6 +287,10 @@ pub struct WebAudioSoundAssetRegistry {
     music: PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
     narration: PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
     paths: Box<SoundAssetPaths>,
+
+    // Sound effect files' lengths, by path (sfx_length): from the bytes load_sfx reads, or read
+    // here when nothing loads them (no audio device). An asset can be read only once on the web.
+    sfx_lengths: PreHashedKeyMap<StringHash, Option<Seconds>>,
 }
 
 struct SoundAssetPaths {
@@ -312,23 +316,33 @@ impl SoundAssetRegistry for WebAudioSoundAssetRegistry {
             music: PreHashedKeyMap::default(),
             narration: PreHashedKeyMap::default(),
             paths: Box::new(asset_paths),
+            sfx_lengths: PreHashedKeyMap::default(),
         }
     }
 
     fn load_sfx(&mut self, path: PathRef) -> SfxSoundKey {
-        load_sound(&mut self.sfx, &self.paths.sfx, path)
+        load_sound(&mut self.sfx, &self.paths.sfx, path, Some(&mut self.sfx_lengths))
+    }
+
+    fn sfx_length(&mut self, path: PathRef) -> Option<Seconds> {
+        let sound_path = self.paths.sfx.join(path);
+        let sound_hash = hash::fnv1a_from_str(sound_path.as_str());
+        *self
+            .sfx_lengths
+            .entry(sound_hash)
+            .or_insert_with(|| file_sys::load_bytes(&sound_path).ok().and_then(|bytes| super::wav_length(&bytes)))
     }
 
     fn load_ambience(&mut self, path: PathRef) -> AmbienceSoundKey {
-        load_sound(&mut self.ambience, &self.paths.ambience, path)
+        load_sound(&mut self.ambience, &self.paths.ambience, path, None)
     }
 
     fn load_music(&mut self, path: PathRef) -> MusicSoundKey {
-        load_sound(&mut self.music, &self.paths.music, path)
+        load_sound(&mut self.music, &self.paths.music, path, None)
     }
 
     fn load_narration(&mut self, path: PathRef) -> NarrationSoundKey {
-        load_sound(&mut self.narration, &self.paths.narration, path)
+        load_sound(&mut self.narration, &self.paths.narration, path, None)
     }
 
     fn unload_all(&mut self) {
@@ -343,10 +357,12 @@ impl SoundAssetRegistry for WebAudioSoundAssetRegistry {
     }
 }
 
+// `lengths`, given, keeps the file's WAV length from the bytes read (sfx_length).
 fn load_sound<Key: SoundKey>(
     hash_map: &mut PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
     base_path: &AssetPath,
     asset_path: PathRef,
+    lengths: Option<&mut PreHashedKeyMap<StringHash, Option<Seconds>>>,
 ) -> Key {
     debug_assert!(!asset_path.is_empty());
 
@@ -365,6 +381,10 @@ fn load_sound<Key: SoundKey>(
             return Key::invalid();
         }
     };
+
+    if let Some(lengths) = lengths {
+        lengths.insert(sound_hash, super::wav_length(&bytes));
+    }
 
     // Decode asynchronously via AudioContext.decodeAudioData.
     let buffer_cell: Rc<RefCell<Option<web_sys::AudioBuffer>>> = Rc::new(RefCell::new(None));

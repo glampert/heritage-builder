@@ -34,7 +34,10 @@ use super::{
     SoundKind,
 };
 use crate::{
-    file_sys::paths::{self, AssetPath, PathRef},
+    file_sys::{
+        self,
+        paths::{self, AssetPath, PathRef},
+    },
     log,
 };
 
@@ -338,6 +341,9 @@ pub(super) struct KiraSoundAssetRegistry {
     narration: PreHashedKeyMap<StringHash, StreamedSoundAsset>,
 
     paths: Box<SoundAssetPaths>,
+
+    // Sound effect files' lengths, by path (sfx_length), read whether or not a device loaded them.
+    sfx_lengths: PreHashedKeyMap<StringHash, Option<Seconds>>,
 }
 
 struct SoundAssetPaths {
@@ -363,7 +369,17 @@ impl super::SoundAssetRegistry for KiraSoundAssetRegistry {
             music: PreHashedKeyMap::default(),
             narration: PreHashedKeyMap::default(),
             paths: Box::new(asset_paths),
+            sfx_lengths: PreHashedKeyMap::default(),
         }
+    }
+
+    fn sfx_length(&mut self, path: PathRef) -> Option<Seconds> {
+        let sound_path = self.paths.sfx.join(path);
+        let sound_hash = hash::fnv1a_from_str(sound_path.as_str());
+        *self
+            .sfx_lengths
+            .entry(sound_hash)
+            .or_insert_with(|| file_sys::load_bytes(&sound_path).ok().and_then(|bytes| super::wav_length(&bytes)))
     }
 
     #[inline]

@@ -3,8 +3,9 @@
 # (Đại Long's skin's `sounds` block, assets/configs/ui/skins/dailong.json), and the dialogs' sounds
 # through a skin switch. From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_sounds.jsonl
-# Run it without an audio device, as CI does: with one, a sound still playing can hold back the next
-# (exclusivity). Cooldowns run on frame time, so with time.fixed_dt the list is the same every run.
+# A sound still playing holds back the next (exclusivity): a role counts as playing for its file's
+# length on frame time, as cooldowns do, with an audio device or without one, so with time.fixed_dt
+# the list is the same every run, on any machine.
 # Each check reads the list and clears it (clear=true).
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"mapping": true}, "path": "/mapping/dialog_opened", "value": "buttons/default/pressed.wav"}}
@@ -94,13 +95,14 @@
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true, "roles": ["popup_closed", "dialog_closed"]}, "path": "/roles", "value": ["dialog_closed"]}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
 
-# The build palette's sounds play as before: a road drawn, then the tool put away with Escape.
+# The build palette's sounds play as before: a road drawn, then the tool put away with Escape once
+# the placed sound (0.12 s) has finished; within it, the cancel's would be held back.
 {"method": "ui.click", "params": {"path": "Roads"}}
 {"method": "ui.click", "params": {"path": "Dirt Road"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "ui.sounds", "params": {"clear": true}}
 {"method": "input.drag", "params": {"from": [5, 5], "to": [5, 12], "cells": true}}
-{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "wait.frames", "params": {"frames": 10}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 5}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["tile_placed", "tile_placement_canceled"]}}
