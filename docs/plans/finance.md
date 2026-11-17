@@ -78,7 +78,7 @@
   - income: `Taxes`;
   - spending: `Construction`, `Wages` and `Upkeep`.
 
-  Later milestones add `Trade` (M10), `Festivals` (M8) and `Court` levies and gifts (M10).
+  Later milestones add `Trade` (M10) and `Court` levies and gifts (M10). M8 added `Offerings` (faith's windfalls, income) and `Festivals` (spending).
 - **Accounts.** `Finance` keeps `this_year` and `last_year`, each a per-category array of `i64` totals, and the balance at the start of each year.
 - **Saved by name.** Each year saves as `{ "Taxes": 412, "Wages": 96 }` with zero entries left out, through the same pattern as `per_kind_map`. An unknown category name is an error. Adding a category needs no save-version bump, and removing or renaming one does.
 - **The new year.** At `on_new_year`, `this_year` moves to `last_year`, and a new year starts empty.

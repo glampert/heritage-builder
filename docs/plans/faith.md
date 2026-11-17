@@ -1,6 +1,6 @@
 # Faith and festivals
 
-**Status (2026-11-17): Phases 0 to 4 done; Phase 5 (the docs pass) next.** The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
+**Status (2026-11-17): Done.** Phases 0 to 5 landed on `claude`; each phase's notes record what was built, the deviations and what was verified, and [known-issues](../../.claude/rules/known-issues.md) what's left (Kambara's and Tampadesa's shrine and temple art, blessings waiting for their systems, festivals without crowds, balance for M13). The user answered Q1 (dedication on construction, a tile variation per patron, picked from a submenu in the build palette), and approved Q4, Q6, Q8, Q13 and Q14 on 2026-11-16 (Q4 and Q6 to be balanced later). The other [open decisions](#open-decisions) keep their defaults unless the user decides otherwise. This plan is milestone M8 of the [roadmap](roadmap.md). It covers GDD 5.11:
 - patron spirits or deities per realm;
 - favour, raised by shrines and temples;
 - blessings and misfortunes;
@@ -380,6 +380,8 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
   - **Verified:**
     - `cargo test --workspace`, with 19 tests in `tests/faith.rs`.
     - `faith.jsonl` now also checks a month's drift (the untended Mountain Lord 50 to 37.5), the lens through its button and the Patrons tab's rows and layout.
+    - `determinism.jsonl`'s checksum changed to `6daf93014da3b8ab`, since favour now moves in its city.
+    - CI on `1a150352` (run 43828231811) passed every job: clippy (desktop and web), rustfmt, the tests on Ubuntu and macOS, the web build and smoke test, and the scenarios with the determinism and replay checks. (Added in Phase 5, from the run's record; the phase's own notes listed only the tests and the scenario.)
 
 ### Phase 3: Blessings and misfortunes (small to medium)
 
@@ -493,7 +495,14 @@ Mission I-3 teaches "the shrine, the temple … the first festival" and I-4 "the
 
 ### Phase 5: Documentation (small)
 
-- [ ] AGENTS.md (a Faith entry under Runtime architecture, the palette's variation submenu, `faith.jsonl` in the scenario list, `faith` in the test list), the generator's README (`pick_variation`, `realms`), the roadmap's M8 row and save-version log, known-issues for what's left (Kambara's and Tampadesa's shrine and temple art).
+- [x] AGENTS.md (a Faith entry under Runtime architecture, the palette's variation submenu, `faith.jsonl` in the scenario list, `faith` in the test list), the generator's README (`pick_variation`, `realms`), the roadmap's M8 row and save-version log, known-issues for what's left (Kambara's and Tampadesa's shrine and temple art).
+- **Notes (2026-11-17):**
+  - **Already done in earlier phases:** each phase updated AGENTS.md as it landed: the Faith entry under Runtime architecture, the build palette's variation submenu and the developer palette's popup, `faith.jsonl` in the scenario list, `faith` in the test list and `crates/tools/building-recolor` in the workspace layout. The same goes for the save-version log's v10 row and the known issues: the shrine and temple art, blessings that wait for their systems, and festivals.
+  - **This phase:**
+    - The tile generator's README says how a catalog tile gets `pick_variation` and a variation's `label`, `tooltip` and `realms`: they're `tile_set` fields, passed through as they are, and no generated tile uses them yet. A unit test (`test_pickable_variations`) checks the sync writes them and that a second sync changes nothing.
+    - Phase 2's notes gained the determinism checksum and its CI run.
+    - The roadmap's M8 row and AGENTS.md's plan line say Done. The finance plan's categories, the realm-ui plan's Heritage page and the minimap plan's lenses say what M8 added.
+  - **Verified:** the tile generator's unit tests (17).
 
 ## Risks
 

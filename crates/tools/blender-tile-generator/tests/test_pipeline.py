@@ -143,6 +143,21 @@ class Sync(unittest.TestCase):
         d = json.loads(new)["categories"][0]["tile_defs"][1]
         self.assertEqual(d["minimap"], {"class": "Field", "landmark": "Temple"})
 
+    def test_pickable_variations(self):
+        label = {"label": "patron.dailong.water_lord", "tooltip": "patron.dailong.water_lord.domain",
+                 "realms": ["dailong"]}
+        e = entry("kiln", [{"name": "water_lord", "tile_set": label}, {"name": "plain"}],
+                  tile_set={"cost": 10, "pick_variation": True})
+        sprites = {cat.sprite_path(e, v): sprite_rec() for v in ("water_lord", "plain")}
+        new, _ = self.sync(TILE_SET, [e], sprites)
+        d = json.loads(new)["categories"][0]["tile_defs"][1]
+        self.assertIs(d["pick_variation"], True)
+        self.assertEqual(list(d["variations"][0]), ["name", "label", "tooltip", "realms", "anim_sets"])
+        self.assertEqual(d["variations"][0]["realms"], ["dailong"])
+        self.assertEqual(list(d["variations"][1]), ["name", "anim_sets"])
+        again, _ = self.sync(new, [e], sprites)
+        self.assertEqual(again, new, "a second sync must change nothing")
+
     def test_updates_sizes_in_place(self):
         e = entry("kiln")
         one, _ = self.sync(TILE_SET, [e], {cat.sprite_path(e, ""): sprite_rec()})

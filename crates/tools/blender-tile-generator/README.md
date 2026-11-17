@@ -279,6 +279,24 @@ written on one line, like `materials`.
 `params` and `tile_set` fields, such as `iso_offset`. Sprites go to
 `assets/tiles/<layer>/<category>/<tile>/[<variation>/]<tile>.png`.
 
+**Variations the player picks** (a shrine's or a temple's patron; see
+[docs/plans/faith.md](../../../docs/plans/faith.md), §2a): the entry's
+`tile_set` sets `"pick_variation": true`, and each variation's `tile_set` may
+give a `label` and a `tooltip`, Realm text keys (the patron's name and
+domain), and `realms`, the realms it's offered in:
+
+    "tile_set": {"cost": 10, "sector": "CultureAndReligion", "pick_variation": true},
+    "variations": [{"name": "water_lord", "seed": 1, "tile_set": {"label": "patron.dailong.water_lord",
+                    "tooltip": "patron.dailong.water_lord.domain", "realms": ["dailong"]}}]
+
+Without a `label` the palette shows the variation's name in title case, and
+without `realms` it's offered in every realm. The build palette opens a
+submenu of the variations offered in the game's realm, and the developer
+palette a popup window. A variation's name is its id (the patron's), and
+variations are append-only, as below. No generated tile uses these yet: the
+patrons' shrines and temples are hand-made art recoloured by
+`crates/tools/building-recolor`.
+
 `frames` gives a tile several sprites in one anim set, each with its own
 recipe `params`, written as `<frame>.png`. The scaffolds use them for their
 stages:

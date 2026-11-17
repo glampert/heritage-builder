@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-12): Phase 1 in progress: M1, M3, M4, M5 and M6 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-17): Phase 1 in progress: M1, M3, M4, M5, M6 and M8 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -53,7 +53,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | Done: risk state (save v7); fire, collapse, rubble; fire watch, builders' guild; disease and hospital dispatch (save v8); the Risk lens, the info panel's risk lines and the World Debug Risks tab |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
-| M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | In progress: Phase 0 (data, state, save v10), Phase 1 (the patrons' shrines and temples, the palette's variation submenu), Phase 2 (favour, the Patrons tab, the Faith lens), Phase 3 (blessings and misfortunes) and Phase 4 (festivals) done; the docs pass next |
+| M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | Done: data, state and save v10; the patrons' shrines and temples, picked from the palette's variation submenu; favour, the Patrons tab and the Faith lens; blessings and misfortunes; festivals and the festival square (floods' blessings wait for M7, Culture and Legitimacy for M9) |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
 | M10 | Trade v1 and court requests | Large | M1, M4, M5 | — | Not started |
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
