@@ -82,24 +82,24 @@ fn test_world_steps_add_up_to_simulated_time() {
     }
 }
 
-// A rice farm's production timer fills its stock at the same rate per simulated second at any speed.
-// It makes 2 rice about every 19 s (18 s and a world step), up to 8: 66 s is three cycles, with
-// time to spare on both sides, and a farm running at twice the rate would reach the cap.
+// A livestock farm's production timer fills its stock at the same rate per simulated second at any
+// speed. It makes 2 meat about every 19 s (18 s and a world step), up to 8: 66 s is three cycles,
+// with time to spare on both sides, and a farm running at twice the rate would reach the cap.
 fn test_building_timers_follow_simulated_time() {
     const SIM_SECS: f64 = 66.0;
-    const EXPECTED_RICE: u32 = 6;
+    const EXPECTED_MEAT: u32 = 6;
 
-    let rice_after = |speed: f32| {
+    let meat_after = |speed: f32| {
         let mut env = TestEnvironment::new();
-        let farm = test_utils::spawn_building(&mut env, Cell::new(8, 8), "rice_farm");
+        let farm = test_utils::spawn_building(&mut env, Cell::new(8, 8), "livestock_farm");
 
         run_at_speed(&mut env, speed, SIM_SECS);
-        test_utils::find_building(&env, farm).available_resources(ResourceKind::Rice)
+        test_utils::find_building(&env, farm).available_resources(ResourceKind::Meat)
     };
 
     for speed in [1.0, 2.0, 10.0] {
-        let rice = rice_after(speed);
-        assert_eq!(rice, EXPECTED_RICE, "{SIM_SECS} simulated seconds made {rice} rice at {speed}x");
+        let meat = meat_after(speed);
+        assert_eq!(meat, EXPECTED_MEAT, "{SIM_SECS} simulated seconds made {meat} meat at {speed}x");
     }
 }
 

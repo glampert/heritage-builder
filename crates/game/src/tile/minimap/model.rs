@@ -240,7 +240,8 @@ pub fn terrain_of(tile_def: &'static TileDef) -> (Terrain, MinimapRoad) {
 
 // What an object tile puts on its cells, or None for tiles the minimap ignores (units).
 pub fn cover_of(tile_def: &TileDef) -> Option<Cover> {
-    if tile_def.is(TileKind::Building) {
+    // A field is drawn as a building is, striped by its def's Field class (one shape a cell).
+    if tile_def.is(TileKind::Building | TileKind::Field) {
         Some(Cover::Building)
     } else if tile_def.path_kind.is_vegetation() || tile_def.is(TileKind::Vegetation) {
         Some(Cover::Vegetation)

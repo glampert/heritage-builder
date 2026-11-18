@@ -17,7 +17,8 @@
 {"method": "world.place", "params": {"tile": "vacant_lot", "cell": [13, 15]}}
 {"method": "world.place", "params": {"tile": "vacant_lot", "cell": [14, 15]}}
 {"method": "world.place", "params": {"tile": "small_well", "cell": [10, 9]}}
-{"method": "world.place", "params": {"tile": "rice_farm", "cell": [4, 9]}}
+{"method": "world.place", "params": {"tile": "farmstead", "cell": [4, 9]}}
+{"method": "world.place_area", "params": {"tile": "rice_field", "from": [4, 11], "to": [7, 13]}}
 {"method": "world.place", "params": {"tile": "granary", "cell": [16, 9]}}
 {"method": "world.place", "params": {"tile": "market", "cell": [8, 9]}}
 {"method": "world.place", "params": {"tile": "tree", "cell": [18, 20]}}

@@ -271,7 +271,7 @@ impl TileMapRenderer {
         let mut try_add_to_sort_list = |tile: &Tile| {
             fn should_draw(tile: &Tile, flags: TileMapRenderFlags) -> bool {
                 !tile.is(TileKind::Blocker)
-                    && (tile.is(TileKind::Building) && flags.contains(TileMapRenderFlags::DrawBuildings))
+                    && (tile.is(TileKind::Building | TileKind::Field) && flags.contains(TileMapRenderFlags::DrawBuildings))
                     || (tile.is(TileKind::Unit) && flags.contains(TileMapRenderFlags::DrawUnits))
                     || (tile.is(TileKind::Rocks) && flags.contains(TileMapRenderFlags::DrawProps))
                     || (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetation))

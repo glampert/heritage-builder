@@ -122,3 +122,11 @@ harness = false
 [[test]]
 name    = "faith"
 harness = false
+
+[[test]]
+name    = "farms"
+harness = false
+
+[[test]]
+name    = "floods"
+harness = false

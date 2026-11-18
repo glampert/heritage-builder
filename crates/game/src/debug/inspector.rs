@@ -201,12 +201,42 @@ impl TileInspectorDevMenu {
     }
 
     fn draw_tile_debug_ui(context: &mut GameUiContext, tile: &mut Tile) {
+        Self::tile_field_dropdown(context, tile);
         Self::tile_properties_dropdown(context, tile);
         Self::tile_flags_dropdown(context, tile);
         Self::tile_variations_dropdown(context, tile);
         Self::tile_animations_dropdown(context, tile);
         Self::tile_debug_opts_dropdown(context, tile);
         Self::tile_def_editor_dropdown(context, tile);
+    }
+
+    // A rice field's farmstead and crop (crate::farms).
+    fn tile_field_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
+        if !tile.is(TileKind::Field) {
+            return;
+        }
+        let cell = tile.base_cell();
+        let ui_sys = context.ui_sys;
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Field", false) else {
+            return;
+        };
+        let sim_context = context.new_sim_context();
+        let Some(field) = crate::farms::field_report(&sim_context, cell) else {
+            return;
+        };
+        let farmstead = field.farmstead_cell.map_or("none".to_string(), |cell| cell.to_string());
+        ui::text(ui_sys, format!("Farmstead: {farmstead}"));
+        ui::text(ui_sys, format!("Stage: {}, tended: {}", field.stage.name(), field.tended));
+        ui::text(ui_sys, format!("Sown: {:?}, reaped in: {:?}", field.sown, field.reaped_in));
+        ui::text(
+            ui_sys,
+            format!(
+                "Fertility: {}, irrigated: {}, flooded: {}",
+                sim_context.floods().fertility_at(cell),
+                field.irrigated,
+                field.flooded
+            ),
+        );
     }
 
     fn tile_properties_dropdown(context: &mut GameUiContext, tile: &mut Tile) {

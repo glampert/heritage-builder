@@ -1,0 +1,77 @@
+# Farmsteads and their rice fields (docs/plans/seasons-floods.md, Phase 1): a farmstead from the build
+# palette's Food grid, rice fields dragged around it with the area tool (cells beyond its reach
+# refused), the field's and the farmstead's panels, then a farming year: the fields sown as the wet
+# season begins, ripe, reaped in month 9 (a Season message) and the harvest carried to the granary a
+# load at a time. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/farms.jsonl --default-configs --fresh-profile
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [40, 40]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "cheats.set", "params": {"name": "no_city_risks", "value": true}}
+{"method": "world.road", "params": {"from": [12, 15], "to": [30, 15]}}
+{"method": "world.place", "params": {"tile": "granary", "cell": [26, 12]}}
+# The farmstead and the rice field in the Food grid.
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/food_and_farming"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: food_and_farming/Farmstead"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: food_and_farming/Rice Field"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: food_and_farming/Rice Farm"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "TilePaletteChildMenu: food_and_farming/Farmstead"}}
+{"method": "input.click", "params": {"cell": [18, 16]}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/farmsteads/0/cell", "value": [18, 16]}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/farmsteads/0/fields", "value": 0}}
+# A field alone, far from it, is refused.
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/food_and_farming"}}
+{"method": "ui.click", "params": {"path": "TilePaletteChildMenu: food_and_farming/Rice Field"}}
+{"method": "input.drag", "params": {"from": [30, 20], "to": [30, 20], "cells": true, "frames": 4}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields", "value": []}}
+# Dragged around it, east of its footprint: the cells in reach take a field, all of them its.
+{"method": "input.drag", "params": {"from": [20, 16], "to": [25, 18], "cells": true, "frames": 10}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.gt", "params": {"query": "farms.state", "path": "/farmsteads/0/fields", "value": 3}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/0/farmstead", "value": [18, 16]}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/0/stage", "value": "fallow"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/farms/fields_laid.png"}}
+# The field's panel and the farmstead's.
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [20, 16]}, "path": "/name", "value": "Rice field"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [20, 16]}, "path": "/panel", "value": "terrain"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [20, 16]}, "path": "/sections/0/rows/0/value", "value": "At 18, 16"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [19, 17]}, "path": "/name", "value": "Farmstead"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [19, 17]}, "path": "/sections/1/title", "value": "Fields"}}
+{"method": "input.click", "params": {"cell": [20, 16]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TerrainInspector/title", "kind": "canvas"}, "path": "/widgets/0/value/name", "value": "Rice field"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/farms/field_panel.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "input.click", "params": {"cell": [18, 16]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/title", "kind": "canvas"}, "path": "/widgets/0/value/name", "value": "Farmstead"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/farms/farmstead_panel.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+# A farming year: sown at the start of month 5, ripe in month 8, reaped in month 9.
+{"method": "calendar.set", "params": {"year": 1, "month": 4}}
+{"method": "time.fast_forward", "params": {"sim_secs": 61}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/0/stage", "value": "sown"}}
+{"method": "time.fast_forward", "params": {"sim_secs": 180}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/0/stage", "value": "ripe"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/farms/fields_ripe.png"}}
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/0/stage", "value": "fallow"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "season"}}
+# The harvest goes to the granary a load at a time.
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [26, 12]}, "path": "/stock/Rice", "value": 0}}

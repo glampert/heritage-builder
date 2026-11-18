@@ -124,6 +124,7 @@ struct CustomGameDialogState {
     goals: usize,
     treasury: usize, // In the starting treasury choices.
     difficulty: Difficulty,
+    seasons_and_floods: bool,
     fires_and_collapses: bool,
     fast_construction: bool,
     built: (u32, bool, Realm),  // build_key() when the dialog was built.
@@ -173,6 +174,7 @@ static STATE: UiStaticVar<CustomGameDialogState> = UiStaticVar::new(CustomGameDi
     goals: 0,
     treasury: 0,
     difficulty: Difficulty::Normal,
+    seasons_and_floods: true,
     fires_and_collapses: true,
     fast_construction: false,
     built: (0, false, Realm::DaiLong),
@@ -241,6 +243,7 @@ pub(super) fn prepare(in_home_menu: bool) {
     state.goals = 0;
     state.treasury = configs.default_treasury_index();
     state.difficulty = Difficulty::default();
+    state.seasons_and_floods = true;
     state.fires_and_collapses = GameConfigs::get().sim.risks.enabled;
     state.fast_construction = false;
     state.synced = false;
@@ -281,7 +284,7 @@ fn chosen_settings() -> Option<CustomGameSettings> {
         difficulty: state.difficulty,
         fires_and_collapses: state.fires_and_collapses,
         fast_construction: state.fast_construction,
-        seasons_and_floods: false,
+        seasons_and_floods: state.seasons_and_floods,
         raids: false,
     })
 }
@@ -345,11 +348,13 @@ fn details(state: &CustomGameDialogState) -> Vec<(UiString, UiString)> {
             |value| ui::text::format(UiTextCategory::Menu, "custom_game.percent", &[("value", &value.to_string())]),
         )
     };
-    let hazards = if state.fires_and_collapses {
-        ui::text::get(UiTextCategory::Menu, "custom_game.hazards.fire").to_string()
-    } else {
-        ui::text::get(UiTextCategory::Menu, "custom_game.hazards.none").to_string()
-    };
+    let hazards = match (state.seasons_and_floods, state.fires_and_collapses) {
+        (true, true) => ui::text::get(UiTextCategory::Menu, "custom_game.hazards.floods_fire"),
+        (true, false) => ui::text::get(UiTextCategory::Menu, "custom_game.hazards.floods"),
+        (false, true) => ui::text::get(UiTextCategory::Menu, "custom_game.hazards.fire"),
+        (false, false) => ui::text::get(UiTextCategory::Menu, "custom_game.hazards.none"),
+    }
+    .to_string();
     vec![
         (
             UiString::key(UiTextCategory::Menu, "custom_game.details.size"),
@@ -919,12 +924,14 @@ fn options(
             .with_fill_width(true)
             .with_min_height(toggle_height)
     };
-    // TODO(realm-ui): seasons and floods come with M7; until then off and disabled.
     group.add_widget(
         toggle(context, "custom_game.seasons_and_floods")
-            .with_enabled(false)
-            .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Menu, "custom_game.coming_in_m7")))
-            .on_read_value(|_, _| false),
+            .on_read_value(|_, _| STATE.as_ref().seasons_and_floods)
+            .on_update_value(|_, _, value| {
+                let state = STATE.as_mut();
+                state.seasons_and_floods = value;
+                state.synced = false; // The hazards in the details.
+            }),
     );
     group.add_widget(
         toggle(context, "custom_game.fires_and_collapses")

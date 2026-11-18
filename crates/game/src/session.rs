@@ -678,6 +678,13 @@ impl GameSession {
             self.sim.faith_mut().start(realm, &GameConfigs::get().sim.faith);
             self.sim.faith_mut().start_mission(&campaign::active_mission_faith().unwrap_or_default());
         }
+        if campaign::active_mission().is_some() {
+            // A mission without a floods block has none; one with it floods unless it says not to.
+            let floods = campaign::active_mission_floods();
+            let enabled = floods.as_ref().is_some_and(|floods| floods.enabled.unwrap_or(true));
+            let floods = floods.unwrap_or_default();
+            self.sim.floods_mut().start(enabled, &floods, &GameConfigs::get().sim.floods, &self.tile_map);
+        }
     }
 
     // A custom game's start, on the map it was created with: its calendar from the first day of the
@@ -693,8 +700,9 @@ impl GameSession {
         self.sim.risks_mut().set_enabled(settings.fires_and_collapses);
         self.sim.faith_mut().start(settings.realm, &configs.sim.faith);
         self.sim.faith_mut().start_mission(&Default::default());
-        // TODO(realm-ui): the difficulty, once M4 and M9 read it; seasons and floods (M7) and raids
-        // (game Phase 2) once they exist. Stored with the game until then (CustomGameRecord).
+        self.sim.floods_mut().start(settings.seasons_and_floods, &Default::default(), &configs.sim.floods, &self.tile_map);
+        // TODO(realm-ui): the difficulty, once M4 and M9 read it; raids (game Phase 2) once they
+        // exist. Stored with the game until then (CustomGameRecord).
         custom_game::set_active(Some(ActiveCustomGame::from_settings(settings)));
         self.refresh_world_stats();
     }
@@ -962,7 +970,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 10;
+const CURRENT_SAVE_VERSION: u32 = 11;
 
 // What the menus show of a save without loading it (the home menu's Continue, the Load / Save
 // dialog): whether this game can load it (its save version is this game's) and its header (blank

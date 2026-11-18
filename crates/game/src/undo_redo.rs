@@ -23,9 +23,10 @@ const UNDO_REDO_STACK_MAX_SIZE: usize = 16;
 const SUPPORTED_TERRAIN_KINDS: PathNodeKind =
     PathNodeKind::from_bits_retain(PathNodeKind::Road.bits() | PathNodeKind::VacantLot.bits());
 
-// We can undo/redo placing/deleting of buildings and props.
-const SUPPORTED_OBJECT_KINDS: TileKind =
-    TileKind::from_bits_retain(TileKind::Building.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits());
+// We can undo/redo placing/deleting of buildings, props and fields.
+const SUPPORTED_OBJECT_KINDS: TileKind = TileKind::from_bits_retain(
+    TileKind::Building.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits() | TileKind::Field.bits(),
+);
 
 // ----------------------------------------------
 // Macros

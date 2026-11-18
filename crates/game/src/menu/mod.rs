@@ -23,10 +23,12 @@ use strum::EnumProperty;
 use crate::{
     building::construction::ConstructionMode,
     cheats,
+    farms,
     save_context::{Load, Save},
     sim::SimContextMut,
     tile::{
         Tile,
+        TileFlags,
         TileKind,
         TileMapLayerKind,
         placement::{TilePlacementErrReason, TilePlacementOp},
@@ -101,6 +103,21 @@ fn clear_selection(context: &mut GameUiContext) {
     context.tile_map.clear_selection(context.tile_selection);
 }
 
+// While an area is dragged for fields, marks the cells beyond every farmstead's reach invalid: the
+// selection checks the terrain and the objects, not the farmsteads.
+fn mark_area_out_of_reach(context: &mut GameUiContext, tile_def: &'static TileDef) {
+    if !context.tile_selection.is_selecting_area() {
+        return;
+    }
+    let cells: Vec<Cell> = context.tile_selection.cells().iter().copied().collect();
+    for cell in cells {
+        if farms::farmstead_for_field(context.world, tile_def, cell).is_none() {
+            context.tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Highlighted, false);
+            context.tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Invalidated, true);
+        }
+    }
+}
+
 fn can_afford_cost(context: &GameUiContext, cost: u32) -> bool {
     context.sim.finance().can_afford(cost)
 }
@@ -159,6 +176,12 @@ pub trait GameMenusSystem: Any + Save + Load {
 
         update_selection(context, placement_op);
 
+        // A tile laid over an area (a farmstead's fields): drag a rectangle, placed on release.
+        let area_tile = selection.as_tile_def().filter(|tile_def| farms::is_field_def(tile_def));
+        if let Some(tile_def) = area_tile {
+            mark_area_out_of_reach(context, tile_def);
+        }
+
         // Incrementally build road segment (drag and draw segment):
         let is_road_tile_selected = self.palette().is_road_tile_selected();
         if is_road_tile_selected && let Some((start, end)) = range_selection_cells(context) {
@@ -167,7 +190,7 @@ pub trait GameMenusSystem: Any + Save + Load {
         }
 
         // Place a regular (non-road) tile or clear a tile:
-        if !is_road_tile_selected && self.palette().wants_to_place_or_clear_tile() {
+        if !is_road_tile_selected && area_tile.is_none() && self.palette().wants_to_place_or_clear_tile() {
             enum PlacementResult {
                 ClearedTile,
                 PlacedTile,
@@ -266,8 +289,10 @@ pub trait GameMenusSystem: Any + Save + Load {
             GameMenusInputArgs::Mouse { button, action, .. } => {
                 let is_road_tile_selected = self.palette().is_road_tile_selected();
                 let is_clear_selected = self.palette().current_selection().is_clear();
+                let area_tile =
+                    self.palette().current_selection().as_tile_def().filter(|tile_def| farms::is_field_def(tile_def));
 
-                if !is_road_tile_selected && !is_clear_selected && self.palette().has_selection() {
+                if !is_road_tile_selected && !is_clear_selected && area_tile.is_none() && self.palette().has_selection() {
                     let input_event = self.palette().on_mouse_button(button, action);
                     if input_event.not_handled() {
                         // Mouse button click other than [LEFT_BTN], clear selection state.
@@ -286,6 +311,18 @@ pub trait GameMenusSystem: Any + Save + Load {
                             PlaceRoadSegmentResult::Placed => self.palette().on_road_segment_placed(context),
                             PlaceRoadSegmentResult::Failed => self.palette().on_tile_placement_failed(context),
                             PlaceRoadSegmentResult::Empty => {}
+                        }
+                    } else if let Some(tile_def) = area_tile {
+                        // Lay the area's tiles on release: every cell that can take one.
+                        if action == InputAction::Release && !context.tile_selection.cells().is_empty() {
+                            let cells: Vec<Cell> = context.tile_selection.cells().iter().copied().collect();
+                            clear_selection(context);
+                            let placed = TilePlacement::place_area(&context.new_sim_context(), &cells, tile_def, true);
+                            if placed.placed.is_empty() {
+                                self.palette().on_tile_placement_failed(context);
+                            } else {
+                                self.palette().on_tile_placed(context);
+                            }
                         }
                     } else if is_clear_selected && !context.tile_selection.cells().is_empty() {
                         // Clear batch of selected tiles:
@@ -351,9 +388,10 @@ pub trait GameMenusSystem: Any + Save + Load {
 
                 // Left click on a tile can open the TileInspector:
                 if action == InputAction::Press && button == MouseButton::Left {
-                    // Open inspector only if we're not in road placement or clear mode.
+                    // Open inspector only if we're not in road, area placement or clear mode.
                     if !is_road_tile_selected
                         && !is_clear_selected
+                        && area_tile.is_none()
                         && let Some(tile_inspector) = self.tile_inspector()
                         && context.topmost_selected_tile().is_some()
                     {
@@ -400,6 +438,13 @@ impl PlaceOrClearResult {
     pub fn failed(&self) -> bool {
         matches!(self, Self::Failed { .. })
     }
+}
+
+// What TilePlacement::place_area laid and refused.
+#[derive(Default)]
+pub struct AreaPlacement {
+    pub placed: Vec<Cell>,
+    pub refused: Vec<Cell>,
 }
 
 enum PlaceRoadSegmentResult {
@@ -617,6 +662,15 @@ impl TilePlacement {
         undo_redo: bool,
         construction_mode: ConstructionMode,
     ) -> PlaceOrClearResult {
+        // A field is laid only in a farmstead's reach (crate::farms).
+        if farms::is_field_def(tile_def) && farms::farmstead_for_field(context.world(), tile_def, target_cell).is_none() {
+            return PlaceOrClearResult::Failed {
+                placement_attempt_tile_def: Some(tile_def),
+                obstructing_tile_def: None,
+                message: format!("'{}' must lie within reach of a farmstead.", tile_def.name),
+            };
+        }
+
         let mut spawner = Spawner::new(context);
         spawner.set_subtract_tile_cost(subtract_tile_cost);
         spawner.set_construction_mode(construction_mode);
@@ -653,6 +707,12 @@ impl TilePlacement {
         }
 
         if spawn_result.is_ok() {
+            // A field joins its farmstead, and a farmstead claims the fields around it.
+            let claims_fields =
+                matches!(&spawn_result, SpawnerResult::Building(building) if farms::crop_of(building).is_some());
+            if farms::is_field_def(tile_def) || claims_fields {
+                farms::claim_fields(context);
+            }
             if undo_redo {
                 let layers = if tile_def.is(TileKind::Terrain) { EditedLayer::Terrain } else { EditedLayer::Objects };
                 undo_redo::record(EditAction::PlacedTiles, &[target_cell], layers, context.tile_map(), context.world());
@@ -662,6 +722,37 @@ impl TilePlacement {
 
         // SpawnerResult::Err is already handled in the match above.
         unreachable!();
+    }
+
+    // Lays `tile_def` on each of `cells` that can take it, as the area tool does (a farmstead's
+    // fields): each cell charged as it's placed, the others refused; one undo step for them all.
+    pub fn place_area(
+        context: &SimContextMut,
+        cells: &[Cell],
+        tile_def: &'static TileDef,
+        undo_redo: bool,
+    ) -> AreaPlacement {
+        let mut cells: Vec<Cell> = cells.to_vec();
+        cells.sort_by_key(|cell| (cell.y, cell.x));
+        cells.dedup();
+
+        let mut result = AreaPlacement::default();
+        for cell in cells {
+            match Self::place(context, cell, tile_def, true, false, ConstructionMode::Finished) {
+                PlaceOrClearResult::PlacedTile(_) => result.placed.push(cell),
+                _ => result.refused.push(cell),
+            }
+        }
+        if undo_redo && !result.placed.is_empty() {
+            undo_redo::record(
+                EditAction::PlacedTiles,
+                &result.placed,
+                EditedLayer::Objects,
+                context.tile_map(),
+                context.world(),
+            );
+        }
+        result
     }
 
     pub fn clear(context: &SimContextMut, tile: &Tile, restore_tile_cost: bool, undo_redo: bool) -> PlaceOrClearResult {
@@ -718,6 +809,11 @@ impl TilePlacement {
                 // The rest of the pile closes over the gap, and the fire or collapse is dealt with.
                 rubble::update_variations(context.tile_map_mut(), CellRange::new(target_cell, target_cell));
                 context.minimap_mut().resolve_alerts(target_cell);
+            }
+
+            if farms::is_field_def(tile_def) {
+                // Its farmstead lets it go.
+                farms::claim_fields(context);
             }
 
             return PlaceOrClearResult::ClearedTile(tile_def);

@@ -26,6 +26,25 @@
       "recipe": "festival_square",
       "notes": "M8: a 3x3 open square with a stage pavilion where the city holds its festivals (service config 'Festival Square', faith Phase 4). Dressed for a festival, it's festival_square_festive (overlays.json).",
       "tile_set": { "cost": 20, "materials": { "Wood": 4, "Bricks": 4 }, "upkeep": 8, "construction": "Civic", "sector": "CultureAndReligion", "minimap": { "class": "Plaza" } }
+    },
+    {
+      "tile": "farmstead",
+      "recipe": "farmstead",
+      "notes": "M7 Phase 1: a 2x2 farmstead whose workers tend the rice fields laid around it (producer config 'Farmstead', docs/plans/seasons-floods.md). Replaces the 3x3 rice farm.",
+      "tile_set": { "cost": 8, "sector": "FoodAndFarming" }
+    },
+    {
+      "tile": "rice_field",
+      "recipe": "rice_field",
+      "category": "fields",
+      "notes": "M7 Phase 1: a 1x1 rice field a farmstead tends; its variations are the crop's stages, in this order (crate::farms::FieldStage), set as the crop moves on.",
+      "variations": [
+        { "name": "fallow", "seed": 1, "params": { "stage": "fallow" } },
+        { "name": "sown", "seed": 2, "params": { "stage": "sown" } },
+        { "name": "growing", "seed": 3, "params": { "stage": "growing" } },
+        { "name": "ripe", "seed": 4, "params": { "stage": "ripe" } }
+      ],
+      "tile_set": { "cost": 1, "sector": "FoodAndFarming", "minimap": { "class": "Field" } }
     }
   ]
 }

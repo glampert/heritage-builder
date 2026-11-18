@@ -208,6 +208,9 @@ pub struct MissionDef {
     // Whether patrons' favour moves and festivals can be planned. None: both on.
     #[serde(default)]
     pub faith: Option<MissionFaithDef>,
+    // The river's yearly flood (docs/plans/seasons-floods.md). None: no floods.
+    #[serde(default)]
+    pub floods: Option<MissionFloodsDef>,
     // The city the mission founds, on its campaign's world map: the player's once the mission is
     // finished, and while it's played. None: it founds none.
     #[serde(default)]
@@ -379,6 +382,53 @@ pub struct MissionFaithDef {
     pub festivals: Option<bool>,
 }
 
+// A mission's flood (docs/plans/seasons-floods.md, §1). Fields left out take FloodRules' defaults;
+// `enabled` is off unless set, since missions before I-4 have no floods.
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MissionFloodsDef {
+    pub enabled: Option<bool>,
+    // The flood's month, 1 to 12: a wet month.
+    pub month: Option<u32>,
+    // The least and most cells the year's flood reaches from its water.
+    pub reach: Option<[u32; 2]>,
+    // How many months the water stays.
+    pub months: Option<u32>,
+    // A cell of each water body that floods. None: every water body of at least
+    // FloodRules::min_source_cells.
+    pub sources: Option<Vec<[i32; 2]>>,
+    // A Realm text key naming the river in the messages. None: "the river".
+    pub river: Option<String>,
+    // The land's starting fertility within the flood's usual reach and beyond it.
+    pub fertility: Option<[u32; 2]>,
+}
+
+impl MissionFloodsDef {
+    // What's wrong with it, if anything, against the mission's wet months.
+    pub fn problems(&self, wet_months: &[u32]) -> Vec<String> {
+        let mut problems = Vec::new();
+        if let Some(month) = self.month
+            && !wet_months.contains(&month)
+        {
+            problems.push(format!("floods.month {month} isn't a wet month ({wet_months:?})"));
+        }
+        if let Some([min, max]) = self.reach
+            && (min == 0 || min > max)
+        {
+            problems.push(format!("floods.reach [{min}, {max}] must be at least 1 and in order"));
+        }
+        if self.months == Some(0) {
+            problems.push("floods.months must be at least 1".into());
+        }
+        if let Some([within, beyond]) = self.fertility
+            && (within > 100 || beyond > 100)
+        {
+            problems.push(format!("floods.fertility [{within}, {beyond}] must be 0 to 100"));
+        }
+        problems
+    }
+}
+
 // How a mission's starting map is loaded.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum MissionMap {
@@ -493,6 +543,16 @@ impl CampaignConfigs {
                 errors.push(format!("Campaign '{name}' comes after a hidden campaign: hidden campaigns go last, as saves name campaigns by index."));
             }
             for (index, mission) in campaign.missions.iter().enumerate() {
+                if let Some(floods) = &mission.floods {
+                    let wet_months = mission
+                        .calendar
+                        .as_ref()
+                        .and_then(|calendar| calendar.wet_months.clone())
+                        .unwrap_or_else(|| crate::sim::calendar::CalendarSettings::default().wet_months);
+                    for problem in floods.problems(&wet_months) {
+                        errors.push(format!("Campaign '{name}', mission {index}: {problem}."));
+                    }
+                }
                 if !mission.id.is_empty() && campaign.missions[..index].iter().any(|other| other.id == mission.id) {
                     errors.push(format!("Campaign '{name}' has two missions with the id '{}'.", mission.id));
                 }

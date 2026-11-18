@@ -9,7 +9,8 @@ use crate::{
     camera::Camera,
     cheats,
     faith::{FaithConfigs, Mood, config as faith_config, events as faith_events},
-    sim::{CityFaith, Finance, risks::CityRisks},
+    floods,
+    sim::{CityFaith, CityFloods, Finance, risks::CityRisks},
     world::{World, stats::WorldStats},
 };
 
@@ -26,10 +27,11 @@ impl World {
         finance: &mut Finance,
         risks: &mut CityRisks,
         faith: &mut CityFaith,
+        city_floods: &mut CityFloods,
         camera: &mut Camera,
         ui_sys: &UiSystem,
     ) {
-        const TABS: [&str; 5] = ["Population/Workers/Housing", "Tax/Treasury", "Resources", "Risks", "Faith"];
+        const TABS: [&str; 6] = ["Population/Workers/Housing", "Tax/Treasury", "Resources", "Risks", "Faith", "Floods"];
         let Some(tab) = ui::tab_bar(ui_sys, "World Stats Tab Bar", &TABS) else {
             return;
         };
@@ -38,6 +40,8 @@ impl World {
             self.draw_risks_debug_ui(risks, camera, ui_sys);
         } else if tab.index == 4 {
             draw_faith_debug_ui(faith, ui_sys);
+        } else if tab.index == 5 {
+            draw_floods_debug_ui(city_floods, camera, ui_sys);
         } else {
             self.stats_mut().draw_debug_ui(tab.index, finance, ui_sys);
         }
@@ -210,6 +214,59 @@ fn draw_faith_debug_ui(faith: &mut CityFaith, ui_sys: &UiSystem) {
             ui_sys,
             format_small!("Farms x{:.2}, upkeep x{:.2}", faith.production_scale(BuildingKind::Farm), faith.upkeep_scale()),
         );
+    }
+}
+
+// The Floods tab: the switch (set at the start of the next frame, floods::request), the game's flood,
+// the next flood's severity, the flood under way, the log and the land's fertility.
+fn draw_floods_debug_ui(city_floods: &mut CityFloods, camera: &mut Camera, ui_sys: &UiSystem) {
+    let mut enabled = city_floods.is_enabled();
+    if ui::checkbox(ui_sys, "Floods Enabled", &mut enabled) {
+        floods::request(floods::Request::SetEnabled(enabled));
+    }
+    let profile = city_floods.profile();
+    ui::text(
+        ui_sys,
+        format_small!(
+            "Month {}, reach {} to {} cells, {} months under water",
+            profile.month,
+            profile.reach[0],
+            profile.reach[1],
+            profile.months
+        ),
+    );
+    ui::text(ui_sys, format_small!("Sources: {}", profile.sources.len()));
+    for &cell in &profile.sources {
+        if ui::small_button(ui_sys, &format!("{cell}##flood_source_{}_{}", cell.x, cell.y)) {
+            camera.teleport(cell);
+        }
+    }
+
+    let mut severity = city_floods.next_severity();
+    if ui::slider(ui_sys, "Next Severity", 0.0, 2.0, UiNumberFormat::Decimals(2), &mut severity) {
+        city_floods.set_next_severity(severity);
+    }
+
+    ui::separator(ui_sys);
+    match city_floods.flood() {
+        Some(flood) => ui::text(
+            ui_sys,
+            format_small!(
+                "Under water: {} cells, {} months left, severity {:.2}",
+                flood.cells.len(),
+                flood.months_left,
+                flood.severity
+            ),
+        ),
+        None => ui::text(ui_sys, "No flood under way."),
+    }
+    ui::text(
+        ui_sys,
+        format_small!("Floods: {}, without a breach: {}", city_floods.log().len(), city_floods.floods_survived()),
+    );
+    match city_floods.fertility().mean() {
+        Some(mean) => ui::text(ui_sys, format_small!("Fertility: mean {mean:.1}")),
+        None => ui::text(ui_sys, format_small!("Fertility: not kept ({} everywhere)", city_floods.neutral_fertility())),
     }
 }
 

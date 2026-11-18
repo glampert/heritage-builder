@@ -35,7 +35,7 @@ SECTORS = [
     ("housing", "Housing", "Vacant lot · 1 gold", []),
     ("roads", "Roads", "Dirt and paved roads", []),
     None,
-    ("food", "Food and farming", "Farms, fishing and markets", ["rice_farm", "livestock_farm", "fishing_wharf", "granary", "market"]),
+    ("food", "Food and farming", "Farms, fishing and markets", ["farmstead", "rice_field", "livestock_farm", "fishing_wharf", "granary", "market"]),
     ("industry", "Industry and resources", "Raw materials and workshops",
      ["lumberyard", "clay_pit", "mine", "brick_maker", "pottery_kiln", "roof_tile_kiln", "distillery", "storage_yard"]),
     ("services", "Services", "Guards, taxes, health and fire",
@@ -55,7 +55,8 @@ SHORT = {"clear": "Clear", "food": "Food", "industry": "Industry", "infrastructu
 
 # The game's costs (assets/tiles/objects/tile_set.json) and sizes in tiles.
 COSTS = {
-    "rice_farm": (5, {}, "3×3"), "livestock_farm": (6, {}, "3×3"), "fishing_wharf": (5, {}, "2×2"), "granary": (10, {}, "3×3"),
+    "rice_farm": (5, {}, "3×3"), "farmstead": (8, {}, "2×2"), "rice_field": (1, {}, "1×1"),
+    "livestock_farm": (6, {}, "3×3"), "fishing_wharf": (5, {}, "2×2"), "granary": (10, {}, "3×3"),
     "market": (10, {}, "2×2"), "lumberyard": (4, {}, "2×2"), "clay_pit": (4, {}, "2×2"), "mine": (8, {}, "2×2"),
     "brick_maker": (10, {}, "2×2"), "pottery_kiln": (10, {}, "2×2"), "roof_tile_kiln": (10, {}, "2×2"),
     "distillery": (15, {"Wood": 4, "Bricks": 3}, "2×2"), "storage_yard": (10, {}, "3×3"),

@@ -25,12 +25,14 @@ use super::{
 use crate::{
     cheats,
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
+    farms::FieldPlot,
     save_context::PostLoadContext,
     sim::{
         RandomGenerator,
         SimCmds,
         SimContext,
         SimContextMut,
+        calendar::Season,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
     tile::Tile,
@@ -104,6 +106,32 @@ pub struct ProducerConfig {
     #[serde(default)]
     #[debug_ui(nested)]
     pub risks: RiskRates,
+
+    // A farmstead's crop (docs/plans/seasons-floods.md, Phase 1): set, the producer runs no
+    // production cycle; its workers tend the fields laid around it, sown and reaped by crate::farms.
+    #[serde(default)]
+    #[debug_ui(skip)]
+    pub crop: Option<CropConfig>,
+}
+
+// What a farmstead grows and how (docs/plans/seasons-floods.md, §2).
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CropConfig {
+    // The field tile its workers tend (the objects tile set's `fields` category).
+    pub field_tile: String,
+    // The season it's sown in; a field a sluice gate waters is sown in the other one too.
+    pub season: Season,
+    // Months from sowing to reaping.
+    pub grow_months: u32,
+    // A field's harvest at fertility 50, fully tended, before faith's scale.
+    pub harvest_per_cell: f32,
+    // Fields each worker tends.
+    pub cells_per_worker: u32,
+    // How far from the farmstead's footprint its fields may lie, in cells along the grid.
+    pub field_reach: i32,
+    // What its runner carries a trip.
+    pub runner_load: u32,
 }
 
 impl Default for ProducerConfig {
@@ -111,14 +139,14 @@ impl Default for ProducerConfig {
     fn default() -> Self {
         Self {
             kind: BuildingKind::Farm,
-            name: "Rice Farm".into(),
-            tile_def_name: "rice_farm".into(),
-            tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
+            name: "Livestock Farm".into(),
+            tile_def_name: "livestock_farm".into(),
+            tile_def_name_hash: hash::fnv1a_from_str("livestock_farm"),
             min_workers: 2,
             max_workers: 4,
             production_output_frequency_secs: 20.0,
             production_output_amount: 1,
-            production_output: ResourceKind::Rice,
+            production_output: ResourceKind::Meat,
             production_capacity: 5,
             resources_required: ResourceKinds::none(),
             resources_capacity: 0,
@@ -132,6 +160,7 @@ impl Default for ProducerConfig {
                 max_distance: 40,
             },
             risks: RiskRates::ZERO,
+            crop: None,
         }
     }
 }
@@ -194,6 +223,9 @@ pub struct ProducerBuilding {
     // Optional ambient patrol unit to wander around the vicinity.
     pub(crate) ambient_patrol: TimedAmbientPatrol,
 
+    // A farmstead's fields and their crops, nearest first (crate::farms); empty for other producers.
+    pub(crate) fields: Vec<FieldPlot>,
+
     #[serde(skip)]
     debug: ProducerDebug,
 }
@@ -232,9 +264,14 @@ impl BuildingBehavior for ProducerBuilding {
         // Under-staffed producers run slower: the production cycle advances at a
         // rate proportional to how staffed the building is (the hard min-worker
         // gate below still halts it entirely if it drops under the minimum).
-        // A patron's harvest or blight scales it too (faith).
-        let production_delta_secs =
-            delta_time_secs * self.work_efficiency() * context.sim_ctx.faith().production_scale(context.kind);
+        // A patron's harvest or blight scales it too (faith). A farmstead's cycle only paces its
+        // runner: its fields are sown and reaped once a month (crate::farms).
+        let is_farmstead = self.is_farmstead();
+        let production_delta_secs = if is_farmstead {
+            delta_time_secs
+        } else {
+            delta_time_secs * self.work_efficiency() * context.sim_ctx.faith().production_scale(context.kind)
+        };
 
         // Update producer states:
         if self.production_update_timer.tick(production_delta_secs).should_update() && self.has_min_required_workers() {
@@ -248,8 +285,9 @@ impl BuildingBehavior for ProducerBuilding {
                 }
             }
 
-            // Harvester buildings are handled by harvesting_update() above.
-            if !self.debug.freeze_production() && !is_harvester_building {
+            // Harvester buildings are handled by harvesting_update() above, farmsteads by
+            // crate::farms.
+            if !self.debug.freeze_production() && !is_harvester_building && !is_farmstead {
                 self.production_update();
             }
 
@@ -496,8 +534,65 @@ impl ProducerBuilding {
             runner: Runner::default(),
             harvester: Harvester::default(),
             ambient_patrol: TimedAmbientPatrol::new(rng, config.ambient_patrol.spawn_frequency_secs),
+            fields: Vec::new(),
             debug: ProducerDebug::default(),
         }
+    }
+
+    // ----------------------
+    // Farmstead:
+    // ----------------------
+
+    #[inline]
+    pub fn crop(&self) -> Option<&'static CropConfig> {
+        self.config.and_then(|config| config.crop.as_ref())
+    }
+
+    #[inline]
+    pub fn is_farmstead(&self) -> bool {
+        self.crop().is_some()
+    }
+
+    #[inline]
+    pub fn fields(&self) -> &[FieldPlot] {
+        &self.fields
+    }
+
+    #[inline]
+    pub(crate) fn fields_mut(&mut self) -> &mut Vec<FieldPlot> {
+        &mut self.fields
+    }
+
+    // How many of its fields its workers tend now: the nearest ones, `cells_per_worker` each.
+    pub fn tended_field_count(&self) -> usize {
+        let Some(crop) = self.crop() else {
+            return 0;
+        };
+        if !self.has_min_required_workers() {
+            return 0;
+        }
+        let workers = if cheats::get().ignore_worker_requirements {
+            self.workers.as_employer().unwrap().max_employees()
+        } else {
+            self.workers.as_employer().unwrap().employee_count()
+        };
+        ((workers * crop.cells_per_worker) as usize).min(self.fields.len())
+    }
+
+    // Puts a harvest into the output stock; returns how much it took (the rest is lost).
+    pub(crate) fn store_harvest(&mut self, count: u32) -> u32 {
+        let before = self.production_output_stock.item.count;
+        self.production_output_stock.store_resources(count);
+        let stored = self.production_output_stock.item.count - before;
+        self.debug.log_resources_gained(self.production_output_stock.resource_kind(), stored);
+        stored
+    }
+
+    // Loses the harvest it holds (a flood).
+    pub(crate) fn lose_harvest(&mut self) -> u32 {
+        let lost = self.production_output_stock.item.count;
+        self.production_output_stock.clear();
+        lost
     }
 
     // Fraction [0,1] the building runs at, based on how staffed it is relative to
@@ -596,10 +691,13 @@ impl ProducerBuilding {
             None => return, // We are not connected to a road. No delivery possible!
         };
 
-        // Send out a runner:
+        // Send out a runner, with a load at most for a farmstead's harvest.
         let storage_buildings_accepted = self.config.unwrap().deliver_to_storage_kinds;
         let resource_kind_to_deliver = self.production_output_stock.resource_kind();
-        let resource_count = self.production_output_stock.resource_count();
+        let resource_count = match self.crop() {
+            Some(crop) => self.production_output_stock.resource_count().min(crop.runner_load.max(1)),
+            None => self.production_output_stock.resource_count(),
+        };
 
         self.runner.try_deliver_to_storage(
             cmds,

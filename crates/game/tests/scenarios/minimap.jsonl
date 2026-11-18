@@ -9,11 +9,11 @@
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/px_per_cell", "value": 8}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/features", "value": 0}}
 {"method": "assert.gt", "params": {"query": "minimap.state", "path": "/zoom", "value": 1.0}}
-# A street with the palace, a temple and a rice farm: features and landmarks follow.
+# A street with the palace, a temple and a livestock farm: features and landmarks follow.
 {"method": "world.road", "params": {"from": [50, 64], "to": [80, 64]}}
 {"method": "world.place", "params": {"tile": "governor_palace", "cell": [60, 65]}}
 {"method": "world.place", "params": {"tile": "temple", "cell": [70, 65]}}
-{"method": "world.place", "params": {"tile": "rice_farm", "cell": [52, 65]}}
+{"method": "world.place", "params": {"tile": "livestock_farm", "cell": [52, 65]}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/features", "value": 3}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/landmarks/0", "value": {"kind": "Seat", "cell": [60, 65]}}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/landmarks/1", "value": {"kind": "Temple", "cell": [70, 65]}}}

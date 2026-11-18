@@ -634,7 +634,7 @@ fn hud(context: &mut GameUiContext) -> UiWidgetGroup {
     let mut tiles = row();
     let samples = [
         (HudTileKind::Large, HudGlyphGroup::Building, "temple", "idle", false, true, None),
-        (HudTileKind::Large, HudGlyphGroup::Building, "rice_farm", "selected", true, true, None),
+        (HudTileKind::Large, HudGlyphGroup::Building, "farmstead", "selected", true, true, None),
         (HudTileKind::Large, HudGlyphGroup::Building, "citadel", "disabled", false, false, None),
         (HudTileKind::Sector, HudGlyphGroup::Sector, "food", "sector", false, true, None),
         (HudTileKind::Sector, HudGlyphGroup::Sector, "culture", "sector selected", true, true, None),

@@ -186,7 +186,7 @@ pub mod internal {
                                 tile_def_to_place.name,
                                 tile.name()
                             );
-                        } else if tile_def_to_place.is(TileKind::Rocks | TileKind::Vegetation)
+                        } else if tile_def_to_place.is(TileKind::Rocks | TileKind::Vegetation | TileKind::Field)
                             && !path_kind.is_object_placeable()
                         {
                             return err!(

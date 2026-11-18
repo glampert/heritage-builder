@@ -194,6 +194,10 @@ pub struct SimConfigs {
     #[debug_ui(nested)]
     pub faith: FaithRules,
 
+    // The river's floods and the land's fertility (docs/plans/seasons-floods.md).
+    #[debug_ui(nested)]
+    pub floods: FloodRules,
+
     // Workers/Population:
     pub workers_search_radius: i32,
     pub workers_update_frequency_secs: Seconds,
@@ -223,6 +227,7 @@ impl Default for SimConfigs {
             finance: FinanceConfigs::default(),
             risks: RiskConfigs::default(),
             faith: FaithRules::default(),
+            floods: FloodRules::default(),
             // Workers/Population:
             workers_search_radius: 20,
             workers_update_frequency_secs: 20.0,
@@ -415,6 +420,62 @@ impl Default for FaithRules {
             misfortune_favour: 30.0,
             misfortune_chance: 0.15,
             event_cooldown_months: 6,
+        }
+    }
+}
+
+// How the river floods and how the land's fertility moves (docs/plans/seasons-floods.md). A mission's
+// `floods` block sets its own flood (MissionFloodsDef); these are the defaults, a custom game's flood
+// and the knobs. To be balanced in M13.
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FloodRules {
+    // The flood's month (a wet month), the least and most cells it reaches from its water, drawn
+    // each year, and how many months the water stays.
+    pub month: u32,
+    pub reach_min: u32,
+    pub reach_max: u32,
+    pub months: u32,
+
+    // A water body floods only if it has at least this many cells (ponds don't), unless a mission
+    // names its sources.
+    pub min_source_cells: u32,
+
+    // The land's fertility, 0 to 100, at the start: within the flood's usual reach and beyond it.
+    // Where it isn't kept (floods off), every cell reads `neutral_fertility`.
+    pub fertility_in_reach: u32,
+    pub fertility_beyond: u32,
+    pub neutral_fertility: u32,
+
+    // Collapse risk a flood adds to each building it reaches, and disease risk to each house, at
+    // severity 1; and the silt it leaves, fertility added to each cell.
+    pub collapse_damage: f32,
+    pub disease_damage: f32,
+    pub silt: u32,
+
+    // Fertility a harvest takes from its field.
+    pub depletion_per_harvest: u32,
+
+    // A dyke cell's wear a month (jittered per cell), 0 to 100.
+    pub wear_per_month: f32,
+}
+
+impl Default for FloodRules {
+    fn default() -> Self {
+        Self {
+            month: 7,
+            reach_min: 3,
+            reach_max: 6,
+            months: 2,
+            min_source_cells: 30,
+            fertility_in_reach: 70,
+            fertility_beyond: 40,
+            neutral_fertility: 50,
+            collapse_damage: 40.0,
+            disease_damage: 30.0,
+            silt: 30,
+            depletion_per_harvest: 10,
+            wear_per_month: 8.0,
         }
     }
 }

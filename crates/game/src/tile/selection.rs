@@ -38,6 +38,7 @@ pub struct TileSelection {
     left_mouse_button_held: bool,
     valid_placement: bool,
     is_clearing: bool,
+    is_area: bool, // Placing a tile laid over an area (a farmstead's fields: crate::farms).
     cells: SmallVec<[Cell; 64]>,
 }
 
@@ -105,8 +106,13 @@ impl TileSelection {
         UiInputEvent::NotHandled
     }
 
+    // Whether a range is being dragged for an area tile (fields).
+    pub fn is_selecting_area(&self) -> bool {
+        self.is_selecting_range() && self.is_area
+    }
+
     pub fn draw(&self, render_sys: &mut RenderSystem) {
-        if self.is_selecting_range() && self.is_clearing {
+        if self.is_selecting_range() && (self.is_clearing || self.is_area) {
             render_sys.draw_wireframe_rect_with_thickness(self.rect, SELECTION_RECT_COLOR, 1.5);
         }
     }
@@ -126,10 +132,14 @@ impl TileSelection {
             self.rect = Rect::zero();
         }
 
-        // Only using range selection for batch tile clearing/removal.
+        // Range selection is for batch tile clearing/removal, and for tiles laid over an area.
         self.is_clearing = matches!(placement_op, TilePlacementOp::Clear);
+        self.is_area = matches!(
+            placement_op,
+            TilePlacementOp::Place(tile_def) | TilePlacementOp::Invalidate(tile_def) if tile_def.is(TileKind::Field)
+        );
 
-        if self.is_selecting_range() && self.is_clearing {
+        if self.is_selecting_range() && (self.is_clearing || self.is_area) {
             // Clear previous highlighted tiles:
             self.clear(layers);
 

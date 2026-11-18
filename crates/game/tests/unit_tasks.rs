@@ -359,28 +359,33 @@ fn test_deliver_transfers_resources_to_storage() {
     tick_until_runner_despawned(&mut env, runner_id, 20);
 }
 
-// Rice farm -> Distillery (producer fallback): no Granary on the map, so the
+// Farmstead -> Distillery (producer fallback): no Granary on the map, so the
 // runner's primary delivery search fails and the fallback routes to a producer
 // that consumes Rice as a raw material (Distillery -> Wine).
 fn test_deliver_producer_fallback_when_no_storage() {
     let mut env = TestEnvironment::with_preset_map(preset_maps::PRESET_1_FARM_1_DISTILLERY);
 
-    let rice_farm = find_building_id(&env, BuildingKind::Farm);
+    let farmstead = find_building_id(&env, BuildingKind::Farm);
     let distillery = find_building_id(&env, BuildingKind::Factory);
 
-    // Pin the rice farm's output to exactly N -- with freeze_production set, the
-    // production timer won't add more to the stock before delivery dispatch.
-    set_building_debug_bool(&mut env, rice_farm, "freeze_production", true);
+    // Pin the farmstead's output to exactly N: it has no fields, so nothing adds to it (and
+    // freeze_production keeps it that way).
+    set_building_debug_bool(&mut env, farmstead, "freeze_production", true);
+    // The distillery takes the rice but makes no wine and fetches no more, so it sends out no
+    // runner of its own: the farmstead's runner comes sooner than the rice farm's did, giving it
+    // time to.
+    set_building_debug_bool(&mut env, distillery, "freeze_production", true);
+    set_building_debug_bool(&mut env, distillery, "freeze_storage_fetching", true);
 
     const N: u32 = 4;
-    seed_producer_output(&mut env, rice_farm, ResourceKind::Rice, N);
+    seed_producer_output(&mut env, farmstead, ResourceKind::Rice, N);
 
     // Distillery starts empty: capacity - receivable_resources gives current input stock.
     let initial_capacity = find_building(&env, distillery).receivable_resources(ResourceKind::Rice);
     assert!(initial_capacity >= N, "Distillery should have room for {N} Rice");
 
     let runner_id = tick_until_runner_spawned(&mut env, 30);
-    assert_eq!(find_building(&env, rice_farm).available_resources(ResourceKind::Rice), 0);
+    assert_eq!(find_building(&env, farmstead).available_resources(ResourceKind::Rice), 0);
 
     // Wait for the distillery's input stock to grow by N.
     let ticks = tick_until(&mut env, 100, DELIVER_TICK_DELTA_SECS, |env| {
@@ -391,10 +396,10 @@ fn test_deliver_producer_fallback_when_no_storage() {
 
     let final_capacity = find_building(&env, distillery).receivable_resources(ResourceKind::Rice);
     assert_eq!(initial_capacity - final_capacity, N, "distillery should have absorbed exactly {N} Rice units");
-    assert_eq!(find_building(&env, rice_farm).available_resources(ResourceKind::Rice), 0);
+    assert_eq!(find_building(&env, farmstead).available_resources(ResourceKind::Rice), 0);
 
     // Drain the runner's task chain so the pools are empty before drop.
-    set_building_debug_bool(&mut env, rice_farm, "freeze_storage_delivery", true);
+    set_building_debug_bool(&mut env, farmstead, "freeze_storage_delivery", true);
     tick_until_runner_despawned(&mut env, runner_id, 20);
 }
 

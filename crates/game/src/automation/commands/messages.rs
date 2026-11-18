@@ -47,9 +47,10 @@ fn cmd_push(_context: &mut CommandContext, params: Value) -> CommandResult {
         "warning" => MessageKind::Warning,
         "finance" => MessageKind::Finance,
         "faith" => MessageKind::Faith,
+        "season" => MessageKind::Season,
         other => {
             return Err(CommandError::invalid_params(format!(
-                "Unknown kind '{other}': construction, warning, finance or faith."
+                "Unknown kind '{other}': construction, warning, finance, faith or season."
             )));
         }
     };

@@ -612,7 +612,7 @@ fn test_events_follow_favour_and_the_cooldown() {
     env.sim.faith_mut().set_favour("ancestors", 50.0);
     env.sim.faith_mut().set_favour("village_guardian", 0.0);
     assert!(roll(&mut env, &sure_rules()).is_empty(), "no farm for the blight");
-    test_utils::spawn_building(&mut env, Cell::new(20, 20), "rice_farm");
+    test_utils::spawn_building(&mut env, Cell::new(20, 20), "livestock_farm");
     assert_eq!(roll(&mut env, &sure_rules()), came("village_guardian", "blight"));
     let notice = env.sim.faith_mut().take_notices().pop().unwrap();
     assert_eq!(notice.kind, FaithNoticeKind::Misfortune);
@@ -659,7 +659,7 @@ fn test_events_that_wait_are_never_picked() {
 fn test_a_harvest_scales_production_and_runs_out() {
     let mut env = TestEnvironment::new();
     house_with(&mut env, Cell::new(5, 5), "house2", 6);
-    test_utils::spawn_building(&mut env, Cell::new(20, 20), "rice_farm");
+    test_utils::spawn_building(&mut env, Cell::new(20, 20), "livestock_farm");
     assert_eq!(env.sim.faith().production_scale(BuildingKind::Farm), 1.0);
 
     set_off(&mut env, "village_guardian", "rich_harvest").unwrap();

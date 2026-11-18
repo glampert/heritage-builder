@@ -93,8 +93,8 @@ fn house_level_name(env: &TestEnvironment, cell: Cell) -> &'static str {
 fn test_under_staffed_building_runs_at_reduced_efficiency() {
     let mut env = TestEnvironment::new();
 
-    // Rice farm employs up to 4 workers (min 2).
-    let farm = test_utils::spawn_building(&mut env, Cell::new(4, 4), "rice_farm");
+    // A livestock farm employs up to 4 workers (min 2).
+    let farm = test_utils::spawn_building(&mut env, Cell::new(4, 4), "livestock_farm");
     // A house is the only valid source of workers.
     let house = test_utils::spawn_building(&mut env, Cell::new(12, 12), "house0");
 

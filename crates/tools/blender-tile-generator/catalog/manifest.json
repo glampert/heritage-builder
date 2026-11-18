@@ -22,6 +22,28 @@
       "tile": "builders_guild",
       "variation": ""
     },
+    "assets/tiles/objects/buildings/farmstead/farmstead.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 91,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "farmstead",
+      "hash": "162c7df5f38e218c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        728
+      ],
+      "tile": "farmstead",
+      "variation": ""
+    },
     "assets/tiles/objects/buildings/festival_square/festival_square.png": {
       "category": "buildings",
       "density": 8,
@@ -87,6 +109,94 @@
       ],
       "tile": "roof_tile_kiln",
       "variation": ""
+    },
+    "assets/tiles/objects/fields/rice_field/fallow/rice_field.png": {
+      "category": "fields",
+      "density": 8,
+      "draw_size": {
+        "height": 37,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rice_field",
+      "hash": "c5a0a90933f3d814",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        296
+      ],
+      "tile": "rice_field",
+      "variation": "fallow"
+    },
+    "assets/tiles/objects/fields/rice_field/growing/rice_field.png": {
+      "category": "fields",
+      "density": 8,
+      "draw_size": {
+        "height": 37,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rice_field",
+      "hash": "0a095f1eef782c80",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        296
+      ],
+      "tile": "rice_field",
+      "variation": "growing"
+    },
+    "assets/tiles/objects/fields/rice_field/ripe/rice_field.png": {
+      "category": "fields",
+      "density": 8,
+      "draw_size": {
+        "height": 37,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rice_field",
+      "hash": "f3f34a7b6d673d76",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        296
+      ],
+      "tile": "rice_field",
+      "variation": "ripe"
+    },
+    "assets/tiles/objects/fields/rice_field/sown/rice_field.png": {
+      "category": "fields",
+      "density": 8,
+      "draw_size": {
+        "height": 37,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rice_field",
+      "hash": "e16913f814f00e76",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        296
+      ],
+      "tile": "rice_field",
+      "variation": "sown"
     },
     "assets/tiles/objects/overlays/festival_square_festive/festival_square_festive.png": {
       "category": "overlays",

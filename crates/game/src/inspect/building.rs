@@ -335,7 +335,18 @@ fn read_producer(
     let summary_key = if harvests { "summary.gathers" } else { "summary.makes" };
     let output_name = good_name(output.kind).to_lowercase();
 
+    let farmstead = crate::farms::farmstead_report(context, building);
     report.status = Some(workplace_status(building, true).unwrap_or_else(|| {
+        if let Some(farmstead) = &farmstead {
+            if farmstead.fields == 0 {
+                return Status { word: t("status.no_fields"), tone: Tone::Bad, summary: t("summary.lay_fields") };
+            }
+            return Status {
+                word: t("status.working"),
+                tone: Tone::Good,
+                summary: tc("summary.tends_fields", farmstead.tended as i64, &[]),
+            };
+        }
         if let Some(missing) = producer.production_input_stock.slots.iter().find(|item| item.count == 0)
             && producer.production_input_stock.requires_any_resource()
             && !producer.production_input_stock.has_required_resources()
@@ -354,7 +365,9 @@ fn read_producer(
 
     report.sections.extend(workers_section(building, false));
 
-    if let Some(config) = config {
+    if let (Some(farmstead), Some(crop)) = (&farmstead, crate::farms::crop_of(building)) {
+        report.sections.push(fields_section(farmstead, crop, output));
+    } else if let Some(config) = config {
         let days = super::secs_to_days(config.production_output_frequency_secs).round().max(1.0) as i64;
         let note = tf("production.batch", &[
             ("amount", &config.production_output_amount.to_string()),
@@ -552,6 +565,47 @@ fn read_service(
     report.sections.push(costs_section(context, building, tile_def));
     report.sections.extend(risks_section(building));
     report.actions = workplace_actions(building);
+}
+
+// A farmstead's fields (docs/plans/seasons-floods.md, §7): how many its workers tend, those left
+// fallow for want of them, the crop's months, the next harvest and what it holds.
+fn fields_section(
+    farmstead: &crate::farms::FarmsteadReport,
+    crop: &crate::building::producer::CropConfig,
+    held: crate::sim::resources::StockItem,
+) -> Section {
+    let good = good_name(held.kind).to_lowercase();
+    let month_of = |ordinal: u32| (ordinal % 12 + 1).to_string();
+    let fallow = farmstead.fields - farmstead.tended;
+    let mut rows = vec![
+        ValueRow {
+            label: t("fields.fields"),
+            value: tf("fields.tended", &[
+                ("fields", &farmstead.fields.to_string()),
+                ("tended", &farmstead.tended.to_string()),
+            ]),
+            warn: farmstead.fields == 0,
+        },
+        ValueRow { label: t("fields.fallow"), value: fallow.to_string(), warn: fallow > 0 },
+    ];
+    match farmstead.next_reaped {
+        Some(reaped) => rows.push(ValueRow {
+            label: t("fields.next_harvest"),
+            value: tf("fields.harvest", &[
+                ("amount", &farmstead.expected.round().to_string()),
+                ("good", &good),
+                ("month", &month_of(reaped)),
+            ]),
+            warn: false,
+        }),
+        None => rows.push(ValueRow {
+            label: t("fields.next_harvest"),
+            value: t(&format!("fields.none_growing.{}", crop.season.to_string().to_lowercase())),
+            warn: false,
+        }),
+    }
+    rows.push(ValueRow { label: t("fields.holds"), value: format!("{} {good}", held.count), warn: false });
+    Section::Values { title: t("fields.title"), note: None, rows }
 }
 
 // A festival square's festivals (docs/plans/faith.md §5): the one planned, with its scale and

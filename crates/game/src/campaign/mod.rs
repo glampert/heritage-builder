@@ -17,7 +17,7 @@ pub mod config;
 pub mod preview;
 pub mod stele;
 
-use config::{CampaignConfigs, MissionFaithDef, MissionFinanceDef, MissionMap, MissionRisksDef};
+use config::{CampaignConfigs, MissionFaithDef, MissionFinanceDef, MissionFloodsDef, MissionMap, MissionRisksDef};
 use engine::log;
 use serde::{Deserialize, Serialize};
 
@@ -304,6 +304,13 @@ pub fn active_mission_faith() -> Option<MissionFaithDef> {
 pub fn active_mission_realm() -> Option<crate::realm::Realm> {
     let active = CampaignManager::get().progress.active.clone()?;
     CampaignConfigs::get().campaign(active.campaign_id).map(|campaign| campaign.realm)
+}
+
+// The floods block of the active mission, if it has one. None outside a campaign.
+pub fn active_mission_floods() -> Option<MissionFloodsDef> {
+    let active = CampaignManager::get().progress.active.clone()?;
+    let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
+    campaign.missions.get(active.mission_index)?.floods.clone()
 }
 
 // The risks setting of the active mission, if it sets one. None outside a campaign.

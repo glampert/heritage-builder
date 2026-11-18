@@ -347,6 +347,22 @@ fn warnings(world: &World, sim: &Simulation, report: &CityReport, hungry_houses:
             page: Some("population"),
         });
     }
+    // Fields the farmsteads own but have no workers to tend (crate::farms).
+    let mut fallow = 0;
+    world.for_each_building(BuildingKind::Farm, |building| {
+        if crate::farms::crop_of(building).is_some() && !building.is_under_construction() {
+            let producer = building.as_producer();
+            fallow += (producer.fields().len() - producer.tended_field_count()) as u32;
+        }
+        true
+    });
+    if fallow > 0 {
+        warnings.push(Warning {
+            icon: "food",
+            text: count_text("book.warning.fields_fallow", fallow),
+            page: Some("population"),
+        });
+    }
     for (row, key) in
         [(&report.storage_yards, "book.warning.yards_full"), (&report.granaries, "book.warning.granaries_full")]
     {

@@ -380,16 +380,25 @@
   "producer_configs": [
     {
       "kind": "Farm",
-      "name": "Rice Farm",
-      "tile_def_name": "rice_farm",
+      "name": "Farmstead",
+      "tile_def_name": "farmstead",
       "risks": { "fire": 4.0, "collapse": 3.0 },
       "min_workers": 2,
-      "max_workers": 4,
-      "production_output_frequency_secs": 18.0,
-      "production_output_amount": 2,
+      "max_workers": 6,
+      "production_output_frequency_secs": 6.0,
+      "production_output_amount": 0,
       "production_output": "Rice",
-      "production_capacity": 8,
-      "deliver_to_storage_kinds": "Granary"
+      "production_capacity": 240,
+      "deliver_to_storage_kinds": "Granary",
+      "crop": {
+        "field_tile": "rice_field",
+        "season": "Wet",
+        "grow_months": 4,
+        "harvest_per_cell": 4.0,
+        "cells_per_worker": 4,
+        "field_reach": 4,
+        "runner_load": 16
+      }
     },
     {
       "kind": "Farm",

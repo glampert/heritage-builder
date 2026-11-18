@@ -1,6 +1,6 @@
 # Seasons, floods and irrigation
 
-**Status (2026-11-18): Planned; Phases 0 and 1 next, landing together.**
+**Status (2026-11-18): Phases 0 and 1 done (landed together); Phase 2 (the flood) next.**
 - On 2026-11-17 the user answered:
   - Q1: a dyke is a road-like line, kept up by builders walking it.
   - Q2: a flood's reach is a distance from the river.
@@ -176,22 +176,52 @@ Not in M7 (see [Q14](#open-decisions)): drought (Tampadesa's threat, game Phase 
 
 ### Phase 0: Data, state and the save format (medium; lands with Phase 1)
 
-- [ ] `MissionFloodsDef` and its checks (a wet month, a sane reach, sources on water); `FloodRules` in `GameConfigs::sim.floods`.
-- [ ] `sim::CityFloods` in `Simulation`, `SimContext::floods()` and `SimContextMut::floods_mut()`, started per mission and per custom game; the fertility grid allocated while floods are on; the sources resolved from the map.
-- [ ] Custom Game's "Seasons and floods" toggle enabled, applied by `start_custom_game`.
-- [ ] Save v11, `v10_to_v11.py`: floods off, rice farms turned into livestock farms; migrated local and sample saves, `--smoke-test-saves`; the migrated farms' buffalo checked. The roadmap's save log moves T's elevation map to v12. The state saves everything later phases fill (the dykes' wear, the flood under way, the log), so Phases 2 to 4 need no other bump, as M8's Phase 0 saved the festival plan and log ahead of Phase 4.
-- [ ] `floods.state`, `floods.set`; World Debug's Floods tab.
-- [ ] Tests: the data, the start, the round trip, a migrated save's farms.
+- [x] `MissionFloodsDef` and its checks (a wet month, a sane reach, sources on water); `FloodRules` in `GameConfigs::sim.floods`.
+- [x] `sim::CityFloods` in `Simulation`, `SimContext::floods()` and `SimContextMut::floods_mut()`, started per mission and per custom game; the fertility grid allocated while floods are on; the sources resolved from the map.
+- [x] Custom Game's "Seasons and floods" toggle enabled, applied by `start_custom_game`.
+- [x] Save v11, `v10_to_v11.py`: floods off, rice farms turned into livestock farms; migrated local and sample saves, `--smoke-test-saves`; the migrated farms' buffalo checked. The roadmap's save log moves T's elevation map to v12. The state saves everything later phases fill (the dykes' wear, the flood under way, the log), so Phases 2 to 4 need no other bump, as M8's Phase 0 saved the festival plan and log ahead of Phase 4.
+- [x] `floods.state`, `floods.set`; World Debug's Floods tab.
+- [x] Tests: the data, the start, the round trip, a migrated save's farms.
+- **Notes (2026-11-18):**
+  - **The state** (`sim/floods.rs`): `CityFloods` holds the switch, the resolved `FloodProfile` (month, reach, months, sources, river, starting fertility), the fertility grid, the dykes' wear, the flood under way, the next flood's severity and the log. A game starts with floods off; `start` lays out the land when they're on: the sources (a cell of each water body of at least `min_source_cells`, or the mission's that are water) and the fertility, `fertility[0]` within the profile's largest reach of them and `fertility[1]` beyond. `set_enabled` does the same for automation and the debug tab, keeping the log.
+  - **The fill** (`sim::floods::reach_fill`) is written now, since the starting fertility needs the usual reach: from the sources' water bodies' shores out over land, four neighbours at a time, never into a cell the caller says blocks (Phase 3's dykes). `water_bodies` finds the bodies, in row order.
+  - **Fertility** is a byte a cell, saved as runs (`[value, count]`), so a 256 × 256 map of a few values saves in a few hundred bytes. While floods are off it isn't kept, and every cell reads `neutral_fertility` (50), a yield factor of 1.
+  - **The start:** a campaign mission with a `floods` block floods unless it says `enabled: false`; one without has none, so missions 1 to 3 don't change. A custom game floods when its switch is on. Presets and `session.new_map` have none.
+  - **Custom Game:** the switch is on by default; the details' Hazards say "Floods", "Fire, collapse", "Floods, fire, collapse" or "None". The `custom_game.coming_in_m7` string went.
+  - **The World Debug window's Floods tab** turns floods on and off through a request run at the start of the next frame (`floods::request`), since the window draws while the world is borrowed, and sets the next severity. A new `crate::floods` module holds the requests; Phase 2's flood logic goes there too.
+  - **The save (v11):** `v10_to_v11.py` writes `sim.floods` off (the shape the game writes, checked against a v11 save), adds `fields: []` to every producer, and turns each rice farm's object tile into a livestock farm's (its def hash, the only place a save names the tile) and its stock into an empty stock of meat. It found 23 rice farms in the 11 sample saves. A livestock farm's buffalo comes from its ambient patrol's timer in `ProducerBuilding::update`, so a migrated farm gets one as any other does, with no `post_load` change. The local saves and the sample zip were migrated; there's no Rust test of the script, which `--smoke-test-saves` covers.
 
 ### Phase 1: Farmsteads, fields and harvests (large)
 
-- [ ] The farmstead: building kind and archetype, config, Blender art, palette glyph; the rice farm's config and tile def removed.
-- [ ] The rice field tile with its four stages (Blender), placement in a farmstead's reach, the area tool and its preview, clearing; ownership and claims.
-- [ ] Tending by workers; sowing and reaping per field by season; the harvest's size; its stock and the runner's loads; the stage on the tile.
-- [ ] Faith's harvest and blight on farmsteads.
-- [ ] The farmstead's and the field's inspector panels; the harvest message; the City book's fallow-fields warning.
-- [ ] `farms.state`, `world.place_area`; the Tile Inspector's field section.
-- [ ] Presets, tests and scenarios moved off the rice farm; `tests/farms.rs`; `farms.jsonl`.
+- [x] The farmstead: building kind and archetype, config, Blender art, palette glyph; the rice farm's config and tile def removed.
+- [x] The rice field tile with its four stages (Blender), placement in a farmstead's reach, the area tool and its preview, clearing; ownership and claims.
+- [x] Tending by workers; sowing and reaping per field by season; the harvest's size; its stock and the runner's loads; the stage on the tile.
+- [x] Faith's harvest and blight on farmsteads.
+- [x] The farmstead's and the field's inspector panels; the harvest message; the City book's fallow-fields warning.
+- [x] `farms.state`, `world.place_area`; the Tile Inspector's field section.
+- [x] Presets, tests and scenarios moved off the rice farm; `tests/farms.rs`; `farms.jsonl`.
+- **Notes (2026-11-18):**
+  - **The farmstead is a producer, not a new archetype (deviation):** `BuildingKind::Farm` with a `crop` block in its producer config (`CropConfig`: the field tile, the season, `grow_months` 4, `harvest_per_cell` 4, `cells_per_worker` 4, `field_reach` 4, `runner_load` 16). It keeps its fields in `ProducerBuilding::fields` (saved, empty for other producers). Being a producer, it reuses the workers, the output stock and its runner, risks, faith's harvest and blight (which act on `Farm`), and the inspector's workshop panel. Its production cycle only paces its runner (every 6 s); it makes nothing. 2 × 2, 2 to 6 workers, 8 gold and no materials (the rice farm cost 5 and none, and I-1 teaches farming before materials), a Basic build.
+  - **The field** (`rice_field`) is a plain objects-layer tile in a new `fields` category, `TileKind::Field` (the kind's last free bit) and `NodeKind::Field` (nothing walks it), placed as rubble is, without a game object. Its variation is its stage (fallow, sown, growing, ripe), set as the crop moves on. It's drawn anchored as a 1 × 1 building, and the minimap draws each field cell as a building feature of the `Field` class (striped), with no change to the bake. Undo, the debug palette (with the buildings) and the inspector know it.
+  - **Ownership** (`farms::claim_fields`): each farmstead drops the fields that are gone and claims those in its reach that have none, each going to its nearest farmstead (the first in the world's order on a tie), and keeps its fields nearest first. It runs when the player lays a field or a farmstead, clears a field, and at each month's start, which also picks up undo and redo. `TilePlacement::place` refuses a field beyond every farmstead's reach.
+  - **The area tool:** the tile selection's range drag, which only the clear tool used, also runs for a field: it marks the cells under the dragged screen rectangle (as the clear tool selects them, not a rectangle of cells), the menus mark those beyond every farmstead's reach invalid, and the release lays a field on each cell that takes one (`TilePlacement::place_area`, one undo step). `world.place_area tile=rice_field from=… to=…` lays a rectangle of cells.
+  - **The month** (`farms::on_new_month`, after the finance's month-end and before faith's rolls): the claims, then each field: a crop grows a month (tended or not, counted), is reaped `grow_months` after sowing, and a tended field without one is sown in its crop's season, once a season (`sown_season`, the ordinal month its season began: `farms::season_start`). A field under water loses its crop and may be sown again (Phase 2 floods it).
+  - **The harvest (deviation):** a field's harvest is `harvest_per_cell` × its yield factor × the share of its growing months it was tended, where the plan said "the farmstead's staffing over the months it grew". A farmstead's workers tend the nearest `cells_per_worker` fields each, so its staffing already decides which fields are tended; scaling those again by the staffing would count it twice. A farmstead below its minimum workers, or still a site, tends nothing.
+  - **Delivery:** the farmstead's stock holds 240; its runner carries at most 16 a trip (`deliver_to_storage`), going out again until it's empty.
+  - **Messages:** a new `MessageKind::Season` (`messages.push kind=season`) for the month's harvests ("The harvest is in: 32 rice from 8 fields."), with the Notification sound. Its icon is `food` until Phase 2 draws a `water` line icon for the river's messages.
+  - **The panels:** the farmstead's panel has a Fields section (fields and those tended, those fallow for want of workers, the next harvest and its month, what it holds) in place of the production cycle, and says "No fields" while it has none. A field opens the terrain panel (`TerrainInspector`), not a new `FieldInspector` (deviation: it needed no widget of its own): its farmstead, stage, crop and land. The developer Tile Inspector has a Field section. The City book's Overview warns of fields lying fallow for want of workers.
+  - **The rice farm** is gone: its config, tile def, sprite and HUD glyphs (ui-art `--prune`). The food sector's glyph still uses its drawing. The mockup generator's palette lists the farmstead and the rice field.
+  - **Presets (deviation):** presets 1 and 2 place a livestock farm where the rice farm stood (the same 3 × 3, so their layouts keep), and presets 3 and 5, whose farm feeds a distillery, a farmstead without fields. The plan said a farmstead with fields; the presets have no room for them.
+  - **Tests and scenarios moved off the rice farm:** `game_time`, `house_consumption`, `minimap` and `faith` use the livestock farm; `unit_tasks`' fallback test seeds a farmstead's stock, and freezes the distillery's production and fetching, since the farmstead's runner comes sooner than the rice farm's did and the distillery's own runner was left out at the end. `smoke` and `determinism` build a farmstead with fields; `minimap` and `faith` a livestock farm.
+  - **Verified (Phases 0 and 1 together):**
+    - `cargo test --workspace`, with the new `tests/farms.rs` (17: laying fields in and out of reach, the nearest farmstead, claims after a farmstead goes, clearing, an area as one undo step, nearest first, workers tending, sowing and reaping in season, once a season, months untended, a site, the stages, seasons' starts, faith's harvest, a harvest carried in loads of 16, the reports, a save's round trip) and `tests/floods.rs` (10: no floods by default, a mission's start and its fertility, sources, ponds, the reach fill and a blocked one, the switch, the block's checks, a save's round trip).
+    - Clippy on desktop and web, nightly rustfmt; the tile generator's `sync_tileset.py --check` and unit tests (17), ui-art's `--check` (738 sprites) and unit tests, the recolour tool's `--check` and tests.
+    - All 26 CI scenarios in release (`farms.jsonl` added to CI's list), `ui_dev_screens` among them.
+    - `determinism.jsonl` twice: the same output and save; checksum `2868266e0be074da`, new since the state and the scenario's farm changed.
+    - Record and replay of `ui_build` and `determinism`, the replayed save the same as the runs'.
+    - `--smoke-test-saves` loads all 13 migrated saves.
+    - Screenshots of the fields laid and ripe, the field's panel and the farmstead's (`out/farms/`), and the palette's glyphs in each realm.
+  - **Art:** the Blender pipeline's `farms.py`: the farmstead (a house on stilts with a thatched roof and a ladder, a rice store on posts, a buffalo pen with its buffalo, a haystack and jars on a packed-earth yard) and the field's four stages (a bunded paddy: bare mud with stubble, water with seedlings, green rice, bent gold rice). ui-art draws the farmstead's glyph (the realm's house on stilts beside a rice plant) and the field's (the rice farm's paddy) in each realm.
 
 ### Phase 2: The flood (medium to large)
 

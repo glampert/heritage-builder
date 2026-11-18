@@ -173,7 +173,7 @@ impl TilePaletteDevMenu {
 
             let sections = [
                 ("Terrain", TileKind::Terrain),
-                ("", TileKind::Building),
+                ("", TileKind::Building | TileKind::Field),
                 ("Props", TileKind::Rocks | TileKind::Vegetation),
                 ("Units", TileKind::Unit),
             ];

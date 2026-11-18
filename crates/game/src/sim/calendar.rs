@@ -61,7 +61,7 @@ impl CalendarSettings {
         Ok(())
     }
 
-    fn season_of(&self, month: u32) -> Season {
+    pub fn season_of(&self, month: u32) -> Season {
         if self.wet_months.contains(&month) { Season::Wet } else { Season::Dry }
     }
 

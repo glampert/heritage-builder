@@ -117,8 +117,8 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Goals", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Sandbox: no goals"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Starting treasury", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "5,000 gold"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Difficulty", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Normal"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Seasons and floods", "kind": "toggle"}, "path": "/widgets/0/enabled", "value": false}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Seasons and floods", "kind": "toggle"}, "path": "/widgets/0/tooltip", "value": "Coming in M7"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Seasons and floods", "kind": "toggle"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Seasons and floods", "kind": "toggle"}, "path": "/widgets/0/value", "value": true}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Raids and invasions", "kind": "toggle"}, "path": "/widgets/0/tooltip", "value": "Coming later"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Fires and collapses", "kind": "toggle"}, "path": "/widgets/0/value", "value": true}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Fast construction", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
@@ -155,10 +155,15 @@
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_dailong_save_map.png"}}
-# The options: the hazards follow the fires switch; the difficulty's five steps.
+# The options: the hazards follow the floods and fires switches; the difficulty's five steps.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/4", "value": ["Hazards", "Floods, fire, collapse"]}}
 {"method": "ui.click", "params": {"path": "CustomGame/Fires and collapses"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Fires and collapses", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/4", "value": ["Hazards", "Floods"]}}
+{"method": "ui.click", "params": {"path": "CustomGame/Seasons and floods"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Seasons and floods", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/4", "value": ["Hazards", "None"]}}
 {"method": "ui.click", "params": {"path": "CustomGame/Difficulty/Very Hard"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Difficulty", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Very Hard"}}
@@ -447,6 +452,8 @@
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/construction_time_scale", "value": 1.0}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/gold", "value": 5000}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/date/era", "value": "Suryadeva"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/seasons_and_floods", "value": true}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/enabled", "value": true}}
 {"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
 {"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "custom_game"}}
 {"method": "assert.eq", "params": {"query": "risks.state", "path": "/enabled", "value": true}}

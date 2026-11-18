@@ -47,6 +47,7 @@ bitflags_with_display! {
         const Rocks              = 1 << 8;
         const Vegetation         = 1 << 9;
         const HarvestableTree    = 1 << 10;
+        const Field              = 1 << 11; // A farmstead's rice field: nothing walks it.
     }
 }
 
@@ -563,7 +564,11 @@ impl Graph {
     // Building tiles are handled specially since we need
     // then for building searches.
     const OBJECT_KINDS: TileKind = TileKind::from_bits_retain(
-        TileKind::Building.bits() | TileKind::Blocker.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits(),
+        TileKind::Building.bits()
+            | TileKind::Blocker.bits()
+            | TileKind::Rocks.bits()
+            | TileKind::Vegetation.bits()
+            | TileKind::Field.bits(),
     );
 
     #[inline]

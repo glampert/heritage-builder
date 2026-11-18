@@ -74,6 +74,7 @@ bitflags_with_display! {
         const Unit       = 1 << 4;
         const Rocks      = 1 << 5;
         const Vegetation = 1 << 6;
+        const Field      = 1 << 7; // A farmstead's rice field (crate::farms): a plain tile, no game object.
 
         // Aliases:
         const Prop = Self::Vegetation.bits(); // Only harvestable trees for now.
@@ -84,7 +85,8 @@ bitflags_with_display! {
                              | Self::Building.bits()
                              | Self::Unit.bits()
                              | Self::Rocks.bits()
-                             | Self::Vegetation.bits();
+                             | Self::Vegetation.bits()
+                             | Self::Field.bits();
     }
 }
 
@@ -112,6 +114,8 @@ impl TileKind {
             TileKind::Rocks
         } else if category_hash == sets::OBJECTS_VEGETATION_CATEGORY.hash {
             TileKind::Vegetation
+        } else if category_hash == sets::OBJECTS_FIELDS_CATEGORY.hash {
+            TileKind::Field
         } else if category_hash == sets::OBJECTS_OVERLAYS_CATEGORY.hash {
             TileKind::empty() // Drawn by the renderer only; never placed (see OBJECTS_OVERLAYS_CATEGORY).
         } else {
@@ -641,7 +645,7 @@ pub fn calc_object_iso_coords(kind: TileKind, base_cell: Cell, logical_size: Siz
     // Convert the anchor (bottom tile for buildings) to isometric coordinates:
     let mut tile_iso_coords = coords::cell_to_iso(base_cell);
 
-    if kind.intersects(TileKind::Building) {
+    if kind.intersects(TileKind::Building | TileKind::Field) {
         // Center the sprite horizontally:
         tile_iso_coords.x += HALF_BASE_TILE_WIDTH_I32 - (logical_size.width / 2);
 
@@ -902,6 +906,7 @@ impl Tile {
         path_kind.set(PathNodeKind::Building, self.is(TileKind::Building | TileKind::Blocker));
         path_kind.set(PathNodeKind::Rocks, self.is(TileKind::Rocks));
         path_kind.set(PathNodeKind::Vegetation, self.is(TileKind::Vegetation));
+        path_kind.set(PathNodeKind::Field, self.is(TileKind::Field));
 
         path_kind
     }

@@ -576,6 +576,30 @@
       "source_hash": "449ecf7a5daa3403",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/building/farmstead_idle.png": {
+      "catalog_hash": "d9edd62b666834e3",
+      "id": "glyph_building_farmstead",
+      "png_hash": "adb839216e223598",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "e5e4ab2ca64b374a",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/farmstead_pressed.png": {
+      "catalog_hash": "b70cbe5b9fa373c6",
+      "id": "glyph_building_farmstead",
+      "png_hash": "1dfb2563be27a1a9",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "0947434a15c96625",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/building/festival_square_idle.png": {
       "catalog_hash": "2bffb6728c0b426f",
       "id": "glyph_building_festival_square",
@@ -912,10 +936,10 @@
       "source_hash": "3c64790a1265a860",
       "state": "pressed"
     },
-    "assets/ui/skins/dailong/hud/glyphs/building/rice_farm_idle.png": {
-      "catalog_hash": "8c4e6fda61cb4cc5",
-      "id": "glyph_building_rice_farm",
-      "png_hash": "43af0f3710e521b4",
+    "assets/ui/skins/dailong/hud/glyphs/building/rice_field_idle.png": {
+      "catalog_hash": "84fbf61e0e5af6e1",
+      "id": "glyph_building_rice_field",
+      "png_hash": "9a9a044a406c81d7",
       "png_size": [
         172,
         179
@@ -924,10 +948,10 @@
       "source_hash": "0c0d5395a8cfa864",
       "state": "idle"
     },
-    "assets/ui/skins/dailong/hud/glyphs/building/rice_farm_pressed.png": {
-      "catalog_hash": "df7ce71d30608a39",
-      "id": "glyph_building_rice_farm",
-      "png_hash": "be1ef30d809430a4",
+    "assets/ui/skins/dailong/hud/glyphs/building/rice_field_pressed.png": {
+      "catalog_hash": "886aacef03e496ff",
+      "id": "glyph_building_rice_field",
+      "png_hash": "7c61bd2756232a74",
       "png_size": [
         172,
         179
@@ -3432,6 +3456,30 @@
       "source_hash": "aad2e459175c4263",
       "state": "pressed"
     },
+    "assets/ui/skins/kambara/hud/glyphs/building/farmstead_idle.png": {
+      "catalog_hash": "e381c2db191591dc",
+      "id": "glyph_building_farmstead",
+      "png_hash": "8927d9556a833db9",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "d554c44c0a709fa4",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/farmstead_pressed.png": {
+      "catalog_hash": "8e4c4c37685f2494",
+      "id": "glyph_building_farmstead",
+      "png_hash": "eb236873ed0f0798",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "d8dc28f7233f49f3",
+      "state": "pressed"
+    },
     "assets/ui/skins/kambara/hud/glyphs/building/festival_square_idle.png": {
       "catalog_hash": "ddc5dd60be5798fd",
       "id": "glyph_building_festival_square",
@@ -3768,10 +3816,10 @@
       "source_hash": "ea9f19b2484672cf",
       "state": "pressed"
     },
-    "assets/ui/skins/kambara/hud/glyphs/building/rice_farm_idle.png": {
-      "catalog_hash": "363fec0ec68fd40b",
-      "id": "glyph_building_rice_farm",
-      "png_hash": "02d2d79a1c7a205c",
+    "assets/ui/skins/kambara/hud/glyphs/building/rice_field_idle.png": {
+      "catalog_hash": "081a5b538aa92ac8",
+      "id": "glyph_building_rice_field",
+      "png_hash": "0252c760846f097a",
       "png_size": [
         172,
         186
@@ -3780,9 +3828,9 @@
       "source_hash": "32055032e5e79160",
       "state": "idle"
     },
-    "assets/ui/skins/kambara/hud/glyphs/building/rice_farm_pressed.png": {
-      "catalog_hash": "c43d546974da218a",
-      "id": "glyph_building_rice_farm",
+    "assets/ui/skins/kambara/hud/glyphs/building/rice_field_pressed.png": {
+      "catalog_hash": "59ebf798710a2514",
+      "id": "glyph_building_rice_field",
       "png_hash": "46dd869790a731c3",
       "png_size": [
         172,
@@ -6324,6 +6372,30 @@
       "source_hash": "0c06b4bb6dcf8b79",
       "state": "pressed"
     },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/farmstead_idle.png": {
+      "catalog_hash": "8561f6a08ec2b2de",
+      "id": "glyph_building_farmstead",
+      "png_hash": "5e2ac8bc1861785c",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "961668ff6916308f",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/farmstead_pressed.png": {
+      "catalog_hash": "a658de427cb31e13",
+      "id": "glyph_building_farmstead",
+      "png_hash": "eb5fc456f8fdb346",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2f6809c2f611b23a",
+      "state": "pressed"
+    },
     "assets/ui/skins/tampadesa/hud/glyphs/building/festival_square_idle.png": {
       "catalog_hash": "90326ef5a7d29111",
       "id": "glyph_building_festival_square",
@@ -6660,10 +6732,10 @@
       "source_hash": "db6b0367e5c10309",
       "state": "pressed"
     },
-    "assets/ui/skins/tampadesa/hud/glyphs/building/rice_farm_idle.png": {
-      "catalog_hash": "035675c301e79baa",
-      "id": "glyph_building_rice_farm",
-      "png_hash": "4982e8f72233b00e",
+    "assets/ui/skins/tampadesa/hud/glyphs/building/rice_field_idle.png": {
+      "catalog_hash": "c43bf7c22a04771c",
+      "id": "glyph_building_rice_field",
+      "png_hash": "264e0fed173b37c2",
       "png_size": [
         172,
         179
@@ -6672,10 +6744,10 @@
       "source_hash": "1685f6d64c8070f8",
       "state": "idle"
     },
-    "assets/ui/skins/tampadesa/hud/glyphs/building/rice_farm_pressed.png": {
-      "catalog_hash": "c3a7448d43c3e794",
-      "id": "glyph_building_rice_farm",
-      "png_hash": "3d58c206eacaa0d3",
+    "assets/ui/skins/tampadesa/hud/glyphs/building/rice_field_pressed.png": {
+      "catalog_hash": "8db8766e7d62e05e",
+      "id": "glyph_building_rice_field",
+      "png_hash": "9872baae0e6adffc",
       "png_size": [
         172,
         179

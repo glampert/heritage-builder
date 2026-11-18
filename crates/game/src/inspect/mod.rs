@@ -289,9 +289,10 @@ pub fn inspect_tile(context: &SimContext, tile: &Tile, realm: Realm) -> Option<I
     let world = context.world();
     // A building's or prop's other cells hold blockers: inspect what owns them.
     if tile.is(TileKind::Blocker) {
-        let owner = context
-            .tile_map()
-            .find_tile(tile.base_cell(), TileKind::Building | TileKind::Prop | TileKind::Vegetation | TileKind::Rocks)?;
+        let owner = context.tile_map().find_tile(
+            tile.base_cell(),
+            TileKind::Building | TileKind::Prop | TileKind::Vegetation | TileKind::Rocks | TileKind::Field,
+        )?;
         return inspect_tile(context, owner, realm);
     }
     if tile.is(TileKind::Unit) {
@@ -306,6 +307,9 @@ pub fn inspect_tile(context: &SimContext, tile: &Tile, realm: Realm) -> Option<I
     if tile.is_harvestable_prop() {
         let prop = world.find_prop_for_tile(tile)?;
         return Some(tile::read_prop(context, prop, tile));
+    }
+    if tile.is(TileKind::Field) {
+        return tile::read_field(context, tile);
     }
     if tile.is(TileKind::Terrain | TileKind::Rocks | TileKind::Vegetation) {
         return Some(tile::read_terrain(tile));
@@ -335,7 +339,7 @@ pub fn target_tile<'a>(context: &'a SimContext, target: &InspectTarget) -> Optio
     match *target {
         InspectTarget::Prop { cell } => tiles.find_tile(cell, TileKind::Prop | TileKind::Vegetation | TileKind::Rocks),
         InspectTarget::Terrain { cell } => tiles
-            .find_tile(cell, TileKind::Vegetation | TileKind::Rocks)
+            .find_tile(cell, TileKind::Vegetation | TileKind::Rocks | TileKind::Field)
             .or_else(|| tiles.find_tile(cell, TileKind::Terrain)),
         InspectTarget::Building { cell, .. } | InspectTarget::Unit { cell, .. } => tiles.topmost_tile_at_cell(cell),
     }

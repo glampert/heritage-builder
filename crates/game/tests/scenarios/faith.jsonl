@@ -171,7 +171,7 @@
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Offerings", "value": 150}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "faith"}}
-{"method": "world.place", "params": {"tile": "rice_farm", "cell": [33, 23]}}
+{"method": "world.place", "params": {"tile": "livestock_farm", "cell": [33, 23]}}
 {"method": "faith.event", "params": {"patron": "village_guardian", "event": "rich_harvest"}}
 {"method": "assert.eq", "params": {"query": "faith.state", "path": "/production_scale/Farm", "value": 1.5}}
 {"method": "assert.eq", "params": {"query": "faith.state", "path": "/effects/0/months_left", "value": 3}}

@@ -332,6 +332,18 @@ def rice_farm(realm):
     return out
 
 
+def farmstead(realm):
+    """A house on stilts under the realm's roof, a sheaf of rice beside it."""
+    out = ground_line(-42, 42) + hall(realm, -10, 46, 36, 18, stilts=True)
+    out += rice_plant(26, 34, 1.15) + rice_plant(36, 34, 0.9)
+    return out
+
+
+def rice_field(realm):
+    """A paddy within its bund, planted in rows (the rice farm's field)."""
+    return rice_farm(realm)
+
+
 def livestock_farm(realm):
     out = ground_line(-40, 40)
     # A water buffalo's head, horns sweeping back, over a fence
@@ -523,6 +535,8 @@ BUILDINGS = {
     "granary": ("Granary", granary),
     "market": ("Market", market),
     "rice_farm": ("Rice farm", rice_farm),
+    "farmstead": ("Farmstead", farmstead),
+    "rice_field": ("Rice field", rice_field),
     "livestock_farm": ("Livestock farm", livestock_farm),
     "fishing_wharf": ("Fishing wharf", fishing_wharf),
     "storage_yard": ("Storage yard", storage_yard),

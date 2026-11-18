@@ -829,7 +829,7 @@ impl Minimap {
     }
 }
 
-// "rice_farm" as "Rice farm".
+// "livestock_farm" as "Livestock farm".
 fn display_name(name: &str) -> String {
     let mut text = name.replace('_', " ");
     if let Some(first) = text.get_mut(0..1) {
@@ -839,5 +839,6 @@ fn display_name(name: &str) -> String {
 }
 
 // Minimap only displays terrain tiles and these object kinds.
-const MINIMAP_OBJECT_TILE_KINDS: TileKind =
-    TileKind::from_bits_retain(TileKind::Building.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits());
+const MINIMAP_OBJECT_TILE_KINDS: TileKind = TileKind::from_bits_retain(
+    TileKind::Building.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits() | TileKind::Field.bits(),
+);

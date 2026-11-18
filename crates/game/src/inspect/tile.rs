@@ -3,7 +3,20 @@
 
 use engine::ui::text::{self, UiTextCategory};
 
-use super::{Action, ActionKind, InspectIcon, InspectReport, InspectTarget, PanelKind, Section, ValueRow, building, t, tc};
+use super::{
+    Action,
+    ActionKind,
+    InspectIcon,
+    InspectReport,
+    InspectTarget,
+    PanelKind,
+    Section,
+    ValueRow,
+    building,
+    t,
+    tc,
+    tf,
+};
 use crate::{
     menu::TilePlacement,
     prop::Prop,
@@ -63,6 +76,43 @@ pub(super) fn read_prop(_context: &SimContext, prop: &Prop, tile: &Tile) -> Insp
         actions: vec![Action::new(ActionKind::Clear, "action.clear")],
         wide: false,
     }
+}
+
+// A rice field (crate::farms): its farmstead, its crop and its land.
+pub(super) fn read_field(context: &SimContext, tile: &Tile) -> Option<InspectReport> {
+    let field = crate::farms::field_report(context, tile.base_cell())?;
+    let month_of = |ordinal: u32| (ordinal % 12 + 1).to_string();
+    let crop = match (field.sown, field.reaped_in) {
+        _ if field.flooded => t("field.crop.flooded"),
+        (Some(sown), Some(reaped)) => tf("field.crop.growing", &[("sown", &month_of(sown)), ("reaped", &month_of(reaped))]),
+        _ if field.farmstead.is_none() => t("field.crop.no_farmstead"),
+        _ if !field.tended => t("field.crop.untended"),
+        _ => t("field.crop.fallow"),
+    };
+    let farmstead = match field.farmstead_cell {
+        Some(cell) => tf("field.farmstead.at", &[("cell", &format!("{}, {}", cell.x, cell.y))]),
+        None => t("field.farmstead.none"),
+    };
+    let fertility = context.floods().fertility_at(field.cell);
+    let rows = vec![
+        ValueRow { label: t("field.farmstead"), value: farmstead, warn: field.farmstead.is_none() },
+        ValueRow { label: t("field.stage"), value: t(&format!("field.stage.{}", field.stage.name())), warn: false },
+        ValueRow { label: t("field.crop"), value: crop, warn: field.flooded },
+        ValueRow { label: t("field.land"), value: tf("field.fertility", &[("value", &fertility.to_string())]), warn: false },
+    ];
+    let mut sections = vec![Section::Values { title: t("field.title"), note: None, rows }];
+    sections.extend(description(tile));
+    Some(InspectReport {
+        target: InspectTarget::Terrain { cell: tile.base_cell() },
+        panel: PanelKind::Terrain,
+        icon: InspectIcon::Sprite,
+        name: building::sentence_case(tile.name()),
+        subtitle: format!("{} · {}", t("kind.field"), size_text(tile)),
+        status: None,
+        sections,
+        actions: vec![Action::new(ActionKind::Clear, "action.clear")],
+        wide: false,
+    })
 }
 
 pub(super) fn read_terrain(tile: &Tile) -> InspectReport {

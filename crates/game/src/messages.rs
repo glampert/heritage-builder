@@ -19,6 +19,7 @@ pub enum MessageKind {
     Warning,      // A fire, a collapse, an outbreak, debt.
     Finance,      // Good news about the treasury.
     Faith,        // A patron's blessing (a misfortune is a Warning).
+    Season,       // The year's farming: harvests reaped (docs/plans/seasons-floods.md).
 }
 
 impl MessageKind {
@@ -29,6 +30,8 @@ impl MessageKind {
             Self::Warning => "warn",
             Self::Finance => "coin",
             Self::Faith => "temple",
+            // TODO(M7 Phase 2): a `water` line icon for the river's messages.
+            Self::Season => "food",
         }
     }
 }

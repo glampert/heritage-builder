@@ -109,7 +109,7 @@ fn test_cover_follows_vegetation() {
 
 fn test_features_follow_buildings() {
     let mut env = grass_map(32);
-    test_utils::place_tile_as_player(&mut env, Cell::new(4, 4), test_utils::find_building_def("rice_farm"));
+    test_utils::place_tile_as_player(&mut env, Cell::new(4, 4), test_utils::find_building_def("livestock_farm"));
     test_utils::place_tile_as_player(&mut env, Cell::new(10, 4), test_utils::find_building_def("temple"));
     test_utils::place_tile_as_player(&mut env, Cell::new(16, 4), test_utils::find_building_def("governor_palace"));
 

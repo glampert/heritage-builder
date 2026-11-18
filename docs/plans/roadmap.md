@@ -52,7 +52,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M4 | Finance | Medium | M1 | [finance.md](finance.md) | Done (the tax level's and wage's effects on ratings, and the overdue debt's failure, come with M9) |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | Done: risk state (save v7); fire, collapse, rubble; fire watch, builders' guild; disease and hospital dispatch (save v8); the Risk lens, the info panel's risk lines and the World Debug Risks tab |
-| M7 | Seasons, floods and irrigation | Large | M1, M5 | [seasons-floods.md](seasons-floods.md) | Planned (2026-11-18): data, state and save v11 (rice farms become livestock farms); farmsteads, fields and harvests; the flood; dykes and breaches; fertility and sluice gates. Phases 0 and 1 next |
+| M7 | Seasons, floods and irrigation | Large | M1, M5 | [seasons-floods.md](seasons-floods.md) | In progress: Phase 0 (the floods' data and state, save v11) and Phase 1 (farmsteads, rice fields and harvests, replacing the rice farm) done; the flood, dykes and breaches, fertility and sluice gates next |
 | M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | Done: data, state and save v10; the patrons' shrines and temples, picked from the palette's variation submenu; favour, the Patrons tab and the Faith lens; blessings and misfortunes; festivals and the festival square (floods' blessings wait for M7, Culture and Legitimacy for M9) |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
 | M10 | Trade v1 and court requests | Large | M1, M4, M5 | — | Not started |
@@ -304,8 +304,9 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 8 | Disease risk and outbreaks per house; the city's disease switch and death count; the fire watcher's task generalised to `UnitTaskRespond` | M6 | Done |
 | 9 | A store's orders per good (refuse, accept, get, empty), set in the inspector | UI (realm-ui Phase 8) | Done |
 | 10 | The city's faith: the realm, the patrons' favour, the festival plan and log, the effects under way (`sim.faith`) | M8 | Done |
-| 11 | Elevation map | T | Planned |
-| … | Flood, favour and ratings state | M7–M9 | Planned; group them where possible |
+| 11 | The river's floods and the land's fertility (`sim.floods`); a farmstead's fields on every producer (`fields`); old saves' rice farms turned into livestock farms | M7 | Done |
+| 12 | Elevation map | T | Planned |
+| … | Ratings state | M9 | Planned |
 
 ## Conventions for every milestone
 

@@ -304,6 +304,7 @@ impl RunLoop for GameLoop {
         self.record_finished_missions();
         self.notify_risks();
         self.notify_faith();
+        self.notify_farms();
         self.update_after_save();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
@@ -814,6 +815,19 @@ impl GameLoop {
             };
             self.post_message(kind, notice.text);
             ui::sound::play(self.engine.sound_system_mut(), sound);
+        }
+    }
+
+    // The month's harvests (crate::farms), as a Season message with the Notification sound.
+    fn notify_farms(&mut self) {
+        for notice in crate::farms::take_notices() {
+            let good = notice.good.display_name().to_lowercase();
+            let text = ui::text::format_count(UiTextCategory::Messages, "farms.harvest", notice.fields as i64, &[
+                ("amount", &notice.amount.to_string()),
+                ("good", &good),
+            ]);
+            self.post_message(crate::messages::MessageKind::Season, text);
+            ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::Notification);
         }
     }
 

@@ -49,6 +49,8 @@ pub const OBJECTS_BUILDINGS_CATEGORY: StrHashPair = StrHashPair::from_str("build
 pub const OBJECTS_UNITS_CATEGORY: StrHashPair = StrHashPair::from_str("units");
 pub const OBJECTS_ROCKS_CATEGORY: StrHashPair = StrHashPair::from_str("rocks");
 pub const OBJECTS_VEGETATION_CATEGORY: StrHashPair = StrHashPair::from_str("vegetation");
+// Farmsteads' rice fields (crate::farms): plain tiles a farmstead tends, their variation the crop's stage.
+pub const OBJECTS_FIELDS_CATEGORY: StrHashPair = StrHashPair::from_str("fields");
 
 // Sprites drawn over or instead of other tiles, never placed on the map: construction site
 // scaffolds and renovation overlays (see `tile::rendering`). Their tile defs have no specialized

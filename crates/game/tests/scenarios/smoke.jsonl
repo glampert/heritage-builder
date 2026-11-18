@@ -9,7 +9,9 @@
 {"method": "world.place", "params": {"tile": "vacant_lot", "cell": [8, 7]}}
 {"method": "world.place", "params": {"tile": "vacant_lot", "cell": [9, 7]}}
 {"method": "world.place", "params": {"tile": "small_well", "cell": [6, 7]}}
-{"method": "world.place", "params": {"tile": "rice_farm", "cell": [3, 7]}}
+{"method": "world.place", "params": {"tile": "farmstead", "cell": [3, 7]}}
+{"method": "world.place_area", "params": {"tile": "rice_field", "from": [3, 9], "to": [5, 10]}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/farmsteads/0/fields", "value": 6}}
 {"method": "assert.eq", "params": {"query": "world.list", "args": {"type": "building"}, "path": "/total", "value": 2}}
 {"method": "time.fast_forward", "params": {"sim_secs": 120}}
 {"method": "assert.gt", "params": {"query": "sim.state", "path": "/population", "value": 0}}

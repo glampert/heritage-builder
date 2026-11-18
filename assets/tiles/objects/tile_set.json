@@ -378,33 +378,6 @@
           ]
         },
         {
-          "name": "rice_farm",
-          "cost": 5,
-          "sector": "FoodAndFarming",
-          "minimap": { "class": "Field" },
-          "logical_size": {
-            "width": 192,
-            "height": 96
-          },
-          "draw_size": {
-            "width": 192,
-            "height": 130
-          },
-          "variations": [
-            {
-              "anim_sets": [
-                {
-                  "frames": [
-                    {
-                      "name": "rice_farm"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
           "name": "livestock_farm",
           "cost": 6,
           "sector": "FoodAndFarming",
@@ -1177,6 +1150,32 @@
                   "frames": [
                     {
                       "name": "festival_square"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "farmstead",
+          "cost": 8,
+          "sector": "FoodAndFarming",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 128,
+            "height": 91
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "farmstead"
                     }
                   ]
                 }
@@ -3100,6 +3099,75 @@
                   "frames": [
                     {
                       "name": "festival_square_festive"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "fields",
+      "tile_defs": [
+        {
+          "name": "rice_field",
+          "cost": 1,
+          "sector": "FoodAndFarming",
+          "minimap": { "class": "Field" },
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 37
+          },
+          "variations": [
+            {
+              "name": "fallow",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rice_field"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "sown",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rice_field"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "growing",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rice_field"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ripe",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rice_field"
                     }
                   ]
                 }

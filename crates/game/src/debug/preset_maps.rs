@@ -120,13 +120,24 @@ const H: i32 = 0; // house0
 const W: i32 = 1; // small_well
 const B: i32 = 2; // large_well
 const M: i32 = 3; // market
-const F: i32 = 4; // rice_farm
+const F: i32 = 4; // livestock_farm (the rice farm went with M7; a farmstead needs its fields)
 const S: i32 = 5; // granary
 const Y: i32 = 6; // storage_yard
 const A: i32 = 7; // distillery
 const L: i32 = 8; // lumberyard
-const BUILDING_TILE_NAMES: [&str; 9] =
-    ["house0", "small_well", "large_well", "market", "rice_farm", "granary", "storage_yard", "distillery", "lumberyard"];
+const E: i32 = 9; // farmstead (rice, for the distillery; no fields)
+const BUILDING_TILE_NAMES: [&str; 10] = [
+    "house0",
+    "small_well",
+    "large_well",
+    "market",
+    "livestock_farm",
+    "granary",
+    "storage_yard",
+    "distillery",
+    "lumberyard",
+    "farmstead",
+];
 
 // PROPS (Objects layer, vegetation category):
 const T: i32 = 0; // tree
@@ -192,10 +203,10 @@ const PRESET_TILES_2: PresetTiles = PresetTiles {
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
-// 1 farm, 2 storages (granary, storage yard), 1 factory (distillery)
+// 1 farmstead (rice), 2 storages (granary, storage yard), 1 factory (distillery)
 pub const PRESET_1_FARM_1_GRANARY_1_STORAGE_YARD_1_DISTILLERY: usize = 3;
 const PRESET_TILES_3: PresetTiles = PresetTiles {
-    preset_name: "[3] - 1 farm, 2 storages (G|Y), 1 distillery | 12x12",
+    preset_name: "[3] - 1 farmstead, 2 storages (G|Y), 1 distillery | 12x12",
     map_size_in_cells: Size::new(12, 12),
     terrain_tiles: &[
         R, R, R, R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, R, G, G, G, R, R, G, G, G, G, G, G, R, G, G, G, R, R, G, G,
@@ -206,7 +217,7 @@ const PRESET_TILES_3: PresetTiles = PresetTiles {
     building_tiles: &[
         X, X, X, X, X, X, X, X, X, X, X, X, X, A, X, X, X, X, X, X, S, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
         X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
-        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, F, X, X, X, X, X, X, Y, X, X, X, X, X, X, X, X, X, X, X, X,
+        X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, E, X, X, X, X, X, X, Y, X, X, X, X, X, X, X, X, X, X, X, X,
         X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     prop_tiles: &[],
@@ -234,11 +245,11 @@ const PRESET_TILES_4: PresetTiles = PresetTiles {
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
-// 1 rice farm + 1 distillery, ring road (no storage on map).
-// Used to verify producer-fallback delivery (farm -> distillery accepts the rice harvest as raw input).
+// 1 farmstead + 1 distillery, ring road (no storage on map).
+// Used to verify producer-fallback delivery (farmstead -> distillery accepts the rice harvest as raw input).
 pub const PRESET_1_FARM_1_DISTILLERY: usize = 5;
 const PRESET_TILES_5: PresetTiles = PresetTiles {
-    preset_name: "[5] - 1 rice farm, 1 distillery | 9x9",
+    preset_name: "[5] - 1 farmstead, 1 distillery | 9x9",
     map_size_in_cells: Size::new(9, 9),
     terrain_tiles: &[
         R, R, R, R, R, R, R, R, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G, G, G, G, G, G, R, R, G, G,
@@ -246,7 +257,7 @@ const PRESET_TILES_5: PresetTiles = PresetTiles {
         R, R, R,
     ],
     building_tiles: &[
-        X, X, X, X, X, X, X, X, X, X, F, X, X, X, X, X, X, X, // rice_farm 3x3 at (1,1)
+        X, X, X, X, X, X, X, X, X, X, E, X, X, X, X, X, X, X, // farmstead 2x2 at (1,1)
         X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, A, X,
         X, // distillery 2x2 at (6,5)
         X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
