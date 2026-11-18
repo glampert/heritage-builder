@@ -310,7 +310,12 @@ impl TilePaletteDevMenu {
         // Gather relevant tiles:
         TileSets::get().for_each_tile_def(|tile_set, tile_category, tile_def| {
             if tile_def.is(tile_kind) {
-                let building_archetype = BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def);
+                // A farmstead's field goes with the producers, beside the farms.
+                let building_archetype = if tile_def.is(TileKind::Field) {
+                    Some(BuildingArchetypeKind::ProducerBuilding)
+                } else {
+                    BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def)
+                };
 
                 tile_defs.push((tile_set, tile_category, tile_def, building_archetype));
             }
