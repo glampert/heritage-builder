@@ -312,7 +312,7 @@ pub fn inspect_tile(context: &SimContext, tile: &Tile, realm: Realm) -> Option<I
         return tile::read_field(context, tile);
     }
     if tile.is(TileKind::Terrain | TileKind::Rocks | TileKind::Vegetation) {
-        return Some(tile::read_terrain(tile));
+        return Some(tile::read_terrain(context, tile));
     }
     None
 }

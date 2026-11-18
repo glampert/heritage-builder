@@ -112,6 +112,7 @@ fn minimap_state(context: &CommandContext) -> Value {
     let center = crate::tile::minimap::widget::world_to_cell(view.center);
     let size = minimap.size_in_cells();
     let texture = minimap.texture_size();
+    let floods_enabled = context.session.sim().floods().is_enabled();
 
     let landmarks: Vec<Value> = LandmarkKind::iter()
         .flat_map(|kind| {
@@ -128,7 +129,7 @@ fn minimap_state(context: &CommandContext) -> Value {
         "pointer_blocked": minimap.is_pointer_blocked(),
         "lens": minimap.lens().to_string(),
         "show_landmarks": minimap.shows_landmarks(),
-        "lenses": MinimapLens::available().iter().map(|lens| lens.to_string()).collect::<Vec<_>>(),
+        "lenses": MinimapLens::offered(floods_enabled).iter().map(|lens| lens.to_string()).collect::<Vec<_>>(),
         "lens_data": lens_data_json(minimap.lens_data()),
         "zoom": view.zoom,
         "auto_zoom": view.auto_zoom,
@@ -175,10 +176,14 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let lens = match &params.lens {
         Some(name) => {
-            let lens = MinimapLens::from_str(name).ok().filter(|lens| MinimapLens::available().contains(lens));
+            let floods_enabled = context.session.sim().floods().is_enabled();
+            let lens = MinimapLens::from_str(name).ok().filter(|lens| lens.is_offered(floods_enabled));
             Some(lens.ok_or_else(|| {
-                let names: Vec<String> = MinimapLens::available().iter().map(|lens| lens.to_string()).collect();
-                CommandError::invalid_params(format!("Unknown lens '{name}'. Lenses: {}.", names.join(", ")))
+                let names: Vec<String> = MinimapLens::offered(floods_enabled).iter().map(|lens| lens.to_string()).collect();
+                CommandError::invalid_params(format!(
+                    "Unknown lens '{name}', or one this game doesn't offer. Lenses: {}.",
+                    names.join(", ")
+                ))
             })?)
         }
         None => None,

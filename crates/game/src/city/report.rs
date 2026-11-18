@@ -347,12 +347,16 @@ fn warnings(world: &World, sim: &Simulation, report: &CityReport, hungry_houses:
             page: Some("population"),
         });
     }
-    // Fields the farmsteads own but have no workers to tend (crate::farms).
-    let mut fallow = 0;
+    // Fields the farmsteads own but have no workers to tend (crate::farms), and those under the
+    // flood (crate::floods).
+    let (mut fallow, mut under_water) = (0, 0);
     world.for_each_building(BuildingKind::Farm, |building| {
-        if crate::farms::crop_of(building).is_some() && !building.is_under_construction() {
+        if crate::farms::crop_of(building).is_some() {
             let producer = building.as_producer();
-            fallow += (producer.fields().len() - producer.tended_field_count()) as u32;
+            if !building.is_under_construction() {
+                fallow += (producer.fields().len() - producer.tended_field_count()) as u32;
+            }
+            under_water += producer.fields().iter().filter(|plot| sim.floods().is_flooded(plot.cell)).count() as u32;
         }
         true
     });
@@ -361,6 +365,13 @@ fn warnings(world: &World, sim: &Simulation, report: &CityReport, hungry_houses:
             icon: "food",
             text: count_text("book.warning.fields_fallow", fallow),
             page: Some("population"),
+        });
+    }
+    if under_water > 0 {
+        warnings.push(Warning {
+            icon: "water",
+            text: count_text("book.warning.fields_under_water", under_water),
+            page: Some("goods"),
         });
     }
     for (row, key) in

@@ -102,16 +102,33 @@ pub enum FaithEffectDef {
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum FaithRequirement {
-    Floods,      // M7.
+    Floods,      // M7: met while the game's river floods.
+    Reservoirs,  // Kambara's barays, Campaign II.
     Trade,       // M10.
     Education,   // Schools and scholars, later.
     Monasteries, // Tampadesa's monastic order, Campaign III.
 }
 
+// What the game has of the systems an event may need, read from its simulation.
+#[derive(Copy, Clone, Default, Debug)]
+pub struct FaithSystems {
+    pub floods: bool,
+}
+
+impl FaithSystems {
+    pub fn of(floods: &crate::sim::CityFloods) -> Self {
+        Self { floods: floods.is_enabled() }
+    }
+}
+
 impl FaithRequirement {
-    // Whether the game has the system now. None of them yet: each lands with its milestone.
-    pub fn is_met(self) -> bool {
-        false
+    // Whether the game has the system now: floods while they're on; the others land with their
+    // milestones.
+    pub fn is_met(self, systems: FaithSystems) -> bool {
+        match self {
+            Self::Floods => systems.floods,
+            Self::Reservoirs | Self::Trade | Self::Education | Self::Monasteries => false,
+        }
     }
 }
 
@@ -130,8 +147,8 @@ impl FaithEffectDef {
 
 impl FaithEventDef {
     // Whether it can happen in this game: its system, if it needs one, exists.
-    pub fn is_available(&self) -> bool {
-        self.requires.or(self.effect.needs()).is_none_or(FaithRequirement::is_met)
+    pub fn is_available(&self, systems: FaithSystems) -> bool {
+        self.requires.or(self.effect.needs()).is_none_or(|needs| needs.is_met(systems))
     }
 }
 

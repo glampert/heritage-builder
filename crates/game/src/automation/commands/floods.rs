@@ -8,6 +8,7 @@ use super::{CellParam, cell_json};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     config::GameConfigs,
+    floods,
     sim::floods::MAX_FERTILITY,
 };
 
@@ -15,11 +16,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "floods.state",
         help: "Whether the river floods in this game, and its flood: month, reach (the least and most cells from \
-               its water), months under water, sources (a cell of each water body that floods) and river; the \
-               flood under way (cells, months_left, severity) or null; the next flood's severity (faith's gentle \
-               and severe floods); the log of floods and how many breached no dyke (survived); the dykes' wear; \
-               and the land's fertility (kept while floods are on: mean; else every cell reads the neutral), at \
-               `cell` if given.",
+               its water), months under water, sources (a cell of each water body that floods), river and \
+               ordinary_reach (the cells a flood at its largest reach would cover now); the flood under way \
+               (cells, months_left, recedes_in: the ordinal month the water goes, severity) or null; the next \
+               flood's severity (faith's gentle and severe floods); the log of floods and how many breached no \
+               dyke (survived); the dykes' wear; and the land's fertility (kept while floods are on: mean; else \
+               every cell reads the neutral), at `cell` if given with whether it's under water.",
         params: &[ParamDef {
             name: "cell",
             kind: "cell",
@@ -40,6 +42,22 @@ pub(super) const COMMANDS: &[CommandDef] = &[
             ParamDef { name: "severity", kind: "number", required: false, help: "The next flood's severity, 0 or more." },
         ],
         run: cmd_set,
+    },
+    CommandDef {
+        name: "floods.flood_now",
+        help: "The river floods now, as it does at its month: out to `reach` cells from its water if given, else to \
+               a reach drawn from its range (farther by a severe flood's severity), damaging what it reaches \
+               through the risks, taking the crops under it and leaving silt. Fails while floods are off or a \
+               flood is under way. Reports floods.state.",
+        params: &[ParamDef { name: "reach", kind: "number", required: false, help: "Cells from the water, 1 or more." }],
+        run: cmd_flood_now,
+    },
+    CommandDef {
+        name: "floods.recede",
+        help: "The water under way goes now, as it does at the start of the month after its last. Fails without a \
+               flood under way. Reports floods.state.",
+        params: &[],
+        run: cmd_recede,
     },
 ];
 
@@ -89,13 +107,12 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     }
 
     let delta_time_secs = context.engine.frame_clock().delta_time();
-    let rules = &GameConfigs::get().sim.floods;
     let mut fertility_kept = true;
     context.session.with_sim_context(delta_time_secs, |sim_context| {
-        let floods = sim_context.floods_mut();
         if let Some(enabled) = params.enabled {
-            floods.set_enabled(enabled, rules, sim_context.tile_map());
+            floods::set_enabled(sim_context, enabled);
         }
+        let floods = sim_context.floods_mut();
         if let (Some(CellParam(cell)), Some(fertility)) = (params.cell, params.fertility) {
             fertility_kept = floods.set_fertility(cell, fertility.round() as u8);
         }
@@ -111,10 +128,60 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     done(state_json(context, params.cell.map(|cell| cell.0)))
 }
 
+fn cmd_flood_now(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        reach: Option<u32>,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    if params.reach == Some(0) {
+        return Err(CommandError::invalid_params("reach must be 1 or more.".to_string()));
+    }
+    let floods = context.session.sim().floods();
+    if !floods.is_enabled() {
+        return Err(CommandError::invalid_params("Floods are off in this game (floods.set enabled=true).".to_string()));
+    }
+    if floods.flood().is_some() {
+        return Err(CommandError::invalid_params("A flood is under way (floods.recede).".to_string()));
+    }
+
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    context.session.with_sim_context(delta_time_secs, |sim_context| {
+        floods::flood_now(sim_context, params.reach);
+    });
+    done(state_json(context, None))
+}
+
+fn cmd_recede(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {}
+
+    let _params: Params = parse_params(params)?;
+    context.require_map()?;
+    if context.session.sim().floods().flood().is_none() {
+        return Err(CommandError::invalid_params("No flood is under way.".to_string()));
+    }
+
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    context.session.with_sim_context(delta_time_secs, |sim_context| {
+        floods::recede(sim_context);
+    });
+    done(state_json(context, None))
+}
+
 fn state_json(context: &CommandContext, cell: Option<common::coords::Cell>) -> Value {
     let floods = context.session.sim().floods();
     let profile = floods.profile();
     let fertility = floods.fertility();
+    let recedes_in = floods.flood().map(|flood| {
+        let sim = &GameConfigs::get().sim;
+        let now = context.session.sim().calendar().date(sim.days_per_month, sim.seconds_per_month).ordinal_month();
+        now + flood.months_left
+    });
     json!({
         "enabled": floods.is_enabled(),
         "month": profile.month,
@@ -122,9 +189,11 @@ fn state_json(context: &CommandContext, cell: Option<common::coords::Cell>) -> V
         "months": profile.months,
         "sources": profile.sources.iter().map(|&cell| cell_json(cell)).collect::<Vec<_>>(),
         "river": profile.river,
+        "ordinary_reach": floods.ordinary_reach(context.session.tile_map()).len(),
         "flood": floods.flood().map(|flood| json!({
             "cells": flood.cells.len(),
             "months_left": flood.months_left,
+            "recedes_in": recedes_in,
             "severity": flood.severity,
         })),
         "next_severity": floods.next_severity(),
@@ -150,6 +219,7 @@ fn state_json(context: &CommandContext, cell: Option<common::coords::Cell>) -> V
                 "cell": cell_json(cell),
                 "fertility": floods.fertility_at(cell),
                 "yield_factor": floods.yield_factor_at(cell),
+                "under_water": floods.is_flooded(cell),
             })),
         },
     })

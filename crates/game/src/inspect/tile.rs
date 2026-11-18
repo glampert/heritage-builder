@@ -83,7 +83,10 @@ pub(super) fn read_field(context: &SimContext, tile: &Tile) -> Option<InspectRep
     let field = crate::farms::field_report(context, tile.base_cell())?;
     let month_of = |ordinal: u32| (ordinal % 12 + 1).to_string();
     let crop = match (field.sown, field.reaped_in) {
-        _ if field.flooded => t("field.crop.flooded"),
+        _ if field.flooded => match crate::floods::recedes_in(context) {
+            Some(month) => tf("field.crop.flooded", &[("month", &month_of(month))]),
+            None => t("field.crop.flooded_now"),
+        },
         (Some(sown), Some(reaped)) => tf("field.crop.growing", &[("sown", &month_of(sown)), ("reaped", &month_of(reaped))]),
         _ if field.farmstead.is_none() => t("field.crop.no_farmstead"),
         _ if !field.tended => t("field.crop.untended"),
@@ -115,7 +118,27 @@ pub(super) fn read_field(context: &SimContext, tile: &Tile) -> Option<InspectRep
     })
 }
 
-pub(super) fn read_terrain(tile: &Tile) -> InspectReport {
+// The flood's section for a cell under water (crate::floods): when the water goes.
+fn flood_section(context: &SimContext, tile: &Tile) -> Option<Section> {
+    if !context.floods().is_flooded(tile.base_cell()) {
+        return None;
+    }
+    let month = crate::floods::recedes_in(context)? % 12 + 1;
+    Some(Section::Values {
+        title: t("flood.title"),
+        note: None,
+        rows: vec![
+            ValueRow {
+                label: t("flood.water"),
+                value: tf("flood.under_water", &[("month", &month.to_string())]),
+                warn: true,
+            },
+            ValueRow { label: t("flood.refuses"), value: t("flood.refused"), warn: false },
+        ],
+    })
+}
+
+pub(super) fn read_terrain(context: &SimContext, tile: &Tile) -> InspectReport {
     let def = tile.tile_def();
     let kind_key = if rubble::is_rubble_def(def) {
         "kind.rubble"
@@ -135,6 +158,7 @@ pub(super) fn read_terrain(tile: &Tile) -> InspectReport {
     let can_clear = TilePlacement::can_clear(tile);
     let mut sections = Vec::new();
     sections.extend(description(tile));
+    sections.extend(flood_section(context, tile));
     if can_clear {
         sections.push(clearing(tile, def.is_road() || def.is_vacant_lot()));
     }

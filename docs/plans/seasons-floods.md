@@ -1,6 +1,6 @@
 # Seasons, floods and irrigation
 
-**Status (2026-11-18): Phases 0 and 1 done (landed together); Phase 2 (the flood) next.**
+**Status (2026-11-18): Phases 0 and 1 done (landed together), Phase 2 (the flood) done; Phase 3 (dykes and breaches) next.**
 - On 2026-11-17 the user answered:
   - Q1: a dyke is a road-like line, kept up by builders walking it.
   - Q2: a flood's reach is a distance from the river.
@@ -225,14 +225,31 @@ Not in M7 (see [Q14](#open-decisions)): drought (Tampadesa's threat, game Phase 
 
 ### Phase 2: The flood (medium to large)
 
-- [ ] The wet season's message; the flood at its month: the fill, `TileFlags::Flooded`, the months under water, the water going.
-- [ ] The damage through M6 (collapse and disease risk), fields' crops and farmsteads' harvests lost, silt.
-- [ ] The flooded cells drawn; placement refused on them.
-- [ ] `MessageKind::Season` for the flood, its Warning, minimap pings; the flood log.
-- [ ] Faith's flood events available, the severity; `full_reservoirs`'s own requirement.
-- [ ] The Flood lens (without dykes), its ui-art glyph.
-- [ ] `floods.flood_now`, `floods.recede`.
-- [ ] Tests; `floods.jsonl` up to the flood.
+- [x] The wet season's message; the flood at its month: the fill, `TileFlags::Flooded`, the months under water, the water going.
+- [x] The damage through M6 (collapse and disease risk), fields' crops and farmsteads' harvests lost, silt.
+- [x] The flooded cells drawn; placement refused on them.
+- [x] `MessageKind::Season` for the flood, its Warning, minimap pings; the flood log.
+- [x] Faith's flood events available, the severity; `full_reservoirs`'s own requirement.
+- [x] The Flood lens (without dykes), its ui-art glyph.
+- [x] `floods.flood_now`, `floods.recede`.
+- [x] Tests; `floods.jsonl` up to the flood.
+- **Notes (2026-11-18):**
+  - **The flood** (`crate::floods`, `floods/mod.rs`): `on_new_month` runs after the finance's month-end and before the farmsteads' month and faith's rolls. The water under way goes once its months are over (`CityFloods::month_passed`); the wet season's first month queues the river-rising notice; the flood's month brings the year's flood. Its reach is drawn from the profile's range (times the severity when that's above 1); `reach_fill` gives its cells, and `CityFloods::begin_flood` keeps them in row order (a binary search answers `is_flooded`), adds the silt and logs the `FloodRecord`. The next flood's severity is used up by it (`take_next_severity`).
+  - **The damage:** each building on a flooded cell takes `collapse_damage` × severity collapse risk, a house `disease_damage` × severity disease risk too, through `Building::add_risk`, which now says whether it took the risk; that count is the record's `buildings_damaged`, and each one is pinged on the minimap. Nothing is damaged while risks are off (the harness's `no_city_risks`, a mission's `risks` block): the damage is M6's, as decision Q4 says. A farmstead under water loses the harvest it holds, and the fields under it their crops (`farms::flood_fields`; the farmsteads' month then keeps them fallow until the water goes, and sows them again if the season allows).
+  - **On the map (deviation):** a flooded cell's terrain tile is drawn as the open-water sprite with the dirt sprite washed over it (the silt), in place of its land, not over it: drawn over the land, each cell's soft diamond edge let the grass show through as a grid, while drawn in its place it joins its neighbours as terrain does. The river's own cells beside the flood are flagged too, so their grassy shore art doesn't draw a strip of bank between the river and the flood. `TileMap::set_tile_flags` now passes only object tiles' flags to the minimap's features (a terrain flag under a site's base cell would have drawn the site as finished).
+  - **Placement:** a flooded cell refuses every object (buildings, fields, props) and roads, with the previews marked; plain land and water can still be painted (the developer editor).
+  - **Messages (deviation):** the river rising and the water going down are `MessageKind::Season` messages with the new `water` line icon and the Notification sound; the flood is a Warning with Alert ("The river floods: 2 buildings damaged, 12 fields under water."). The harvests, which Phase 1 posted as Season messages, are a kind of their own, `MessageKind::Harvest`, keeping the `food` icon, so a harvest doesn't show a water drop. The river is the profile's `river` (a Realm key), else "the river".
+  - **Faith:** `FaithRequirement::is_met` takes the game's `FaithSystems`; `Floods` is met while its floods are on, so the Mountain Lord's gentle flood and the Water Lord's severe flood come, setting the next flood's severity (the latest wins). Kambara's full reservoirs requires `reservoirs`, a new requirement that waits for its barays.
+  - **The Flood lens:** where an ordinary flood would reach now (`CityFloods::ordinary_reach`, the fill at the profile's largest reach with each cell's distance), stronger by the water, the water under way at the top; buildings and fields under water in `flood_under_water`, in the reach in `flood_at_risk`. It's offered only while floods are on: every lens has its button, and the bar skips the ones the game doesn't offer (`MinimapLens::is_offered`), so nothing is rebuilt; a minimap left on it goes back to the city when floods are turned off. ui-art draws its `flood` glyph and the message log's `water` icon in each realm.
+  - **The panels:** a flooded cell's terrain panel has a section saying when the water goes; a flooded field's crop line says so too. The City book warns of fields under the flood (planned for Phase 3 with the dykes' warnings; it came with the flood).
+  - **Automation:** `floods.flood_now [reach=N]` and `floods.recede` run at once (the commands run where the world is unlocked), not queued as the plan said; the World Debug tab's Flood Now and Recede Now are queued (`floods::request`), and the tab lists the log. `floods.set enabled=false` takes the water away first (`floods::set_enabled`). `floods.state` reports `ordinary_reach`, the flood's `recedes_in` and a cell's `under_water`. `world.place_area` also lays plain terrain (a river for `floods.jsonl`).
+  - **Verified:**
+    - `cargo test --workspace`, with `tests/floods.rs` grown to 24 (the river rising, the flood at its month and its cells, the water going after its months, the damage and none while risks are off, the crops and a farmstead's harvest lost and the fields sown again, silt, a severe and a gentle flood, faith's flood events, nothing placed under water, a flood now and the water going, floods turned off, the Flood lens, a flood under way round-tripping a save); `tests/faith.rs`' availability test checks the floods and the reservoirs.
+    - Clippy on desktop and web, nightly rustfmt; ui-art's `--check` (747 sprites) and unit tests, the tile generator's and the recolour tool's checks.
+    - All 27 CI scenarios in release, the new `floods.jsonl` among them (added to CI's list); `farms.jsonl` now expects a Harvest message.
+    - `determinism.jsonl` twice: the same output and save, checksum still `2868266e0be074da` (its game has no floods); record and replay of `ui_build` and `determinism` matched, the replayed save the same as the runs'.
+    - `--smoke-test-saves` loads every local save (no save change: the flood under way was already in v11's state).
+    - Screenshots (`out/floods/`): the Flood lens before the flood, the flood with its messages, a flooded cell's panel.
 
 ### Phase 3: Dykes and breaches (medium to large)
 

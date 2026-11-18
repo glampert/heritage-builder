@@ -67,6 +67,9 @@
     "faith_ramp": ["#c9a23a00", "#c9a23aa8"],
     "faith_none": "#d8cfb8",
     "faith_all": "#8a3fa0",
+    "flood_ramp": ["#3f7fb000", "#2a62a0d0"],
+    "flood_under_water": "#1f3f78",
+    "flood_at_risk": "#d9822b",
     "refresh_secs": 1.0
   }
 }

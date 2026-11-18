@@ -15,7 +15,7 @@ use engine::{
 };
 use rand::Rng;
 
-use super::config::{self, FaithConfigs, FaithEffectDef, FaithEventDef, PatronDef};
+use super::config::{self, FaithConfigs, FaithEffectDef, FaithEventDef, FaithSystems, PatronDef};
 use crate::{
     building::{
         Building,
@@ -95,7 +95,7 @@ pub fn roll_events(context: &SimContextMut, rules: &FaithRules) -> Vec<(String, 
 
 // Whether the event can happen in this city now: its system exists, and what it acts on is there.
 pub fn can_happen(context: &SimContext, event: &FaithEventDef) -> bool {
-    if !event.is_available() {
+    if !event.is_available(FaithSystems::of(context.floods())) {
         return false;
     }
     match &event.effect {
@@ -110,9 +110,10 @@ pub fn can_happen(context: &SimContext, event: &FaithEventDef) -> bool {
             context.risks().is_disease_active() && any_building(context, BuildingKind::House, Building::can_fall_sick)
         }
         FaithEffectDef::Windfall { .. } | FaithEffectDef::Upkeep { .. } => true,
+        // The next flood's severity, while the river floods (is_available above).
+        FaithEffectDef::Flood { .. } => context.floods().is_enabled(),
         // Those wait for their systems (is_available above).
-        FaithEffectDef::Flood { .. }
-        | FaithEffectDef::Scholars { .. }
+        FaithEffectDef::Scholars { .. }
         | FaithEffectDef::Envoys
         | FaithEffectDef::Novices
         | FaithEffectDef::TradeWindfall => false,
@@ -134,7 +135,7 @@ pub fn set_off_now(context: &SimContextMut, patron_id: &str, event_id: &str) -> 
         return Err(format!("'{event_id}' isn't one of {patron_id}'s events: {}.", ids.join(", ")));
     }
     let event = def.event(event_id).ok_or_else(|| format!("No event '{event_id}' in {realm}."))?;
-    if !event.is_available() {
+    if !event.is_available(FaithSystems::of(context.floods())) {
         let needs = event.requires.or(event.effect.needs()).map_or_else(String::new, |needs| needs.to_string());
         return Err(format!("'{event_id}' waits for {needs}, which the game doesn't have yet."));
     }
@@ -181,8 +182,11 @@ fn set_off(context: &SimContextMut, patron: &PatronDef, event: &FaithEventDef) -
             targets.iter().filter(|target| find(context, **target).is_some_and(|b| b.start_outbreak_now(context))).count()
                 != 0
         }
-        FaithEffectDef::Flood { .. }
-        | FaithEffectDef::Scholars { .. }
+        FaithEffectDef::Flood { severity } => {
+            context.floods_mut().set_next_severity(*severity);
+            true
+        }
+        FaithEffectDef::Scholars { .. }
         | FaithEffectDef::Envoys
         | FaithEffectDef::Novices
         | FaithEffectDef::TradeWindfall => false,

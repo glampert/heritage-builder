@@ -8,7 +8,12 @@ use crate::{
     },
     camera::Camera,
     cheats,
-    faith::{FaithConfigs, Mood, config as faith_config, events as faith_events},
+    faith::{
+        FaithConfigs,
+        Mood,
+        config::{self as faith_config, FaithSystems},
+        events as faith_events,
+    },
     floods,
     sim::{CityFaith, CityFloods, Finance, risks::CityRisks},
     world::{World, stats::WorldStats},
@@ -39,7 +44,7 @@ impl World {
         if tab.index == 3 {
             self.draw_risks_debug_ui(risks, camera, ui_sys);
         } else if tab.index == 4 {
-            draw_faith_debug_ui(faith, ui_sys);
+            draw_faith_debug_ui(faith, FaithSystems::of(city_floods), ui_sys);
         } else if tab.index == 5 {
             draw_floods_debug_ui(city_floods, camera, ui_sys);
         } else {
@@ -156,7 +161,7 @@ impl World {
 
 // The Faith tab: the game's realm, the switches, each patron's favour as a slider, with its mood and
 // a button per blessing (+) and misfortune (-) to set it off, and the effects under way.
-fn draw_faith_debug_ui(faith: &mut CityFaith, ui_sys: &UiSystem) {
+fn draw_faith_debug_ui(faith: &mut CityFaith, systems: FaithSystems, ui_sys: &UiSystem) {
     let realm = faith.realm();
     ui::text(ui_sys, format_small!("Realm : {realm}"));
 
@@ -193,7 +198,7 @@ fn draw_faith_debug_ui(faith: &mut CityFaith, ui_sys: &UiSystem) {
             for (id, blessing) in
                 patron.blessings.iter().map(|id| (id, true)).chain(patron.misfortunes.iter().map(|id| (id, false)))
             {
-                if def.event(id).is_none_or(|event| !event.is_available()) {
+                if def.event(id).is_none_or(|event| !event.is_available(systems)) {
                     continue;
                 }
                 let label = format!("{}{id}##{}_{id}", if blessing { "+ " } else { "- " }, patron.id);
@@ -217,8 +222,9 @@ fn draw_faith_debug_ui(faith: &mut CityFaith, ui_sys: &UiSystem) {
     }
 }
 
-// The Floods tab: the switch (set at the start of the next frame, floods::request), the game's flood,
-// the next flood's severity, the flood under way, the log and the land's fertility.
+// The Floods tab: the switch, a flood now and the water going (each run at the start of the next
+// frame, floods::request), the game's flood, the next flood's severity, the flood under way, the log
+// and the land's fertility.
 fn draw_floods_debug_ui(city_floods: &mut CityFloods, camera: &mut Camera, ui_sys: &UiSystem) {
     let mut enabled = city_floods.is_enabled();
     if ui::checkbox(ui_sys, "Floods Enabled", &mut enabled) {
@@ -249,21 +255,46 @@ fn draw_floods_debug_ui(city_floods: &mut CityFloods, camera: &mut Camera, ui_sy
 
     ui::separator(ui_sys);
     match city_floods.flood() {
-        Some(flood) => ui::text(
-            ui_sys,
-            format_small!(
-                "Under water: {} cells, {} months left, severity {:.2}",
-                flood.cells.len(),
-                flood.months_left,
-                flood.severity
-            ),
-        ),
-        None => ui::text(ui_sys, "No flood under way."),
+        Some(flood) => {
+            ui::text(
+                ui_sys,
+                format_small!(
+                    "Under water: {} cells, {} months left, severity {:.2}",
+                    flood.cells.len(),
+                    flood.months_left,
+                    flood.severity
+                ),
+            );
+            if ui::button(ui_sys, "Recede Now") {
+                floods::request(floods::Request::Recede);
+            }
+        }
+        None => {
+            ui::text(ui_sys, "No flood under way.");
+            if city_floods.is_enabled() && ui::button(ui_sys, "Flood Now") {
+                floods::request(floods::Request::FloodNow);
+            }
+        }
     }
     ui::text(
         ui_sys,
         format_small!("Floods: {}, without a breach: {}", city_floods.log().len(), city_floods.floods_survived()),
     );
+    for record in city_floods.log().iter().rev() {
+        ui::text(
+            ui_sys,
+            format_small!(
+                "    Year {} month {}: reach {}, {} cells, {} buildings damaged, {} fields, {} breaches",
+                record.ordinal_month / 12,
+                record.ordinal_month % 12 + 1,
+                record.reach,
+                record.cells,
+                record.buildings_damaged,
+                record.fields_flooded,
+                record.breaches
+            ),
+        );
+    }
     match city_floods.fertility().mean() {
         Some(mean) => ui::text(ui_sys, format_small!("Fertility: mean {mean:.1}")),
         None => ui::text(ui_sys, format_small!("Fertility: not kept ({} everywhere)", city_floods.neutral_fertility())),

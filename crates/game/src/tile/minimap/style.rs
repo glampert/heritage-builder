@@ -254,10 +254,13 @@ pub struct LensStyle {
     pub risk_collapse: HexColor,  // ... collapse.
     pub risk_disease: HexColor,   // ... disease (houses only).
     pub risk_burning: HexColor,
-    pub risk_diseased: HexColor,   // A sick house.
-    pub faith_ramp: [HexColor; 2], // The Faith lens's heat field: the shrines' and temples' reach.
-    pub faith_none: HexColor,      // A house no patron's shrine or temple reaches...
-    pub faith_all: HexColor,       // ...to one every patron's reaches.
+    pub risk_diseased: HexColor,     // A sick house.
+    pub faith_ramp: [HexColor; 2],   // The Faith lens's heat field: the shrines' and temples' reach.
+    pub faith_none: HexColor,        // A house no patron's shrine or temple reaches...
+    pub faith_all: HexColor,         // ...to one every patron's reaches.
+    pub flood_ramp: [HexColor; 2],   // The Flood lens's heat field: an ordinary flood's reach, the water at the top.
+    pub flood_under_water: HexColor, // A building or field under the flood now.
+    pub flood_at_risk: HexColor,     // One an ordinary flood would reach.
     pub refresh_secs: f32,
 }
 
@@ -403,6 +406,9 @@ impl Default for LensStyle {
             faith_ramp: [HexColor::rgba(0xc9a23a00), HexColor::rgba(0xc9a23aa8)],
             faith_none: HexColor::rgb(0xd8cfb8),
             faith_all: HexColor::rgb(0x8a3fa0),
+            flood_ramp: [HexColor::rgba(0x3f7fb000), HexColor::rgba(0x2a62a0d0)],
+            flood_under_water: HexColor::rgb(0x1f3f78),
+            flood_at_risk: HexColor::rgb(0xd9822b),
             refresh_secs: 1.0,
         }
     }

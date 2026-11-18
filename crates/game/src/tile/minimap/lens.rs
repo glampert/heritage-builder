@@ -2,8 +2,8 @@
 // drawn as a small smoothly filtered texture) and colours for the buildings it cares about.
 //
 // Each lens comes from a provider, a game system that owns its data. City (the plain map),
-// Sectors, Water, Risks (M6) and Faith (M8) exist now; Floods and Fertility (M7) land with their
-// milestone, each with its provider, and only then show in the lens bar.
+// Sectors, Water, Risks (M6), Faith (M8) and Flood (M7, offered only while the game's river floods)
+// exist now; Fertility (M7 Phase 4) lands with its provider, and only then shows in the lens bar.
 
 use std::collections::BTreeMap;
 
@@ -69,8 +69,17 @@ impl MinimapLens {
     }
 
     // Lenses with a provider, in the lens bar's order. City has none: it's the plain map.
-    pub fn available() -> &'static [MinimapLens] {
-        &[Self::City, Self::Sectors, Self::Water, Self::Risk, Self::Faith]
+    pub const WITH_PROVIDERS: &'static [MinimapLens] =
+        &[Self::City, Self::Sectors, Self::Water, Self::Risk, Self::Faith, Self::Flood];
+
+    // Whether the game offers it now: the Flood lens only while its river floods.
+    pub fn is_offered(self, floods_enabled: bool) -> bool {
+        Self::WITH_PROVIDERS.contains(&self) && (self != Self::Flood || floods_enabled)
+    }
+
+    // The lenses the game offers now, in the lens bar's order.
+    pub fn offered(floods_enabled: bool) -> Vec<MinimapLens> {
+        Self::WITH_PROVIDERS.iter().copied().filter(|lens| lens.is_offered(floods_enabled)).collect()
     }
 }
 
@@ -154,6 +163,7 @@ pub fn provider(lens: MinimapLens) -> Option<&'static dyn LensProvider> {
         MinimapLens::Water => Some(&WaterLens),
         MinimapLens::Risk => Some(&RiskLens),
         MinimapLens::Faith => Some(&FaithLens),
+        MinimapLens::Flood => Some(&FloodLens),
         _ => None,
     }
 }
@@ -419,6 +429,90 @@ impl LensProvider for FaithLens {
             .chain([(none, "No patron".to_string()), (all, "Every patron".to_string())])
             .collect();
         out.legend_max_columns = 2; // The patrons' names are long.
+    }
+}
+
+// ----------------------------------------------
+// Flood
+// ----------------------------------------------
+
+// The river's flood (docs/plans/seasons-floods.md, §6): the heat field is where an ordinary flood
+// would reach now (the fill at the profile's largest reach), strongest by the water, with the cells
+// under water at the top; buildings and fields under water take flood_under_water, those in that
+// reach flood_at_risk. Offered only while the game's river floods (MinimapLens::is_offered).
+// TODO(M7 Phase 3): the dykes, from sound to worn, and the fill stopped by them.
+pub struct FloodLens;
+
+// The heat of the ordinary reach, by the water and at its edge (a share of the ramp).
+const FLOOD_REACH_HEAT: [f32; 2] = [0.65, 0.3];
+
+impl LensProvider for FloodLens {
+    fn lens(&self) -> MinimapLens {
+        MinimapLens::Flood
+    }
+
+    fn compute(&self, context: &LensContext, out: &mut LensData) {
+        let style = &context.style.lenses;
+        let (width, height) = (context.map_size.width.max(0), context.map_size.height.max(0));
+        out.values = vec![0; (width * height) as usize];
+        out.ramp = [style.flood_ramp[0].color(), style.flood_ramp[1].color()];
+        let (under_water, at_risk) = (style.flood_under_water.color(), style.flood_at_risk.color());
+
+        let floods = context.sim.floods();
+        let index = |cell: Cell| {
+            (cell.x >= 0 && cell.y >= 0 && cell.x < width && cell.y < height).then(|| (cell.y * width + cell.x) as usize)
+        };
+
+        // Where an ordinary flood would reach, fading away from the water; then the water now.
+        let farthest = floods.profile().reach[1].max(1) as f32;
+        for (cell, distance) in floods.ordinary_reach(context.sim.tile_map()) {
+            if let Some(index) = index(cell) {
+                let t = ((distance.max(1) - 1) as f32 / farthest).clamp(0.0, 1.0);
+                let heat = FLOOD_REACH_HEAT[0] + (FLOOD_REACH_HEAT[1] - FLOOD_REACH_HEAT[0]) * t;
+                out.values[index] = (heat * 255.0).round() as u8;
+            }
+        }
+        if let Some(flood) = floods.flood() {
+            for &cell in &flood.cells {
+                if let Some(index) = index(cell) {
+                    out.values[index] = u8::MAX;
+                }
+            }
+        }
+
+        // Buildings and fields: under water, or in the reach.
+        let colour = |cells: CellRange| -> Option<Color> {
+            let mut reached = false;
+            for cell in cells.iter() {
+                if floods.is_flooded(cell) {
+                    return Some(under_water);
+                }
+                reached |= index(cell).is_some_and(|index| out.values[index] > 0);
+            }
+            reached.then_some(at_risk)
+        };
+        let mut colours = Vec::new();
+        context.sim.world().for_each_building_of_any_kind(|building| {
+            if let Some(color) = colour(building.cell_range()) {
+                colours.push((building.base_cell(), color));
+            }
+            true
+        });
+        for cell in crate::farms::field_cells(context.sim.tile_map()) {
+            if let Some(color) = colour(CellRange::new(cell, cell)) {
+                colours.push((cell, color));
+            }
+        }
+        for (base, color) in colours {
+            out.building_colors.insert((base.y, base.x), color);
+        }
+
+        out.legend = legend(&[
+            (under_water, "Under water"),
+            (mix(out.ramp[0], out.ramp[1], 0.55), "Floods in an ordinary year"),
+            (at_risk, "At risk"),
+        ]);
+        out.legend_max_columns = 2; // "Floods in an ordinary year" is long.
     }
 }
 

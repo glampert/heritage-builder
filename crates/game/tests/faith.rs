@@ -10,7 +10,7 @@ use game::{
         FaithConfigs,
         Mood,
         RealmFaithDef,
-        config::{self, FaithEffectDef, FaithEventDef, FaithRequirement},
+        config::{self, FaithEffectDef, FaithEventDef, FaithRequirement, FaithSystems},
         events,
         festivals::{self, FestivalState, NotHeld, PlanOutcome},
     },
@@ -160,17 +160,26 @@ fn test_validation_finds_errors() {
     assert_eq!(errors.len(), expect.len(), "{errors:?}");
 }
 
-// Floods, trade, education and monasteries don't exist yet, so the events that need them wait.
+// The events that need a system wait for it: the floods while the game's river doesn't flood;
+// trade, education, monasteries and Kambara's reservoirs until their milestones.
 fn test_events_wait_for_their_system() {
+    let (dry, floods) = (FaithSystems::default(), FaithSystems { floods: true });
     let dai_long = realm_def(Realm::DaiLong);
-    assert!(!dai_long.event("gentle_flood").unwrap().is_available(), "floods are M7's");
-    assert!(!dai_long.event("scholars").unwrap().is_available(), "education comes later");
-    assert!(dai_long.event("rich_harvest").unwrap().is_available());
-    assert!(dai_long.event("rockfall").unwrap().is_available());
+    assert!(!dai_long.event("gentle_flood").unwrap().is_available(dry), "no river floods");
+    assert!(dai_long.event("gentle_flood").unwrap().is_available(floods));
+    assert!(dai_long.event("severe_flood").unwrap().is_available(floods));
+    assert!(!dai_long.event("scholars").unwrap().is_available(floods), "education comes later");
+    assert!(dai_long.event("rich_harvest").unwrap().is_available(dry));
+    assert!(dai_long.event("rockfall").unwrap().is_available(dry));
+
+    // Kambara's full reservoirs is about its barays, not a river's flood.
+    let kambara = realm_def(Realm::Kambara);
+    assert_eq!(kambara.event("full_reservoirs").unwrap().requires, Some(FaithRequirement::Reservoirs));
+    assert!(!kambara.event("full_reservoirs").unwrap().is_available(floods));
 
     // An effect that needs a system waits even when its event doesn't say so.
     let event = FaithEventDef { id: "x".to_string(), effect: FaithEffectDef::Envoys, requires: None };
-    assert!(!event.is_available());
+    assert!(!event.is_available(floods));
     assert_eq!(FaithEffectDef::Envoys.needs(), Some(FaithRequirement::Trade));
 }
 
@@ -503,7 +512,7 @@ fn test_favour_holds_while_off_or_with_no_one() {
 
 // The Faith lens colours shrines and temples by patron and houses by how many patrons reach them.
 fn test_the_faith_lens() {
-    assert!(MinimapLens::available().contains(&MinimapLens::Faith), "in the lens bar");
+    assert!(MinimapLens::offered(false).contains(&MinimapLens::Faith), "in the lens bar");
     let mut env = TestEnvironment::new();
     city_with_shrine_and_temple(&mut env);
 

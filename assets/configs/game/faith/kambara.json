@@ -54,7 +54,7 @@
         "kind": "flood",
         "severity": 0.5
       },
-      "requires": "floods"
+      "requires": "reservoirs"
     },
     {
       "id": "rich_catch",

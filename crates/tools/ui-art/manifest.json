@@ -1560,6 +1560,30 @@
       "source_hash": "6861a0e52fb212f0",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/flood_idle.png": {
+      "catalog_hash": "71cf9b076797b520",
+      "id": "glyph_minimap_flood",
+      "png_hash": "e4c7a44a7ccbcbdd",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "0d0305bb3bf899ed",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/flood_pressed.png": {
+      "catalog_hash": "3cb5d3fc5d082e9d",
+      "id": "glyph_minimap_flood",
+      "png_hash": "a7f81d4389949c5c",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "423f9a8d01df99de",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/minimap/home_idle.png": {
       "catalog_hash": "253fbc07bbfa4fb5",
       "id": "glyph_minimap_home",
@@ -2134,6 +2158,18 @@
       ],
       "realm": "dailong",
       "source_hash": "10c1f2e55ce9a13d",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/icons/water.png": {
+      "catalog_hash": "9c7f6401bbf2a954",
+      "id": "icon_water",
+      "png_hash": "b335a62c4007a35c",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "d5943e565ec6abe1",
       "state": null
     },
     "assets/ui/skins/dailong/hud/ornament_gap_narrow.png": {
@@ -4440,6 +4476,30 @@
       "source_hash": "775ea626eae876c0",
       "state": "pressed"
     },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/flood_idle.png": {
+      "catalog_hash": "2809d67ff69147d3",
+      "id": "glyph_minimap_flood",
+      "png_hash": "76973b01307ded9a",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "487030bc149e7214",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/flood_pressed.png": {
+      "catalog_hash": "8b16fecce2cd9fb0",
+      "id": "glyph_minimap_flood",
+      "png_hash": "43fe439bbf4a5e52",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "cf2634cbb903db46",
+      "state": "pressed"
+    },
     "assets/ui/skins/kambara/hud/glyphs/minimap/home_idle.png": {
       "catalog_hash": "9910f495a3898212",
       "id": "glyph_minimap_home",
@@ -5014,6 +5074,18 @@
       ],
       "realm": "kambara",
       "source_hash": "1ba57674c242f29b",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/icons/water.png": {
+      "catalog_hash": "8f19a3baa0929ae9",
+      "id": "icon_water",
+      "png_hash": "a1701113e3bd7bb6",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "5e997c1b892e40c1",
       "state": null
     },
     "assets/ui/skins/kambara/hud/ornament_gap_narrow.png": {
@@ -7356,6 +7428,30 @@
       "source_hash": "976766c3a99fa900",
       "state": "pressed"
     },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/flood_idle.png": {
+      "catalog_hash": "e8cfd4b0d6ed22fd",
+      "id": "glyph_minimap_flood",
+      "png_hash": "768b3b053b11073b",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "af7c7a693598f6c7",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/flood_pressed.png": {
+      "catalog_hash": "8ea9a3d8916076a3",
+      "id": "glyph_minimap_flood",
+      "png_hash": "f9102f9044058449",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "c5e5c354ae3e0dd9",
+      "state": "pressed"
+    },
     "assets/ui/skins/tampadesa/hud/glyphs/minimap/home_idle.png": {
       "catalog_hash": "288ccb1f9527f341",
       "id": "glyph_minimap_home",
@@ -7930,6 +8026,18 @@
       ],
       "realm": "tampadesa",
       "source_hash": "896cefade51b9110",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/icons/water.png": {
+      "catalog_hash": "56ac9c739cdbcc44",
+      "id": "icon_water",
+      "png_hash": "2adc3c6b485015f0",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "d8773a94c67bc198",
       "state": null
     },
     "assets/ui/skins/tampadesa/hud/ornament_gap_narrow.png": {

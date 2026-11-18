@@ -115,6 +115,7 @@ impl MinimapButton {
             "lens_water" => "water",
             "lens_risk" => "fire",
             "lens_faith" => "religion",
+            "lens_flood" => "flood",
             "landmarks_on" | "landmarks_off" => "pin",
             "zoom_in" => "plus",
             "zoom_out" => "minus",
@@ -329,7 +330,8 @@ impl BaseMinimapRenderer {
             open_button_menu.add_widget(open_button);
         }
 
-        let lenses = MinimapLens::available()
+        // Every lens's button; draw_contents shows those the game offers now.
+        let lenses = MinimapLens::WITH_PROVIDERS
             .iter()
             .map(|lens| (*lens, make_button(context, &format!("{}/{}", style.buttons, lens.sprite()), lens.label())))
             .collect();
@@ -455,7 +457,11 @@ impl BaseMinimapRenderer {
         };
 
         let mut slot = 0;
-        for (_, button) in &mut buttons.lenses {
+        let floods_enabled = context.sim.floods().is_enabled();
+        for (lens, button) in &mut buttons.lenses {
+            if !lens.is_offered(floods_enabled) {
+                continue;
+            }
             ui::place_at(ui_sys, right_slot(slot), true, GAP, |_| button.draw(context));
             slot += 1;
         }

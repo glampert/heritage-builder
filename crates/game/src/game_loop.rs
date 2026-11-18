@@ -304,6 +304,7 @@ impl RunLoop for GameLoop {
         self.record_finished_missions();
         self.notify_risks();
         self.notify_faith();
+        self.notify_floods();
         self.notify_farms();
         self.update_after_save();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
@@ -818,7 +819,7 @@ impl GameLoop {
         }
     }
 
-    // The month's harvests (crate::farms), as a Season message with the Notification sound.
+    // The month's harvests (crate::farms), as a Harvest message with the Notification sound.
     fn notify_farms(&mut self) {
         for notice in crate::farms::take_notices() {
             let good = notice.good.display_name().to_lowercase();
@@ -826,8 +827,24 @@ impl GameLoop {
                 ("amount", &notice.amount.to_string()),
                 ("good", &good),
             ]);
-            self.post_message(crate::messages::MessageKind::Season, text);
+            self.post_message(crate::messages::MessageKind::Harvest, text);
             ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::Notification);
+        }
+    }
+
+    // The river (crate::floods): its rising with the wet season and the water going down are Season
+    // messages with the Notification sound; the flood is a Warning with Alert (its minimap pings
+    // come from the flood).
+    fn notify_floods(&mut self) {
+        let notices = crate::floods::take_notices();
+        if notices.is_empty() {
+            return;
+        }
+        let river = crate::floods::river_name(self.session.sim().floods().profile());
+        for notice in notices {
+            let (kind, sound, text) = crate::floods::notice_message(&notice, &river);
+            self.post_message(kind, text);
+            ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
 

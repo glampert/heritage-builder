@@ -690,6 +690,10 @@ impl Minimap {
     // Computes the open lens again. The minimap lives in the tile map that the lens providers
     // read through `sim`, so its lens data is taken out while they compute it and put back after.
     pub fn refresh_lens(sim: &crate::sim::SimContextMut) {
+        // A lens the game no longer offers (the Flood lens once floods are off) gives way to the city.
+        if !sim.tile_map().minimap().lens.is_offered(sim.floods().is_enabled()) {
+            sim.minimap_mut().set_lens(MinimapLens::City);
+        }
         let mut lens_data = std::mem::take(&mut sim.minimap_mut().lens_data);
 
         let minimap = sim.tile_map().minimap();

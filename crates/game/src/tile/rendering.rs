@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
+use arrayvec::ArrayVec;
 use bitflags::bitflags;
 use common::{
     Color,
@@ -545,6 +546,18 @@ impl TileMapRenderer {
                 if let Some((rect, overlay)) = construction_overlay(tile, &RENOVATION_TILES, 0, transform) {
                     render_sys.draw_textured_colored_rect(rect, &overlay.coords, overlay.texture, highlight_color);
                 }
+            } else if tile.has_flags(TileFlags::Flooded) && tile.is(TileKind::Terrain) {
+                // A cell under the river's flood (crate::floods): silty water in place of its land or
+                // its shore, drawn as terrain is, so it joins its neighbours' without seams and the
+                // cells in front cover its sides.
+                for (rect, sprite, overlay_color) in flood_overlays(tile, transform) {
+                    render_sys.draw_textured_colored_rect(
+                        rect,
+                        &sprite.coords,
+                        sprite.texture,
+                        overlay_color * highlight_color,
+                    );
+                }
             } else if tile.has_flags(TileFlags::Festive)
                 && let Some((rect, festive)) = festive_overlay(tile, transform)
             {
@@ -761,6 +774,42 @@ fn festive_overlay(tile: &Tile, transform: WorldToScreenTransform) -> Option<(Re
     let sprite = def.anim_set_by_index(0, 0)?.frames.first()?;
     let iso = super::calc_object_iso_coords(TileKind::Building, tile.base_cell(), tile.logical_size(), def.draw_size);
     Some((coords::iso_to_screen_rect_f32(iso, def.draw_size, transform), &sprite.tex_info))
+}
+
+// ----------------------------------------------
+// Floods
+// ----------------------------------------------
+
+// The open water tile (the water tile def's first variation, `0000`), drawn in a flooded cell's
+// place, and the bare dirt washed over it: the silt the flood carries.
+const WATER_CATEGORY: StrHashPair = StrHashPair::from_str("water");
+const WATER_TILE: StrHashPair = StrHashPair::from_str("water");
+const LAND_CATEGORY: StrHashPair = StrHashPair::from_str("land");
+const SILT_TILE: StrHashPair = StrHashPair::from_str("dirt");
+
+const FLOOD_WATER_COLOR: Color = Color::new(1.0, 1.0, 1.0, 1.0);
+const FLOOD_SILT_COLOR: Color = Color::new(1.0, 0.82, 0.55, 0.42);
+
+// The water's sprite and the silt's for a terrain tile, each with its rect, anchored as terrain is
+// (its top corner on the cell's), and its colour. Empty without the art.
+fn flood_overlays(tile: &Tile, transform: WorldToScreenTransform) -> ArrayVec<(Rect, &'static TileTexInfo, Color), 2> {
+    let mut overlays = ArrayVec::new();
+    for (category, def, color) in
+        [(WATER_CATEGORY, WATER_TILE, FLOOD_WATER_COLOR), (LAND_CATEGORY, SILT_TILE, FLOOD_SILT_COLOR)]
+    {
+        let Some(def) = TileSets::get().try_find_tile_def_by_hash(TileMapLayerKind::Terrain, category.hash, def.hash) else {
+            continue;
+        };
+        let Some(sprite) = def.anim_set_by_index(0, 0).and_then(|set| set.frames.first()) else {
+            continue;
+        };
+        overlays.push((
+            coords::iso_to_screen_rect_f32(tile.iso_coords_f32(), def.draw_size, transform),
+            &sprite.tex_info,
+            color,
+        ));
+    }
+    overlays
 }
 
 // ----------------------------------------------

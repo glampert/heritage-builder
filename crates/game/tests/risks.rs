@@ -1671,7 +1671,7 @@ fn test_the_risk_summary() {
 // fire, then collapse), a burning one and a sick house in their own colours, and its heat field
 // is that risk over the building's cells, fading out within a cell or two of them.
 fn test_the_risk_lens() {
-    assert!(MinimapLens::available().contains(&MinimapLens::Risk), "in the lens bar");
+    assert!(MinimapLens::offered(false).contains(&MinimapLens::Risk), "in the lens bar");
 
     let mut env = TestEnvironment::new();
     road(&mut env);

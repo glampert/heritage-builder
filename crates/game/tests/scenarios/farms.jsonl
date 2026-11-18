@@ -71,7 +71,7 @@
 {"method": "time.fast_forward", "params": {"sim_secs": 60}}
 {"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/0/stage", "value": "fallow"}}
 {"method": "wait.frames", "params": {"frames": 2}}
-{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "season"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "harvest"}}
 # The harvest goes to the granary a load at a time.
 {"method": "time.fast_forward", "params": {"sim_secs": 60}}
 {"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [26, 12]}, "path": "/stock/Rice", "value": 0}}

@@ -10,6 +10,7 @@ use crate::{
     building::{BuildingBehavior, BuildingKind},
     farms,
     menu::TilePlacement,
+    tile::TileKind,
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -26,10 +27,16 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "world.place_area",
         help: "Lay a tile over every cell of the rectangle from `from` to `to` that can take it, as the build \
-               palette's area tool does (rice fields: on empty land within a farmstead's reach), each charged as \
-               it's placed; one undo step. Reports the cells placed and refused, and farms.state.",
+               palette's area tool does (rice fields: on empty land within a farmstead's reach, not under the \
+               flood), each charged as it's placed; one undo step. Also lays plain terrain, such as water for a \
+               river or a pond, its shores following. Reports the cells placed and refused, and farms.state.",
         params: &[
-            ParamDef { name: "tile", kind: "string", required: true, help: "An area tile, e.g. rice_field." },
+            ParamDef {
+                name: "tile",
+                kind: "string",
+                required: true,
+                help: "An area tile (rice_field), or a terrain tile that isn't a road (water, grass, dirt).",
+            },
             ParamDef { name: "from", kind: "cell", required: true, help: "A corner of the rectangle." },
             ParamDef { name: "to", kind: "cell", required: true, help: "The opposite corner." },
         ],
@@ -59,8 +66,12 @@ fn cmd_place_area(context: &mut CommandContext, params: Value) -> CommandResult 
     let params: Params = parse_params(params)?;
     context.require_map()?;
     let (tile_def, _) = find_tile_def(&params.tile, None)?;
-    if !farms::is_field_def(tile_def) {
-        return Err(CommandError::invalid_params(format!("'{}' isn't laid over an area.", tile_def.name)));
+    let is_plain_terrain = tile_def.is(TileKind::Terrain) && !tile_def.is_road();
+    if !farms::is_field_def(tile_def) && !is_plain_terrain {
+        return Err(CommandError::invalid_params(format!(
+            "'{}' isn't laid over an area: a rice field, or terrain that isn't a road (world.road draws those).",
+            tile_def.name
+        )));
     }
     let (from, to) = (params.from.0, params.to.0);
     context.require_cell_in_map(from)?;

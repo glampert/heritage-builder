@@ -386,6 +386,37 @@ pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     }
 }
 
+// The flood (crate::floods) takes the crops of the fields under water: they lie fallow until the
+// water goes and may be sown again then, as the season allows. How many field tiles it covers.
+pub fn flood_fields(context: &SimContextMut, is_under_water: impl Fn(Cell) -> bool) -> u32 {
+    for farmstead in farmsteads(context.world()) {
+        let Some(building) = context.find_building_mut(farmstead.id.kind, farmstead.id.id) else {
+            continue;
+        };
+        for plot in building.as_producer_mut().fields_mut() {
+            if is_under_water(plot.cell) {
+                plot.crop = None;
+                plot.sown_season = None;
+            }
+        }
+    }
+
+    let tile_map = context.tile_map_mut();
+    let mut count = 0;
+    for cell in field_cells(tile_map) {
+        if !is_under_water(cell) {
+            continue;
+        }
+        count += 1;
+        if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Objects)
+            && tile.variation_index() != FieldStage::Fallow.variation()
+        {
+            tile.set_variation_index(FieldStage::Fallow.variation());
+        }
+    }
+    count
+}
+
 // A farmstead still a construction site tends nothing.
 fn building_is_finished(context: &SimContext, id: BuildingKindAndId) -> bool {
     context.find_building(id.kind, id.id).is_some_and(|building| !building.is_under_construction())

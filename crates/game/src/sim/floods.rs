@@ -81,13 +81,25 @@ fn to_fertility(value: u32) -> u8 {
 // FloodUnderWay, FloodRecord, DykeWear
 // ----------------------------------------------
 
-// The water on the land: the cells it covers and the months it stays (docs/plans/seasons-floods.md,
-// §3). Phase 2 fills it.
+// The water on the land: the cells it covers (in row order), the months it stays and how severe
+// it was (docs/plans/seasons-floods.md, §3).
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FloodUnderWay {
     pub cells: Vec<Cell>,
     pub months_left: u32,
     pub severity: f32,
+}
+
+impl FloodUnderWay {
+    #[inline]
+    pub fn covers(&self, cell: Cell) -> bool {
+        self.cells.binary_search_by_key(&row_order(cell), |cell| row_order(*cell)).is_ok()
+    }
+}
+
+#[inline]
+fn row_order(cell: Cell) -> (i32, i32) {
+    (cell.y, cell.x)
 }
 
 // A flood that came: for the goal, the messages and M9's "Floods answered".
@@ -336,8 +348,52 @@ impl CityFloods {
     }
 
     // Whether a cell is under water now.
+    #[inline]
     pub fn is_flooded(&self, cell: Cell) -> bool {
-        self.flood.as_ref().is_some_and(|flood| flood.cells.contains(&cell))
+        self.flood.as_ref().is_some_and(|flood| flood.covers(cell))
+    }
+
+    // The next flood's severity, used up: the next one after it is ordinary again.
+    pub fn take_next_severity(&mut self) -> f32 {
+        std::mem::replace(&mut self.next_severity, 1.0)
+    }
+
+    // The water comes over `cells` for the profile's months; the silt it leaves raises their
+    // fertility (where it's kept), and the flood goes in the log.
+    pub fn begin_flood(&mut self, mut cells: Vec<Cell>, severity: f32, silt: u32, record: FloodRecord) {
+        cells.sort_by_key(|cell| row_order(*cell));
+        cells.dedup();
+        let silt = silt.min(MAX_FERTILITY as u32) as u8;
+        for &cell in &cells {
+            if let Some(fertility) = self.fertility.get(cell) {
+                self.fertility.set(cell, fertility.saturating_add(silt));
+            }
+        }
+        self.flood = Some(FloodUnderWay { cells, months_left: self.profile.months.max(1), severity });
+        self.log.push(record);
+    }
+
+    // A month passes under water: true once the water's months are over (it goes now).
+    pub fn month_passed(&mut self) -> bool {
+        let Some(flood) = &mut self.flood else {
+            return false;
+        };
+        flood.months_left = flood.months_left.saturating_sub(1);
+        flood.months_left == 0
+    }
+
+    // The water goes: the cells it covered.
+    pub fn end_flood(&mut self) -> Option<FloodUnderWay> {
+        self.flood.take()
+    }
+
+    // The land an ordinary flood would reach now: the fill at the profile's largest reach, with each
+    // cell's distance from the water (1 on the shore). Empty while floods are off.
+    pub fn ordinary_reach(&self, tile_map: &TileMap) -> Vec<(Cell, u32)> {
+        if !self.enabled {
+            return Vec::new();
+        }
+        reach_distances(tile_map, &self.profile.sources, self.profile.reach[1], |_| false)
     }
 }
 
@@ -406,6 +462,11 @@ pub fn water_bodies(tile_map: &TileMap, min_cells: usize) -> Vec<Cell> {
 // cells over land, four neighbours at a time, never into a cell `blocks` says stops the water
 // (a dyke). In the order the water reaches them.
 pub fn reach_fill(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: impl Fn(Cell) -> bool) -> Vec<Cell> {
+    reach_distances(tile_map, seeds, reach, blocks).into_iter().map(|(cell, _)| cell).collect()
+}
+
+// reach_fill, with each cell's distance from the water along the grid (1 on the shore).
+pub fn reach_distances(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: impl Fn(Cell) -> bool) -> Vec<(Cell, u32)> {
     let size = tile_map.size_in_cells();
     let (width, height) = (size.width.max(0), size.height.max(0));
     let in_bounds = |cell: Cell| cell.x >= 0 && cell.y >= 0 && cell.x < width && cell.y < height;
@@ -440,7 +501,7 @@ pub fn reach_fill(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: impl F
     // Out over the land.
     let mut cells = Vec::new();
     while let Some((cell, distance)) = shore.pop_front() {
-        cells.push(cell);
+        cells.push((cell, distance));
         if distance >= reach {
             continue;
         }

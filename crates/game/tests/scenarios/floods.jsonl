@@ -1,0 +1,106 @@
+# The river's flood (docs/plans/seasons-floods.md, Phase 2): a river laid on a blank map, floods
+# turned on, houses and a farmstead with its fields by the river; the wet season's message, the Flood
+# lens before the flood, the flood in month 7 (the cells under water, the damage, the crops lost, its
+# Warning, the lens, a flooded field's and cell's panels), the water staying through month 8 and
+# going in month 9 (its message, the fields sown again); then a flood now, the water going, and floods
+# turned off. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/floods.jsonl --default-configs --fresh-profile
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [40, 40]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+# A river two cells wide along x 20 and 21 (the cells past the playable area are refused).
+{"method": "world.place_area", "params": {"tile": "water", "from": [20, 0], "to": [21, 39]}}
+{"method": "floods.set", "params": {"enabled": true}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/enabled", "value": true}}
+{"method": "assert.exists", "params": {"query": "floods.state", "path": "/sources/0"}}
+{"method": "assert.gt", "params": {"query": "floods.state", "path": "/ordinary_reach", "value": 100}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [18, 20]}, "path": "/fertility/at/fertility", "value": 70}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [8, 20]}, "path": "/fertility/at/fertility", "value": 40}}
+# Houses by the river (within any flood's reach) and far from it; a farmstead between, its fields
+# laid on both sides of it (fields are listed in row order: the second, (17, 21), is by the river).
+{"method": "world.road", "params": {"from": [11, 14], "to": [11, 30]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [17, 16]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [9, 16]}}
+{"method": "world.place", "params": {"tile": "farmstead", "cell": [14, 22]}}
+{"method": "world.place_area", "params": {"tile": "rice_field", "from": [17, 21], "to": [19, 24]}}
+{"method": "world.place_area", "params": {"tile": "rice_field", "from": [12, 21], "to": [12, 24]}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/farmsteads/0/fields", "value": 16}}
+{"method": "camera.teleport", "params": {"cell": [17, 21]}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+# The widget registry on, for ui.layout_issues.
+{"method": "ui.tree", "params": {"filter": "Minimap"}}
+# The wet season begins in month 5: the river is rising, and the fields are sown.
+{"method": "calendar.set", "params": {"year": 1, "month": 4}}
+{"method": "time.fast_forward", "params": {"sim_secs": 61}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "season"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "The river is rising: the wet season has begun."}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/1/stage", "value": "sown"}}
+# The Flood lens, offered while the river floods: where an ordinary flood would reach.
+{"method": "assert.exists", "params": {"query": "minimap.state", "path": "/lenses/5"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lenses/5", "value": "flood"}}
+{"method": "minimap.set", "params": {"open": true, "lens": "flood"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens_data/lens", "value": "flood"}}
+{"method": "assert.gt", "params": {"query": "minimap.state", "path": "/lens_data/heat_cells", "value": 100}}
+{"method": "assert.gt", "params": {"query": "minimap.state", "path": "/lens_data/buildings", "value": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/floods/lens_before.png"}}
+# Month 7: the flood. Its cells, the house by the river damaged, the fields by the river drowned.
+{"method": "time.fast_forward", "params": {"sim_secs": 120}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.gt", "params": {"query": "floods.state", "path": "/flood/cells", "value": 100}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/flood/months_left", "value": 2}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/log/0/ordinal_month", "value": 18}}
+{"method": "assert.gt", "params": {"query": "floods.state", "path": "/log/0/buildings_damaged", "value": 0}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/log/0/fields_flooded", "value": 12}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [18, 20]}, "path": "/fertility/at/under_water", "value": true}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [18, 20]}, "path": "/fertility/at/fertility", "value": 100}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [8, 20]}, "path": "/fertility/at/under_water", "value": false}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "warning"}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/1/flooded", "value": true}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/1/stage", "value": "fallow"}}
+{"method": "assert.gt", "params": {"query": "minimap.state", "path": "/alerts", "value": 0}}
+{"method": "wait.frames", "params": {"frames": 70}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/floods/flood.png"}}
+# A flooded field's panel and a flooded cell's.
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [18, 22]}, "path": "/sections/0/rows/2/value", "value": "Under water until month 9: sown again then"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [18, 18]}, "path": "/sections/1/title", "value": "The flood"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [18, 18]}, "path": "/sections/1/rows/0/value", "value": "Under water until month 9"}}
+{"method": "minimap.set", "params": {"lens": "city"}}
+{"method": "input.click", "params": {"cell": [18, 18]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/floods/flooded_cell_panel.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+# Month 8: still under water. Month 9: the water goes, and the fields are sown again; the dry
+# fields, sown in month 5, are reaped: 4 rice each on land of 40 fertility (× 0.9), 14.4, rounded.
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/flood/months_left", "value": 1}}
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [18, 20]}, "path": "/fertility/at/under_water", "value": false}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/1/kind", "value": "season"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/1/text", "value": "The water goes down: the silt reached 12 fields."}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "harvest"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "The harvest is in: 14 rice from 4 fields."}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/1/flooded", "value": false}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/1/stage", "value": "sown"}}
+# A flood now, out to 2 cells, and the water going.
+{"method": "floods.flood_now", "params": {"reach": 2}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/log/1/reach", "value": 2}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [17, 20]}, "path": "/fertility/at/under_water", "value": false}}
+{"method": "floods.recede", "params": {}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [18, 20]}, "path": "/fertility/at/under_water", "value": false}}
+# Floods off: the Flood lens isn't offered, and the minimap goes back to the city.
+{"method": "minimap.set", "params": {"lens": "flood"}}
+{"method": "floods.set", "params": {"enabled": false}}
+{"method": "wait.frames", "params": {"frames": 70}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "city"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lenses", "value": ["city", "sectors", "water", "risk", "faith"]}}

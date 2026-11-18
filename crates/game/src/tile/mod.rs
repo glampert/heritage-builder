@@ -164,6 +164,9 @@ bitflags_with_display! {
 
         // A festival square during a festival's month (faith::festivals): drawn dressed for it.
         const Festive            = 1 << 18;
+
+        // A terrain cell under the river's flood (crate::floods): drawn with silty water over it.
+        const Flooded            = 1 << 19;
     }
 }
 
@@ -2503,7 +2506,11 @@ impl TileMap {
             tile.set_flags(flags, value);
 
             update_search_graph!(layers, graph, tile, flags, TileFlagsChanged);
-            changed = Some((tile.base_cell(), tile.flags()));
+            // The minimap's features are object tiles: a terrain tile's flags (a flood, the area
+            // tool's marks) would override the state of a building on the same base cell.
+            if tile.layer_kind() == TileMapLayerKind::Objects {
+                changed = Some((tile.base_cell(), tile.flags()));
+            }
         }
 
         if let Some((base_cell, tile_flags)) = changed {
@@ -2528,8 +2535,10 @@ impl TileMap {
 
         update_search_graph!(layers, graph, tile, flags, TileFlagsChanged);
 
-        let (base_cell, tile_flags) = (tile.base_cell(), tile.flags());
-        self.minimap.on_tile_flags_changed(base_cell, tile_flags);
+        if layer_kind == TileMapLayerKind::Objects {
+            let (base_cell, tile_flags) = (tile.base_cell(), tile.flags());
+            self.minimap.on_tile_flags_changed(base_cell, tile_flags);
+        }
     }
 
     #[inline]

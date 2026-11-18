@@ -777,14 +777,15 @@ impl Building {
         }
     }
 
-    // Raises a risk, as a neighbour's fire does, and later milestones' floods and misfortunes
-    // will. A site, a building about to be destroyed, and one whose config gives it no such
-    // risk take none. What a risk at the top sets off happens on the building's next step.
-    pub fn add_risk(&mut self, kind: RiskKind, amount: f32) {
+    // Raises a risk, as a neighbour's fire and a flood do (crate::floods). A site, a building about
+    // to be destroyed, and one whose config gives it no such risk take none: false. What a risk at
+    // the top sets off happens on the building's next step.
+    pub fn add_risk(&mut self, kind: RiskKind, amount: f32) -> bool {
         if self.is_under_construction() || self.risks.is_doomed() || self.configs().risk_rates().get(kind) <= 0.0 {
-            return;
+            return false;
         }
         self.risks.add(kind, amount);
+        true
     }
 
     #[inline]

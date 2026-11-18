@@ -24,6 +24,7 @@ use crate::{
     building::construction::ConstructionMode,
     cheats,
     farms,
+    floods,
     save_context::{Load, Save},
     sim::SimContextMut,
     tile::{
@@ -103,19 +104,25 @@ fn clear_selection(context: &mut GameUiContext) {
     context.tile_map.clear_selection(context.tile_selection);
 }
 
-// While an area is dragged for fields, marks the cells beyond every farmstead's reach invalid: the
-// selection checks the terrain and the objects, not the farmsteads.
+// While an area is dragged for fields, marks the cells beyond every farmstead's reach, and those
+// under the flood, invalid: the selection checks the terrain and the objects, not the farmsteads.
 fn mark_area_out_of_reach(context: &mut GameUiContext, tile_def: &'static TileDef) {
     if !context.tile_selection.is_selecting_area() {
         return;
     }
     let cells: Vec<Cell> = context.tile_selection.cells().iter().copied().collect();
     for cell in cells {
-        if farms::farmstead_for_field(context.world, tile_def, cell).is_none() {
+        if farms::farmstead_for_field(context.world, tile_def, cell).is_none() || context.sim.floods().is_flooded(cell) {
             context.tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Highlighted, false);
             context.tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Invalidated, true);
         }
     }
+}
+
+// What a flooded cell refuses: every object (buildings, fields, props) and roads. Plain land and
+// water (the developer editor's terrain) can still be painted.
+fn placement_refused_under_water(tile_def: &TileDef) -> bool {
+    !tile_def.is(TileKind::Terrain) || tile_def.is_road()
 }
 
 fn can_afford_cost(context: &GameUiContext, cost: u32) -> bool {
@@ -457,6 +464,7 @@ enum PlaceRoadSegmentResult {
 pub enum RoadSegmentError {
     Empty,
     Blocked,
+    UnderWater,
     CannotAffordCost(u32),
 }
 
@@ -465,6 +473,7 @@ impl std::fmt::Display for RoadSegmentError {
         match self {
             Self::Empty => write!(f, "The road segment is empty."),
             Self::Blocked => write!(f, "Something blocks every route for the road segment."),
+            Self::UnderWater => write!(f, "The road segment crosses land under the flood."),
             Self::CannotAffordCost(cost) => write!(f, "Cannot afford the road segment. Cost: {cost} gold"),
         }
     }
@@ -531,6 +540,9 @@ impl TilePlacement {
         if !segment.is_valid {
             return Err(RoadSegmentError::Blocked);
         }
+        if segment.path.iter().any(|cell| floods::is_flooded(context, *cell)) {
+            return Err(RoadSegmentError::UnderWater);
+        }
         if !context.finance().can_afford(segment.cost()) {
             return Err(RoadSegmentError::CannotAffordCost(segment.cost()));
         }
@@ -567,8 +579,10 @@ impl TilePlacement {
 
         self.current_road_segment = road::build_segment(context.tile_map, start, end, road_kind);
 
-        let is_valid_road_placement =
-            self.current_road_segment.is_valid && can_afford_cost(context, self.current_road_segment.cost());
+        let floods = context.sim.floods();
+        let is_valid_road_placement = self.current_road_segment.is_valid
+            && !self.current_road_segment.path.iter().any(|cell| floods.is_flooded(*cell))
+            && can_afford_cost(context, self.current_road_segment.cost());
 
         // Highlight new segment:
         road::mark_tiles(context.tile_map, &self.current_road_segment, true, is_valid_road_placement);
@@ -576,11 +590,21 @@ impl TilePlacement {
 
     fn placement_operation(&self, selection: TilePaletteSelection, context: &mut GameUiContext) -> TilePlacementOp {
         if let Some(tile_def) = selection.as_tile_def() {
+            // Land under the flood takes nothing new until the water goes.
+            let target_cell = context.tile_map.find_exact_cell_for_point(
+                tile_def.layer_kind(),
+                context.cursor_screen_pos,
+                context.camera.transform(),
+            );
+            let under_water = target_cell.is_valid()
+                && placement_refused_under_water(tile_def)
+                && tile_def.cell_range(target_cell).iter().any(|cell| context.sim.floods().is_flooded(cell));
+
             let sim_context = context.new_sim_context();
             let mut spawner = Spawner::new(&sim_context);
             spawner.set_subtract_tile_cost(true);
 
-            if spawner.can_afford_tile(tile_def) {
+            if !under_water && spawner.can_afford_tile(tile_def) {
                 TilePlacementOp::Place(tile_def)
             } else {
                 TilePlacementOp::Invalidate(tile_def)
@@ -662,6 +686,17 @@ impl TilePlacement {
         undo_redo: bool,
         construction_mode: ConstructionMode,
     ) -> PlaceOrClearResult {
+        // Land under the flood takes nothing new until the water goes (crate::floods).
+        if placement_refused_under_water(tile_def)
+            && tile_def.cell_range(target_cell).iter().any(|cell| floods::is_flooded(context, cell))
+        {
+            return PlaceOrClearResult::Failed {
+                placement_attempt_tile_def: Some(tile_def),
+                obstructing_tile_def: None,
+                message: format!("'{}' can't go on land under the flood until the water goes.", tile_def.name),
+            };
+        }
+
         // A field is laid only in a farmstead's reach (crate::farms).
         if farms::is_field_def(tile_def) && farms::farmstead_for_field(context.world(), tile_def, target_cell).is_none() {
             return PlaceOrClearResult::Failed {
@@ -725,7 +760,8 @@ impl TilePlacement {
     }
 
     // Lays `tile_def` on each of `cells` that can take it, as the area tool does (a farmstead's
-    // fields): each cell charged as it's placed, the others refused; one undo step for them all.
+    // fields; plain terrain from automation): each cell charged as it's placed, the others refused;
+    // one undo step for them all.
     pub fn place_area(
         context: &SimContextMut,
         cells: &[Cell],
@@ -744,13 +780,8 @@ impl TilePlacement {
             }
         }
         if undo_redo && !result.placed.is_empty() {
-            undo_redo::record(
-                EditAction::PlacedTiles,
-                &result.placed,
-                EditedLayer::Objects,
-                context.tile_map(),
-                context.world(),
-            );
+            let layers = if tile_def.is(TileKind::Terrain) { EditedLayer::Terrain } else { EditedLayer::Objects };
+            undo_redo::record(EditAction::PlacedTiles, &result.placed, layers, context.tile_map(), context.world());
         }
         result
     }
