@@ -143,6 +143,7 @@ pub struct MinimapPalette {
     pub void: HexColor,
     pub road: HexColor,
     pub paved_road: HexColor,
+    pub dyke: HexColor, // A dyke, drawn as a road.
     pub road_casing: HexColor,
     pub shadow: HexColor,
     pub outline: HexColor,
@@ -261,6 +262,8 @@ pub struct LensStyle {
     pub flood_ramp: [HexColor; 2],   // The Flood lens's heat field: an ordinary flood's reach, the water at the top.
     pub flood_under_water: HexColor, // A building or field under the flood now.
     pub flood_at_risk: HexColor,     // One an ordinary flood would reach.
+    pub dyke_sound: HexColor,        // A dyke kept up...
+    pub dyke_worn: HexColor,         // ...to one worn enough to breach.
     pub refresh_secs: f32,
 }
 
@@ -327,6 +330,7 @@ impl Default for MinimapPalette {
             void: HexColor::rgb(0x1a1611),
             road: HexColor::rgb(0xf4e8c8),
             paved_road: HexColor::rgb(0xe2d6c0),
+            dyke: HexColor::rgb(0x9a9256),
             road_casing: HexColor::rgba(0x6b5a40cc),
             shadow: HexColor::rgba(0x1f1a1259),
             outline: HexColor::rgba(0x2b24188c),
@@ -409,6 +413,8 @@ impl Default for LensStyle {
             flood_ramp: [HexColor::rgba(0x3f7fb000), HexColor::rgba(0x2a62a0d0)],
             flood_under_water: HexColor::rgb(0x1f3f78),
             flood_at_risk: HexColor::rgb(0xd9822b),
+            dyke_sound: HexColor::rgb(0x3f8a3a),
+            dyke_worn: HexColor::rgb(0xc8321f),
             refresh_secs: 1.0,
         }
     }

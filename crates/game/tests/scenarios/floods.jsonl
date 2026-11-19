@@ -98,6 +98,47 @@
 {"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [17, 20]}, "path": "/fertility/at/under_water", "value": false}}
 {"method": "floods.recede", "params": {}}
 {"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [18, 20]}, "path": "/fertility/at/under_water", "value": false}}
+# A dyke from the Roads grid, drawn along x 16 between the fields by the river and the farmstead:
+# counted, sound, and its panel.
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/roads"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: roads/Dyke"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "TilePaletteChildMenu: roads/Dyke"}}
+{"method": "input.drag", "params": {"from": [16, 12], "to": [16, 28], "cells": true, "frames": 12}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/dykes/count", "value": 17}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/dykes/worn", "value": 0}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/subtitle", "value": "Dyke · 1×1"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/sections/0/title", "value": "The dyke"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/sections/0/rows/0/value", "value": "0 of 100"}}
+# A flood of 6 cells stops at the sound dyke: the land behind it stays dry.
+{"method": "floods.flood_now", "params": {"reach": 6}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/log/2/breaches", "value": 0}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [17, 20]}, "path": "/fertility/at/under_water", "value": true}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [15, 20]}, "path": "/fertility/at/under_water", "value": false}}
+{"method": "floods.recede", "params": {}}
+# A section worn through: the Flood lens marks the dykes, and the next flood breaches it, rubble in the
+# gap and the water through it.
+{"method": "floods.set", "params": {"cell": [16, 20], "wear": 100}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/dykes/worn", "value": 1}}
+{"method": "minimap.set", "params": {"lens": "flood"}}
+{"method": "wait.frames", "params": {"frames": 70}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens_data/marks", "value": 17}}
+{"method": "floods.flood_now", "params": {"reach": 6}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/log/3/breaches", "value": 1}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/survived", "value": 3}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/dykes/count", "value": 16}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [15, 20]}, "path": "/fertility/at/under_water", "value": true}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/name", "value": "Rubble"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "warning"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "The river broke through a dyke: the land behind it is under water."}}
+{"method": "wait.frames", "params": {"frames": 70}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/floods/breach.png"}}
+{"method": "floods.recede", "params": {}}
 # Floods off: the Flood lens isn't offered, and the minimap goes back to the city.
 {"method": "minimap.set", "params": {"lens": "flood"}}
 {"method": "floods.set", "params": {"enabled": false}}

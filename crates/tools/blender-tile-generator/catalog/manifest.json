@@ -1275,6 +1275,358 @@
       ],
       "tile": "rubble",
       "variation": "1111"
+    },
+    "assets/tiles/terrain/land/dyke/0000/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "687a03f4b74ac35e",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "0000"
+    },
+    "assets/tiles/terrain/land/dyke/0001/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "d6a8a4e0c950c237",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "0001"
+    },
+    "assets/tiles/terrain/land/dyke/0010/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "6327692ed786e928",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "0010"
+    },
+    "assets/tiles/terrain/land/dyke/0011/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "4c52bbbb1673c3d6",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "0011"
+    },
+    "assets/tiles/terrain/land/dyke/0100/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "d43941811a8595ea",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "0100"
+    },
+    "assets/tiles/terrain/land/dyke/0101/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "e729aed2a3c52a23",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "0101"
+    },
+    "assets/tiles/terrain/land/dyke/0110/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "5df762bf302afc39",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "0110"
+    },
+    "assets/tiles/terrain/land/dyke/0111/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "95dfb64a8aff1960",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "0111"
+    },
+    "assets/tiles/terrain/land/dyke/1000/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "8a148cc136744dc4",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "1000"
+    },
+    "assets/tiles/terrain/land/dyke/1001/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "96593e4bc8c97972",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "1001"
+    },
+    "assets/tiles/terrain/land/dyke/1010/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "f29c93f146182507",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "1010"
+    },
+    "assets/tiles/terrain/land/dyke/1011/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "2103bccbe0e3a0ac",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "1011"
+    },
+    "assets/tiles/terrain/land/dyke/1100/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "ad83fd2a3180c997",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "1100"
+    },
+    "assets/tiles/terrain/land/dyke/1101/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "e6cbf825f4710c82",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "1101"
+    },
+    "assets/tiles/terrain/land/dyke/1110/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "f1884324f4239980",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "1110"
+    },
+    "assets/tiles/terrain/land/dyke/1111/dyke.png": {
+      "category": "land",
+      "density": 8,
+      "draw_size": {
+        "height": 35,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "dyke",
+      "hash": "d0170fe3787415ef",
+      "layer": "terrain",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        280
+      ],
+      "tile": "dyke",
+      "variation": "1111"
     }
   },
   "version": 1

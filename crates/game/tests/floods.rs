@@ -1,7 +1,14 @@
-use common::{Size, coords::Cell};
+use common::{Size, callback::Callback, coords::Cell};
 use game::{
-    building::{BuildingKindAndId, construction::ConstructionMode, risks::RiskKind},
-    campaign::config::MissionFloodsDef,
+    building::{
+        Building,
+        BuildingKind,
+        BuildingKindAndId,
+        BuildingTileInfo,
+        construction::ConstructionMode,
+        risks::RiskKind,
+    },
+    campaign::config::{MissionFloodsDef, MissionGoal},
     cheats,
     config::{FloodRules, GameConfigs},
     faith::events,
@@ -10,6 +17,8 @@ use game::{
     menu::{PlaceOrClearResult, TilePlacement},
     realm::Realm,
     sim::{
+        SimCmdQueue,
+        SimContextMut,
         calendar::CalendarDate,
         floods::{self, CityFloods},
         resources::ResourceKind,
@@ -22,16 +31,30 @@ use game::{
             lens::{self, LensContext, LensData},
             style::MinimapStyle,
         },
+        road::{self, RoadKind},
+        rubble,
         sets::{OBJECTS_FIELDS_CATEGORY, TileDef, TileSets},
     },
+    unit::{
+        Unit,
+        config::UnitConfigKey,
+        task::{
+            UnitPatrolPathRecord,
+            UnitTaskDespawn,
+            UnitTaskPatrolCompletionCallback,
+            UnitTaskPatrolState,
+            UnitTaskRandomizedPatrol,
+        },
+    },
+    world::stats::WorldStats,
 };
 
 mod test_utils;
 use test_utils::TestEnvironment;
 
 // ----------------------------------------------
-// Integration tests for the river's floods and the land's fertility
-// (docs/plans/seasons-floods.md, Phases 0 and 2).
+// Integration tests for the river's floods, the land's fertility and the dykes
+// (docs/plans/seasons-floods.md, Phases 0, 2 and 3).
 // ----------------------------------------------
 
 fn main() {
@@ -61,6 +84,15 @@ fn main() {
         test_utils::test_fn!(test_turning_floods_off_takes_the_water_away),
         test_utils::test_fn!(test_the_flood_lens),
         test_utils::test_fn!(test_a_flood_under_way_round_trips_a_save),
+        // Dykes (Phase 3):
+        test_utils::test_fn!(test_a_dyke_is_drawn_as_a_road),
+        test_utils::test_fn!(test_dykes_hold_the_flood_back),
+        test_utils::test_fn!(test_dykes_wear_month_by_month),
+        test_utils::test_fn!(test_a_builder_walking_a_dyke_keeps_it_up),
+        test_utils::test_fn!(test_a_worn_dyke_breaches),
+        test_utils::test_fn!(test_the_floods_survived_goal),
+        test_utils::test_fn!(test_the_flood_lens_shows_the_dykes),
+        test_utils::test_fn!(test_dykes_round_trip_a_save),
     ]);
 }
 
@@ -582,7 +614,7 @@ fn test_the_flood_lens() {
     assert_eq!(colour(at_risk), Some(style.lenses.flood_at_risk.color()));
     assert_eq!(colour(safe), None);
     let legend: Vec<&str> = data.legend.iter().map(|(_, label)| label.as_str()).collect();
-    assert_eq!(legend, ["Under water", "Floods in an ordinary year", "At risk"]);
+    assert_eq!(legend, ["Under water", "Floods in an ordinary year", "At risk", "Dyke sound", "Dyke worn"]);
 }
 
 fn test_a_flood_under_way_round_trips_a_save() {
@@ -595,4 +627,236 @@ fn test_a_flood_under_way_round_trips_a_save() {
     assert!(!back.is_flooded(Cell::new(16, 20)));
     assert_eq!(back.flood().map(|flood| flood.months_left), Some(2));
     assert_eq!(back.log().len(), 1);
+}
+
+// ----------------------------------------------
+// Dykes (Phase 3)
+// ----------------------------------------------
+
+fn dyke_def() -> &'static TileDef {
+    road::tile_def(RoadKind::Dyke)
+}
+
+// Floods on, reaching `reach` cells, with a dyke along x = 17 the length of the playable area:
+// the river's west bank (x 18 and 19) lies before it, the land west of x 17 behind it.
+fn dyked_map(reach: u32) -> TestEnvironment {
+    let mut env = flooding_map(reach);
+    for y in 0..40 {
+        let cell = Cell::new(17, y);
+        if env.tile_map.is_cell_within_playable_area(cell) {
+            assert!(place(&mut env, cell, dyke_def()).is_ok(), "a dyke at {cell}");
+        }
+    }
+    let context = env.new_sim_context(0.0);
+    context.floods_mut().sync_dykes(context.tile_map());
+    env
+}
+
+fn variation_at(env: &TestEnvironment, cell: Cell) -> usize {
+    env.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).expect("terrain").variation_index()
+}
+
+fn test_a_dyke_is_drawn_as_a_road() {
+    let mut env = flooding_map(3);
+    let segment = road::build_segment(&env.tile_map, Cell::new(14, 18), Cell::new(14, 22), RoadKind::Dyke);
+    assert!(segment.is_valid);
+    let context = env.new_sim_context(0.0);
+    TilePlacement::place_road_segment(&context, &segment, false).expect("the dyke");
+
+    let tile = env.tile_map.try_tile_from_layer(Cell::new(14, 20), TileMapLayerKind::Terrain).unwrap();
+    assert!(tile.tile_def().blocks_floods && tile.path_kind().is_road(), "a road that stops floods");
+    // A run along y joins east (-y) and west (+y): mask 0101; its ends join one side each.
+    assert_eq!(variation_at(&env, Cell::new(14, 20)), 0b0101);
+    assert_eq!(variation_at(&env, Cell::new(14, 18)), 0b0001, "joins west only");
+    assert_eq!(variation_at(&env, Cell::new(14, 22)), 0b0100, "joins east only");
+    assert_eq!(env.sim.floods().dyke_wear().len(), 5, "counted as it's drawn");
+
+    // Not on water.
+    let wet = road::build_segment(&env.tile_map, Cell::new(19, 20), Cell::new(22, 20), RoadKind::Dyke);
+    assert!(!wet.is_valid, "across the river");
+}
+
+fn test_dykes_hold_the_flood_back() {
+    let mut env = dyked_map(4);
+    let context = env.new_sim_context(0.0);
+    assert!(river::flood_now(&context, None));
+    let city_floods = env.sim.floods();
+    for cell in [Cell::new(19, 20), Cell::new(18, 20), Cell::new(22, 20), Cell::new(25, 20)] {
+        assert!(city_floods.is_flooded(cell), "{cell}: before the dyke, or the east bank");
+    }
+    for cell in [Cell::new(17, 20), Cell::new(16, 20), Cell::new(15, 20)] {
+        assert!(!city_floods.is_flooded(cell), "{cell}: the dyke and the land behind it");
+    }
+    assert_eq!(city_floods.log()[0].breaches, 0, "sound dykes hold");
+    assert_eq!(city_floods.floods_survived(), 1);
+
+    // The ordinary reach stops at them too.
+    let reach = city_floods.ordinary_reach(&env.tile_map);
+    assert!(reach.iter().any(|(cell, _)| *cell == Cell::new(18, 20)));
+    assert!(!reach.iter().any(|(cell, _)| cell.x <= 17 && cell.y == 20), "nothing at or behind the dyke");
+}
+
+fn test_dykes_wear_month_by_month() {
+    let mut env = dyked_map(3);
+    let cell = Cell::new(17, 20);
+    assert_eq!(env.sim.floods().wear_at(cell), 0.0, "new dykes are sound");
+    let rules = rules();
+    month_start(&mut env, 2);
+    let first = env.sim.floods().wear_at(cell);
+    let per_month = rules.wear_per_month;
+    assert!(
+        first >= per_month * (1.0 - rules.wear_jitter) - 1e-3 && first <= per_month * (1.0 + rules.wear_jitter) + 1e-3,
+        "a month's wear, jittered: {first}"
+    );
+    month_start(&mut env, 3);
+    assert!((env.sim.floods().wear_at(cell) - 2.0 * first).abs() < 1e-3, "the same each month for the same cell");
+    for _ in 0..16 {
+        month_start(&mut env, 3); // No flood month: these months only wear the dykes.
+    }
+    assert_eq!(env.sim.floods().wear_at(cell), floods::MAX_WEAR, "at most 100");
+    assert!(env.sim.floods().worn_dykes(rules.worn_wear) > 0);
+
+    // A builder's walk resets it.
+    env.sim.floods_mut().builder_walked(cell, 30);
+    assert_eq!(env.sim.floods().wear_at(cell), 0.0);
+    assert_eq!(env.sim.floods().dyke(cell).and_then(|dyke| dyke.walked), Some(30));
+
+    // Floods off: no records kept.
+    let context = env.new_sim_context(0.0);
+    river::set_enabled(&context, false);
+    context.floods_mut().sync_dykes(context.tile_map());
+    assert!(env.sim.floods().dyke_wear().is_empty());
+}
+
+fn patrol_test_callback(_context: &SimContextMut, _building: &mut Building, _unit: &mut Unit) {}
+
+fn register_patrol_test_callback() -> Callback<UnitTaskPatrolCompletionCallback> {
+    common::callback::register!(patrol_test_callback)
+}
+
+fn test_a_builder_walking_a_dyke_keeps_it_up() {
+    let mut env = dyked_map(3);
+    let cell = Cell::new(17, 20);
+    env.sim.floods_mut().set_wear(cell, 70.0);
+    let guild = test_utils::spawn_building(&mut env, Cell::new(10, 20), "builders_guild");
+
+    // A builders' guild walker standing on the dyke, on its patrol.
+    let walker = test_utils::spawn_unit(&mut env, cell, UnitConfigKey::Peasant);
+    let completion_task = env.sim.task_manager_mut().new_task(UnitTaskDespawn::default());
+    let task = UnitTaskRandomizedPatrol {
+        origin_building: BuildingKindAndId { kind: BuildingKind::BuildersGuild, id: guild.id },
+        origin_building_tile: BuildingTileInfo { road_link: cell, base_cell: Cell::new(10, 20) },
+        max_distance: 8,
+        path_bias_min: 0.1,
+        path_bias_max: 0.5,
+        path_record: UnitPatrolPathRecord::default(),
+        buildings_to_visit: Some(BuildingKind::all()),
+        completion_callback: register_patrol_test_callback(),
+        completion_task,
+        idle_countdown: None,
+        state: UnitTaskPatrolState::default(),
+        completion_callback_done: false,
+        visited_buildings: None,
+    };
+    test_utils::assign_task(&mut env, walker, task);
+    for _ in 0..4 {
+        test_utils::tick(&mut env, 0.05);
+    }
+    assert_eq!(env.sim.floods().wear_at(cell), 0.0, "the builder walked it");
+    assert!(env.sim.floods().dyke(cell).and_then(|dyke| dyke.walked).is_some());
+
+    let context = env.new_sim_context(0.0);
+    let cmds = context.cmds_mut();
+    cmds.despawn_unit_with_id(walker);
+    cmds.execute(&context);
+}
+
+fn test_a_worn_dyke_breaches() {
+    let mut env = dyked_map(4);
+    let breach = Cell::new(17, 20);
+    env.sim.floods_mut().set_wear(breach, floods::MAX_WEAR);
+    river::take_notices();
+    let context = env.new_sim_context(0.0);
+    assert!(river::flood_now(&context, None));
+
+    // The worn cell gave way: dirt under rubble, and the water through it to the reach left.
+    let terrain = env.tile_map.try_tile_from_layer(breach, TileMapLayerKind::Terrain).unwrap();
+    assert!(!terrain.tile_def().blocks_floods && terrain.tile_def().name == "dirt", "{}", terrain.tile_def().name);
+    assert!(rubble::is_rubble(&env.tile_map, breach), "rubble on it");
+    let city_floods = env.sim.floods();
+    assert!(city_floods.is_flooded(breach), "the breach, 3 cells from the shore");
+    assert!(city_floods.is_flooded(Cell::new(16, 20)), "the land behind it, the 4th");
+    assert!(!city_floods.is_flooded(Cell::new(15, 20)), "past the reach");
+    assert!(!city_floods.is_flooded(Cell::new(16, 22)), "beyond the breach's reach");
+    assert!(city_floods.dyke(breach).is_none(), "its record gone");
+    assert!(floods::is_dyke(&env.tile_map, Cell::new(17, 19)), "the sound sections stand");
+    assert_eq!(variation_at(&env, Cell::new(17, 19)) & 0b0001, 0, "no longer joined west, to the breach");
+
+    let record = &city_floods.log()[0];
+    assert_eq!(record.breaches, 1);
+    assert_eq!(city_floods.floods_survived(), 0);
+    let notices = river::take_notices();
+    assert!(notices.iter().any(|notice| matches!(notice, FloodNotice::Breached { breaches: 1 })), "{notices:?}");
+}
+
+fn test_the_floods_survived_goal() {
+    let mut env = dyked_map(3);
+    let goal = |min| MissionGoal::FloodsSurvived { min };
+    let stats = |env: &TestEnvironment| {
+        let mut stats = WorldStats::default();
+        env.sim.floods().tally(&mut stats);
+        stats
+    };
+    assert!(!goal(1).is_met(&stats(&env)));
+
+    // One flood held back by the dykes.
+    month_start(&mut env, 7);
+    months(&mut env, 8, 9);
+    assert_eq!(stats(&env).floods.floods, 1);
+    assert!(goal(1).is_met(&stats(&env)));
+
+    // One that breached a worn section doesn't count.
+    env.sim.floods_mut().set_wear(Cell::new(17, 20), floods::MAX_WEAR);
+    let context = env.new_sim_context(0.0);
+    assert!(river::flood_now(&context, Some(4)));
+    let stats = stats(&env);
+    assert_eq!((stats.floods.floods, stats.floods.survived), (2, 1));
+    assert!(!goal(2).is_met(&stats));
+}
+
+fn test_the_flood_lens_shows_the_dykes() {
+    let mut env = dyked_map(3);
+    env.sim.floods_mut().set_wear(Cell::new(17, 22), floods::MAX_WEAR);
+    let style = MinimapStyle::default();
+    let mut data = LensData::default();
+    let context = env.new_sim_context(0.0);
+    let map_size = context.tile_map().size_in_cells();
+    let lens_context =
+        LensContext { sim: &context, features: context.tile_map().minimap().features(), map_size, style: &style };
+    lens::provider(MinimapLens::Flood).expect("a provider").compute(&lens_context, &mut data);
+
+    let mark = |cell: Cell| data.cell_colors.iter().find(|(at, _)| *at == cell).map(|(_, color)| *color);
+    let near = |a: Option<common::Color>, b: common::Color| {
+        a.is_some_and(|a| (a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs() < 1e-4)
+    };
+    assert!(near(mark(Cell::new(17, 20)), style.lenses.dyke_sound.color()), "a sound dyke");
+    assert!(near(mark(Cell::new(17, 22)), style.lenses.dyke_worn.color()), "a worn one");
+    assert!(mark(Cell::new(18, 20)).is_none(), "only dykes");
+    let value = |cell: Cell| data.values[(cell.y * map_size.width + cell.x) as usize];
+    assert!(value(Cell::new(18, 20)) > 0);
+    assert_eq!(value(Cell::new(16, 20)), 0, "the reach stops at the dyke");
+    let legend: Vec<&str> = data.legend.iter().map(|(_, label)| label.as_str()).collect();
+    assert_eq!(legend, ["Under water", "Floods in an ordinary year", "At risk", "Dyke sound", "Dyke worn"]);
+}
+
+fn test_dykes_round_trip_a_save() {
+    let mut env = dyked_map(3);
+    env.sim.floods_mut().set_wear(Cell::new(17, 20), 42.0);
+    env.sim.floods_mut().builder_walked(Cell::new(17, 21), 17);
+    let json = serde_json::to_string(env.sim.floods()).unwrap();
+    let back: CityFloods = serde_json::from_str(&json).unwrap();
+    assert_eq!(serde_json::to_string(&back).unwrap(), json);
+    assert_eq!(back.wear_at(Cell::new(17, 20)), 42.0);
+    assert_eq!(back.dyke(Cell::new(17, 21)).and_then(|dyke| dyke.walked), Some(17));
+    assert_eq!(back.dyke_wear().len(), env.sim.floods().dyke_wear().len());
 }

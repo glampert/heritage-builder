@@ -88,7 +88,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         params: &[
             ParamDef { name: "from", kind: "cell", required: true, help: "[x, y]." },
             ParamDef { name: "to", kind: "cell", required: true, help: "[x, y]." },
-            ParamDef { name: "kind", kind: "string", required: false, help: "dirt (default) or paved." },
+            ParamDef { name: "kind", kind: "string", required: false, help: "dirt (default), paved or dyke." },
         ],
         run: cmd_road,
     },
@@ -422,7 +422,10 @@ fn cmd_road(context: &mut CommandContext, params: Value) -> CommandResult {
     let kind = match params.kind.as_deref() {
         None | Some("dirt") => RoadKind::Dirt,
         Some("paved") => RoadKind::Paved,
-        Some(other) => return Err(CommandError::invalid_params(format!("kind must be dirt or paved, got '{other}'."))),
+        Some("dyke") => RoadKind::Dyke,
+        Some(other) => {
+            return Err(CommandError::invalid_params(format!("kind must be dirt, paved or dyke, got '{other}'.")));
+        }
     };
 
     // Placement checks the treasury through the world stats.

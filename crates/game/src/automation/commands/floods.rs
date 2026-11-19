@@ -9,7 +9,7 @@ use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     config::GameConfigs,
     floods,
-    sim::floods::MAX_FERTILITY,
+    sim::floods::{MAX_FERTILITY, MAX_WEAR},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -20,7 +20,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                ordinary_reach (the cells a flood at its largest reach would cover now); the flood under way \
                (cells, months_left, recedes_in: the ordinal month the water goes, severity) or null; the next \
                flood's severity (faith's gentle and severe floods); the log of floods and how many breached no \
-               dyke (survived); the dykes' wear; and the land's fertility (kept while floods are on: mean; else \
+               dyke (survived); the dykes (count, worn: at worn_wear or more, and each one's cell, wear and \
+               walked: the ordinal month a builder last walked it); and the land's fertility (kept while floods are on: mean; else \
                every cell reads the neutral), at `cell` if given with whether it's under water.",
         params: &[ParamDef {
             name: "cell",
@@ -33,12 +34,14 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "floods.set",
         help: "Turn floods on or off for this game (on: the water that floods and the land's fertility are laid \
-               out afresh, as at a start), set a cell's fertility (0 to 100, while floods are on), or the next \
-               flood's severity. Reports floods.state.",
+               out afresh, as at a start), set a cell's fertility (0 to 100, while floods are on) or a dyke \
+               cell's wear (0 to 100: a dyke the flood reaches breaches with chance (wear / 100)² × severity), or \
+               the next flood's severity. Reports floods.state.",
         params: &[
             ParamDef { name: "enabled", kind: "bool", required: false, help: "Whether the river floods." },
             ParamDef { name: "cell", kind: "cell", required: false, help: "The cell whose fertility to set." },
             ParamDef { name: "fertility", kind: "number", required: false, help: "0 to 100. Needs cell." },
+            ParamDef { name: "wear", kind: "number", required: false, help: "0 to 100, a dyke's. Needs cell." },
             ParamDef { name: "severity", kind: "number", required: false, help: "The next flood's severity, 0 or more." },
         ],
         run: cmd_set,
@@ -80,6 +83,7 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
         enabled: Option<bool>,
         cell: Option<CellParam>,
         fertility: Option<f32>,
+        wear: Option<f32>,
         severity: Option<f32>,
     }
 
@@ -87,6 +91,17 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     context.require_map()?;
 
     // Validate everything before changing anything.
+    if let Some(wear) = params.wear {
+        if !(0.0..=MAX_WEAR).contains(&wear) {
+            return Err(CommandError::invalid_params(format!("wear must be from 0 to 100, got {wear}.")));
+        }
+        let Some(CellParam(cell)) = params.cell else {
+            return Err(CommandError::invalid_params("wear needs a cell.".to_string()));
+        };
+        if !crate::sim::floods::is_dyke(context.session.tile_map(), cell) {
+            return Err(CommandError::invalid_params(format!("No dyke at {cell}.")));
+        }
+    }
     if let Some(fertility) = params.fertility {
         if !(0.0..=MAX_FERTILITY as f32).contains(&fertility) {
             return Err(CommandError::invalid_params(format!("fertility must be from 0 to 100, got {fertility}.")));
@@ -108,11 +123,16 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let delta_time_secs = context.engine.frame_clock().delta_time();
     let mut fertility_kept = true;
+    let mut wear_kept = true;
     context.session.with_sim_context(delta_time_secs, |sim_context| {
         if let Some(enabled) = params.enabled {
             floods::set_enabled(sim_context, enabled);
         }
         let floods = sim_context.floods_mut();
+        if let (Some(CellParam(cell)), Some(wear)) = (params.cell, params.wear) {
+            floods.sync_dykes(sim_context.tile_map());
+            wear_kept = floods.set_wear(cell, wear);
+        }
         if let (Some(CellParam(cell)), Some(fertility)) = (params.cell, params.fertility) {
             fertility_kept = floods.set_fertility(cell, fertility.round() as u8);
         }
@@ -120,7 +140,12 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
             floods.set_next_severity(severity);
         }
     });
-    if !fertility_kept {
+    if !wear_kept {
+        return Err(CommandError::invalid_params(
+            "The dykes' wear is kept only while floods are on (floods.set enabled=true).".to_string(),
+        ));
+    }
+    if !fertility_kept && params.fertility.is_some() {
         return Err(CommandError::invalid_params(
             "The land's fertility is kept only while floods are on (floods.set enabled=true).".to_string(),
         ));
@@ -209,7 +234,12 @@ fn state_json(context: &CommandContext, cell: Option<common::coords::Cell>) -> V
         "survived": floods.floods_survived(),
         "dykes": {
             "count": floods.dyke_wear().len(),
-            "wear": floods.dyke_wear().iter().map(|dyke| json!({ "cell": cell_json(dyke.cell), "wear": dyke.wear })).collect::<Vec<_>>(),
+            "worn": floods.worn_dykes(GameConfigs::get().sim.floods.worn_wear),
+            "wear": floods.dyke_wear().iter().map(|dyke| json!({
+                "cell": cell_json(dyke.cell),
+                "wear": dyke.wear,
+                "walked": dyke.walked,
+            })).collect::<Vec<_>>(),
         },
         "fertility": {
             "kept": !fertility.is_empty(),

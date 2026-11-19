@@ -1,6 +1,6 @@
 # Seasons, floods and irrigation
 
-**Status (2026-11-18): Phases 0 and 1 done (landed together), Phase 2 (the flood) done; Phase 3 (dykes and breaches) next.**
+**Status (2026-11-19): Phases 0 and 1 done (landed together), Phase 2 (the flood) and Phase 3 (dykes and breaches) done; Phase 4 (fertility and sluice gates) next.**
 - On 2026-11-17 the user answered:
   - Q1: a dyke is a road-like line, kept up by builders walking it.
   - Q2: a flood's reach is a distance from the river.
@@ -253,11 +253,26 @@ Not in M7 (see [Q14](#open-decisions)): drought (Tampadesa's threat, game Phase 
 
 ### Phase 3: Dykes and breaches (medium to large)
 
-- [ ] The dyke tile def (`blocks_floods`, `path_kind: Road`), its 16 pieces from the Blender pipeline, placement as a segment, clearing.
-- [ ] The fill stops at dykes; wear, the builders' reset; breaches, their rubble and the fill through them.
-- [ ] `MissionGoal::FloodsSurvived`; the debrief's and goals panel's line.
-- [ ] The Flood lens's dykes; the terrain inspector's dyke line; the City book's warnings.
-- [ ] Tests; `floods.jsonl`'s dyke and breach.
+- [x] The dyke tile def (`blocks_floods`, `path_kind: Road`), its 16 pieces from the Blender pipeline, placement as a segment, clearing.
+- [x] The fill stops at dykes; wear, the builders' reset; breaches, their rubble and the fill through them.
+- [x] `MissionGoal::FloodsSurvived`; the debrief's and goals panel's line.
+- [x] The Flood lens's dykes; the terrain inspector's dyke line; the City book's warnings.
+- [x] Tests; `floods.jsonl`'s dyke and breach.
+- **Notes (2026-11-19):**
+  - **The dyke** (`dyke`, the terrain tile set's `land` category): a road tile (`path_kind: Road`) with `blocks_floods`, a new optional tile def field. It's `RoadKind::Dyke`, so the palette's Roads grid lists it after the roads and the road tool draws it as a segment (`road::build_segment`, `place_road_segment`), with its own preview flag (`TileFlags::DykePlacement`, beside the two road kinds'); the clear tool takes it away as it takes a road, leaving grass. 6 gold a cell, no materials. `world.road kind=dyke` draws one.
+  - **Its pieces (deviation):** a dyke joins other dykes only (`road::dyke_junction_mask`): its embankment stands at full height where it joins, so a flat road beside it left the cut end open (a black wedge in game). A road still joins a dyke and runs up to the foot of its bank, and walkers go on along its crest. The plan said it joins its neighbours as roads do.
+  - **Art:** the Blender pipeline's `floods.py`, a new recipe module, and `catalog/floods.json`: the first terrain tile it makes. Each of the 16 pieces is a cut of one embankment (a height field at full height within the crest of its spine, from the cell's centre to each joined side's middle, falling to the ground by its foot), grass on the ground, grassy earth on the slopes, a packed-earth path on the crest and a few tufts. About 6 logical px high, inside the diamond's outline, so its sprite is 35 px tall; a terrain tile is drawn from its top corner, so each variation's `iso_offset` lifts it 3 px. ui-art draws its palette glyph (a bank with water against it) in each realm, from the mockup generator's `palette_glyphs.dyke`. The minimap draws it as a road in its own colour (`MinimapRoad::Dyke`, the style's `dyke`).
+  - **Wear:** `CityFloods` keeps a record per dyke cell while floods are on (`DykeWear`: wear 0 to 100, and `walked`, the ordinal month a builder last walked it; the save already held the list, empty until now, so no version bump), synced with the map each month and when a dyke is drawn or cleared (`sync_dykes`). Each month a dyke wears by `wear_per_month` (8) times a factor within `wear_jitter` (25%) of 1 hashed from its cell. A builders' guild walker standing on a dyke cell queues its reset (`UnitTaskRandomizedPatrol::walk_over_dyke`, a deferred tile update, since the world step reads the state only). `worn_wear` (50) is where a dyke counts as worn.
+  - **Breaches:** the flood's fill stops at the dykes (`reach_meeting` also reports the blocking cells it met). Each dyke the water reaches rolls once, in row order: it breaches with chance (wear / 100)² × severity, from the simulation's RNG; a sound dyke draws nothing, so a game without worn dykes keeps its random sequence. A breach takes the dyke tile away as the clear tool would, lays dirt and M6's rubble on the cell, redraws its neighbours' joins and pings the minimap; the fill is run again through the breaches, and dykes the water reaches through them roll in turn. The flood's record counts them, and a Warning with Alert says so ("The river broke through a dyke: the land behind it is under water."), after the flood's.
+  - **The goal:** `MissionGoal::FloodsSurvived { min }`, the floods logged since the game's start that breached no dyke, tallied into the world stats with the finance and faith (`WorldStats::floods`, `CityFloods::tally`; `World::refresh_stats` takes the floods too). The debrief's, the briefing's and the goals panel's line is "Floods without a breach". No mission uses it until M13 writes I-4.
+  - **The lens and the panels:** the Flood lens's ordinary reach stops at the dykes as they stand, and it marks each dyke cell from `dyke_sound` to `dyke_worn` (a lens's single-cell marks, `LensData::cell_colors`, drawn over the roads); its legend gains Dyke sound and Dyke worn. A dyke's terrain panel (subtitle "Dyke") has a section with its wear and when builders last walked it, while the river floods. The City book warns of worn dyke sections. World Debug's Floods tab lists the dykes, the most worn first, each a button to its cell.
+  - **Automation:** `floods.state`'s `dykes` has `count`, `worn` and each one's `cell`, `wear` and `walked`; `floods.set cell=[x,y] wear=N` sets a dyke's wear; `minimap.state`'s `lens_data` counts the lens's `marks`.
+  - **Verified:**
+    - `cargo test --workspace`, with `tests/floods.rs` grown to 32 (a dyke drawn as a road and its joins, dykes holding the flood back and the ordinary reach, wear by the month and its cap, a real builders' guild patrol resetting a dyke, a worn dyke breaching and the water through it to the reach left, the goal, the lens's dyke marks, a save's round trip).
+    - `floods.jsonl` draws a dyke from the Roads grid, checks its panel, a flood it holds back, a worn section that breaches (rubble in the gap, the land behind under water, the Warning, the lens's marks) and the floods survived; screenshot `out/floods/breach.png`.
+    - Clippy on desktop and web, nightly rustfmt; the tile generator's `sync_tileset.py --check` (20 generated tiles) and unit tests, ui-art's `--check` (753 sprites) and unit tests, the recolour tool's.
+    - The CI scenarios in release: 26 of 27 passed; `ui_dev_screens` failed on the known macOS flake (`Finish Mission Popup/Ok` reported covered, at a different frame each run; known-issues) and passed on a rerun.
+    - `determinism.jsonl` twice: the same output and save, checksum still `2868266e0be074da`; record and replay of `ui_build` and `determinism` matched; `--smoke-test-saves` loads every local save.
 
 ### Phase 4: Fertility and sluice gates (medium)
 

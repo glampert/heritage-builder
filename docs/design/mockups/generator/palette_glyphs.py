@@ -297,6 +297,13 @@ def road(realm):
             P("M-30,36 Q-8,30 3,12 Q10,-2 34,-10", False, 2.2), P("M-22,32 l4,4 M-10,26 l5,3 M-1,16 l6,2 M6,4 l5,1 M16,-4 l4,-1 M28,-9 l3,-2", False, 1.6)]
 
 
+def dyke(realm):
+    """A dyke: an earthen bank with a path along its crest, the river held back on its left."""
+    out = [P("M-26,36 Q-18,6 -6,-6 H18 Q30,6 42,36Z"), P("M-4,-1 H16", False, 2.4)]
+    out += waves(-46, -18, 10, 2, 4, 3.2) + waves(-48, -22, 22, 2, 4, 3.2) + waves(-48, -26, 33, 2, 4, 3.2)
+    return out
+
+
 def granary(realm):
     out = ground_line(-38, 38)
     if realm == "dailong":  # a thatched granary raised on stilts
@@ -532,6 +539,7 @@ def garden(realm):
 BUILDINGS = {
     "vacant_lot": ("Vacant lot", house_lot),
     "road": ("Road", road),
+    "dyke": ("Dyke", dyke),
     "granary": ("Granary", granary),
     "market": ("Market", market),
     "rice_farm": ("Rice farm", rice_farm),

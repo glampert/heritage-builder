@@ -138,10 +138,39 @@ fn flood_section(context: &SimContext, tile: &Tile) -> Option<Section> {
     })
 }
 
+// A dyke's section (crate::floods): its wear and when a builder last walked it, while the river
+// floods; without floods a dyke is a road and says nothing more.
+fn dyke_section(context: &SimContext, tile: &Tile) -> Option<Section> {
+    if !tile.tile_def().blocks_floods || !context.floods().is_enabled() {
+        return None;
+    }
+    let floods = context.floods();
+    let cell = tile.base_cell();
+    let wear = floods.wear_at(cell).round() as i64;
+    let worn = floods.wear_at(cell) >= crate::config::GameConfigs::get().sim.floods.worn_wear;
+    let walked = match floods.dyke(cell).and_then(|dyke| dyke.walked) {
+        Some(month) => {
+            let ago = crate::farms::current_month(context).saturating_sub(month);
+            if ago == 0 { t("dyke.walked_this_month") } else { tc("dyke.walked_ago", i64::from(ago), &[]) }
+        }
+        None => t("dyke.never_walked"),
+    };
+    Some(Section::Values {
+        title: t("dyke.title"),
+        note: Some(t("dyke.note")),
+        rows: vec![
+            ValueRow { label: t("dyke.wear"), value: tf("dyke.wear_value", &[("wear", &wear.to_string())]), warn: worn },
+            ValueRow { label: t("dyke.builder"), value: walked, warn: false },
+        ],
+    })
+}
+
 pub(super) fn read_terrain(context: &SimContext, tile: &Tile) -> InspectReport {
     let def = tile.tile_def();
     let kind_key = if rubble::is_rubble_def(def) {
         "kind.rubble"
+    } else if def.blocks_floods {
+        "kind.dyke"
     } else if def.is_road() {
         "kind.road"
     } else if def.is_vacant_lot() {
@@ -158,6 +187,7 @@ pub(super) fn read_terrain(context: &SimContext, tile: &Tile) -> InspectReport {
     let can_clear = TilePlacement::can_clear(tile);
     let mut sections = Vec::new();
     sections.extend(description(tile));
+    sections.extend(dyke_section(context, tile));
     sections.extend(flood_section(context, tile));
     if can_clear {
         sections.push(clearing(tile, def.is_road() || def.is_vacant_lot()));

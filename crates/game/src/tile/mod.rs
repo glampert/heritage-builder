@@ -167,6 +167,9 @@ bitflags_with_display! {
 
         // A terrain cell under the river's flood (crate::floods): drawn with silty water over it.
         const Flooded            = 1 << 19;
+
+        // A dyke segment's preview (tile::road), as the two road kinds' above.
+        const DykePlacement      = 1 << 20;
     }
 }
 

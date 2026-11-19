@@ -100,6 +100,7 @@ pub enum MinimapRoad {
     None,
     Dirt,
     Paved,
+    Dyke,
 }
 
 // One entry per cell, row-major (index = x + y * width).
@@ -229,6 +230,7 @@ pub fn terrain_of(tile_def: &'static TileDef) -> (Terrain, MinimapRoad) {
         let road = match road::kind(tile_def) {
             road::RoadKind::Dirt => MinimapRoad::Dirt,
             road::RoadKind::Paved => MinimapRoad::Paved,
+            road::RoadKind::Dyke => MinimapRoad::Dyke,
         };
         (Terrain::Land, road)
     } else if path_kind.is_vacant_lot() {

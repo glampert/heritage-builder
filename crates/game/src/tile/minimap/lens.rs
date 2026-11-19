@@ -94,6 +94,7 @@ pub struct LensData {
     pub values: Vec<u8>, // 0..255 per cell, row-major; empty for no heat field.
     pub ramp: [Color; 2],
     pub building_colors: BTreeMap<(i32, i32), Color>, // By base cell (y, x); others are neutral.
+    pub cell_colors: Vec<(Cell, Color)>,              // Marks on single cells, over the roads (dykes).
     pub sector_colors: bool,                          // Colour every building by its sector instead.
     pub legend: Vec<(Color, String)>,                 // Swatches and their labels, under the map.
     pub legend_max_columns: usize,                    // At most this many columns of them (0: as many as fit).
@@ -105,6 +106,7 @@ impl LensData {
         self.lens = lens;
         self.values.clear();
         self.building_colors.clear();
+        self.cell_colors.clear();
         self.sector_colors = false;
         self.legend.clear();
         self.legend_max_columns = 0;
@@ -439,8 +441,9 @@ impl LensProvider for FaithLens {
 // The river's flood (docs/plans/seasons-floods.md, §6): the heat field is where an ordinary flood
 // would reach now (the fill at the profile's largest reach), strongest by the water, with the cells
 // under water at the top; buildings and fields under water take flood_under_water, those in that
-// reach flood_at_risk. Offered only while the game's river floods (MinimapLens::is_offered).
-// TODO(M7 Phase 3): the dykes, from sound to worn, and the fill stopped by them.
+// reach flood_at_risk; each dyke cell is marked from dyke_sound to dyke_worn by its wear (the reach
+// stops at the dykes as they stand). Offered only while the game's river floods
+// (MinimapLens::is_offered).
 pub struct FloodLens;
 
 // The heat of the ordinary reach, by the water and at its edge (a share of the ramp).
@@ -507,10 +510,20 @@ impl LensProvider for FloodLens {
             out.building_colors.insert((base.y, base.x), color);
         }
 
+        // The dykes, from sound to worn.
+        let (sound, worn) = (style.dyke_sound.color(), style.dyke_worn.color());
+        let worn_wear = crate::config::GameConfigs::get().sim.floods.worn_wear.max(1.0);
+        for cell in crate::sim::floods::dyke_cells(context.sim.tile_map()) {
+            let share = (floods.wear_at(cell) / worn_wear).clamp(0.0, 1.0);
+            out.cell_colors.push((cell, mix(sound, worn, share)));
+        }
+
         out.legend = legend(&[
             (under_water, "Under water"),
             (mix(out.ramp[0], out.ramp[1], 0.55), "Floods in an ordinary year"),
             (at_risk, "At risk"),
+            (sound, "Dyke sound"),
+            (worn, "Dyke worn"),
         ]);
         out.legend_max_columns = 2; // "Floods in an ordinary year" is long.
     }

@@ -369,6 +369,7 @@ impl TileInspectorDevMenu {
         tile_flag_ui_checkbox!(tile, SettlersSpawnPoint);
         tile_flag_ui_checkbox!(tile, DirtRoadPlacement);
         tile_flag_ui_checkbox!(tile, PavedRoadPlacement);
+        tile_flag_ui_checkbox!(tile, DykePlacement);
         tile_flag_ui_checkbox!(tile, RandomizePlacement);
         tile_flag_ui_checkbox!(tile, DrawDebugInfo);
         tile_flag_ui_checkbox!(tile, DrawDebugBounds);

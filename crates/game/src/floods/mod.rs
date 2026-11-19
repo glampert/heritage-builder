@@ -10,7 +10,11 @@
 // cells are flagged TileFlags::Flooded, which the renderer draws as silty water and placement
 // refuses, until the water goes at the start of the month after its last.
 
-use common::{Color, coords::Cell, mem::SingleThreadStatic};
+use common::{
+    Color,
+    coords::{Cell, CellRange},
+    mem::SingleThreadStatic,
+};
 use engine::{
     log,
     ui::{
@@ -28,14 +32,18 @@ use crate::{
         SimContext,
         SimContextMut,
         calendar::{CalendarDate, Season},
-        floods::{FloodProfile, FloodRecord, reach_fill},
+        floods::{FloodProfile, FloodRecord, MAX_WEAR, is_dyke, reach_fill, reach_meeting},
     },
     tile::{
         TileFlags,
         TileKind,
         TileMapLayerKind,
         minimap::{MINIMAP_ICON_DEFAULT_LIFETIME, MinimapIcon},
+        road,
+        rubble,
+        sets::{TERRAIN_LAND_CATEGORY, TileSets},
     },
+    world::object::{Spawner, SpawnerResult},
 };
 
 // The minimap's ping over a building the flood damaged.
@@ -52,6 +60,8 @@ pub enum FloodNotice {
     RiverRising,
     // The flood came: the cells under water, the buildings it damaged and the fields it covered.
     Flood { cells: u32, buildings_damaged: u32, fields_flooded: u32 },
+    // The water broke through dykes at that many cells.
+    Breached { breaches: u32 },
     // The water went: the fields its silt reached.
     Receded { fields: u32 },
 }
@@ -95,6 +105,11 @@ pub fn notice_message(notice: &FloodNotice, river: &str) -> (MessageKind, UiSoun
             ]);
             (MessageKind::Warning, UiSoundKey::Alert, text)
         }
+        FloodNotice::Breached { breaches } => {
+            let text =
+                text::format_count(UiTextCategory::Messages, "floods.breached", breaches as i64, &[("river", &river)]);
+            (MessageKind::Warning, UiSoundKey::Alert, text)
+        }
         FloodNotice::Receded { fields } => {
             let text = if fields == 0 {
                 text::get(UiTextCategory::Messages, "floods.receded_no_fields").to_string()
@@ -120,9 +135,9 @@ fn sentence_start(words: &str) -> String {
 // The month
 // ----------------------------------------------
 
-// The start of a month: the water under way goes once its months are over; the wet season's first
-// month says the river is rising; the flood's month brings the year's flood. Nothing while floods
-// are off.
+// The start of a month: the water under way goes once its months are over; the dykes wear; the wet
+// season's first month says the river is rising; the flood's month brings the year's flood. Nothing
+// while floods are off.
 pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     if !context.floods().is_enabled() {
         return;
@@ -130,6 +145,11 @@ pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     if context.floods_mut().month_passed() {
         recede(context);
     }
+
+    let rules = &GameConfigs::get().sim.floods;
+    let floods = context.floods_mut();
+    floods.sync_dykes(context.tile_map());
+    floods.wear_dykes(rules.wear_per_month, rules.wear_jitter);
 
     let now = date.ordinal_month();
     let settings = context.calendar().settings();
@@ -192,9 +212,13 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
     let drawn = reach.unwrap_or_else(|| context.random_range(min..=max));
     let reach = if severity > 1.0 { (drawn as f32 * severity).round() as u32 } else { drawn };
 
-    // TODO(M7 Phase 3): dykes stop the water (`blocks_floods`).
+    // Out over the land, stopped by the dykes; the dykes it reaches may breach, and the water goes
+    // on through them.
+    context.floods_mut().sync_dykes(context.tile_map());
     let sources = context.floods().profile().sources.clone();
-    let cells = reach_fill(context.tile_map(), &sources, reach, |_| false);
+    let breached = breach_dykes(context, &sources, reach, severity);
+    let tile_map = context.tile_map();
+    let cells = reach_fill(tile_map, &sources, reach, |cell| is_dyke(tile_map, cell));
 
     let size = context.tile_map().size_in_cells();
     let (width, height) = (size.width.max(0), size.height.max(0));
@@ -261,7 +285,7 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
         cells: cells.len() as u32,
         buildings_damaged,
         fields_flooded,
-        breaches: 0,
+        breaches: breached.len() as u32,
     };
     let cell_count = record.cells;
     context.floods_mut().begin_flood(cells, severity, rules.silt, record);
@@ -272,6 +296,67 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
          buildings damaged, {fields_flooded} fields under water."
     );
     notify(FloodNotice::Flood { cells: cell_count, buildings_damaged, fields_flooded });
+    if !breached.is_empty() {
+        notify(FloodNotice::Breached { breaches: breached.len() as u32 });
+    }
+}
+
+// The dykes the water reaches, each rolled once, in row order: one breaches with chance (wear /
+// 100)² × the flood's severity, from the simulation's RNG (a sound dyke draws nothing). Water
+// through a breach may reach more dykes, rolled in turn. Each breach turns its cell to dirt under a
+// pile of rubble (the flood goes on through it); the cells breached.
+fn breach_dykes(context: &SimContextMut, sources: &[Cell], reach: u32, severity: f32) -> Vec<Cell> {
+    let mut rolled: Vec<Cell> = Vec::new();
+    let mut breached: Vec<Cell> = Vec::new();
+    loop {
+        let tile_map = context.tile_map();
+        let (_, mut met) =
+            reach_meeting(tile_map, sources, reach, |cell| is_dyke(tile_map, cell) && !breached.contains(&cell));
+        met.retain(|cell| !rolled.contains(cell));
+        if met.is_empty() {
+            break;
+        }
+        met.sort_by_key(|cell| (cell.y, cell.x));
+        let mut any = false;
+        for cell in met {
+            rolled.push(cell);
+            let chance = (context.floods().wear_at(cell) / MAX_WEAR).powi(2) * severity;
+            if chance > 0.0 && context.random_range(0.0..1.0_f32) < chance {
+                breached.push(cell);
+                any = true;
+            }
+        }
+        if !any {
+            break;
+        }
+    }
+
+    for &cell in &breached {
+        breach(context, cell);
+    }
+    breached
+}
+
+// A dyke cell gives way: dirt under a pile of rubble, its record gone, its neighbours' joins
+// redrawn, and a ping on the minimap. The player clears the rubble and draws the dyke again.
+fn breach(context: &SimContextMut, cell: Cell) {
+    context.floods_mut().remove_dyke(cell);
+    if let Some(dirt) =
+        TileSets::get().find_tile_def_by_name(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.string, "dirt")
+    {
+        // As the clear tool takes a road away, then the dirt in its place.
+        let spawner = Spawner::new(context);
+        if let Some(tile) = context.tile_map().try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
+            spawner.despawn_tile(tile);
+        }
+        if let SpawnerResult::Err(err) = spawner.try_spawn_tile_with_def(cell, dirt) {
+            log::warning!(log::channel!("floods"), "No dirt for the breach at {cell}: {}", err.message);
+        }
+        road::update_junctions(context.tile_map_mut(), cell);
+    }
+    rubble::place_pile(context, CellRange::new(cell, cell));
+    context.minimap_mut().push_icon(MinimapIcon::Alert, cell, FLOOD_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
+    log::info!(log::channel!("floods"), "The river broke through the dyke at {cell}.");
 }
 
 // The water goes without a notice: the cells are dry land again. The fields under it, or None

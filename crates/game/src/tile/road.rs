@@ -17,11 +17,14 @@ use crate::{
 // RoadKind
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub enum RoadKind {
     #[default]
     Dirt,
     Paved,
+    // A dyke (crate::floods): an embankment drawn as roads are, a road along its crest, that
+    // stops the river's flood (TileDef::blocks_floods).
+    Dyke,
 }
 
 // ----------------------------------------------
@@ -78,6 +81,7 @@ pub const fn tile_name(kind: RoadKind) -> StrHashPair {
     match kind {
         RoadKind::Dirt => StrHashPair::from_str("dirt_road"),
         RoadKind::Paved => StrHashPair::from_str("paved_road"),
+        RoadKind::Dyke => StrHashPair::from_str("dyke"),
     }
 }
 
@@ -86,6 +90,7 @@ pub fn tile_def(kind: RoadKind) -> &'static TileDef {
     match kind {
         RoadKind::Dirt => &DIRT_ROAD_TILE_DEF,
         RoadKind::Paved => &PAVED_ROAD_TILE_DEF,
+        RoadKind::Dyke => &DYKE_TILE_DEF,
     }
 }
 
@@ -95,9 +100,16 @@ pub fn kind(tile_def: &'static TileDef) -> RoadKind {
         RoadKind::Dirt
     } else if tile_def.hash == PAVED_ROAD_TILE_DEF.hash {
         RoadKind::Paved
+    } else if tile_def.hash == DYKE_TILE_DEF.hash {
+        RoadKind::Dyke
     } else {
         unimplemented!()
     }
+}
+
+// The road kind of a road tile def, None for any other.
+pub fn try_kind(tile_def: &TileDef) -> Option<RoadKind> {
+    [RoadKind::Dirt, RoadKind::Paved, RoadKind::Dyke].into_iter().find(|kind| tile_name(*kind).hash == tile_def.hash)
 }
 
 static DIRT_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
@@ -110,6 +122,12 @@ static PAVED_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
     TileSets::get()
         .find_tile_def_by_hash(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.hash, tile_name(RoadKind::Paved).hash)
         .expect("Failed to find paved road tile!")
+});
+
+static DYKE_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
+    TileSets::get()
+        .find_tile_def_by_hash(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.hash, tile_name(RoadKind::Dyke).hash)
+        .expect("Failed to find the dyke tile!")
 });
 
 enum RangeInclusiveIter {
@@ -156,7 +174,7 @@ fn can_place_road(tile_map: &TileMap, cell: Cell) -> bool {
 
 fn is_road(tile_map: &TileMap, cell: Cell) -> bool {
     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain)
-        && (tile.path_kind().is_road() || tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement))
+        && (tile.path_kind().is_road() || tile.has_flags(ROAD_PLACEMENT_FLAGS))
     {
         return true;
     }
@@ -255,11 +273,26 @@ pub fn build_segment(tile_map: &TileMap, start: Cell, end: Cell, kind: RoadKind)
     }
 }
 
-pub fn mark_tiles(tile_map: &mut TileMap, segment: &RoadSegment, highlight: bool, valid_placement: bool) {
-    let road_placement_flag = match segment.kind {
+// The flags a road segment's preview sets on its cells, one per kind (the renderer draws that
+// kind's piece over them).
+pub const ROAD_PLACEMENT_FLAGS: TileFlags =
+    TileFlags::DirtRoadPlacement.union(TileFlags::PavedRoadPlacement).union(TileFlags::DykePlacement);
+
+pub const fn placement_flag(kind: RoadKind) -> TileFlags {
+    match kind {
         RoadKind::Dirt => TileFlags::DirtRoadPlacement,
         RoadKind::Paved => TileFlags::PavedRoadPlacement,
-    };
+        RoadKind::Dyke => TileFlags::DykePlacement,
+    }
+}
+
+// The kind a cell's preview flags name, if any.
+pub fn placement_kind(flags: TileFlags) -> Option<RoadKind> {
+    [RoadKind::Dirt, RoadKind::Paved, RoadKind::Dyke].into_iter().find(|kind| flags.intersects(placement_flag(*kind)))
+}
+
+pub fn mark_tiles(tile_map: &mut TileMap, segment: &RoadSegment, highlight: bool, valid_placement: bool) {
+    let road_placement_flag = placement_flag(segment.kind);
 
     if highlight {
         for cell in &segment.path {
@@ -307,20 +340,42 @@ const EAST_BIT: usize = 1 << 2;
 const NORTH_BIT: usize = 1 << 3;
 
 pub fn junction_mask(tile_map: &TileMap, cell: Cell) -> usize {
+    mask_of(cell, |cell| is_road(tile_map, cell))
+}
+
+// A dyke's pieces join other dykes only: its embankment stands at full height where it joins, so
+// a flat road beside it would leave its cut end open. A road still joins a dyke, running up to the
+// foot of its bank.
+pub fn dyke_junction_mask(tile_map: &TileMap, cell: Cell) -> usize {
+    mask_of(cell, |cell| is_dyke_or_placing_one(tile_map, cell))
+}
+
+// The junction mask of a road tile of `kind` at the cell.
+pub fn junction_mask_for(tile_map: &TileMap, cell: Cell, kind: RoadKind) -> usize {
+    if kind == RoadKind::Dyke { dyke_junction_mask(tile_map, cell) } else { junction_mask(tile_map, cell) }
+}
+
+fn mask_of(cell: Cell, joins: impl Fn(Cell) -> bool) -> usize {
     let mut mask = 0;
-    if is_road(tile_map, Cell::new(cell.x + 1, cell.y)) {
+    if joins(Cell::new(cell.x + 1, cell.y)) {
         mask |= NORTH_BIT;
     }
-    if is_road(tile_map, Cell::new(cell.x - 1, cell.y)) {
+    if joins(Cell::new(cell.x - 1, cell.y)) {
         mask |= SOUTH_BIT;
     }
-    if is_road(tile_map, Cell::new(cell.x, cell.y - 1)) {
+    if joins(Cell::new(cell.x, cell.y - 1)) {
         mask |= EAST_BIT;
     }
-    if is_road(tile_map, Cell::new(cell.x, cell.y + 1)) {
+    if joins(Cell::new(cell.x, cell.y + 1)) {
         mask |= WEST_BIT;
     }
     mask
+}
+
+fn is_dyke_or_placing_one(tile_map: &TileMap, cell: Cell) -> bool {
+    tile_map
+        .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+        .is_some_and(|tile| tile.tile_def().blocks_floods || tile.has_flags(TileFlags::DykePlacement))
 }
 
 pub fn update_junctions(tile_map: &mut TileMap, cell: Cell) {
@@ -329,7 +384,9 @@ pub fn update_junctions(tile_map: &mut TileMap, cell: Cell) {
 }
 
 fn update_tile_junction(tile_map: &mut TileMap, cell: Cell) {
-    let variation_index = junction_mask(tile_map, cell);
+    let is_dyke =
+        tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).is_some_and(|tile| tile.tile_def().blocks_floods);
+    let variation_index = if is_dyke { dyke_junction_mask(tile_map, cell) } else { junction_mask(tile_map, cell) };
     if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain)
         && tile.path_kind().is_road()
     {

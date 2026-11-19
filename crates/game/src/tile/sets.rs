@@ -672,6 +672,11 @@ pub struct TileDef {
     #[serde(default)]
     pub sector: TileSector,
 
+    // Stops the river's flood (crate::floods): a dyke. The flood never fills the cell, and one
+    // that reaches it may breach it (docs/plans/seasons-floods.md, §4). Optional.
+    #[serde(default)]
+    pub blocks_floods: bool,
+
     // How the tile shows on the minimap: its class (Building, Field, Plaza, Decor, None), a
     // landmark icon and a colour override. Optional: see tile::minimap::model.
     #[serde(default)]

@@ -552,6 +552,279 @@
               ]
             }
           ]
+        },
+        {
+          "name": "dyke",
+          "cost": 6,
+          "sector": "Roads",
+          "path_kind": "Road",
+          "blocks_floods": true,
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 35
+          },
+          "variations": [
+            {
+              "name": "0000",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0011",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0101",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0110",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0111",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1001",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1010",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1011",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1100",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1101",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1110",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1111",
+              "iso_offset": {
+                "x": 0,
+                "y": -3
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dyke"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },

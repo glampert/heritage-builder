@@ -560,6 +560,9 @@ impl TilePlacement {
             road::update_junctions(context.tile_map_mut(), *cell);
         }
 
+        // A dyke laid, or a road over one: the dykes' wear records follow (crate::floods).
+        context.floods_mut().sync_dykes(context.tile_map());
+
         if undo_redo {
             undo_redo::record(
                 EditAction::PlacedTiles,
@@ -834,6 +837,10 @@ impl TilePlacement {
                 if is_road {
                     road::update_junctions(context.tile_map_mut(), target_cell);
                 }
+                // A dyke cleared: its wear record goes (crate::floods).
+                if tile_def.blocks_floods {
+                    context.floods_mut().sync_dykes(context.tile_map());
+                }
             }
 
             if is_rubble {
@@ -956,12 +963,9 @@ pub trait TilePalette {
     fn selected_road_kind(&self) -> RoadKind {
         if let Some(tile_def) = self.current_selection().as_tile_def()
             && tile_def.is_road()
+            && let Some(kind) = road::try_kind(tile_def)
         {
-            if tile_def.hash == road::tile_name(road::RoadKind::Dirt).hash {
-                return road::RoadKind::Dirt;
-            } else if tile_def.hash == road::tile_name(road::RoadKind::Paved).hash {
-                return road::RoadKind::Paved;
-            }
+            return kind;
         }
         panic!("No road tile selected!");
     }

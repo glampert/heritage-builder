@@ -149,13 +149,15 @@ fn minimap_state(context: &CommandContext) -> Value {
 }
 
 // What the open lens last computed (it refreshes while the minimap draws): its legend, how many
-// buildings it colours and how many cells its heat field covers. Empty for City.
+// buildings it colours, how many cells its heat field covers and how many single cells it marks
+// (the Flood lens's dykes). Empty for City.
 fn lens_data_json(data: &LensData) -> Value {
     json!({
         "lens": data.lens.to_string(),
         "legend": data.legend.iter().map(|(_, label)| label.as_str()).collect::<Vec<_>>(),
         "buildings": data.building_colors.len(),
         "heat_cells": data.values.iter().filter(|value| **value > 0).count(),
+        "marks": data.cell_colors.len(),
     })
 }
 

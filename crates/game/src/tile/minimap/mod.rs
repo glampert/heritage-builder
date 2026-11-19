@@ -822,6 +822,7 @@ impl Minimap {
         let name = match (self.grid.road(cell), self.grid.cover(cell), self.grid.terrain(cell)) {
             (model::MinimapRoad::Dirt, ..) => "Dirt road",
             (model::MinimapRoad::Paved, ..) => "Paved road",
+            (model::MinimapRoad::Dyke, ..) => "Dyke",
             (_, Cover::Vegetation, _) => "Trees",
             (_, Cover::Rocks, _) => "Rocks",
             (_, _, Terrain::Water) => "Water",

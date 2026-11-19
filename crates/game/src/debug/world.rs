@@ -295,6 +295,18 @@ fn draw_floods_debug_ui(city_floods: &mut CityFloods, camera: &mut Camera, ui_sy
             ),
         );
     }
+    // The dykes, the worn ones first, each with its cell as a button that moves the camera there.
+    let worn_wear = crate::config::GameConfigs::get().sim.floods.worn_wear;
+    ui::text(ui_sys, format_small!("Dykes: {}, worn: {}", city_floods.dyke_wear().len(), city_floods.worn_dykes(worn_wear)));
+    let mut dykes: Vec<_> = city_floods.dyke_wear().to_vec();
+    dykes.sort_by(|a, b| b.wear.total_cmp(&a.wear));
+    for dyke in dykes.iter().take(8) {
+        let cell = dyke.cell;
+        let label = format!("{cell}: wear {:.0}##dyke_{}_{}", dyke.wear, cell.x, cell.y);
+        if ui::small_button(ui_sys, &label) {
+            camera.teleport(cell);
+        }
+    }
     match city_floods.fertility().mean() {
         Some(mean) => ui::text(ui_sys, format_small!("Fertility: mean {mean:.1}")),
         None => ui::text(ui_sys, format_small!("Fertility: not kept ({} everywhere)", city_floods.neutral_fertility())),

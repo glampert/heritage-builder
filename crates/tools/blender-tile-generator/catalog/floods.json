@@ -1,0 +1,231 @@
+{
+  "realm": "shared",
+  "palette": "viet",
+  "density": 8,
+  "notes": "Floods art (docs/plans/seasons-floods.md, Phase 3): the dyke, a terrain tile drawn in 1x1 pieces as roads are. A piece's variation is named by which sides (north, east, south, west) join more dyke (a dyke's own junction mask: tile/road.rs, dyke_junction_mask), and its index is that mask as a binary number (tile/road.rs's junction mask). Each piece is lifted by its height above its ground diamond (iso_offset), since terrain is drawn from its top corner.",
+  "entries": [
+    {
+      "tile": "dyke",
+      "layer": "terrain",
+      "category": "land",
+      "recipe": "dyke",
+      "tile_set": {
+        "cost": 6,
+        "sector": "Roads",
+        "path_kind": "Road",
+        "blocks_floods": true
+      },
+      "variations": [
+        {
+          "name": "0000",
+          "seed": 1,
+          "params": {
+            "mask": "0000"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "0001",
+          "seed": 2,
+          "params": {
+            "mask": "0001"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "0010",
+          "seed": 3,
+          "params": {
+            "mask": "0010"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "0011",
+          "seed": 4,
+          "params": {
+            "mask": "0011"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "0100",
+          "seed": 5,
+          "params": {
+            "mask": "0100"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "0101",
+          "seed": 6,
+          "params": {
+            "mask": "0101"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "0110",
+          "seed": 7,
+          "params": {
+            "mask": "0110"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "0111",
+          "seed": 8,
+          "params": {
+            "mask": "0111"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "1000",
+          "seed": 9,
+          "params": {
+            "mask": "1000"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "1001",
+          "seed": 10,
+          "params": {
+            "mask": "1001"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "1010",
+          "seed": 11,
+          "params": {
+            "mask": "1010"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "1011",
+          "seed": 12,
+          "params": {
+            "mask": "1011"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "1100",
+          "seed": 13,
+          "params": {
+            "mask": "1100"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "1101",
+          "seed": 14,
+          "params": {
+            "mask": "1101"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "1110",
+          "seed": 15,
+          "params": {
+            "mask": "1110"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        },
+        {
+          "name": "1111",
+          "seed": 16,
+          "params": {
+            "mask": "1111"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": -3
+            }
+          }
+        }
+      ],
+      "notes": "Stops the river's flood (blocks_floods); its crest is a road."
+    }
+  ]
+}

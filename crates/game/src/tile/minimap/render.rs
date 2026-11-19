@@ -615,6 +615,7 @@ impl BaseMinimapRenderer {
             style,
             field_texture: minimap.textures.field,
             lens: if lens_on { Some(&lens_fn) } else { None },
+            cell_marks: if lens_on { &lens_data.cell_colors } else { &[] },
         });
 
         let painter = ui::painter(ui_sys, UiLayer::Window);

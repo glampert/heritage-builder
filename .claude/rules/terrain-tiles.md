@@ -1,6 +1,6 @@
 # Terrain tiles: water shores, road junctions and rubble
 
-Last verified against the code on 2026-11-09.
+Last verified against the code on 2026-11-19.
 
 ## Water shores
 
@@ -15,7 +15,9 @@ Last verified against the code on 2026-11-09.
 
 ## Roads
 
-- A road tile's variation is its junction mask, the same four side bits (`road::update_junctions`, [tile/road.rs](../../crates/game/src/tile/road.rs)), updated by `TilePlacement::place` and `TilePlacement::clear`.
+- A road tile's variation is its junction mask, the same four side bits (`road::update_junctions`, [tile/road.rs](../../crates/game/src/tile/road.rs)), updated by `TilePlacement::place`, `TilePlacement::place_road_segment` and `TilePlacement::clear`. Its variations are listed in mask order (`0000` to `1111`), since the index is the mask.
+- A dyke (`dyke`, `RoadKind::Dyke`, crate::floods) is a road too, but its own mask counts only other dykes (`road::dyke_junction_mask`): its embankment stands at full height where it joins, and a flat road beside it would leave the cut end open. A road's mask counts a dyke, so a road runs up to the dyke's foot. A segment's preview flags its cells with its kind's placement flag (`road::placement_flag`: `DirtRoadPlacement`, `PavedRoadPlacement`, `DykePlacement`), and the renderer draws that kind's piece over them.
+- The dyke is the first terrain tile the Blender pipeline makes. Generated sprites have their ground diamond at the bottom of the frame, while terrain is drawn from its top corner (no anchor adjustment, unlike objects), so each dyke variation's `iso_offset` lifts it by its height above the diamond (`y: -3`), and it has no slab below: the cell in front covers that edge. A flood breaching a dyke takes the tile away as the clear tool does, then lays dirt and rubble.
 
 ## Rubble
 

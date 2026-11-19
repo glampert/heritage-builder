@@ -576,6 +576,30 @@
       "source_hash": "449ecf7a5daa3403",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/building/dyke_idle.png": {
+      "catalog_hash": "8fa34eff76426645",
+      "id": "glyph_building_dyke",
+      "png_hash": "11b144c2a20ce51b",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "fcc8c12195217d8f",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/dyke_pressed.png": {
+      "catalog_hash": "a65c9d55e8466820",
+      "id": "glyph_building_dyke",
+      "png_hash": "63ccef28a9ebf1ba",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "2c3dc6d02ff86614",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/building/farmstead_idle.png": {
       "catalog_hash": "d9edd62b666834e3",
       "id": "glyph_building_farmstead",
@@ -3490,6 +3514,30 @@
       ],
       "realm": "kambara",
       "source_hash": "aad2e459175c4263",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/dyke_idle.png": {
+      "catalog_hash": "5c1e0876f09bf27f",
+      "id": "glyph_building_dyke",
+      "png_hash": "892d7ae2f665fe95",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "e4294cf142662718",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/dyke_pressed.png": {
+      "catalog_hash": "21a76cd8f2db624b",
+      "id": "glyph_building_dyke",
+      "png_hash": "22f936e566defe23",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "f5c79343d64ff4bd",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/hud/glyphs/building/farmstead_idle.png": {
@@ -6442,6 +6490,30 @@
       ],
       "realm": "tampadesa",
       "source_hash": "0c06b4bb6dcf8b79",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/dyke_idle.png": {
+      "catalog_hash": "37a5b134a53449ed",
+      "id": "glyph_building_dyke",
+      "png_hash": "aaabd304864e76c9",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "e52e52e841e18d7c",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/dyke_pressed.png": {
+      "catalog_hash": "4b5989bafe04111f",
+      "id": "glyph_building_dyke",
+      "png_hash": "54144495389dac9e",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "0f518ee099d8703e",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/hud/glyphs/building/farmstead_idle.png": {

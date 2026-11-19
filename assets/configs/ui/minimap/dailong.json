@@ -5,7 +5,7 @@
   "palette": {
     "land_low": "#a7bd72", "land_high": "#cdbb83", "forest": "#5d8c48", "rocks": "#a19584",
     "water_shallow": "#6db3c2", "water_deep": "#2f6f8c", "foam": "#f3f0dc", "vacant_lot": "#d8c99a",
-    "void": "#1a1611", "road": "#f4e8c8", "paved_road": "#e2d6c0", "road_casing": "#6b5a40cc",
+    "void": "#1a1611", "road": "#f4e8c8", "paved_road": "#e2d6c0", "dyke": "#9a9256", "road_casing": "#6b5a40cc",
     "shadow": "#1f1a1259", "outline": "#2b24188c", "field": "#b7c560", "background": "#2f6f8c"
   },
   "sector_colors": {
@@ -70,6 +70,8 @@
     "flood_ramp": ["#3f7fb000", "#2a62a0d0"],
     "flood_under_water": "#1f3f78",
     "flood_at_risk": "#d9822b",
+    "dyke_sound": "#3f8a3a",
+    "dyke_worn": "#c8321f",
     "refresh_secs": 1.0
   }
 }

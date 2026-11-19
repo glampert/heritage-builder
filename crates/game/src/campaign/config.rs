@@ -454,6 +454,9 @@ pub enum MissionGoal {
     Resource { kind: ResourceKind, min: u32 },
     // Festivals held in the mission's city (faith, docs/plans/faith.md §4): I-3's "one festival".
     FestivalsHeld { min: u32 },
+    // The river's floods since the mission's start that breached no dyke, not necessarily in a row
+    // (docs/plans/seasons-floods.md, §4): I-4's "survive 3 flood seasons without a breach".
+    FloodsSurvived { min: u32 },
 }
 
 impl MissionGoal {
@@ -466,6 +469,7 @@ impl MissionGoal {
             Self::Treasury { min_gold } => stats.treasury.gold_units_total >= i64::from(*min_gold),
             Self::Resource { kind, min } => stats.resources.all.count(*kind) >= *min,
             Self::FestivalsHeld { min } => stats.faith.festivals_held >= *min,
+            Self::FloodsSurvived { min } => stats.floods.survived >= *min,
         }
     }
 }

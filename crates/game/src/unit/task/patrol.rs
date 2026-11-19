@@ -27,6 +27,7 @@ use crate::{
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     pathfind::{Node, NodeKind as PathNodeKind, Path, PathFilter, PathHistory, RandomDirectionalBias, SearchResult},
     sim::{SimCmdQueue, SimContext, SimContextMut},
+    tile::TileKind,
     unit::{
         Unit,
         navigation::{self, UnitDirection, UnitNavGoal},
@@ -339,6 +340,8 @@ impl UnitTaskRandomizedPatrol {
 
     // Queues deferred visits to any target buildings adjacent to the unit's current cell.
     fn visit_buildings_along_way(&mut self, ctx: &mut UnitTaskContext) {
+        self.walk_over_dyke(ctx);
+
         let Some(buildings_to_visit) = self.buildings_to_visit else {
             return;
         };
@@ -378,6 +381,22 @@ impl UnitTaskRandomizedPatrol {
                 visited_buildings.push(kind_and_id);
             }
         }
+    }
+
+    // A builders' guild walker on a dyke cell keeps it up: its wear goes back to 0 (crate::floods,
+    // docs/plans/seasons-floods.md, §4), queued, since the world step reads the state only.
+    fn walk_over_dyke(&self, ctx: &mut UnitTaskContext) {
+        if self.origin_building.kind != BuildingKind::BuildersGuild || !ctx.sim_context.floods().is_enabled() {
+            return;
+        }
+        let cell = ctx.unit.cell();
+        if !crate::sim::floods::is_dyke(ctx.sim_context.tile_map(), cell) {
+            return;
+        }
+        ctx.sim_cmds.defer_tile_update(cell, TileKind::Terrain, move |context, _tile| {
+            let now = crate::farms::current_month(context);
+            context.floods_mut().builder_walked(cell, now);
+        });
     }
 
     // Schedules the deferred completion callback on the origin building.

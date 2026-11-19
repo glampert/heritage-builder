@@ -374,6 +374,11 @@ fn warnings(world: &World, sim: &Simulation, report: &CityReport, hungry_houses:
             page: Some("goods"),
         });
     }
+    // Dyke sections worn enough to breach in a flood (crate::floods).
+    let worn = sim.floods().worn_dykes(crate::config::GameConfigs::get().sim.floods.worn_wear) as u32;
+    if worn > 0 {
+        warnings.push(Warning { icon: "water", text: count_text("book.warning.dykes_worn", worn), page: None });
+    }
     for (row, key) in
         [(&report.storage_yards, "book.warning.yards_full"), (&report.granaries, "book.warning.granaries_full")]
     {

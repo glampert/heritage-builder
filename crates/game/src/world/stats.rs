@@ -73,6 +73,13 @@ pub struct FaithStats {
     pub festivals_held: u32, // In this city: the mission's goals count them.
 }
 
+// What the river's floods add to the stats (sim::CityFloods::tally).
+#[derive(Default)]
+pub struct FloodStats {
+    pub floods: u32,   // Since the game's start.
+    pub survived: u32, // Of those, the floods that breached no dyke: the FloodsSurvived goal.
+}
+
 pub struct HousingStats {
     pub total: u32,
     pub lowest_level: HouseLevel,
@@ -101,6 +108,7 @@ pub struct WorldStats {
     pub workers: WorkerStats,
     pub treasury: TreasuryStats,
     pub faith: FaithStats,
+    pub floods: FloodStats,
 
     // Housing stats:
     pub houses: HousingStats,
@@ -116,6 +124,7 @@ impl Default for WorldStats {
             workers: WorkerStats::default(),
             treasury: TreasuryStats::default(),
             faith: FaithStats::default(),
+            floods: FloodStats::default(),
             houses: HousingStats { total: 0, lowest_level: HouseLevel::max(), highest_level: HouseLevel::min() },
             resources: GlobalResourceCounts {
                 all: ResourceStock::accept_all(),

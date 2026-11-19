@@ -61,7 +61,7 @@ pub struct FeatureShape {
 pub struct RoadShape {
     pub from: (f32, f32), // Centres of the first and last cells of a straight run.
     pub to: (f32, f32),
-    pub paved: bool,
+    pub kind: MinimapRoad,
 }
 
 #[derive(Default)]
@@ -115,7 +115,7 @@ impl ShapeCache {
         // neighbour along either axis is a run of one.
         let size = grid.size();
         let is_road = |x: i32, y: i32| grid.road(common::coords::Cell::new(x, y)) != MinimapRoad::None;
-        let is_paved = |x: i32, y: i32| grid.road(common::coords::Cell::new(x, y)) == MinimapRoad::Paved;
+        let road_kind = |x: i32, y: i32| grid.road(common::coords::Cell::new(x, y));
 
         for y in 0..size.height {
             let mut x = 0;
@@ -124,14 +124,14 @@ impl ShapeCache {
                     x += 1;
                     continue;
                 }
-                let paved = is_paved(x, y);
+                let kind = road_kind(x, y);
                 let start = x;
-                while x + 1 < size.width && is_road(x + 1, y) && is_paved(x + 1, y) == paved {
+                while x + 1 < size.width && road_kind(x + 1, y) == kind {
                     x += 1;
                 }
                 let alone = start == x && !is_road(x, y - 1) && !is_road(x, y + 1);
                 if start < x || alone {
-                    self.roads.push(RoadShape { from: (start as f32, y as f32), to: (x as f32, y as f32), paved });
+                    self.roads.push(RoadShape { from: (start as f32, y as f32), to: (x as f32, y as f32), kind });
                 }
                 x += 1;
             }
@@ -143,13 +143,13 @@ impl ShapeCache {
                     y += 1;
                     continue;
                 }
-                let paved = is_paved(x, y);
+                let kind = road_kind(x, y);
                 let start = y;
-                while y + 1 < size.height && is_road(x, y + 1) && is_paved(x, y + 1) == paved {
+                while y + 1 < size.height && road_kind(x, y + 1) == kind {
                     y += 1;
                 }
                 if start < y {
-                    self.roads.push(RoadShape { from: (x as f32, start as f32), to: (x as f32, y as f32), paved });
+                    self.roads.push(RoadShape { from: (x as f32, start as f32), to: (x as f32, y as f32), kind });
                 }
                 y += 1;
             }
@@ -182,6 +182,8 @@ pub struct MeshParams<'a> {
     pub field_texture: TextureHandle,
     // A lens's colour for a feature, None for neutral. Without a lens, features keep their colour.
     pub lens: Option<&'a LensColorFn<'a>>,
+    // A lens's marks on single cells, drawn over the roads.
+    pub cell_marks: &'a [(common::coords::Cell, Color)],
 }
 
 pub fn build_meshes(cache: &ShapeCache, params: &MeshParams) -> MinimapMeshes {
@@ -255,8 +257,22 @@ pub fn build_meshes(cache: &ShapeCache, params: &MeshParams) -> MinimapMeshes {
             let casing = style.palette.road_casing.color();
             road(style.road_casing_cells.max(road_width), &|_| casing);
         }
-        let (dirt, paved) = (style.palette.road.color(), style.palette.paved_road.color());
-        road(road_width, &|run| if run.paved { paved } else { dirt });
+        let (dirt, paved, dyke) = (style.palette.road.color(), style.palette.paved_road.color(), style.palette.dyke.color());
+        road(road_width, &|run| match run.kind {
+            MinimapRoad::Paved => paved,
+            MinimapRoad::Dyke => dyke,
+            _ => dirt,
+        });
+
+        // A lens's marks on single cells (the Flood lens's dykes, by their wear).
+        let half = (road_width * 0.75).max(0.3);
+        for &(cell, color) in params.cell_marks {
+            let (x, y) = (cell.x as f32, cell.y as f32);
+            let cells = CellBox { x0: x - half, y0: y - half, x1: x + half, y1: y + half };
+            if cells.overlaps(&params.visible) {
+                quad(&mut meshes.top, &cells, color);
+            }
+        }
     }
 
     // Buildings: an outline (a slightly larger quad underneath), then the block.

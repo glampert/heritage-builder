@@ -8,13 +8,14 @@
 
 use std::collections::VecDeque;
 
-use common::coords::Cell;
+use common::{coords::Cell, hash};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     campaign::config::MissionFloodsDef,
     config::FloodRules,
-    tile::{TileMap, TileMapLayerKind},
+    tile::{TileKind, TileMap, TileMapLayerKind},
+    world::stats::WorldStats,
 };
 
 pub const MAX_FERTILITY: u8 = 100;
@@ -115,12 +116,16 @@ pub struct FloodRecord {
     pub breaches: u32,
 }
 
-// A dyke cell's wear, 0 to 100 (docs/plans/seasons-floods.md, §4). Phase 3 fills it.
+// A dyke cell's wear, 0 to 100 (docs/plans/seasons-floods.md, §4): it rises each month and a
+// builder walking the cell resets it; `walked` is the ordinal month one last did.
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct DykeWear {
     pub cell: Cell,
     pub wear: f32,
+    pub walked: Option<u32>,
 }
+
+pub const MAX_WEAR: f32 = 100.0;
 
 // ----------------------------------------------
 // FertilityGrid
@@ -342,9 +347,101 @@ impl CityFloods {
         &self.log
     }
 
-    // Floods since the game's start that breached no dyke (MissionGoal::FloodsSurvived, Phase 3).
+    // Floods since the game's start that breached no dyke (MissionGoal::FloodsSurvived).
     pub fn floods_survived(&self) -> u32 {
         self.log.iter().filter(|record| record.breaches == 0).count() as u32
+    }
+
+    // The world stats' flood figures, recounted with them (World::update, refresh_stats).
+    #[inline]
+    pub fn tally(&self, stats: &mut WorldStats) {
+        stats.floods.floods = self.log.len() as u32;
+        stats.floods.survived = self.floods_survived();
+    }
+
+    // ----------------------
+    // Dykes:
+    // ----------------------
+
+    #[inline]
+    fn dyke_index(&self, cell: Cell) -> Result<usize, usize> {
+        self.dyke_wear.binary_search_by_key(&row_order(cell), |dyke| row_order(dyke.cell))
+    }
+
+    // A dyke cell's wear record, if the cell is a dyke the state knows.
+    pub fn dyke(&self, cell: Cell) -> Option<&DykeWear> {
+        self.dyke_index(cell).ok().map(|index| &self.dyke_wear[index])
+    }
+
+    // A dyke cell's wear, 0 to 100 (0 for one not yet counted).
+    #[inline]
+    pub fn wear_at(&self, cell: Cell) -> f32 {
+        self.dyke(cell).map_or(0.0, |dyke| dyke.wear)
+    }
+
+    // Keeps a record for every dyke on the map, in row order: new dykes start sound, and the
+    // records of dykes gone (cleared, breached) are dropped. Only while floods are on.
+    pub fn sync_dykes(&mut self, tile_map: &TileMap) {
+        if !self.enabled {
+            self.dyke_wear.clear();
+            return;
+        }
+        let mut cells = dyke_cells(tile_map);
+        cells.sort_by_key(|cell| row_order(*cell));
+        let old = std::mem::take(&mut self.dyke_wear);
+        self.dyke_wear = cells
+            .into_iter()
+            .map(|cell| match old.binary_search_by_key(&row_order(cell), |dyke| row_order(dyke.cell)) {
+                Ok(index) => old[index],
+                Err(_) => DykeWear { cell, wear: 0.0, walked: None },
+            })
+            .collect();
+    }
+
+    // A month's wear on every dyke: `per_month`, scaled per cell by a factor within `jitter`
+    // of 1 hashed from the cell (the same on every run, never drawn from the RNG).
+    pub fn wear_dykes(&mut self, per_month: f32, jitter: f32) {
+        for dyke in &mut self.dyke_wear {
+            dyke.wear = (dyke.wear + per_month * wear_jitter(dyke.cell, jitter)).clamp(0.0, MAX_WEAR);
+        }
+    }
+
+    // Sets a dyke cell's wear (automation, the debug tools); false where there's no dyke record.
+    pub fn set_wear(&mut self, cell: Cell, wear: f32) -> bool {
+        match self.dyke_index(cell) {
+            Ok(index) => {
+                self.dyke_wear[index].wear = wear.clamp(0.0, MAX_WEAR);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    // A builder walked a dyke cell in ordinal month `now`: its wear goes back to 0. The cell is
+    // counted as a dyke if it wasn't yet (the caller checked the map).
+    pub fn builder_walked(&mut self, cell: Cell, now: u32) {
+        if !self.enabled {
+            return;
+        }
+        match self.dyke_index(cell) {
+            Ok(index) => {
+                self.dyke_wear[index].wear = 0.0;
+                self.dyke_wear[index].walked = Some(now);
+            }
+            Err(index) => self.dyke_wear.insert(index, DykeWear { cell, wear: 0.0, walked: Some(now) }),
+        }
+    }
+
+    // A dyke cell breached: its record goes.
+    pub fn remove_dyke(&mut self, cell: Cell) {
+        if let Ok(index) = self.dyke_index(cell) {
+            self.dyke_wear.remove(index);
+        }
+    }
+
+    // How many dyke cells are worn to `worn` or more.
+    pub fn worn_dykes(&self, worn: f32) -> usize {
+        self.dyke_wear.iter().filter(|dyke| dyke.wear >= worn).count()
     }
 
     // Whether a cell is under water now.
@@ -387,13 +484,14 @@ impl CityFloods {
         self.flood.take()
     }
 
-    // The land an ordinary flood would reach now: the fill at the profile's largest reach, with each
-    // cell's distance from the water (1 on the shore). Empty while floods are off.
+    // The land an ordinary flood would reach now: the fill at the profile's largest reach, stopped
+    // by the dykes as they stand, with each cell's distance from the water (1 on the shore). Empty
+    // while floods are off.
     pub fn ordinary_reach(&self, tile_map: &TileMap) -> Vec<(Cell, u32)> {
         if !self.enabled {
             return Vec::new();
         }
-        reach_distances(tile_map, &self.profile.sources, self.profile.reach[1], |_| false)
+        reach_distances(tile_map, &self.profile.sources, self.profile.reach[1], |cell| is_dyke(tile_map, cell))
     }
 }
 
@@ -467,6 +565,17 @@ pub fn reach_fill(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: impl F
 
 // reach_fill, with each cell's distance from the water along the grid (1 on the shore).
 pub fn reach_distances(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: impl Fn(Cell) -> bool) -> Vec<(Cell, u32)> {
+    reach_meeting(tile_map, seeds, reach, blocks).0
+}
+
+// reach_distances, and the cells that block it the fill met within its reach (each once, in the
+// order it met them): the dykes the water stands against.
+pub fn reach_meeting(
+    tile_map: &TileMap,
+    seeds: &[Cell],
+    reach: u32,
+    blocks: impl Fn(Cell) -> bool,
+) -> (Vec<(Cell, u32)>, Vec<Cell>) {
     let size = tile_map.size_in_cells();
     let (width, height) = (size.width.max(0), size.height.max(0));
     let in_bounds = |cell: Cell| cell.x >= 0 && cell.y >= 0 && cell.x < width && cell.y < height;
@@ -483,6 +592,7 @@ pub fn reach_distances(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: i
     }
     let mut shore: VecDeque<(Cell, u32)> = VecDeque::new();
     let mut reached = vec![false; (width * height) as usize];
+    let mut met = Vec::new();
     while let Some(cell) = queue.pop_front() {
         for next in neighbours(cell) {
             if !in_bounds(next) || water[index(next)] || reached[index(next)] {
@@ -491,9 +601,13 @@ pub fn reach_distances(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: i
             if is_water(tile_map, next) {
                 water[index(next)] = true;
                 queue.push_back(next);
-            } else if reach > 0 && is_land(tile_map, next) && !blocks(next) {
+            } else if reach > 0 && is_land(tile_map, next) {
                 reached[index(next)] = true;
-                shore.push_back((next, 1));
+                if blocks(next) {
+                    met.push(next);
+                } else {
+                    shore.push_back((next, 1));
+                }
             }
         }
     }
@@ -509,11 +623,42 @@ pub fn reach_distances(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: i
             if !in_bounds(next) || reached[index(next)] || water[index(next)] {
                 continue;
             }
-            if is_land(tile_map, next) && !blocks(next) {
+            if is_land(tile_map, next) {
                 reached[index(next)] = true;
-                shore.push_back((next, distance + 1));
+                if blocks(next) {
+                    met.push(next);
+                } else {
+                    shore.push_back((next, distance + 1));
+                }
             }
         }
     }
+    (cells, met)
+}
+
+// Whether a cell's terrain stops the flood (a dyke: TileDef::blocks_floods).
+#[inline]
+pub fn is_dyke(tile_map: &TileMap, cell: Cell) -> bool {
+    tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).is_some_and(|tile| tile.tile_def().blocks_floods)
+}
+
+// Every dyke cell on the map.
+pub fn dyke_cells(tile_map: &TileMap) -> Vec<Cell> {
+    let mut cells = Vec::new();
+    tile_map.for_each_tile(TileKind::Terrain, |_, tile| {
+        if tile.tile_def().blocks_floods {
+            cells.push(tile.base_cell());
+        }
+    });
     cells
+}
+
+// A factor within `jitter` of 1 for a dyke cell's wear, hashed from the cell.
+fn wear_jitter(cell: Cell, jitter: f32) -> f32 {
+    let jitter = jitter.clamp(0.0, 0.9);
+    if jitter == 0.0 {
+        return 1.0;
+    }
+    let key = ((cell.x as u32 as u64) | ((cell.y as u32 as u64) << 32)) ^ 0xD7CE_5EED_0000_0000;
+    1.0 - jitter + 2.0 * jitter * hash::hash_to_unit_f32(hash::splitmix64(key))
 }

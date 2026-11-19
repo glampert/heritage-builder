@@ -1,6 +1,6 @@
 # Known issues and unfinished work
 
-Last verified against the code on 2026-11-18. Remove an entry once it's resolved.
+Last verified against the code on 2026-11-19. Remove an entry once it's resolved.
 
 ## Unfinished features
 
@@ -41,12 +41,18 @@ Last verified against the code on 2026-11-18. Remove an entry once it's resolved
   - The farmstead and the fields are Đại Long's generated art in every realm, and the livestock farm is still a 3 × 3 building (pastures are a later phase).
   - Harvests run in every game, so missions 1 to 3 get their rice in lumps once a year; the harvest, the farmstead's cost and its reach are unbalanced (M13). The debug presets place livestock farms (presets 1 and 2) or a farmstead without fields (3 and 5) where the rice farm stood.
 - The river's flood (`crate::floods`, docs/plans/seasons-floods.md, Phase 2):
-  - Its reach is a distance from the water along the grid (no terrain height until roadmap T), so a flood is a band of even width along the river. Nothing stops it yet: dykes come with Phase 3.
+  - Its reach is a distance from the water along the grid (no terrain height until roadmap T), so a flood is a band of even width along the river; only dykes stop it.
   - The water is the open-water tile drawn with a wash of the dirt tile in each flooded cell's place, still, with no shore edge where it meets dry land; the river's own shore cells beside it are drawn as open water too. Buildings and fields stand dry in it, and walkers walk through it (decision Q5).
   - It comes at once at the start of its month and goes at once; there's no event popup with its effects and Show on map (M11's important-event popups), only the message log and the minimap's pings.
   - Its damage is M6's collapse and disease risk, so nothing happens to buildings while risks are off; a farmstead under water loses the harvest it holds even then.
   - The Flood lens shows the ordinary reach without dykes; its legend, like the other lenses', is English text, not text keys.
   - The flood's size and damage are unbalanced (M13).
+- Dykes (`crate::floods`, `crates/game/src/tile/road.rs`, docs/plans/seasons-floods.md, Phase 3):
+  - The embankment is a terrain tile about 6 px high, but walkers on its crest are drawn at ground level, a little sunk into it, and buildings behind it are drawn over its top.
+  - A road joining a dyke runs to the foot of its bank (there's no ramp piece), and walkers go on along the crest; a dyke's pieces join only other dykes.
+  - A builder resets a dyke cell's wear only by standing on it: patrols wander, so a long dyke far from a builders' guild wears out (the Flood lens and the City book's warning show it). No mission uses `FloodsSurvived` until M13 writes I-4.
+  - Its art, the breach's rubble and the dyke glyph are Đại Long's in every realm (Kambara's embankments would reuse `blocks_floods` later). Wear and the breach chance are unbalanced (M13).
+  - The developer Tile Inspector shows no dyke wear (the retail panel and World Debug's Floods tab do).
 - The fire watcher is the guard recoloured (`crates/tools/unit-recolor`) and the builder is a plain peasant; walker art of their own waits for the Blender walker experiment (placeholder-art Phase 6) — `docs/plans/city-risks.md`.
 - A skin or language rebuild (`ui.realm`, `ui.reload_skin`, `text.language`) builds the dialogs and the HUD again: an open popup closes, the inspector closes, the palette selection is dropped, and a button under the cursor plays its hover sound again (`TODO(realm-ui)` at `rebuild_all`). Settings' pending edits and tab and Load / Save's typed name are kept (`settings::STATE`, `load_save::STATE`). The home menu and the campaign picker are also rebuilt when the profile changes or a window resize changes the dialogs' scale, which replays that hover sound too (the picker keeps its pick) — `crates/game/src/menu/dialog/mod.rs`, `crates/game/src/menu/in_game/mod.rs`.
 

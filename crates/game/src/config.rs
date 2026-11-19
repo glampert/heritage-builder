@@ -456,8 +456,12 @@ pub struct FloodRules {
     // Fertility a harvest takes from its field.
     pub depletion_per_harvest: u32,
 
-    // A dyke cell's wear a month (jittered per cell), 0 to 100.
+    // A dyke cell's wear a month, 0 to 100, scaled per cell by a factor within `wear_jitter` of
+    // 1; and the wear from which a dyke counts as worn (the warnings, the Flood lens). A dyke the
+    // flood reaches breaches with chance (wear / 100)² × the flood's severity.
     pub wear_per_month: f32,
+    pub wear_jitter: f32,
+    pub worn_wear: f32,
 }
 
 impl Default for FloodRules {
@@ -476,6 +480,8 @@ impl Default for FloodRules {
             silt: 30,
             depletion_per_harvest: 10,
             wear_per_month: 8.0,
+            wear_jitter: 0.25,
+            worn_wear: 50.0,
         }
     }
 }

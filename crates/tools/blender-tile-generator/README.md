@@ -314,6 +314,17 @@ no ink. Rubble lives in the `rocks` category; each variation's `iso_offset`
 (`y: 8`) moves the rocks anchor down to a 1×1 building's, so the pieces sit on
 their cell's diamond.
 
+**Terrain pieces** (`catalog/floods.json`): the dyke is a terrain tile
+(`"layer": "terrain"`, `"category": "land"`) in 16 pieces, a road's junction
+masks (`0000` to `1111`, listed in that order, since the engine's variation
+index is the mask). Its `tile_set` sets `"path_kind": "Road"` and
+`"blocks_floods": true`, which stops the river's flood. The engine draws
+terrain from its top corner, where the camera puts the ground diamond at the
+frame's bottom, so each variation's `iso_offset` lifts the sprite by its height
+above the diamond (`y: -3` for a 35 px sprite); keep a terrain piece inside
+the diamond's outline, low enough that walkers on it still read, and with no
+ink on its cut edges (`B.outline_border = False`).
+
 `"validate": {"ground": false}` marks an overlay, a sprite without a ground
 diamond (the renovation scaffolds), so the checks skip the corner and
 bottom-row tests. The `overlays` category is drawn by the renderer only:
