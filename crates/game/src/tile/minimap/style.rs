@@ -268,7 +268,8 @@ pub struct LensStyle {
     pub fertility_growing: HexColor,   // A field with a crop growing...
     pub fertility_ripe: HexColor,      // ...one ripe, to be reaped soon...
     pub fertility_fallow: HexColor,    // ...one lying fallow.
-    pub fertility_irrigated: HexColor, // A field a sluice gate waters, and the gate.
+    pub fertility_irrigated: HexColor, // A field or a canal water reaches, and a gate sending it.
+    pub fertility_canal_dry: HexColor, // A canal no water reaches, and a gate that sends none.
     pub refresh_secs: f32,
 }
 
@@ -425,6 +426,7 @@ impl Default for LensStyle {
             fertility_ripe: HexColor::rgb(0xe8b62e),
             fertility_fallow: HexColor::rgb(0x8a6a44),
             fertility_irrigated: HexColor::rgb(0x2f8fc8),
+            fertility_canal_dry: HexColor::rgb(0x9c9488),
             refresh_secs: 1.0,
         }
     }

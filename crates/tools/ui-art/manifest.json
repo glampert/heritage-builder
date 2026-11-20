@@ -504,6 +504,30 @@
       "source_hash": "1574049cbbd46729",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/building/canal_idle.png": {
+      "catalog_hash": "4781cfa2c81759fe",
+      "id": "glyph_building_canal",
+      "png_hash": "560606fc502469d0",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "51e460c568e0209c",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/canal_pressed.png": {
+      "catalog_hash": "ad6239979fe1a3b7",
+      "id": "glyph_building_canal",
+      "png_hash": "0820cbbbfc91c274",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "2277087f1ad7ba8c",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/building/citadel_idle.png": {
       "catalog_hash": "9e41fb7c5895b6cc",
       "id": "glyph_building_citadel",
@@ -3490,6 +3514,30 @@
       ],
       "realm": "kambara",
       "source_hash": "98121f1b11747f46",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/canal_idle.png": {
+      "catalog_hash": "80ec988696ef157e",
+      "id": "glyph_building_canal",
+      "png_hash": "9de1609ab2f7c882",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "1827e65e05621a9f",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/canal_pressed.png": {
+      "catalog_hash": "eb2c8003a7101260",
+      "id": "glyph_building_canal",
+      "png_hash": "cd4fb95faef86afb",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "8f674162c7212b55",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/hud/glyphs/building/citadel_idle.png": {
@@ -6514,6 +6562,30 @@
       ],
       "realm": "tampadesa",
       "source_hash": "bf8df3b0e3176cf8",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/canal_idle.png": {
+      "catalog_hash": "379bace13a53e36a",
+      "id": "glyph_building_canal",
+      "png_hash": "c447a2a025c61f5d",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "8b55518b1f116d7c",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/canal_pressed.png": {
+      "catalog_hash": "797ccbe3d8c6d4da",
+      "id": "glyph_building_canal",
+      "png_hash": "50c97a8f634d67db",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "fd7c92659ce5182e",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/hud/glyphs/building/citadel_idle.png": {

@@ -119,10 +119,16 @@ fn mark_area_out_of_reach(context: &mut GameUiContext, tile_def: &'static TileDe
     }
 }
 
-// What a flooded cell refuses: every object (buildings, fields, props) and roads. Plain land and
-// water (the developer editor's terrain) can still be painted.
+// What a flooded cell refuses: every object (buildings, fields, props), roads and canals. Plain land
+// and water (the developer editor's terrain) can still be painted.
 fn placement_refused_under_water(tile_def: &TileDef) -> bool {
-    !tile_def.is(TileKind::Terrain) || tile_def.is_road()
+    !tile_def.is(TileKind::Terrain) || tile_def.is_road() || water::is_canal_def(tile_def)
+}
+
+// Whether placing or clearing a tile may change what water reaches (crate::farms::irrigation):
+// terrain (water, a canal, a dyke), a field or a sluice gate.
+fn changes_irrigation(tile_def: &TileDef) -> bool {
+    tile_def.is(TileKind::Terrain) || farms::is_field_def(tile_def) || tile_def.requires_dyke
 }
 
 fn can_afford_cost(context: &GameUiContext, cost: u32) -> bool {
@@ -555,9 +561,19 @@ impl TilePlacement {
             spawner.try_spawn_tile_with_def(*cell, segment.tile_def());
         }
 
-        // Update road junctions (each junction is a different variation of the same tile).
+        // Update road junctions (each junction is a different variation of the same tile), or a
+        // canal's shores and those of the water beside it.
         for cell in &segment.path {
-            road::update_junctions(context.tile_map_mut(), *cell);
+            if segment.kind == RoadKind::Canal {
+                water::update_transitions(context.tile_map_mut(), *cell);
+            } else {
+                road::update_junctions(context.tile_map_mut(), *cell);
+            }
+        }
+
+        // A canal or a dyke laid: what water reaches may change (crate::farms::irrigation).
+        if matches!(segment.kind, RoadKind::Canal | RoadKind::Dyke) {
+            farms::irrigation::network_changed();
         }
 
         // A dyke laid, or a road over one: the dykes' wear records follow (crate::floods).
@@ -749,6 +765,9 @@ impl TilePlacement {
         }
 
         if spawn_result.is_ok() {
+            if changes_irrigation(tile_def) {
+                farms::irrigation::network_changed();
+            }
             // A field joins its farmstead, and a farmstead claims the fields around it.
             let claims_fields =
                 matches!(&spawn_result, SpawnerResult::Building(building) if farms::crop_of(building).is_some());
@@ -799,10 +818,11 @@ impl TilePlacement {
         let is_terrain = tile.is(TileKind::Terrain);
         let is_road = tile_def.is_road();
         let is_vacant_lot = tile_def.is_vacant_lot();
+        let is_canal = water::is_canal_def(tile_def);
         let is_rubble = rubble::is_rubble_def(tile_def);
 
-        // Cannot explicit remove terrain tiles except for roads and vacant lots.
-        if !is_terrain || is_road || is_vacant_lot {
+        // Cannot explicit remove terrain tiles except for roads, canals and vacant lots.
+        if !is_terrain || is_road || is_vacant_lot || is_canal {
             let target_cell = tile.base_cell();
 
             if undo_redo {
@@ -827,7 +847,7 @@ impl TilePlacement {
                 spawner.refund_construction_site(site, &tile_def.name);
             }
 
-            if is_road || is_vacant_lot {
+            if is_road || is_vacant_lot || is_canal {
                 // Replace removed road tile with a regular terrain tile.
                 if let Some(terrain_tile_def) = PresetTiles::Grass.find_tile_def() {
                     if let SpawnerResult::Err(err) = spawner.try_spawn_tile_with_def(target_cell, terrain_tile_def) {
@@ -845,6 +865,14 @@ impl TilePlacement {
                 if tile_def.blocks_floods {
                     context.floods_mut().sync_dykes(context.tile_map());
                 }
+                // A canal cleared: the water beside it draws its shore again.
+                if is_canal {
+                    water::update_transitions(context.tile_map_mut(), target_cell);
+                }
+            }
+
+            if changes_irrigation(tile_def) {
+                farms::irrigation::network_changed();
             }
 
             if is_rubble {
@@ -875,7 +903,7 @@ impl TilePlacement {
         let is_road = tile_def.is_road();
         let is_vacant_lot = tile_def.is_vacant_lot();
 
-        !is_terrain || is_road || is_vacant_lot
+        !is_terrain || is_road || is_vacant_lot || water::is_canal_def(tile_def)
     }
 }
 
@@ -960,13 +988,13 @@ pub trait TilePalette {
         !self.current_selection().is_none()
     }
 
+    // A tile drawn as a segment is selected: a road, a dyke or a canal (road::try_kind).
     fn is_road_tile_selected(&self) -> bool {
-        self.current_selection().as_tile_def().is_some_and(|tile_def| tile_def.is_road())
+        self.current_selection().as_tile_def().is_some_and(|tile_def| road::try_kind(tile_def).is_some())
     }
 
     fn selected_road_kind(&self) -> RoadKind {
         if let Some(tile_def) = self.current_selection().as_tile_def()
-            && tile_def.is_road()
             && let Some(kind) = road::try_kind(tile_def)
         {
             return kind;

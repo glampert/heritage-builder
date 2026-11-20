@@ -288,6 +288,13 @@ impl Simulation {
             crate::floods::run_requests(&context);
         }
 
+        // Canals no water reaches drawn dry, once the canals and fields, a gate or the session
+        // changed; paused or not, so the player sees it while building.
+        {
+            let context = self.new_sim_context(0.0, tile_map, world);
+            crate::farms::irrigation::refresh_canals_if_changed(&context);
+        }
+
         // Paused simulation update.
         if self.is_paused {
             if self.paused_update_timer.tick(delta_time_secs).should_update() {

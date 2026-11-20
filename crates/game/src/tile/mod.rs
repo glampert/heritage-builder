@@ -170,6 +170,12 @@ bitflags_with_display! {
 
         // A dyke segment's preview (tile::road), as the two road kinds' above.
         const DykePlacement      = 1 << 20;
+
+        // A canal segment's preview (tile::road), drawn with the water's shores.
+        const CanalPlacement     = 1 << 21;
+
+        // A canal no water reaches (crate::farms::irrigation): drawn dry.
+        const DryCanal           = 1 << 22;
     }
 }
 

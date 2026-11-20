@@ -534,10 +534,12 @@ impl LensProvider for FloodLens {
 // Fertility
 // ----------------------------------------------
 
-// The land (docs/plans/seasons-floods.md, §6): the heat field is each land cell's fertility, from
-// barren to rich; fields take the colour of their stage (growing, ripe, fallow), and those a working
-// sluice gate waters, and the gates themselves, fertility_irrigated. Offered only while the game's
-// river floods (MinimapLens::is_offered): without it the land is the same everywhere.
+// The land (docs/plans/seasons-floods.md, §6 and §9): the heat field is each land cell's fertility,
+// from barren to rich; fields take the colour of their stage (growing, ripe, fallow), or
+// fertility_irrigated where water reaches them (crate::farms::irrigation); canals are marked
+// fertility_irrigated or, dry, fertility_canal_dry, and so are the sluice gates, by whether they
+// send water. Offered only while the game's river floods (MinimapLens::is_offered): without it the
+// land is the same everywhere.
 pub struct FertilityLens;
 
 // The heat of barren and of the richest land (a share of the ramp): barren land still shows.
@@ -555,11 +557,12 @@ impl LensProvider for FertilityLens {
         let (width, height) = (context.map_size.width.max(0), context.map_size.height.max(0));
         out.values = vec![0; (width * height) as usize];
         out.ramp = [style.fertility_ramp[0].color(), style.fertility_ramp[1].color()];
-        let (growing, ripe, fallow, irrigated) = (
+        let (growing, ripe, fallow, irrigated, dry) = (
             style.fertility_growing.color(),
             style.fertility_ripe.color(),
             style.fertility_fallow.color(),
             style.fertility_irrigated.color(),
+            style.fertility_canal_dry.color(),
         );
 
         let floods = context.sim.floods();
@@ -578,10 +581,10 @@ impl LensProvider for FertilityLens {
             }
         }
 
-        // The fields by their stage (their tile's variation), or watered by a sluice gate.
-        let gates = crate::farms::working_sluice_gates(context.sim.world());
+        // The fields by their stage (their tile's variation), or where water reaches them.
+        let irrigation = crate::farms::Irrigation::read(context.sim.world(), tile_map);
         for cell in crate::farms::field_cells(tile_map) {
-            let color = if gates.iter().any(|gate| gate.reaches(cell)) {
+            let color = if irrigation.is_wet(cell) {
                 irrigated
             } else {
                 let stage = tile_map
@@ -596,9 +599,12 @@ impl LensProvider for FertilityLens {
             };
             out.building_colors.insert((cell.y, cell.x), color);
         }
-        for gate in crate::farms::sluice_gates(context.sim.world()) {
-            let base = gate.cells.start;
-            out.building_colors.insert((base.y, base.x), if gate.working { irrigated } else { fallow });
+        for supply in irrigation.gates() {
+            let base = supply.base_cell();
+            out.building_colors.insert((base.y, base.x), if supply.supplies() { irrigated } else { dry });
+        }
+        for &cell in irrigation.canals() {
+            out.cell_colors.push((cell, if irrigation.is_wet(cell) { irrigated } else { dry }));
         }
 
         let poor = mix(out.ramp[0], out.ramp[1], heat(30.0));
@@ -609,6 +615,7 @@ impl LensProvider for FertilityLens {
             (ripe, "Ripe"),
             (fallow, "Fallow"),
             (irrigated, "Irrigated"),
+            (dry, "Dry canal"),
         ]);
         out.legend_max_columns = 3;
     }

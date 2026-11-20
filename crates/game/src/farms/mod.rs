@@ -10,9 +10,13 @@
 // tended; the farmstead's fields reaped that month go into its stock together, and its runner
 // carries them to the granaries a load at a time. A field's tile variation is its stage.
 //
-// A sluice gate (BuildingKind::SluiceGate, Phase 4), placed beside a dyke, waters the fields within
-// its effect radius while it works: they're sown in the other season too, for a second harvest; and
-// when the flood stands against its dyke, they take its silt without the water (crate::floods).
+// A field that water reaches (irrigation, Phase 6: open water beside it, a canal carrying water, a
+// sluice gate's outlet, or a wet field next to it) is sown in the other season too, for a second
+// harvest. A sluice gate (BuildingKind::SluiceGate, Phase 4), placed beside a dyke, sends water
+// through its outlet while it works and has water across its dyke; when the flood stands against
+// its dyke, the fields its canals reach take the flood's silt without the water (crate::floods).
+
+pub mod irrigation;
 
 use std::collections::HashMap;
 
@@ -20,18 +24,11 @@ use common::{
     coords::{Cell, CellRange},
     mem::SingleThreadStatic,
 };
+pub use irrigation::{GateSupply, Irrigation, WaterSource};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    building::{
-        Building,
-        BuildingArchetypeKind,
-        BuildingKind,
-        BuildingKindAndId,
-        config::BuildingConfigs,
-        footprints_within_reach,
-        producer::CropConfig,
-    },
+    building::{Building, BuildingArchetypeKind, BuildingKind, BuildingKindAndId, producer::CropConfig},
     config::GameConfigs,
     sim::{
         SimContext,
@@ -309,40 +306,13 @@ pub fn take_notices() -> Vec<HarvestNotice> {
 // Sluice gates
 // ----------------------------------------------
 
-// A sluice gate, as the passes over the fields need it: its footprint, its reach (its service
-// config's effect radius, counted along the grid from the footprint) and whether it works now
-// (finished, staffed, not burning).
+// A sluice gate, as the passes over the fields need it: its footprint and whether it works now
+// (finished, staffed, not burning). What it waters is its canals' reach (irrigation).
 #[derive(Copy, Clone)]
 pub struct SluiceGate {
     pub id: BuildingKindAndId,
     pub cells: CellRange,
-    pub reach: i32,
     pub working: bool,
-}
-
-impl SluiceGate {
-    // Whether its reach takes in a cell.
-    #[inline]
-    pub fn reaches(&self, cell: Cell) -> bool {
-        footprints_within_reach(self.cells, CellRange::new(cell, cell), self.reach)
-    }
-
-    // The field tiles in its reach, in row order.
-    pub fn fields_in_reach(&self, tile_map: &TileMap) -> Vec<Cell> {
-        let size = tile_map.size_in_cells();
-        let (start, end) = (self.cells.start, self.cells.end);
-        let mut cells = Vec::new();
-        for y in (start.y - self.reach).max(0)..=(end.y + self.reach).min(size.height - 1) {
-            for x in (start.x - self.reach).max(0)..=(end.x + self.reach).min(size.width - 1) {
-                let cell = Cell::new(x, y);
-                if tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects).is_some_and(|tile| tile.is(TileKind::Field))
-                {
-                    cells.push(cell);
-                }
-            }
-        }
-        cells
-    }
 }
 
 // The sluice gate at a building, if it's one.
@@ -350,8 +320,7 @@ pub fn sluice_gate_of(building: &Building) -> Option<SluiceGate> {
     if !building.is(BuildingKind::SluiceGate) {
         return None;
     }
-    let reach = BuildingConfigs::get().find_service_config(BuildingKind::SluiceGate).effect_radius.max(0);
-    Some(SluiceGate { id: building.kind_and_id(), cells: building.cell_range(), reach, working: building.is_operational() })
+    Some(SluiceGate { id: building.kind_and_id(), cells: building.cell_range(), working: building.is_operational() })
 }
 
 // Every sluice gate, working or not, in the world's order.
@@ -364,22 +333,9 @@ pub fn sluice_gates(world: &World) -> Vec<SluiceGate> {
     gates
 }
 
-// The sluice gates that work now.
-pub fn working_sluice_gates(world: &World) -> Vec<SluiceGate> {
-    let mut gates = sluice_gates(world);
-    gates.retain(|gate| gate.working);
-    gates
-}
-
-// The working sluice gate that waters a cell (the first in the world's order), if one does: a field
-// there is sown out of its crop's season too.
-pub fn watering_gate(world: &World, cell: Cell) -> Option<SluiceGate> {
-    working_sluice_gates(world).into_iter().find(|gate| gate.reaches(cell))
-}
-
 // The sides a sluice gate can face its dyke on, as its tile's variations are named: the engine's
 // north (+x), east (-y), south (-x) and west (+y).
-const GATE_SIDES: [(&str, i32, i32); 4] = [("north", 1, 0), ("east", 0, -1), ("south", -1, 0), ("west", 0, 1)];
+pub(crate) const GATE_SIDES: [(&str, i32, i32); 4] = [("north", 1, 0), ("east", 0, -1), ("south", -1, 0), ("west", 0, 1)];
 
 // A sluice gate just placed faces the dyke beside it: its tile's variation is the first side, in
 // GATE_SIDES' order, with a dyke past its footprint.
@@ -404,21 +360,24 @@ pub fn face_dyke(tile_map: &mut TileMap, cell: Cell) {
     }
 }
 
-// The fields the flood's silt reaches through the sluice gates (crate::floods): those a working gate
-// waters, not under water themselves, where the water stands against the gate's dyke (`met`, the
-// dykes the flood reached) or covers the gate. In row order.
+// The fields the flood's silt reaches through the sluice gates (crate::floods): those a working
+// gate's outlet reaches through canals and fields (irrigation::fields_reached_by), not under water
+// themselves, where the water stands against the gate's dyke (`met`, the dykes the flood reached)
+// or covers the gate. The flood's water is the gate's intake then. In row order.
 pub fn sluiced_fields(context: &SimContext, met: &[Cell], is_under_water: impl Fn(Cell) -> bool) -> Vec<Cell> {
+    let irrigation = Irrigation::read(context.world(), context.tile_map());
     let mut cells = Vec::new();
-    for gate in working_sluice_gates(context.world()) {
-        let mut open = gate.cells.iter().any(&is_under_water);
+    for supply in irrigation.gates().iter().filter(|supply| supply.gate.working) {
+        let mut open = supply.gate.cells.iter().any(&is_under_water);
         if !open {
-            crate::pathfind::for_each_surrounding_cell(gate.cells, |cell| {
+            crate::pathfind::for_each_surrounding_cell(supply.gate.cells, |cell| {
                 open = met.contains(&cell);
                 !open
             });
         }
         if open {
-            cells.extend(gate.fields_in_reach(context.tile_map()).into_iter().filter(|&cell| !is_under_water(cell)));
+            let fields = irrigation::fields_reached_by(context.tile_map(), supply);
+            cells.extend(fields.into_iter().filter(|&cell| !is_under_water(cell)));
         }
     }
     cells.sort_by_key(|cell| (cell.y, cell.x));
@@ -428,7 +387,8 @@ pub fn sluiced_fields(context: &SimContext, met: &[Cell], is_under_water: impl F
 
 // The start of a month (`date`): every farmstead claims its fields, then each field moves on a
 // month: a crop grows (tended or not) and is reaped once it's ripe; a tended field without one is
-// sown if it can be; a field under water loses its crop. The fields' tiles show their stage.
+// sown if it can be (in its crop's season, or in either where water reaches it); a field under
+// water loses its crop. The fields' tiles show their stage, and the canals whether they're dry.
 pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     claim_fields(context);
 
@@ -437,7 +397,7 @@ pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     let season = settings.season_of(date.month);
     let season_began = season_start(settings, now);
     let depletion = GameConfigs::get().sim.floods.depletion_per_harvest.min(u8::MAX as u32) as u8;
-    let gates = working_sluice_gates(context.world());
+    let irrigation = Irrigation::read(context.world(), context.tile_map());
 
     let mut notice = HarvestNotice { farmsteads: 0, fields: 0, amount: 0, good: ResourceKind::Rice };
     for farmstead in farmsteads(context.world()) {
@@ -475,7 +435,7 @@ pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
                 }
             }
 
-            let can_sow = crop.season == season || gates.iter().any(|gate| gate.reaches(plot.cell));
+            let can_sow = crop.season == season || irrigation.is_wet(plot.cell);
             if plot.crop.is_none() && is_tended && can_sow && plot.sown_season != Some(season_began) {
                 plot.crop = Some(GrowingCrop { sown: now, months: 0, tended_months: 0 });
                 plot.sown_season = Some(season_began);
@@ -511,6 +471,9 @@ pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     if notice.farmsteads != 0 {
         NOTICES.as_mut().push(notice);
     }
+
+    // The flood may have breached a dyke a gate drew across.
+    irrigation::refresh_canals(context);
 }
 
 // The flood (crate::floods) takes the crops of the fields under water: they lie fallow until the
@@ -599,13 +562,19 @@ pub struct FieldReport {
     pub tended: bool,
     pub sown: Option<u32>,
     pub reaped_in: Option<u32>,
+    // Water reaches it (irrigation): it's sown in either season.
     pub irrigated: bool,
-    // The base cell of the sluice gate that waters it, if one does.
-    pub gate_cell: Option<Cell>,
+    // Where that water comes from: the river, or the sluice gate at a cell.
+    pub water: Option<WaterSource>,
     pub flooded: bool,
 }
 
 pub fn field_report(context: &SimContext, cell: Cell) -> Option<FieldReport> {
+    field_report_with(context, cell, &Irrigation::read(context.world(), context.tile_map()))
+}
+
+// field_report() with the irrigation read already, for a report on many fields.
+pub fn field_report_with(context: &SimContext, cell: Cell, irrigation: &Irrigation) -> Option<FieldReport> {
     let tile = context.tile_map().try_tile_from_layer(cell, TileMapLayerKind::Objects)?;
     if !tile.is(TileKind::Field) {
         return None;
@@ -620,13 +589,11 @@ pub fn field_report(context: &SimContext, cell: Cell) -> Option<FieldReport> {
         sown: None,
         reaped_in: None,
         irrigated: false,
-        gate_cell: None,
+        water: None,
         flooded: context.floods().is_flooded(cell),
     };
-    if let Some(gate) = watering_gate(context.world(), cell) {
-        report.irrigated = true;
-        report.gate_cell = Some(gate.cells.start);
-    }
+    report.water = irrigation.source(cell);
+    report.irrigated = report.water.is_some();
     if let Some(owner) = owner_of_field(context.world(), cell)
         && let Some(building) = context.find_building(owner.kind, owner.id)
         && let Some(crop) = crop_of(building)

@@ -128,10 +128,10 @@ pub mod internal {
             if water::is_port_or_wharf(tile_def_to_place) {
                 let cell_range = tile_def_to_place.cell_range(target_cell);
 
-                // Ports/wharfs must be contained withing water tiles...
+                // Ports/wharfs must be contained withing water tiles (not canals)...
                 for cell in &cell_range {
                     if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell)
-                        && !tile.path_kind().is_water()
+                        && (!tile.path_kind().is_water() || water::is_canal_def(tile.tile_def()))
                     {
                         return err!(
                             Placement::RequiresProximity(PathNodeKind::Water),

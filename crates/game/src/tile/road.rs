@@ -9,7 +9,8 @@ use crate::{
         TileKind,
         TileMap,
         TileMapLayerKind,
-        sets::{TERRAIN_LAND_CATEGORY, TileDef, TileSets},
+        sets::{TERRAIN_LAND_CATEGORY, TERRAIN_WATER_CATEGORY, TileDef, TileSets},
+        water,
     },
 };
 
@@ -25,6 +26,13 @@ pub enum RoadKind {
     // A dyke (crate::floods): an embankment drawn as roads are, a road along its crest, that
     // stops the river's flood (TileDef::blocks_floods).
     Dyke,
+    // A canal (crate::farms::irrigation): drawn as roads are, but a water tile with the water's
+    // shores (tile::water), on open land only. Not a road: nothing walks it.
+    Canal,
+}
+
+impl RoadKind {
+    pub const ALL: [RoadKind; 4] = [RoadKind::Dirt, RoadKind::Paved, RoadKind::Dyke, RoadKind::Canal];
 }
 
 // ----------------------------------------------
@@ -82,6 +90,7 @@ pub const fn tile_name(kind: RoadKind) -> StrHashPair {
         RoadKind::Dirt => StrHashPair::from_str("dirt_road"),
         RoadKind::Paved => StrHashPair::from_str("paved_road"),
         RoadKind::Dyke => StrHashPair::from_str("dyke"),
+        RoadKind::Canal => water::CANAL,
     }
 }
 
@@ -91,6 +100,7 @@ pub fn tile_def(kind: RoadKind) -> &'static TileDef {
         RoadKind::Dirt => &DIRT_ROAD_TILE_DEF,
         RoadKind::Paved => &PAVED_ROAD_TILE_DEF,
         RoadKind::Dyke => &DYKE_TILE_DEF,
+        RoadKind::Canal => &CANAL_TILE_DEF,
     }
 }
 
@@ -102,14 +112,19 @@ pub fn kind(tile_def: &'static TileDef) -> RoadKind {
         RoadKind::Paved
     } else if tile_def.hash == DYKE_TILE_DEF.hash {
         RoadKind::Dyke
+    } else if tile_def.hash == CANAL_TILE_DEF.hash {
+        RoadKind::Canal
     } else {
         unimplemented!()
     }
 }
 
-// The road kind of a road tile def, None for any other.
+// The road kind of a tile def drawn as a segment (a road, a dyke, a canal), None for any other.
 pub fn try_kind(tile_def: &TileDef) -> Option<RoadKind> {
-    [RoadKind::Dirt, RoadKind::Paved, RoadKind::Dyke].into_iter().find(|kind| tile_name(*kind).hash == tile_def.hash)
+    if !tile_def.is(TileKind::Terrain) {
+        return None;
+    }
+    RoadKind::ALL.into_iter().find(|kind| tile_name(*kind).hash == tile_def.hash)
 }
 
 static DIRT_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
@@ -128,6 +143,12 @@ static DYKE_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
     TileSets::get()
         .find_tile_def_by_hash(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.hash, tile_name(RoadKind::Dyke).hash)
         .expect("Failed to find the dyke tile!")
+});
+
+static CANAL_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
+    TileSets::get()
+        .find_tile_def_by_hash(TileMapLayerKind::Terrain, TERRAIN_WATER_CATEGORY.hash, tile_name(RoadKind::Canal).hash)
+        .expect("Failed to find the canal tile!")
 });
 
 enum RangeInclusiveIter {
@@ -152,9 +173,20 @@ fn range_inclusive(a: i32, b: i32) -> RangeInclusiveIter {
     if a <= b { RangeInclusiveIter::Forward(a..=b) } else { RangeInclusiveIter::Backward((b..=a).rev()) }
 }
 
-fn can_place_road(tile_map: &TileMap, cell: Cell) -> bool {
+fn can_place_road(tile_map: &TileMap, cell: Cell, kind: RoadKind) -> bool {
     if !tile_map.is_cell_within_bounds(cell) {
         return false;
+    }
+
+    // A canal goes on open land with nothing on it (not a road, a dyke, a lot or a field), or
+    // over a canal already there.
+    if kind == RoadKind::Canal {
+        if tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects).is_some() {
+            return false;
+        }
+        return tile_map
+            .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+            .is_some_and(|tile| water::is_canal_def(tile.tile_def()) || tile.path_kind() == PathNodeKind::EmptyLand);
     }
 
     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects)
@@ -174,15 +206,15 @@ fn can_place_road(tile_map: &TileMap, cell: Cell) -> bool {
 
 fn is_road(tile_map: &TileMap, cell: Cell) -> bool {
     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain)
-        && (tile.path_kind().is_road() || tile.has_flags(ROAD_PLACEMENT_FLAGS))
+        && (tile.path_kind().is_road() || tile.has_flags(ROAD_PREVIEW_FLAGS))
     {
         return true;
     }
     false
 }
 
-fn is_path_valid(tile_map: &TileMap, path: &[Cell]) -> bool {
-    path.iter().all(|cell| can_place_road(tile_map, *cell))
+fn is_path_valid(tile_map: &TileMap, path: &[Cell], kind: RoadKind) -> bool {
+    path.iter().all(|cell| can_place_road(tile_map, *cell, kind))
 }
 
 fn horizontal_vertical_path(start: Cell, end: Cell) -> Vec<Cell> {
@@ -240,21 +272,21 @@ pub fn build_segment(tile_map: &TileMap, start: Cell, end: Cell, kind: RoadKind)
     if start == end {
         // One cell segment.
         let path = vec![start];
-        let is_valid = is_path_valid(tile_map, &path);
+        let is_valid = is_path_valid(tile_map, &path, kind);
         return RoadSegment { path, kind, is_valid };
     }
 
     // Horizontal-first path:
     let hv_path = horizontal_vertical_path(start, end);
-    let hv_valid = is_path_valid(tile_map, &hv_path);
+    let hv_valid = is_path_valid(tile_map, &hv_path, kind);
 
     // Vertical-first path:
     let vh_path = vertical_horizontal_path(start, end);
-    let vh_valid = is_path_valid(tile_map, &vh_path);
+    let vh_valid = is_path_valid(tile_map, &vh_path, kind);
 
     // Diagonal zigzag path:
     let zigzag_path = zigzag_path(start, end);
-    let zigzag_valid = is_path_valid(tile_map, &zigzag_path);
+    let zigzag_valid = is_path_valid(tile_map, &zigzag_path, kind);
 
     match (hv_valid, vh_valid, zigzag_valid) {
         (true, false, false) | (true, false, true) => RoadSegment::valid(hv_path, kind), // Favor straight roads.
@@ -273,9 +305,12 @@ pub fn build_segment(tile_map: &TileMap, start: Cell, end: Cell, kind: RoadKind)
     }
 }
 
-// The flags a road segment's preview sets on its cells, one per kind (the renderer draws that
-// kind's piece over them).
-pub const ROAD_PLACEMENT_FLAGS: TileFlags =
+// The flags a segment's preview sets on its cells, one per kind (the renderer draws that kind's
+// piece over them).
+pub const ROAD_PLACEMENT_FLAGS: TileFlags = ROAD_PREVIEW_FLAGS.union(TileFlags::CanalPlacement);
+
+// The previews of roads and dykes, which roads' junctions join (a canal's doesn't).
+const ROAD_PREVIEW_FLAGS: TileFlags =
     TileFlags::DirtRoadPlacement.union(TileFlags::PavedRoadPlacement).union(TileFlags::DykePlacement);
 
 pub const fn placement_flag(kind: RoadKind) -> TileFlags {
@@ -283,12 +318,13 @@ pub const fn placement_flag(kind: RoadKind) -> TileFlags {
         RoadKind::Dirt => TileFlags::DirtRoadPlacement,
         RoadKind::Paved => TileFlags::PavedRoadPlacement,
         RoadKind::Dyke => TileFlags::DykePlacement,
+        RoadKind::Canal => TileFlags::CanalPlacement,
     }
 }
 
 // The kind a cell's preview flags name, if any.
 pub fn placement_kind(flags: TileFlags) -> Option<RoadKind> {
-    [RoadKind::Dirt, RoadKind::Paved, RoadKind::Dyke].into_iter().find(|kind| flags.intersects(placement_flag(*kind)))
+    RoadKind::ALL.into_iter().find(|kind| flags.intersects(placement_flag(*kind)))
 }
 
 pub fn mark_tiles(tile_map: &mut TileMap, segment: &RoadSegment, highlight: bool, valid_placement: bool) {

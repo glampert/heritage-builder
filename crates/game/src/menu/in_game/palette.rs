@@ -60,6 +60,7 @@ use crate::{
             OBJECTS_FIELDS_CATEGORY,
             PresetTiles,
             TERRAIN_LAND_CATEGORY,
+            TERRAIN_WATER_CATEGORY,
             TileDef,
             TileDefHandle,
             TileSector,
@@ -184,10 +185,11 @@ impl TilePaletteMainButtonDef {
         let button_name = self.name();
 
         TileSets::get().for_each_category(|_, category| {
-            // Buildings, land and roads, and a farmstead's fields (crate::farms).
+            // Buildings, land and roads, a farmstead's fields and the canal (crate::farms).
             if category.hash == OBJECTS_BUILDINGS_CATEGORY.hash
                 || category.hash == OBJECTS_FIELDS_CATEGORY.hash
                 || category.hash == TERRAIN_LAND_CATEGORY.hash
+                || category.hash == TERRAIN_WATER_CATEGORY.hash
             {
                 category.for_each_tile_def(|tile_def| {
                     if tile_def.sector != TileSector::Housing && // NOTE: No child menu for housing; selects vacant lot instead.

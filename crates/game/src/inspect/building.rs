@@ -492,7 +492,20 @@ fn read_service(
     let market = service.service_stock.is_stock();
     let houses = count_in_reach(context, building, BuildingKind::House, config.effect_radius);
 
+    // A sluice gate's part in the canals and fields (crate::farms::irrigation).
+    let gate = crate::farms::sluice_gate_of(building).and_then(|gate| {
+        let irrigation = crate::farms::Irrigation::read(context.world(), context.tile_map());
+        let supply = irrigation.gate_at(gate.cells.start)?.clone();
+        let watered = irrigation.fields_watered_by(context.tile_map(), supply.base_cell());
+        Some((supply, watered))
+    });
+
     report.status = Some(workplace_status(building, config.requires_road_access).unwrap_or_else(|| {
+        if let Some((supply, _)) = &gate
+            && !supply.intake
+        {
+            return Status { word: t("status.no_water"), tone: Tone::Bad, summary: t("summary.no_intake") };
+        }
         if market && let Some(item) = building.stock().into_iter().find(|item| item.count == 0) {
             return Status {
                 word: tf("status.short_of", &[("good", &good_name(item.kind).to_lowercase())]),
@@ -502,9 +515,8 @@ fn read_service(
         }
         let summary = if building.is(BuildingKind::FestivalSquare) {
             t("summary.hosts_festivals")
-        } else if let Some(gate) = crate::farms::sluice_gate_of(building) {
-            let fields = gate.fields_in_reach(context.tile_map()).len();
-            tc("summary.waters_fields", fields as i64, &[])
+        } else if let Some((_, watered)) = &gate {
+            tc("summary.waters_fields", *watered as i64, &[])
         } else if market || config.visits.building_kinds() == BuildingKind::House {
             tc("summary.serves_houses", i64::from(houses), &[])
         } else {
@@ -516,8 +528,8 @@ fn read_service(
 
     report.sections.extend(workers_section(building, false));
 
-    if let Some(gate) = crate::farms::sluice_gate_of(building) {
-        report.sections.push(sluice_section(context, &gate));
+    if let Some((supply, watered)) = &gate {
+        report.sections.push(sluice_section(supply, *watered));
     } else if market {
         let capacity = config.stock_capacity;
         let rows = building
@@ -572,18 +584,25 @@ fn read_service(
     report.actions = workplace_actions(building);
 }
 
-// A sluice gate's fields (docs/plans/seasons-floods.md, §5): those in its reach, which it waters
-// while it works, sown in the dry season too, and what it does in a flood.
-fn sluice_section(context: &SimContext, gate: &crate::farms::SluiceGate) -> Section {
-    let fields = gate.fields_in_reach(context.tile_map()).len();
-    let note = tf("patrol.within", &[("distance", &super::distance_text(gate.reach as usize).to_lowercase())]);
-    let watered = if gate.working { t("sluice.watered.both") } else { t("sluice.watered.none") };
+// A sluice gate's water (docs/plans/seasons-floods.md, §9): whether it has water across its dyke,
+// the fields its outlet waters through the canals and fields joined to it (sown in the dry season
+// too) and what it does in a flood.
+fn sluice_section(supply: &crate::farms::GateSupply, watered: usize) -> Section {
+    let intake = if supply.intake { t("sluice.intake.river") } else { t("sluice.intake.none") };
+    let state = if !supply.gate.working {
+        t("sluice.watered.no_workers")
+    } else if !supply.intake {
+        t("sluice.watered.no_water")
+    } else {
+        t("sluice.watered.both")
+    };
     Section::Values {
         title: t("sluice.title"),
-        note: Some(note),
+        note: Some(t("sluice.note")),
         rows: vec![
-            ValueRow { label: t("sluice.fields"), value: fields.to_string(), warn: fields == 0 },
-            ValueRow { label: t("sluice.watered"), value: watered, warn: !gate.working },
+            ValueRow { label: t("sluice.intake"), value: intake, warn: !supply.intake },
+            ValueRow { label: t("sluice.fields"), value: watered.to_string(), warn: watered == 0 },
+            ValueRow { label: t("sluice.watered"), value: state, warn: !supply.supplies() },
             ValueRow { label: t("sluice.flood"), value: t("sluice.flood.silt"), warn: false },
         ],
     }

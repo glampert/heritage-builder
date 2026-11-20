@@ -1,11 +1,12 @@
-# The river's flood (docs/plans/seasons-floods.md, Phases 2 to 4): a river laid on a blank map, floods
+# The river's flood (docs/plans/seasons-floods.md, Phases 2 to 4 and 6): a river laid on a blank map, floods
 # turned on, houses and a farmstead with its fields by the river; the wet season's message, the Flood
 # lens before the flood, the flood in month 7 (the cells under water, the damage, the crops lost, its
 # Warning, the lens, a flooded field's and cell's panels), the water staying through month 8 and
 # going in month 9 (its message, the fields sown again); a flood now and the water going; a dyke
 # from the Roads grid holding a flood back, then a worn section breaching; a sluice gate from the
-# Food grid beside the dyke (its panel, the fields it waters, the silt it lets in, the Fertility
-# lens, the dry season's sowing); and floods turned off. From the repository root:
+# Food grid beside the dyke and a canal from its outlet (dry until a canal brings the river to the
+# dyke's foot; the gate's, a canal's and a field's panels, the fields it waters, the silt it lets
+# in, the Fertility lens, the dry season's sowing); and floods turned off. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/floods.jsonl --default-configs --fresh-profile
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [40, 40]}}
@@ -142,11 +143,15 @@
 {"method": "screenshot", "params": {"path": "out/floods/breach.png"}}
 {"method": "floods.recede", "params": {}}
 # A sluice gate from the Food grid: refused away from the dyke, then placed beside it at (15, 25),
-# facing it. It waters the fields within 5 cells (all but a field laid at (12, 18), the first in row
-# order now); its panel and a field's say so.
+# facing it. A canal from its outlet, (14, 25), drawn from the Food grid to (12, 25), beside the
+# fields west of the farmstead; but the river is four cells across the dyke, so no water comes yet:
+# the gate's panel and the dry canal's say so. A canal from the river to the dyke's foot, (17, 25) to
+# (19, 25), brings it: the gate waters those four fields (a field laid at (12, 18), the first in row
+# order now, is joined to nothing; the fields before the dyke take the river's), as the panels say.
 {"method": "world.place_area", "params": {"tile": "rice_field", "from": [12, 18], "to": [12, 18]}}
 {"method": "ui.click", "params": {"path": "TilePaletteMenu/food_and_farming"}}
 {"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: food_and_farming/Sluice Gate"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: food_and_farming/Canal"}, "path": "/widgets/0"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "ui.click", "params": {"path": "TilePaletteChildMenu: food_and_farming/Sluice Gate"}}
 {"method": "input.click", "params": {"cell": [13, 26]}}
@@ -158,20 +163,56 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "farms.state", "path": "/sluice_gates/0/cell", "value": [15, 25]}}
 {"method": "assert.eq", "params": {"query": "farms.state", "path": "/sluice_gates/0/working", "value": true}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/sluice_gates/0/outlets", "value": [[14, 25]]}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/sluice_gates/0/intake", "value": false}}
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [15, 25]}, "path": "/kind", "value": "SluiceGate"}}
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/food_and_farming"}}
+{"method": "ui.click", "params": {"path": "TilePaletteChildMenu: food_and_farming/Canal"}}
+{"method": "input.drag", "params": {"from": [14, 25], "to": [12, 25], "cells": true, "frames": 8}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/canals", "value": {"count": 3, "wet": 0, "dry": [[12, 25], [13, 25], [14, 25]]}}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/1/irrigated", "value": false}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [15, 25]}, "path": "/status/summary", "value": "No water across its dyke"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [13, 25]}, "path": "/subtitle", "value": "Canal · 1×1"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [13, 25]}, "path": "/sections/1/rows/0/value", "value": "Dry: not joined to the river or a working sluice gate"}}
+{"method": "camera.teleport", "params": {"cell": [15, 24]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/floods/canals_dry.png"}}
+{"method": "world.road", "params": {"from": [17, 25], "to": [19, 25], "kind": "canal"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/sluice_gates/0/intake", "value": true}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/sluice_gates/0/supplying", "value": true}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/sluice_gates/0/watered", "value": 4}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/canals/dry", "value": []}}
 {"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/0/irrigated", "value": false}}
-{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/1/irrigated", "value": true}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/1/water", "value": "gate"}}
 {"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/1/gate", "value": [15, 25]}}
+{"method": "assert.eq", "params": {"query": "farms.state", "path": "/fields/2/water", "value": "river"}}
 {"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [15, 25]}, "path": "/name", "value": "Sluice gate"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [15, 25]}, "path": "/status/summary", "value": "Waters 16 fields"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [12, 21]}, "path": "/sections/0/rows/3/value", "value": "A sluice gate at 15, 25: sown in both seasons"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [15, 25]}, "path": "/status/summary", "value": "Waters 4 fields"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [12, 21]}, "path": "/sections/0/rows/3/value", "value": "From the sluice gate at 15, 25: sown in both seasons"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [17, 21]}, "path": "/sections/0/rows/3/value", "value": "From the river: sown in both seasons"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [13, 25]}, "path": "/sections/1/rows/0/value", "value": "From the sluice gate at 15, 25"}}
 {"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [12, 21]}, "path": "/sections/1/title", "value": "The land"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/floods/canals.png"}}
 {"method": "input.click", "params": {"cell": [15, 25]}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/title", "kind": "canvas"}, "path": "/widgets/0/value/name", "value": "Sluice gate"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "screenshot", "params": {"path": "out/floods/sluice_gate_panel.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.click", "params": {"cell": [13, 25]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TerrainInspector/title", "kind": "canvas"}, "path": "/widgets/0/value/name", "value": "Canal"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/floods/canal_panel.png"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "camera.teleport", "params": {"cell": [12, 21]}}
@@ -194,17 +235,19 @@
 {"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "season"}}
 {"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "The sluice gates let the flood's silt onto 4 fields behind the dykes."}}
 {"method": "floods.recede", "params": {}}
-# The Fertility lens, offered while the river floods: the land, the fields, the gate.
+# The Fertility lens, offered while the river floods: the land, the fields, the gate, the canals.
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lenses/6", "value": "fertility"}}
 {"method": "ui.click", "params": {"path": "Minimap/lens_fertility"}}
 {"method": "wait.frames", "params": {"frames": 70}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens_data/lens", "value": "fertility"}}
 {"method": "assert.gt", "params": {"query": "minimap.state", "path": "/lens_data/heat_cells", "value": 500}}
 {"method": "assert.gt", "params": {"query": "minimap.state", "path": "/lens_data/buildings", "value": 16}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens_data/marks", "value": 6}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "screenshot", "params": {"path": "out/floods/fertility_lens.png"}}
-# The dry season (month 11): the fields the gate waters are sown; the one beyond its reach isn't.
+# The dry season (month 11): the fields water reaches are sown, through the gate or from the river;
+# the one joined to nothing isn't.
 {"method": "calendar.set", "params": {"year": 1, "month": 10}}
 {"method": "time.fast_forward", "params": {"sim_secs": 61}}
 {"method": "wait.frames", "params": {"frames": 2}}

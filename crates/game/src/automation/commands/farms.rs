@@ -20,8 +20,10 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                are growing, the ordinal month the next are reaped in and what they'd give at their staffing so \
                far, the harvest it holds) and each rice field on the map (cell, its farmstead's cell or null, \
                stage: fallow, sown, growing or ripe; tended, sown and reaped_in as ordinal months, irrigated, \
-               the watering sluice gate's cell or null, flooded), and each sluice gate (cell, site, working, \
-               workers, reach, the fields in its reach).",
+               water: river, gate or null, the watering sluice gate's cell or null, flooded), each sluice gate \
+               (cell, site, working, workers, intake: water across its dyke, supplying, its outlets, the fields \
+               its water reaches and the fields its outlet reaches through canals and fields, wherever their \
+               water comes from) and the canals (count, wet, the dry cells).",
         params: &[],
         run: cmd_state,
     },
@@ -124,10 +126,16 @@ fn state_json(context: &mut CommandContext) -> Value {
             }
             true
         });
+        let irrigation = farms::Irrigation::read(sim_context.world(), sim_context.tile_map());
         let fields: Vec<Value> = farms::field_cells(sim_context.tile_map())
             .into_iter()
-            .filter_map(|cell| farms::field_report(sim_context, cell))
+            .filter_map(|cell| farms::field_report_with(sim_context, cell, &irrigation))
             .map(|field| {
+                let (water, gate) = match field.water {
+                    Some(farms::WaterSource::River) => (json!("river"), Value::Null),
+                    Some(farms::WaterSource::Gate(cell)) => (json!("gate"), cell_json(cell)),
+                    None => (Value::Null, Value::Null),
+                };
                 json!({
                     "cell": cell_json(field.cell),
                     "farmstead": field.farmstead_cell.map(cell_json),
@@ -136,32 +144,41 @@ fn state_json(context: &mut CommandContext) -> Value {
                     "sown": field.sown,
                     "reaped_in": field.reaped_in,
                     "irrigated": field.irrigated,
-                    "gate": field.gate_cell.map(cell_json),
+                    "water": water,
+                    "gate": gate,
                     "flooded": field.flooded,
                 })
             })
             .collect();
         let mut gates = Vec::new();
         sim_context.world().for_each_building(BuildingKind::SluiceGate, |building| {
-            if let Some(gate) = farms::sluice_gate_of(building) {
+            if let Some(supply) = irrigation.gate_at(building.base_cell()) {
                 let workers = building.workers().and_then(|workers| workers.as_employer());
-                let fields = gate.fields_in_reach(sim_context.tile_map());
+                let base = supply.base_cell();
+                let reached = farms::irrigation::fields_reached_by(sim_context.tile_map(), supply);
+                let watered = irrigation.fields_watered_by(sim_context.tile_map(), base);
                 gates.push(json!({
-                    "cell": cell_json(gate.cells.start),
+                    "cell": cell_json(base),
                     "site": building.is_under_construction(),
-                    "working": gate.working,
+                    "working": supply.gate.working,
                     "workers": workers.map(|workers| workers.employee_count()),
-                    "reach": gate.reach,
-                    "fields": fields.iter().map(|&cell| cell_json(cell)).collect::<Vec<_>>(),
+                    "intake": supply.intake,
+                    "supplying": supply.supplies(),
+                    "outlets": supply.outlets.iter().map(|&cell| cell_json(cell)).collect::<Vec<_>>(),
+                    "watered": watered,
+                    "reached": reached.iter().map(|&cell| cell_json(cell)).collect::<Vec<_>>(),
                 }));
             }
             true
         });
+        let canals = irrigation.canals();
+        let dry: Vec<Value> = canals.iter().filter(|&&cell| !irrigation.is_wet(cell)).map(|&cell| cell_json(cell)).collect();
         json!({
             "month": farms::current_month(sim_context),
             "farmsteads": farmsteads,
             "fields": fields,
             "sluice_gates": gates,
+            "canals": { "count": canals.len(), "wet": canals.len() - dry.len(), "dry": dry },
         })
     })
 }

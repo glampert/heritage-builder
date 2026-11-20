@@ -337,7 +337,7 @@
       },
       "min_workers": 1,
       "max_workers": 2,
-      "effect_radius": 5,
+      "effect_radius": 0,
       "requires_road_access": true
     },
     {

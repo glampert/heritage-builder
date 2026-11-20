@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     campaign::config::MissionFloodsDef,
     config::FloodRules,
-    tile::{TileKind, TileMap, TileMapLayerKind},
+    tile::{TileKind, TileMap, TileMapLayerKind, water},
     world::stats::WorldStats,
 };
 
@@ -515,6 +515,13 @@ fn is_land(tile_map: &TileMap, cell: Cell) -> bool {
     tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).is_some_and(|tile| !tile.path_kind().is_water())
 }
 
+// What the flood passes over: land, and a canal not joined to the water it comes from (a gate's
+// canals behind a dyke are no moat; crate::farms::irrigation).
+#[inline]
+fn is_passable(tile_map: &TileMap, cell: Cell) -> bool {
+    is_land(tile_map, cell) || water::is_canal(tile_map, cell)
+}
+
 #[inline]
 fn neighbours(cell: Cell) -> [Cell; 4] {
     [
@@ -525,7 +532,9 @@ fn neighbours(cell: Cell) -> [Cell; 4] {
     ]
 }
 
-// A cell of each water body of at least `min_cells` cells (four neighbours apart), in row order.
+// A cell of each water body of at least `min_cells` cells of open water (four neighbours apart), in
+// row order. Canals joined to a body are part of it, but don't count towards its size, and a body
+// of canals alone is none (crate::farms::irrigation): a canal never makes water flood.
 pub fn water_bodies(tile_map: &TileMap, min_cells: usize) -> Vec<Cell> {
     let size = tile_map.size_in_cells();
     let (width, height) = (size.width.max(0), size.height.max(0));
@@ -536,14 +545,16 @@ pub fn water_bodies(tile_map: &TileMap, min_cells: usize) -> Vec<Cell> {
     for y in 0..height {
         for x in 0..width {
             let start = Cell::new(x, y);
-            if seen[index(start)] || !is_water(tile_map, start) {
+            if seen[index(start)] || !water::is_open_water(tile_map, start) {
                 continue;
             }
             seen[index(start)] = true;
             let mut queue = VecDeque::from([start]);
             let mut count = 0;
             while let Some(cell) = queue.pop_front() {
-                count += 1;
+                if !water::is_canal(tile_map, cell) {
+                    count += 1;
+                }
                 for next in neighbours(cell) {
                     if next.x < 0 || next.y < 0 || next.x >= width || next.y >= height {
                         continue;
@@ -607,7 +618,7 @@ pub fn reach_meeting(
             if is_water(tile_map, next) {
                 water[index(next)] = true;
                 queue.push_back(next);
-            } else if reach > 0 && is_land(tile_map, next) {
+            } else if reach > 0 && is_passable(tile_map, next) {
                 reached[index(next)] = true;
                 if blocks(next) {
                     met.push(next);
@@ -629,7 +640,7 @@ pub fn reach_meeting(
             if !in_bounds(next) || reached[index(next)] || water[index(next)] {
                 continue;
             }
-            if is_land(tile_map, next) {
+            if is_passable(tile_map, next) {
                 reached[index(next)] = true;
                 if blocks(next) {
                     met.push(next);

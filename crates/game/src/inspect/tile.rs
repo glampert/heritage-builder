@@ -18,6 +18,7 @@ use super::{
     tf,
 };
 use crate::{
+    farms::WaterSource,
     menu::TilePlacement,
     prop::Prop,
     sim::SimContext,
@@ -39,7 +40,8 @@ fn clearing(tile: &Tile, leaves_grass: bool) -> Section {
     if leaves_grass {
         rows.push(ValueRow { label: t("clear.leaves"), value: t("clear.grass"), warn: false });
     }
-    if !tile.is(TileKind::Terrain) || tile.tile_def().is_road() {
+    let is_canal = crate::tile::water::is_canal_def(tile.tile_def());
+    if !tile.is(TileKind::Terrain) || tile.tile_def().is_road() || is_canal {
         let blocks = if tile.tile_def().is_road() { t("clear.blocks_building") } else { t("clear.blocks_both") };
         rows.push(ValueRow { label: t("clear.blocks"), value: blocks, warn: false });
     }
@@ -96,8 +98,9 @@ pub(super) fn read_field(context: &SimContext, tile: &Tile) -> Option<InspectRep
         Some(cell) => tf("field.farmstead.at", &[("cell", &format!("{}, {}", cell.x, cell.y))]),
         None => t("field.farmstead.none"),
     };
-    let water = match field.gate_cell {
-        Some(cell) => tf("field.water.gate", &[("cell", &format!("{}, {}", cell.x, cell.y))]),
+    let water = match field.water {
+        Some(WaterSource::River) => t("field.water.river"),
+        Some(WaterSource::Gate(cell)) => tf("field.water.gate", &[("cell", &format!("{}, {}", cell.x, cell.y))]),
         None => t("field.water.rains"),
     };
     let mut rows = vec![
@@ -199,10 +202,32 @@ fn dyke_section(context: &SimContext, tile: &Tile) -> Option<Section> {
     })
 }
 
+// A canal's section (crate::farms::irrigation): where its water comes from, or that it's dry.
+fn canal_section(context: &SimContext, tile: &Tile) -> Option<Section> {
+    if !crate::tile::water::is_canal_def(tile.tile_def()) {
+        return None;
+    }
+    let irrigation = crate::farms::Irrigation::read(context.world(), context.tile_map());
+    let source = irrigation.source(tile.base_cell());
+    let water = match source {
+        Some(WaterSource::River) => t("canal.water.river"),
+        Some(WaterSource::Gate(cell)) => tf("canal.water.gate", &[("cell", &format!("{}, {}", cell.x, cell.y))]),
+        None => t("canal.water.dry"),
+    };
+    Some(Section::Values {
+        title: t("canal.title"),
+        note: Some(t("canal.note")),
+        rows: vec![ValueRow { label: t("canal.water"), value: water, warn: source.is_none() }],
+    })
+}
+
 pub(super) fn read_terrain(context: &SimContext, tile: &Tile) -> InspectReport {
     let def = tile.tile_def();
+    let is_canal = crate::tile::water::is_canal_def(def);
     let kind_key = if rubble::is_rubble_def(def) {
         "kind.rubble"
+    } else if is_canal {
+        "kind.canal"
     } else if def.blocks_floods {
         "kind.dyke"
     } else if def.is_road() {
@@ -221,13 +246,14 @@ pub(super) fn read_terrain(context: &SimContext, tile: &Tile) -> InspectReport {
     let can_clear = TilePlacement::can_clear(tile);
     let mut sections = Vec::new();
     sections.extend(description(tile));
+    sections.extend(canal_section(context, tile));
     sections.extend(dyke_section(context, tile));
     sections.extend(flood_section(context, tile));
     if kind_key == "kind.land" || kind_key == "kind.vacant_lot" {
         sections.extend(land_sections(context, tile));
     }
     if can_clear {
-        sections.push(clearing(tile, def.is_road() || def.is_vacant_lot()));
+        sections.push(clearing(tile, def.is_road() || def.is_vacant_lot() || is_canal));
     }
     InspectReport {
         target: InspectTarget::Terrain { cell: tile.base_cell() },

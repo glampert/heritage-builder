@@ -88,7 +88,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         params: &[
             ParamDef { name: "from", kind: "cell", required: true, help: "[x, y]." },
             ParamDef { name: "to", kind: "cell", required: true, help: "[x, y]." },
-            ParamDef { name: "kind", kind: "string", required: false, help: "dirt (default), paved or dyke." },
+            ParamDef { name: "kind", kind: "string", required: false, help: "dirt (default), paved, dyke or canal." },
         ],
         run: cmd_road,
     },
@@ -423,8 +423,9 @@ fn cmd_road(context: &mut CommandContext, params: Value) -> CommandResult {
         None | Some("dirt") => RoadKind::Dirt,
         Some("paved") => RoadKind::Paved,
         Some("dyke") => RoadKind::Dyke,
+        Some("canal") => RoadKind::Canal,
         Some(other) => {
-            return Err(CommandError::invalid_params(format!("kind must be dirt, paved or dyke, got '{other}'.")));
+            return Err(CommandError::invalid_params(format!("kind must be dirt, paved, dyke or canal, got '{other}'.")));
         }
     };
 

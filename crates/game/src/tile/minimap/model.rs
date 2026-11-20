@@ -231,6 +231,7 @@ pub fn terrain_of(tile_def: &'static TileDef) -> (Terrain, MinimapRoad) {
             road::RoadKind::Dirt => MinimapRoad::Dirt,
             road::RoadKind::Paved => MinimapRoad::Paved,
             road::RoadKind::Dyke => MinimapRoad::Dyke,
+            road::RoadKind::Canal => MinimapRoad::None, // A water tile: caught above.
         };
         (Terrain::Land, road)
     } else if path_kind.is_vacant_lot() {

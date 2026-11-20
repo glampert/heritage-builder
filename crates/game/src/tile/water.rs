@@ -88,7 +88,12 @@ fn is_land(tile_map: &TileMap, cell: Cell) -> bool {
 }
 
 pub fn shore_neighbors(tile_map: &TileMap, cell: Cell) -> ShoreNeighbors {
-    let land = |dx: i32, dy: i32| is_land(tile_map, Cell::new(cell.x + dx, cell.y + dy));
+    shore_neighbors_with(cell, |cell| is_land(tile_map, cell))
+}
+
+// The shores of a water cell, with `is_land` saying which cells are land.
+fn shore_neighbors_with(cell: Cell, is_land: impl Fn(Cell) -> bool) -> ShoreNeighbors {
+    let land = |dx: i32, dy: i32| is_land(Cell::new(cell.x + dx, cell.y + dy));
 
     let north = land(1, 0);
     let south = land(-1, 0);
@@ -219,6 +224,46 @@ pub fn update_transitions(tile_map: &mut TileMap, cell: Cell) {
             update_tile_transitions(tile_map, Cell::new(cell.x + x, cell.y + y));
         }
     }
+}
+
+// ----------------------------------------------
+// Canals
+// ----------------------------------------------
+
+// The canal (crate::farms::irrigation): a terrain tile of the water category that draws with the
+// water tile's shores (TileDef::variations_of: its variations are the water's), so the shores of
+// a canal and of the river it runs into join. Nothing walks it, as nothing walks water.
+pub const CANAL: StrHashPair = StrHashPair::from_str("canal");
+
+#[inline]
+pub fn is_canal_def(tile_def: &TileDef) -> bool {
+    tile_def.hash == CANAL.hash && tile_def.is(TileKind::Terrain)
+}
+
+// Whether the terrain at `cell` is a canal.
+#[inline]
+pub fn is_canal(tile_map: &TileMap, cell: Cell) -> bool {
+    tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).is_some_and(|tile| is_canal_def(tile.tile_def()))
+}
+
+// Whether the terrain at `cell` is open water: a water tile that isn't a canal (a river, a lake, a
+// pond).
+#[inline]
+pub fn is_open_water(tile_map: &TileMap, cell: Cell) -> bool {
+    tile_map
+        .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+        .is_some_and(|tile| tile.path_kind().is_water() && !is_canal_def(tile.tile_def()))
+}
+
+// The variation a canal segment's preview draws at `cell` (tile::road, TileFlags::CanalPlacement):
+// its shores as they'll be once the canal is laid, the cells being laid counted as water.
+pub fn canal_preview_variation(tile_map: &TileMap, tile_def: &TileDef, cell: Cell) -> usize {
+    let is_land = |cell: Cell| {
+        tile_map
+            .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+            .is_some_and(|tile| tile.path_kind().is_land() && !tile.has_flags(super::TileFlags::CanalPlacement))
+    };
+    find_shore_variation(tile_def, shore_neighbors_with(cell, is_land))
 }
 
 // ----------------------------------------------

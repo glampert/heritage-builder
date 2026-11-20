@@ -182,7 +182,7 @@ pub struct TileSprite {
 // TileAnimSet
 // ----------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TileAnimSet {
     #[serde(default)]
     pub name: String,
@@ -213,7 +213,7 @@ pub struct TileAnimSet {
     pub frames: SmallVec<[TileSprite; 1]>,
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 enum AnimSetFramesSource {
     // Explicitly stated frames[] list with all entries (default behavior).
     #[default]
@@ -541,7 +541,7 @@ impl TileAnimSet {
 // TileVariation
 // ----------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct TileVariation {
     // Variation name is optional for Terrain and Units.
     #[serde(default)]
@@ -622,7 +622,18 @@ pub struct TileDef {
 
     // Tile variations for buildings.
     // SmallVec optimizes for Terrain/Units with single variation.
+    // Left out when `variations_of` names the def they're copied from.
+    #[serde(default)]
     pub variations: SmallVec<[TileVariation; 1]>,
+
+    // Another def of the same category whose variations, sprites included, this one takes in
+    // place of its own (listed before it): the canal draws with the water tile's shores.
+    #[serde(default)]
+    pub variations_of: String,
+
+    // Set when the variations were copied from `variations_of`, loaded already.
+    #[serde(skip)]
+    variations_copied: bool,
 
     // True if the tile fully occludes the terrain tiles below, so we can cull them.
     // Defaults to true. Ignored for Terrain.
@@ -964,6 +975,11 @@ impl TileDef {
             return false;
         }
 
+        // Variations copied from another def were loaded with it.
+        if self.variations_copied {
+            return true;
+        }
+
         // Validate deserialized data and resolve texture handles:
         for variation in &mut self.variations {
             variation.hash = hash::fnv1a_from_str(&variation.name);
@@ -1145,8 +1161,32 @@ impl TileCategory {
 
         let tile_set_path_with_category = AssetPath::from_ref(tile_set_path).join(&self.name);
 
-        for (index, editable_def) in self.tile_defs.iter_mut().enumerate() {
-            let tile_def = editable_def.as_mut();
+        for index in 0..self.tile_defs.len() {
+            // A def that takes another's variations (`variations_of`) copies them once that one,
+            // listed before it, has loaded them.
+            let source_name = self.tile_defs[index].as_ref().variations_of.clone();
+            if !source_name.is_empty() {
+                let (before, rest) = self.tile_defs.split_at(index);
+                let source = before.iter().map(|def| def.as_ref()).find(|def| def.name == source_name);
+                match source {
+                    Some(source) if !source.variations.is_empty() => {
+                        let tile_def = rest[0].as_mut();
+                        tile_def.variations = source.variations.clone();
+                        tile_def.variations_copied = true;
+                    }
+                    _ => {
+                        log::error!(
+                            log::channel!("tileset"),
+                            "TileCategory '{}': TileDef '{}' takes the variations of '{source_name}', which isn't listed before it.",
+                            self.name,
+                            self.tile_defs[index].as_ref().name
+                        );
+                        continue;
+                    }
+                }
+            }
+
+            let tile_def = self.tile_defs[index].as_mut();
 
             if tile_def.name.is_empty() {
                 log::error!(

@@ -315,6 +315,15 @@ def sluice_gate(realm):
     return out
 
 
+def canal(realm):
+    """A canal: a channel cut between two banks, running away into the distance with the water in
+    it, rice growing beside it."""
+    out = [P("M-42,36 L-15,-26 H-7 L-24,36Z"), P("M24,36 L7,-26 H15 L42,36Z")]
+    out += waves(-16, 16, 26, 2, 3, 2.6) + waves(-10, 10, 10, 2, 2.4, 2.2) + waves(-6, 6, -6, 1, 2, 2)
+    out += rice_plant(36, 0, 0.75) + rice_plant(-36, 0, 0.75)
+    return out
+
+
 def granary(realm):
     out = ground_line(-38, 38)
     if realm == "dailong":  # a thatched granary raised on stilts
@@ -557,6 +566,7 @@ BUILDINGS = {
     "farmstead": ("Farmstead", farmstead),
     "rice_field": ("Rice field", rice_field),
     "sluice_gate": ("Sluice gate", sluice_gate),
+    "canal": ("Canal", canal),
     "livestock_farm": ("Livestock farm", livestock_farm),
     "fishing_wharf": ("Fishing wharf", fishing_wharf),
     "storage_yard": ("Storage yard", storage_yard),

@@ -35,6 +35,7 @@ use game::{
         road::{self, RoadKind},
         rubble,
         sets::{OBJECTS_FIELDS_CATEGORY, TileDef, TileSets},
+        water,
     },
     unit::{
         Unit,
@@ -54,8 +55,8 @@ mod test_utils;
 use test_utils::TestEnvironment;
 
 // ----------------------------------------------
-// Integration tests for the river's floods, the land's fertility, the dykes and the sluice gates
-// (docs/plans/seasons-floods.md, Phases 0, 2, 3 and 4).
+// Integration tests for the river's floods, the land's fertility, the dykes, the sluice gates and
+// the canals (docs/plans/seasons-floods.md, Phases 0, 2, 3, 4 and 6).
 // ----------------------------------------------
 
 fn main() {
@@ -102,6 +103,14 @@ fn main() {
         test_utils::test_fn!(test_a_sluice_gate_lets_the_silt_in),
         test_utils::test_fn!(test_no_silt_where_the_water_doesnt_reach_the_gate),
         test_utils::test_fn!(test_the_fertility_lens),
+        // Canals and irrigation as connected water (Phase 6):
+        test_utils::test_fn!(test_a_canal_is_drawn_with_the_waters_shores),
+        test_utils::test_fn!(test_water_flows_through_fields_and_canals),
+        test_utils::test_fn!(test_a_sluice_gate_needs_water_across_its_dyke),
+        test_utils::test_fn!(test_dry_canals_are_flagged),
+        test_utils::test_fn!(test_an_open_canal_carries_the_flood),
+        test_utils::test_fn!(test_the_flood_passes_over_a_canal_it_doesnt_come_from),
+        test_utils::test_fn!(test_a_canal_never_makes_water_flood),
     ]);
 }
 
@@ -899,8 +908,27 @@ fn rice_held(env: &TestEnvironment, farmstead: BuildingKindAndId) -> u32 {
     test_utils::find_building(env, farmstead).available_resources(ResourceKind::Rice)
 }
 
+// A canal drawn from `from` to `to`, as the player's drag does.
+fn canal(env: &mut TestEnvironment, from: Cell, to: Cell) {
+    let segment = road::build_segment(&env.tile_map, from, to, RoadKind::Canal);
+    assert!(segment.is_valid, "a canal from {from} to {to}");
+    let context = env.new_sim_context(0.0);
+    TilePlacement::place_road_segment(&context, &segment, false).expect("the canal");
+}
+
+// Where the water at a canal or a field comes from, if any reaches it.
+fn water_at(env: &mut TestEnvironment, cell: Cell) -> Option<farms::WaterSource> {
+    let context = env.new_sim_context(0.0);
+    farms::Irrigation::read(context.world(), context.tile_map()).source(cell)
+}
+
+fn terrain_name(env: &TestEnvironment, cell: Cell) -> &'static str {
+    env.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).expect("terrain").variation_name()
+}
+
 // Behind the dyke along x = 17: a farmstead at (12, 24) with a field at (15, 24) and one at (12, 29),
-// and a sluice gate at (16, 22) against the dyke, whose reach (5) takes in the first field only.
+// a sluice gate at (16, 22) against the dyke (the river across it), and a canal from its outlet,
+// (15, 22), to (15, 23), beside the first field: the gate waters that one only.
 fn gated_farm(reach: u32) -> (TestEnvironment, BuildingKindAndId, BuildingKindAndId) {
     let mut env = dyked_map(reach);
     let farmstead = farmstead(&mut env, Cell::new(12, 24));
@@ -909,6 +937,7 @@ fn gated_farm(reach: u32) -> (TestEnvironment, BuildingKindAndId, BuildingKindAn
     }
     assert!(place(&mut env, Cell::new(16, 22), gate_def()).is_ok(), "the sluice gate");
     let gate = env.world.find_building_for_cell(Cell::new(16, 22), &env.tile_map).expect("the gate").kind_and_id();
+    canal(&mut env, Cell::new(15, 22), Cell::new(15, 23));
     (env, farmstead, gate)
 }
 
@@ -971,12 +1000,12 @@ fn test_a_sluice_gate_stands_beside_a_dyke() {
 fn test_a_sluice_gate_waters_the_dry_season() {
     let (mut env, farmstead, _) = gated_farm(3);
     let (watered, dry) = (Cell::new(15, 24), Cell::new(12, 29));
-    let gate_at = |env: &mut TestEnvironment, cell: Cell| {
+    let water = |env: &mut TestEnvironment, cell: Cell| {
         let context = env.new_sim_context(0.0);
-        farms::field_report(&context, cell).and_then(|field| field.gate_cell)
+        farms::field_report(&context, cell).and_then(|field| field.water)
     };
-    assert_eq!(gate_at(&mut env, watered), Some(Cell::new(16, 22)));
-    assert_eq!(gate_at(&mut env, dry), None, "beyond its reach");
+    assert_eq!(water(&mut env, watered), Some(farms::WaterSource::Gate(Cell::new(16, 22))), "through its canal");
+    assert_eq!(water(&mut env, dry), None, "not joined to its canal");
 
     // The dry season's first month (11): only the watered field is sown.
     ordinal_month_start(&mut env, 10);
@@ -1029,7 +1058,7 @@ fn test_a_sluice_gate_lets_the_silt_in() {
     let city_floods = env.sim.floods();
     assert!(!city_floods.is_flooded(watered) && !city_floods.is_flooded(Cell::new(16, 22)), "behind the dyke, dry");
     assert_eq!(city_floods.fertility_at(watered), before_watered + rules().silt as u8, "the silt through the gate");
-    assert_eq!(city_floods.fertility_at(dry), before_dry, "beyond its reach");
+    assert_eq!(city_floods.fertility_at(dry), before_dry, "not joined to its canal");
     assert!(sown(&env, farmstead, watered), "its crop kept: the silt, not the water");
     assert_eq!(city_floods.log()[0].fields_flooded, 0);
     let notices = river::take_notices();
@@ -1053,8 +1082,9 @@ fn test_the_fertility_lens() {
     assert!(!MinimapLens::offered(false).contains(&MinimapLens::Fertility), "not while the river doesn't flood");
     assert!(MinimapLens::offered(true).contains(&MinimapLens::Fertility));
 
-    // A field the gate doesn't water, sown and growing.
+    // A field the gate doesn't water, sown and growing, and a canal joined to nothing.
     months(&mut env, 5, 6);
+    canal(&mut env, Cell::new(10, 18), Cell::new(11, 18));
     env.sim.floods_mut().set_fertility(Cell::new(10, 20), 100);
     let style = MinimapStyle::default();
     let mut data = LensData::default();
@@ -1076,6 +1106,151 @@ fn test_the_fertility_lens() {
     assert!(near(colour(Cell::new(12, 29)), style.lenses.fertility_growing.color()), "growing");
     let gate_cell = test_utils::find_building(&env, gate).base_cell();
     assert!(near(colour(gate_cell), style.lenses.fertility_irrigated.color()), "the gate");
+    // The canals: the gate's wet, one joined to nothing dry.
+    let mark = |cell: Cell| data.cell_colors.iter().find(|(at, _)| *at == cell).map(|(_, color)| *color);
+    assert!(near(mark(Cell::new(15, 23)), style.lenses.fertility_irrigated.color()), "a wet canal");
+    assert!(near(mark(Cell::new(10, 18)), style.lenses.fertility_canal_dry.color()), "a dry canal");
     let legend: Vec<&str> = data.legend.iter().map(|(_, label)| label.as_str()).collect();
-    assert_eq!(legend, ["Fertile", "Poor", "Growing", "Ripe", "Fallow", "Irrigated"]);
+    assert_eq!(legend, ["Fertile", "Poor", "Growing", "Ripe", "Fallow", "Irrigated", "Dry canal"]);
+}
+
+// ----------------------------------------------
+// Canals and irrigation as connected water (Phase 6)
+// ----------------------------------------------
+
+fn test_a_canal_is_drawn_with_the_waters_shores() {
+    let mut env = flooding_map(3);
+    canal(&mut env, Cell::new(14, 18), Cell::new(14, 22));
+    let tile = env.tile_map.try_tile_from_layer(Cell::new(14, 20), TileMapLayerKind::Terrain).unwrap();
+    assert!(water::is_canal_def(tile.tile_def()) && tile.path_kind().is_water(), "a water tile");
+    // A run along y: land north (+x) and south (-x) of it, a one-cell channel; its ends closed.
+    assert_eq!(terrain_name(&env, Cell::new(14, 20)), "1010");
+    assert_eq!(terrain_name(&env, Cell::new(14, 18)), "1110", "land to the east (-y)");
+    assert_eq!(terrain_name(&env, Cell::new(14, 22)), "1011", "land to the west (+y)");
+
+    // Only on open land: not across the river, a road or a field.
+    assert!(!road::build_segment(&env.tile_map, Cell::new(19, 25), Cell::new(22, 25), RoadKind::Canal).is_valid);
+    let segment = road::build_segment(&env.tile_map, Cell::new(10, 18), Cell::new(10, 22), RoadKind::Dirt);
+    TilePlacement::place_road_segment(&env.new_sim_context(0.0), &segment, false).expect("a road");
+    assert!(!road::build_segment(&env.tile_map, Cell::new(8, 20), Cell::new(12, 20), RoadKind::Canal).is_valid);
+
+    // Joined to the river, the river's shore opens to it (the test map's river is laid without
+    // shores: they're drawn as the terrain beside them changes).
+    canal(&mut env, Cell::new(17, 26), Cell::new(19, 26));
+    assert_eq!(terrain_name(&env, Cell::new(19, 26)), "0101", "a channel along x into the river");
+    assert_eq!(terrain_name(&env, Cell::new(20, 26)), "se_sw_corner", "the river opens to the canal");
+
+    // Cleared, it's grass again, and the river's bank closes.
+    let context = env.new_sim_context(0.0);
+    let tile = context.tile_map().try_tile_from_layer(Cell::new(19, 26), TileMapLayerKind::Terrain).unwrap();
+    assert!(TilePlacement::can_clear(tile));
+    assert!(matches!(TilePlacement::clear(&context, tile, false, false), PlaceOrClearResult::ClearedTile(_)));
+    let tile = env.tile_map.try_tile_from_layer(Cell::new(19, 26), TileMapLayerKind::Terrain).unwrap();
+    assert_eq!(tile.name(), "grass");
+    assert_eq!(terrain_name(&env, Cell::new(20, 26)), "0010");
+}
+
+fn test_water_flows_through_fields_and_canals() {
+    // Floods or not: river_map's river doesn't flood.
+    let mut env = river_map();
+    farmstead(&mut env, Cell::new(15, 20));
+    for cell in [Cell::new(17, 20), Cell::new(18, 20), Cell::new(19, 20), Cell::new(17, 23)] {
+        assert!(place(&mut env, cell, field_def()).is_ok(), "a field at {cell}");
+    }
+    // Beside the river, and joined to one beside it: watered from the river.
+    for cell in [Cell::new(19, 20), Cell::new(18, 20), Cell::new(17, 20)] {
+        assert_eq!(water_at(&mut env, cell), Some(farms::WaterSource::River), "{cell}");
+    }
+    assert_eq!(water_at(&mut env, Cell::new(17, 23)), None, "the rains only");
+
+    // A canal from the river to it.
+    canal(&mut env, Cell::new(18, 23), Cell::new(19, 23));
+    assert_eq!(water_at(&mut env, Cell::new(19, 23)), Some(farms::WaterSource::River));
+    assert_eq!(water_at(&mut env, Cell::new(17, 23)), Some(farms::WaterSource::River), "through the canal");
+
+    // A canal joined to nothing is dry.
+    canal(&mut env, Cell::new(12, 26), Cell::new(14, 26));
+    assert_eq!(water_at(&mut env, Cell::new(13, 26)), None);
+
+    // A watered field is sown in the dry season too.
+    month_start(&mut env, 11);
+    let report = {
+        let context = env.new_sim_context(0.0);
+        farms::field_report(&context, Cell::new(17, 23)).expect("the field")
+    };
+    assert!(report.irrigated && report.sown.is_some(), "sown in month 11");
+}
+
+fn test_a_sluice_gate_needs_water_across_its_dyke() {
+    let mut env = flooding_map(3);
+    // A dyke at x = 8, eleven cells from the river, a gate behind it at (7, 20) facing it, and a
+    // canal from its outlet (6, 20).
+    let segment = road::build_segment(&env.tile_map, Cell::new(8, 17), Cell::new(8, 23), RoadKind::Dyke);
+    TilePlacement::place_road_segment(&env.new_sim_context(0.0), &segment, false).expect("the dyke");
+    assert!(place(&mut env, Cell::new(7, 20), gate_def()).is_ok(), "the sluice gate");
+    canal(&mut env, Cell::new(6, 20), Cell::new(6, 22));
+    let supply = |env: &mut TestEnvironment| {
+        let context = env.new_sim_context(0.0);
+        let irrigation = farms::Irrigation::read(context.world(), context.tile_map());
+        let supply = irrigation.gate_at(Cell::new(7, 20)).expect("the gate's supply").clone();
+        (supply.intake, supply.supplies(), supply.outlets.clone())
+    };
+    assert_eq!(supply(&mut env), (false, false, vec![Cell::new(6, 20)]), "no water within 3 cells across its dyke");
+    assert_eq!(water_at(&mut env, Cell::new(6, 21)), None);
+
+    // A canal from the river to the dyke's foot brings it.
+    canal(&mut env, Cell::new(9, 20), Cell::new(19, 20));
+    assert_eq!(water_at(&mut env, Cell::new(9, 20)), Some(farms::WaterSource::River));
+    assert!(supply(&mut env).1, "it has its intake");
+    assert_eq!(water_at(&mut env, Cell::new(6, 21)), Some(farms::WaterSource::Gate(Cell::new(7, 20))), "through the gate");
+}
+
+fn test_dry_canals_are_flagged() {
+    let mut env = river_map();
+    let dry = |env: &TestEnvironment, cell: Cell| {
+        env.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).unwrap().has_flags(TileFlags::DryCanal)
+    };
+    canal(&mut env, Cell::new(14, 22), Cell::new(16, 22));
+    farms::irrigation::refresh_canals_if_changed(&env.new_sim_context(0.0));
+    assert!(dry(&env, Cell::new(15, 22)), "joined to nothing");
+
+    // Joined to the river: refreshed at the next frame's start, as placing it marked the network.
+    canal(&mut env, Cell::new(17, 22), Cell::new(19, 22));
+    assert!(dry(&env, Cell::new(15, 22)), "not until the refresh");
+    farms::irrigation::refresh_canals_if_changed(&env.new_sim_context(0.0));
+    assert!(!dry(&env, Cell::new(15, 22)) && !dry(&env, Cell::new(19, 22)), "wet");
+}
+
+fn test_an_open_canal_carries_the_flood() {
+    // The flood reaches 2 cells from the river's banks; a canal from the river carries it inland.
+    let mut env = flooding_map(2);
+    canal(&mut env, Cell::new(12, 28), Cell::new(19, 28));
+    let context = env.new_sim_context(0.0);
+    assert!(river::flood_now(&context, None));
+    let city_floods = env.sim.floods();
+    assert!(city_floods.is_flooded(Cell::new(12, 29)) && city_floods.is_flooded(Cell::new(13, 27)), "beside the canal");
+    assert!(!city_floods.is_flooded(Cell::new(12, 31)), "beyond its reach of the canal");
+    assert!(!city_floods.is_flooded(Cell::new(12, 20)), "away from the canal and the river");
+}
+
+fn test_the_flood_passes_over_a_canal_it_doesnt_come_from() {
+    // Reaching 6 cells, past a canal at x = 16 joined to nothing: (15, 20) is 5 cells from the
+    // river's bank across it, 7 around its end.
+    let mut env = flooding_map(6);
+    canal(&mut env, Cell::new(16, 16), Cell::new(16, 24));
+    let context = env.new_sim_context(0.0);
+    assert!(river::flood_now(&context, None));
+    let city_floods = env.sim.floods();
+    assert!(city_floods.is_flooded(Cell::new(16, 20)), "the canal under the flood");
+    assert!(city_floods.is_flooded(Cell::new(15, 20)), "the land behind it");
+}
+
+fn test_a_canal_never_makes_water_flood() {
+    // Bodies of at least 5 cells: the river; not the pond (4), nor 6 cells of canal.
+    let mut env = river_map();
+    canal(&mut env, Cell::new(10, 18), Cell::new(10, 23));
+    assert_eq!(floods::water_bodies(&env.tile_map, 5).len(), 1, "the river only");
+    // Joined to the river, a canal is part of it, not a body of its own.
+    canal(&mut env, Cell::new(17, 26), Cell::new(19, 26));
+    assert_eq!(floods::water_bodies(&env.tile_map, 5).len(), 1);
 }

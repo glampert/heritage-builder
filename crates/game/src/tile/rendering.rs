@@ -27,6 +27,7 @@ use super::{
     TileMapLayerKind,
     road,
     sets::{OBJECTS_OVERLAYS_CATEGORY, TileDef, TileSets, TileTexInfo},
+    water,
 };
 use crate::{
     building,
@@ -558,6 +559,18 @@ impl TileMapRenderer {
                         overlay_color * highlight_color,
                     );
                 }
+            } else if tile.has_flags(TileFlags::DryCanal) && tile.is(TileKind::Terrain) {
+                // A canal no water reaches (crate::farms::irrigation): dulled, the bare dirt washed
+                // over it.
+                render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * DRY_CANAL_COLOR);
+                if let Some((rect, dirt)) = terrain_sprite(tile, LAND_CATEGORY, SILT_TILE, transform) {
+                    render_sys.draw_textured_colored_rect(
+                        rect,
+                        &dirt.coords,
+                        dirt.texture,
+                        DRY_CANAL_WASH * highlight_color,
+                    );
+                }
             } else if tile.has_flags(TileFlags::Festive)
                 && let Some((rect, festive)) = festive_overlay(tile, transform)
             {
@@ -591,7 +604,14 @@ impl TileMapRenderer {
         };
         let tile_def = road::tile_def(kind);
 
-        let variation_index = if tile_def.has_variations() { road::junction_mask_for(tile_map, cell, kind) } else { 0 };
+        // A canal's piece is the water's shore it will draw; a road's its junction.
+        let variation_index = if kind == road::RoadKind::Canal {
+            water::canal_preview_variation(tile_map, tile_def, cell)
+        } else if tile_def.has_variations() {
+            road::junction_mask_for(tile_map, cell, kind)
+        } else {
+            0
+        };
 
         if let Some(anim_set) = tile_def.anim_set_by_index(variation_index, 0) {
             let tile_sprite = &anim_set.frames[0].tex_info;
@@ -781,6 +801,22 @@ const WATER_CATEGORY: StrHashPair = StrHashPair::from_str("water");
 const WATER_TILE: StrHashPair = StrHashPair::from_str("water");
 const LAND_CATEGORY: StrHashPair = StrHashPair::from_str("land");
 const SILT_TILE: StrHashPair = StrHashPair::from_str("dirt");
+
+// A dry canal, until it has art of its own: the water's shores dulled, under a wash of bare dirt.
+const DRY_CANAL_COLOR: Color = Color::new(0.88, 0.84, 0.76, 1.0);
+const DRY_CANAL_WASH: Color = Color::new(1.0, 0.9, 0.74, 0.62);
+
+// A terrain tile def's first sprite, in a tile's place.
+fn terrain_sprite(
+    tile: &Tile,
+    category: StrHashPair,
+    def: StrHashPair,
+    transform: WorldToScreenTransform,
+) -> Option<(Rect, &'static TileTexInfo)> {
+    let def = TileSets::get().try_find_tile_def_by_hash(TileMapLayerKind::Terrain, category.hash, def.hash)?;
+    let sprite = def.anim_set_by_index(0, 0)?.frames.first()?;
+    Some((coords::iso_to_screen_rect_f32(tile.iso_coords_f32(), def.draw_size, transform), &sprite.tex_info))
+}
 
 const FLOOD_WATER_COLOR: Color = Color::new(1.0, 1.0, 1.0, 1.0);
 const FLOOD_SILT_COLOR: Color = Color::new(1.0, 0.82, 0.55, 0.42);
