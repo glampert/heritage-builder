@@ -677,6 +677,11 @@ pub struct TileDef {
     #[serde(default)]
     pub blocks_floods: bool,
 
+    // Placed only beside a dyke: a cell next to its footprint (four neighbours) whose terrain
+    // blocks floods (a sluice gate, crate::farms). Optional.
+    #[serde(default)]
+    pub requires_dyke: bool,
+
     // How the tile shows on the minimap: its class (Building, Field, Plaza, Decor, None), a
     // landmark icon and a colour override. Optional: see tile::minimap::model.
     #[serde(default)]

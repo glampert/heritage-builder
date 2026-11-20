@@ -32,7 +32,7 @@ use crate::{
         SimContext,
         SimContextMut,
         calendar::{CalendarDate, Season},
-        floods::{FloodProfile, FloodRecord, MAX_WEAR, is_dyke, reach_fill, reach_meeting},
+        floods::{FloodProfile, FloodRecord, MAX_WEAR, is_dyke, reach_meeting},
     },
     tile::{
         TileFlags,
@@ -62,6 +62,8 @@ pub enum FloodNotice {
     Flood { cells: u32, buildings_damaged: u32, fields_flooded: u32 },
     // The water broke through dykes at that many cells.
     Breached { breaches: u32 },
+    // The sluice gates let the flood's silt onto that many fields behind the dykes.
+    Sluiced { fields: u32 },
     // The water went: the fields its silt reached.
     Receded { fields: u32 },
 }
@@ -109,6 +111,10 @@ pub fn notice_message(notice: &FloodNotice, river: &str) -> (MessageKind, UiSoun
             let text =
                 text::format_count(UiTextCategory::Messages, "floods.breached", breaches as i64, &[("river", &river)]);
             (MessageKind::Warning, UiSoundKey::Alert, text)
+        }
+        FloodNotice::Sluiced { fields } => {
+            let text = text::format_count(UiTextCategory::Messages, "floods.sluiced", fields as i64, &[]);
+            (MessageKind::Season, UiSoundKey::Notification, text)
         }
         FloodNotice::Receded { fields } => {
             let text = if fields == 0 {
@@ -218,7 +224,8 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
     let sources = context.floods().profile().sources.clone();
     let breached = breach_dykes(context, &sources, reach, severity);
     let tile_map = context.tile_map();
-    let cells = reach_fill(tile_map, &sources, reach, |cell| is_dyke(tile_map, cell));
+    let (reached, met) = reach_meeting(tile_map, &sources, reach, |cell| is_dyke(tile_map, cell));
+    let cells: Vec<Cell> = reached.into_iter().map(|(cell, _)| cell).collect();
 
     let size = context.tile_map().size_in_cells();
     let (width, height) = (size.width.max(0), size.height.max(0));
@@ -266,6 +273,11 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
 
     let fields_flooded = farms::flood_fields(context, is_under_water);
 
+    // The sluice gates the water stands against let its silt onto the fields they water, without
+    // the water.
+    let sluiced = farms::sluiced_fields(context, &met, is_under_water);
+    context.floods_mut().add_silt(&sluiced, rules.silt);
+
     // The land under water, and the river's own shore cells beside it, so their banks are drawn
     // under the flood too.
     let tile_map = context.tile_map_mut();
@@ -298,6 +310,10 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
     notify(FloodNotice::Flood { cells: cell_count, buildings_damaged, fields_flooded });
     if !breached.is_empty() {
         notify(FloodNotice::Breached { breaches: breached.len() as u32 });
+    }
+    if !sluiced.is_empty() {
+        log::info!(log::channel!("floods"), "The sluice gates let the silt onto {} fields.", sluiced.len());
+        notify(FloodNotice::Sluiced { fields: sluiced.len() as u32 });
     }
 }
 

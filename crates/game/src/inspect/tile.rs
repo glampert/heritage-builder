@@ -96,14 +96,28 @@ pub(super) fn read_field(context: &SimContext, tile: &Tile) -> Option<InspectRep
         Some(cell) => tf("field.farmstead.at", &[("cell", &format!("{}, {}", cell.x, cell.y))]),
         None => t("field.farmstead.none"),
     };
-    let fertility = context.floods().fertility_at(field.cell);
-    let rows = vec![
+    let water = match field.gate_cell {
+        Some(cell) => tf("field.water.gate", &[("cell", &format!("{}, {}", cell.x, cell.y))]),
+        None => t("field.water.rains"),
+    };
+    let mut rows = vec![
         ValueRow { label: t("field.farmstead"), value: farmstead, warn: field.farmstead.is_none() },
         ValueRow { label: t("field.stage"), value: t(&format!("field.stage.{}", field.stage.name())), warn: false },
         ValueRow { label: t("field.crop"), value: crop, warn: field.flooded },
-        ValueRow { label: t("field.land"), value: tf("field.fertility", &[("value", &fertility.to_string())]), warn: false },
+        ValueRow { label: t("field.water"), value: water, warn: false },
     ];
+    // The land's fertility: a meter of its own while the river floods, else one plain line.
+    let land = land_sections(context, tile);
+    if land.is_empty() {
+        let fertility = context.floods().fertility_at(field.cell);
+        rows.push(ValueRow {
+            label: t("field.land"),
+            value: tf("field.fertility", &[("value", &fertility.to_string())]),
+            warn: false,
+        });
+    }
     let mut sections = vec![Section::Values { title: t("field.title"), note: None, rows }];
+    sections.extend(land);
     sections.extend(description(tile));
     Some(InspectReport {
         target: InspectTarget::Terrain { cell: tile.base_cell() },
@@ -116,6 +130,26 @@ pub(super) fn read_field(context: &SimContext, tile: &Tile) -> Option<InspectRep
         actions: vec![Action::new(ActionKind::Clear, "action.clear")],
         wide: false,
     })
+}
+
+// The land's fertility (docs/plans/seasons-floods.md, §5), a meter, while the river floods: what
+// its harvests are worth, and what takes and gives it (without floods it isn't kept, and every cell
+// is the same). For a field, and for land a field could go on.
+fn land_sections(context: &SimContext, tile: &Tile) -> Vec<Section> {
+    if !context.floods().is_enabled() {
+        return Vec::new();
+    }
+    let cell = tile.base_cell();
+    let fertility = context.floods().fertility_at(cell);
+    let factor = context.floods().yield_factor_at(cell);
+    vec![
+        Section::Progress {
+            title: t("land.title"),
+            note: tf("land.note", &[("factor", &format!("{factor:.1}"))]),
+            value: fertility as f32 / crate::sim::floods::MAX_FERTILITY as f32,
+        },
+        Section::Text { text: t("land.text") },
+    ]
 }
 
 // The flood's section for a cell under water (crate::floods): when the water goes.
@@ -189,6 +223,9 @@ pub(super) fn read_terrain(context: &SimContext, tile: &Tile) -> InspectReport {
     sections.extend(description(tile));
     sections.extend(dyke_section(context, tile));
     sections.extend(flood_section(context, tile));
+    if kind_key == "kind.land" || kind_key == "kind.vacant_lot" {
+        sections.extend(land_sections(context, tile));
+    }
     if can_clear {
         sections.push(clearing(tile, def.is_road() || def.is_vacant_lot()));
     }

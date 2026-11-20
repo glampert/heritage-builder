@@ -255,15 +255,20 @@ pub struct LensStyle {
     pub risk_collapse: HexColor,  // ... collapse.
     pub risk_disease: HexColor,   // ... disease (houses only).
     pub risk_burning: HexColor,
-    pub risk_diseased: HexColor,     // A sick house.
-    pub faith_ramp: [HexColor; 2],   // The Faith lens's heat field: the shrines' and temples' reach.
-    pub faith_none: HexColor,        // A house no patron's shrine or temple reaches...
-    pub faith_all: HexColor,         // ...to one every patron's reaches.
-    pub flood_ramp: [HexColor; 2],   // The Flood lens's heat field: an ordinary flood's reach, the water at the top.
-    pub flood_under_water: HexColor, // A building or field under the flood now.
-    pub flood_at_risk: HexColor,     // One an ordinary flood would reach.
-    pub dyke_sound: HexColor,        // A dyke kept up...
-    pub dyke_worn: HexColor,         // ...to one worn enough to breach.
+    pub risk_diseased: HexColor,       // A sick house.
+    pub faith_ramp: [HexColor; 2],     // The Faith lens's heat field: the shrines' and temples' reach.
+    pub faith_none: HexColor,          // A house no patron's shrine or temple reaches...
+    pub faith_all: HexColor,           // ...to one every patron's reaches.
+    pub flood_ramp: [HexColor; 2],     // The Flood lens's heat field: an ordinary flood's reach, the water at the top.
+    pub flood_under_water: HexColor,   // A building or field under the flood now.
+    pub flood_at_risk: HexColor,       // One an ordinary flood would reach.
+    pub dyke_sound: HexColor,          // A dyke kept up...
+    pub dyke_worn: HexColor,           // ...to one worn enough to breach.
+    pub fertility_ramp: [HexColor; 2], // The Fertility lens's heat field: the land, from barren to rich.
+    pub fertility_growing: HexColor,   // A field with a crop growing...
+    pub fertility_ripe: HexColor,      // ...one ripe, to be reaped soon...
+    pub fertility_fallow: HexColor,    // ...one lying fallow.
+    pub fertility_irrigated: HexColor, // A field a sluice gate waters, and the gate.
     pub refresh_secs: f32,
 }
 
@@ -415,6 +420,11 @@ impl Default for LensStyle {
             flood_at_risk: HexColor::rgb(0xd9822b),
             dyke_sound: HexColor::rgb(0x3f8a3a),
             dyke_worn: HexColor::rgb(0xc8321f),
+            fertility_ramp: [HexColor::rgba(0xb0742c00), HexColor::rgba(0x2f8a2ad8)],
+            fertility_growing: HexColor::rgb(0x7fc23a),
+            fertility_ripe: HexColor::rgb(0xe8b62e),
+            fertility_fallow: HexColor::rgb(0x8a6a44),
+            fertility_irrigated: HexColor::rgb(0x2f8fc8),
             refresh_secs: 1.0,
         }
     }

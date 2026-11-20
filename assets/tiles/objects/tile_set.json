@@ -1182,6 +1182,73 @@
               ]
             }
           ]
+        },
+        {
+          "name": "sluice_gate",
+          "cost": 20,
+          "materials": { "Wood": 4 },
+          "upkeep": 4,
+          "construction": "Basic",
+          "sector": "FoodAndFarming",
+          "requires_dyke": true,
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 53
+          },
+          "variations": [
+            {
+              "name": "north",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "sluice_gate"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "east",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "sluice_gate"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "south",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "sluice_gate"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "west",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "sluice_gate"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },

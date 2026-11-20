@@ -9,6 +9,10 @@
 // `harvest_per_cell` times its land's yield (sim::floods) and the share of its months it was
 // tended; the farmstead's fields reaped that month go into its stock together, and its runner
 // carries them to the granaries a load at a time. A field's tile variation is its stage.
+//
+// A sluice gate (BuildingKind::SluiceGate, Phase 4), placed beside a dyke, waters the fields within
+// its effect radius while it works: they're sown in the other season too, for a second harvest; and
+// when the flood stands against its dyke, they take its silt without the water (crate::floods).
 
 use std::collections::HashMap;
 
@@ -19,7 +23,15 @@ use common::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    building::{Building, BuildingArchetypeKind, BuildingKind, BuildingKindAndId, producer::CropConfig},
+    building::{
+        Building,
+        BuildingArchetypeKind,
+        BuildingKind,
+        BuildingKindAndId,
+        config::BuildingConfigs,
+        footprints_within_reach,
+        producer::CropConfig,
+    },
     config::GameConfigs,
     sim::{
         SimContext,
@@ -293,11 +305,125 @@ pub fn take_notices() -> Vec<HarvestNotice> {
     std::mem::take(NOTICES.as_mut())
 }
 
-// Whether a field is watered so it can be sown out of its crop's season: a sluice gate's reach
-// (docs/plans/seasons-floods.md, Phase 4). None yet.
-#[inline]
-fn is_irrigated(_context: &SimContext, _cell: Cell) -> bool {
-    false
+// ----------------------------------------------
+// Sluice gates
+// ----------------------------------------------
+
+// A sluice gate, as the passes over the fields need it: its footprint, its reach (its service
+// config's effect radius, counted along the grid from the footprint) and whether it works now
+// (finished, staffed, not burning).
+#[derive(Copy, Clone)]
+pub struct SluiceGate {
+    pub id: BuildingKindAndId,
+    pub cells: CellRange,
+    pub reach: i32,
+    pub working: bool,
+}
+
+impl SluiceGate {
+    // Whether its reach takes in a cell.
+    #[inline]
+    pub fn reaches(&self, cell: Cell) -> bool {
+        footprints_within_reach(self.cells, CellRange::new(cell, cell), self.reach)
+    }
+
+    // The field tiles in its reach, in row order.
+    pub fn fields_in_reach(&self, tile_map: &TileMap) -> Vec<Cell> {
+        let size = tile_map.size_in_cells();
+        let (start, end) = (self.cells.start, self.cells.end);
+        let mut cells = Vec::new();
+        for y in (start.y - self.reach).max(0)..=(end.y + self.reach).min(size.height - 1) {
+            for x in (start.x - self.reach).max(0)..=(end.x + self.reach).min(size.width - 1) {
+                let cell = Cell::new(x, y);
+                if tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects).is_some_and(|tile| tile.is(TileKind::Field))
+                {
+                    cells.push(cell);
+                }
+            }
+        }
+        cells
+    }
+}
+
+// The sluice gate at a building, if it's one.
+pub fn sluice_gate_of(building: &Building) -> Option<SluiceGate> {
+    if !building.is(BuildingKind::SluiceGate) {
+        return None;
+    }
+    let reach = BuildingConfigs::get().find_service_config(BuildingKind::SluiceGate).effect_radius.max(0);
+    Some(SluiceGate { id: building.kind_and_id(), cells: building.cell_range(), reach, working: building.is_operational() })
+}
+
+// Every sluice gate, working or not, in the world's order.
+pub fn sluice_gates(world: &World) -> Vec<SluiceGate> {
+    let mut gates = Vec::new();
+    world.for_each_building(BuildingKind::SluiceGate, |building| {
+        gates.extend(sluice_gate_of(building));
+        true
+    });
+    gates
+}
+
+// The sluice gates that work now.
+pub fn working_sluice_gates(world: &World) -> Vec<SluiceGate> {
+    let mut gates = sluice_gates(world);
+    gates.retain(|gate| gate.working);
+    gates
+}
+
+// The working sluice gate that waters a cell (the first in the world's order), if one does: a field
+// there is sown out of its crop's season too.
+pub fn watering_gate(world: &World, cell: Cell) -> Option<SluiceGate> {
+    working_sluice_gates(world).into_iter().find(|gate| gate.reaches(cell))
+}
+
+// The sides a sluice gate can face its dyke on, as its tile's variations are named: the engine's
+// north (+x), east (-y), south (-x) and west (+y).
+const GATE_SIDES: [(&str, i32, i32); 4] = [("north", 1, 0), ("east", 0, -1), ("south", -1, 0), ("west", 0, 1)];
+
+// A sluice gate just placed faces the dyke beside it: its tile's variation is the first side, in
+// GATE_SIDES' order, with a dyke past its footprint.
+pub fn face_dyke(tile_map: &mut TileMap, cell: Cell) {
+    let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) else {
+        return;
+    };
+    let def = tile.tile_def();
+    let footprint = def.cell_range(tile.base_cell());
+    let side = GATE_SIDES.iter().find(|(_, dx, dy)| {
+        footprint.iter().any(|cell| {
+            let next = Cell::new(cell.x + dx, cell.y + dy);
+            !footprint.contains(next) && crate::sim::floods::is_dyke(tile_map, next)
+        })
+    });
+    let Some(index) = side.and_then(|(name, _, _)| def.find_variation(name)) else {
+        return;
+    };
+    let base = footprint.start;
+    if let Some(tile) = tile_map.try_tile_from_layer_mut(base, TileMapLayerKind::Objects) {
+        tile.set_variation_index(index);
+    }
+}
+
+// The fields the flood's silt reaches through the sluice gates (crate::floods): those a working gate
+// waters, not under water themselves, where the water stands against the gate's dyke (`met`, the
+// dykes the flood reached) or covers the gate. In row order.
+pub fn sluiced_fields(context: &SimContext, met: &[Cell], is_under_water: impl Fn(Cell) -> bool) -> Vec<Cell> {
+    let mut cells = Vec::new();
+    for gate in working_sluice_gates(context.world()) {
+        let mut open = gate.cells.iter().any(&is_under_water);
+        if !open {
+            crate::pathfind::for_each_surrounding_cell(gate.cells, |cell| {
+                open = met.contains(&cell);
+                !open
+            });
+        }
+        if open {
+            cells.extend(gate.fields_in_reach(context.tile_map()).into_iter().filter(|&cell| !is_under_water(cell)));
+        }
+    }
+    cells.sort_by_key(|cell| (cell.y, cell.x));
+    cells.dedup();
+    cells
 }
 
 // The start of a month (`date`): every farmstead claims its fields, then each field moves on a
@@ -311,6 +437,7 @@ pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     let season = settings.season_of(date.month);
     let season_began = season_start(settings, now);
     let depletion = GameConfigs::get().sim.floods.depletion_per_harvest.min(u8::MAX as u32) as u8;
+    let gates = working_sluice_gates(context.world());
 
     let mut notice = HarvestNotice { farmsteads: 0, fields: 0, amount: 0, good: ResourceKind::Rice };
     for farmstead in farmsteads(context.world()) {
@@ -348,7 +475,7 @@ pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
                 }
             }
 
-            let can_sow = crop.season == season || is_irrigated(context, plot.cell);
+            let can_sow = crop.season == season || gates.iter().any(|gate| gate.reaches(plot.cell));
             if plot.crop.is_none() && is_tended && can_sow && plot.sown_season != Some(season_began) {
                 plot.crop = Some(GrowingCrop { sown: now, months: 0, tended_months: 0 });
                 plot.sown_season = Some(season_began);
@@ -473,6 +600,8 @@ pub struct FieldReport {
     pub sown: Option<u32>,
     pub reaped_in: Option<u32>,
     pub irrigated: bool,
+    // The base cell of the sluice gate that waters it, if one does.
+    pub gate_cell: Option<Cell>,
     pub flooded: bool,
 }
 
@@ -490,9 +619,14 @@ pub fn field_report(context: &SimContext, cell: Cell) -> Option<FieldReport> {
         tended: false,
         sown: None,
         reaped_in: None,
-        irrigated: is_irrigated(context, cell),
+        irrigated: false,
+        gate_cell: None,
         flooded: context.floods().is_flooded(cell),
     };
+    if let Some(gate) = watering_gate(context.world(), cell) {
+        report.irrigated = true;
+        report.gate_cell = Some(gate.cells.start);
+    }
     if let Some(owner) = owner_of_field(context.world(), cell)
         && let Some(building) = context.find_building(owner.kind, owner.id)
         && let Some(crop) = crop_of(building)

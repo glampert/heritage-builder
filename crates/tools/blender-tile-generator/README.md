@@ -325,6 +325,15 @@ above the diamond (`y: -3` for a 35 px sprite); keep a terrain piece inside
 the diamond's outline, low enough that walkers on it still read, and with no
 ink on its cut edges (`B.outline_border = False`).
 
+**Buildings that face something** (`catalog/floods.json`): the sluice gate is
+a 1×1 building placed only beside a dyke (`"requires_dyke": true` in its
+`tile_set`), with a variation per side its dyke can be on, `north`, `east`,
+`south` and `west` in the engine's order (north is +Y in Blender, east +X).
+Its recipe models it once with the dyke on +Y and turns the whole model to
+the variation's side (`params: {"side": ...}`); the engine picks the variation
+as it's placed (`farms::face_dyke`), by name, as the fishing wharf picks its
+bank.
+
 `"validate": {"ground": false}` marks an overlay, a sprite without a ground
 diamond (the renovation scaffolds), so the checks skip the corner and
 bottom-row tests. The `overlays` category is drawn by the renderer only:

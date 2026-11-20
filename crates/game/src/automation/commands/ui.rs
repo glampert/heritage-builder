@@ -794,7 +794,8 @@ fn cmd_layout_issues(context: &mut CommandContext, _params: Value) -> CommandRes
 
 // The widgets outside their menu's content area (the innermost `menu_content` whose path is a
 // prefix of theirs), and the pairs of siblings (same parent path, same menu) that overlap without
-// one holding the other (but two markers on a map, which may sit close: kind map_marker). A
+// one holding the other, within LAYOUT_TOLERANCE (a tab its tab bar holds may end a fraction of a
+// point past it, by rounding), but two markers on a map, which may sit close (kind map_marker). A
 // dropdown's popup may leave the menu, so list items aren't held to it,
 // and a widget scrolled out of view (`visible: false`) is clipped, so it isn't checked; in a menu
 // whose contents scroll (its value's `scrolls`), neither is one its top or bottom edge cuts, as
@@ -842,6 +843,8 @@ fn layout_issues(widgets: &[UiWidgetInfo]) -> Vec<Value> {
         }
     }
 
+    let holds =
+        |holder: &Rect, held: &Rect| holder.expanded(Vec2::new(LAYOUT_TOLERANCE, LAYOUT_TOLERANCE)).contains_rect(held);
     for (index, &(widget, menu)) in checked.iter().enumerate() {
         if LAYOUT_CONTAINER_KINDS.contains(&widget.kind) {
             continue;
@@ -851,8 +854,8 @@ fn layout_issues(widgets: &[UiWidgetInfo]) -> Vec<Value> {
                 || (widget.kind == "map_marker" && other.kind == "map_marker")
                 || menu.path != other_menu.path
                 || parent_path(&widget.path) != parent_path(&other.path)
-                || widget.rect.contains_rect(&other.rect)
-                || other.rect.contains_rect(&widget.rect)
+                || holds(&widget.rect, &other.rect)
+                || holds(&other.rect, &widget.rect)
             {
                 continue;
             }
@@ -999,6 +1002,8 @@ mod tests {
             widget_at("image", "Gallery/cut", 10.0, 90.0, 80.0, 20.0), // Cut by its edge as it scrolls.
             widget_at("image", "Gallery/wide", 10.0, 50.0, 120.0, 20.0), // Too wide all the same.
             widget_at("button", "Debug/Close", 300.0, 300.0, 10.0, 10.0),
+            widget_at("tab_bar", "Gallery/tab_bar", 10.0, 20.0, 30.0, 15.0),
+            widget_at("tab", "Gallery/First", 10.0, 20.0, 30.0, 15.0001), // Held by its bar, but for rounding.
         ];
 
         let issues = layout_issues(&widgets);

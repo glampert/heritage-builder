@@ -2,7 +2,7 @@
   "realm": "shared",
   "palette": "viet",
   "density": 8,
-  "notes": "Floods art (docs/plans/seasons-floods.md, Phase 3): the dyke, a terrain tile drawn in 1x1 pieces as roads are. A piece's variation is named by which sides (north, east, south, west) join more dyke (a dyke's own junction mask: tile/road.rs, dyke_junction_mask), and its index is that mask as a binary number (tile/road.rs's junction mask). Each piece is lifted by its height above its ground diamond (iso_offset), since terrain is drawn from its top corner.",
+  "notes": "Floods art (docs/plans/seasons-floods.md, Phases 3 and 4): the dyke, a terrain tile drawn in 1x1 pieces as roads are. A piece's variation is named by which sides (north, east, south, west) join more dyke (a dyke's own junction mask: tile/road.rs, dyke_junction_mask), and its index is that mask as a binary number (tile/road.rs's junction mask). Each piece is lifted by its height above its ground diamond (iso_offset), since terrain is drawn from its top corner. The sluice gate (Phase 4) is a 1x1 building placed beside a dyke (requires_dyke); its variations are the side its dyke is on, in the engine's order north, east, south, west (crate::farms::face_dyke picks the one when it's placed).",
   "entries": [
     {
       "tile": "dyke",
@@ -226,6 +226,51 @@
         }
       ],
       "notes": "Stops the river's flood (blocks_floods); its crest is a road."
+    },
+    {
+      "tile": "sluice_gate",
+      "recipe": "sluice_gate",
+      "tile_set": {
+        "cost": 20,
+        "materials": {
+          "Wood": 4
+        },
+        "upkeep": 4,
+        "construction": "Basic",
+        "sector": "FoodAndFarming",
+        "requires_dyke": true
+      },
+      "variations": [
+        {
+          "name": "north",
+          "seed": 1,
+          "params": {
+            "side": "north"
+          }
+        },
+        {
+          "name": "east",
+          "seed": 2,
+          "params": {
+            "side": "east"
+          }
+        },
+        {
+          "name": "south",
+          "seed": 3,
+          "params": {
+            "side": "south"
+          }
+        },
+        {
+          "name": "west",
+          "seed": 4,
+          "params": {
+            "side": "west"
+          }
+        }
+      ],
+      "notes": "M7 Phase 4: waters the fields within its reach behind a dyke (service config 'Sluice Gate'): sown in the dry season too, and the flood's silt without the water."
     }
   ]
 }

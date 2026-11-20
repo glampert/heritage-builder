@@ -304,6 +304,17 @@ def dyke(realm):
     return out
 
 
+def sluice_gate(realm):
+    """A sluice gate: two piers, the gate raised between them on its frame under a windlass, and the
+    water running out under it."""
+    out = [R(-32, -4, 16, 38), R(16, -4, 16, 38), R(-36, -8, 24, 5), R(12, -8, 24, 5)]
+    out += [R(-22, -32, 4, 24), R(18, -32, 4, 24), R(-28, -36, 56, 6)]
+    out += [Ci(0, -21, 7), Ci(0, -21, 2.6, False), P("M-5,-15 V-6 M5,-15 V-6", True, 2)]
+    out += [R(-14, -6, 28, 20), P("M-14,0 H14 M-14,7 H14", False, 2)]
+    out += waves(-14, 14, 22, 2, 3, 3) + waves(-14, 14, 30, 2, 3, 3)
+    return out
+
+
 def granary(realm):
     out = ground_line(-38, 38)
     if realm == "dailong":  # a thatched granary raised on stilts
@@ -545,6 +556,7 @@ BUILDINGS = {
     "rice_farm": ("Rice farm", rice_farm),
     "farmstead": ("Farmstead", farmstead),
     "rice_field": ("Rice field", rice_field),
+    "sluice_gate": ("Sluice gate", sluice_gate),
     "livestock_farm": ("Livestock farm", livestock_farm),
     "fishing_wharf": ("Fishing wharf", fishing_wharf),
     "storage_yard": ("Storage yard", storage_yard),

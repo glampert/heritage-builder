@@ -110,6 +110,94 @@
       "tile": "roof_tile_kiln",
       "variation": ""
     },
+    "assets/tiles/objects/buildings/sluice_gate/east/sluice_gate.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "sluice_gate",
+      "hash": "9e8b0c7018a781c2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "sluice_gate",
+      "variation": "east"
+    },
+    "assets/tiles/objects/buildings/sluice_gate/north/sluice_gate.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "sluice_gate",
+      "hash": "0d9260a2597dc253",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "sluice_gate",
+      "variation": "north"
+    },
+    "assets/tiles/objects/buildings/sluice_gate/south/sluice_gate.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "sluice_gate",
+      "hash": "8dd49069b02b2760",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "sluice_gate",
+      "variation": "south"
+    },
+    "assets/tiles/objects/buildings/sluice_gate/west/sluice_gate.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "sluice_gate",
+      "hash": "71a5f074e010e2b9",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "sluice_gate",
+      "variation": "west"
+    },
     "assets/tiles/objects/fields/rice_field/fallow/rice_field.png": {
       "category": "fields",
       "density": 8,

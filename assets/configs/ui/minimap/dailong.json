@@ -72,6 +72,11 @@
     "flood_at_risk": "#d9822b",
     "dyke_sound": "#3f8a3a",
     "dyke_worn": "#c8321f",
+    "fertility_ramp": ["#b0742c00", "#2f8a2ad8"],
+    "fertility_growing": "#7fc23a",
+    "fertility_ripe": "#e8b62e",
+    "fertility_fallow": "#8a6a44",
+    "fertility_irrigated": "#2f8fc8",
     "refresh_secs": 1.0
   }
 }

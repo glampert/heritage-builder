@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-17): Phase 1 in progress: M1, M3, M4, M5, M6 and M8 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-20): Phase 1 in progress: M1, M3, M4, M5, M6, M7 and M8 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -52,7 +52,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M4 | Finance | Medium | M1 | [finance.md](finance.md) | Done (the tax level's and wage's effects on ratings, and the overdue debt's failure, come with M9) |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | Done: risk state (save v7); fire, collapse, rubble; fire watch, builders' guild; disease and hospital dispatch (save v8); the Risk lens, the info panel's risk lines and the World Debug Risks tab |
-| M7 | Seasons, floods and irrigation | Large | M1, M5 | [seasons-floods.md](seasons-floods.md) | In progress: Phase 0 (the floods' data and state, save v11), Phase 1 (farmsteads, rice fields and harvests, replacing the rice farm) Phase 2 (the flood: its damage, the crops it takes, silt, the water drawn on the map, its messages, faith's flood events and the Flood lens) and Phase 3 (dykes drawn like roads, their wear and the builders who keep them, breaches, the `FloodsSurvived` goal) done; fertility and sluice gates next |
+| M7 | Seasons, floods and irrigation | Large | M1, M5 | [seasons-floods.md](seasons-floods.md) | Done: the floods' data and state (save v11); farmsteads with rice fields the player lays around them, replacing the rice farm, sown and reaped in harvests; the flood (its damage, the crops it takes, silt, the water drawn on the map, its messages, faith's flood events and the Flood lens); dykes drawn like roads, their wear and the builders who keep them, breaches and the `FloodsSurvived` goal; fertility, sluice gates (a dry-season harvest, the silt without the water) and the Fertility lens. Its balance is M13's |
 | M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | Done: data, state and save v10; the patrons' shrines and temples, picked from the palette's variation submenu; favour, the Patrons tab and the Faith lens; blessings and misfortunes; festivals and the festival square (floods' events came with M7 Phase 2; Culture and Legitimacy wait for M9) |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
 | M10 | Trade v1 and court requests | Large | M1, M4, M5 | — | Not started |
@@ -61,7 +61,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
-| MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6, the Faith lens with M8, the Flood lens with M7 Phase 2; Fertility comes with M7 Phase 4) |
+| MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6, the Faith lens with M8, the Flood lens with M7 Phase 2, the Fertility lens with M7 Phase 4) |
 | UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–8 done (skins, main menus, world map, intermission and briefing, story comics, HUD, City book, old assets, the inspector's panels) |
 
 Suggested order:
@@ -161,6 +161,7 @@ GDD 5.10 and Đại Long's water layer (GDD §6):
 - **Interaction with terrain height:** floods only reach cells below the flood level (terrain-height §9).
 - **Goal type:** `SeasonsSurvived` (shared with M9).
 - **Overlays:** flood risk and fertility.
+- **As built** ([seasons-floods.md](seasons-floods.md)): on flat maps a flood's reach is a distance from the river; a dyke is a road-like terrain tile that builders keep up by walking it; fields are tiles the player lays around a farmstead; the goal is `FloodsSurvived`, the floods that breached no dyke.
 
 ### M8: Faith and festivals (medium)
 

@@ -20,7 +20,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                are growing, the ordinal month the next are reaped in and what they'd give at their staffing so \
                far, the harvest it holds) and each rice field on the map (cell, its farmstead's cell or null, \
                stage: fallow, sown, growing or ripe; tended, sown and reaped_in as ordinal months, irrigated, \
-               flooded).",
+               the watering sluice gate's cell or null, flooded), and each sluice gate (cell, site, working, \
+               workers, reach, the fields in its reach).",
         params: &[],
         run: cmd_state,
     },
@@ -135,14 +136,32 @@ fn state_json(context: &mut CommandContext) -> Value {
                     "sown": field.sown,
                     "reaped_in": field.reaped_in,
                     "irrigated": field.irrigated,
+                    "gate": field.gate_cell.map(cell_json),
                     "flooded": field.flooded,
                 })
             })
             .collect();
+        let mut gates = Vec::new();
+        sim_context.world().for_each_building(BuildingKind::SluiceGate, |building| {
+            if let Some(gate) = farms::sluice_gate_of(building) {
+                let workers = building.workers().and_then(|workers| workers.as_employer());
+                let fields = gate.fields_in_reach(sim_context.tile_map());
+                gates.push(json!({
+                    "cell": cell_json(gate.cells.start),
+                    "site": building.is_under_construction(),
+                    "working": gate.working,
+                    "workers": workers.map(|workers| workers.employee_count()),
+                    "reach": gate.reach,
+                    "fields": fields.iter().map(|&cell| cell_json(cell)).collect::<Vec<_>>(),
+                }));
+            }
+            true
+        });
         json!({
             "month": farms::current_month(sim_context),
             "farmsteads": farmsteads,
             "fields": fields,
+            "sluice_gates": gates,
         })
     })
 }

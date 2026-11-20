@@ -1,6 +1,6 @@
 # Known issues and unfinished work
 
-Last verified against the code on 2026-11-19. Remove an entry once it's resolved.
+Last verified against the code on 2026-11-20. Remove an entry once it's resolved.
 
 ## Unfinished features
 
@@ -45,7 +45,7 @@ Last verified against the code on 2026-11-19. Remove an entry once it's resolved
   - The water is the open-water tile drawn with a wash of the dirt tile in each flooded cell's place, still, with no shore edge where it meets dry land; the river's own shore cells beside it are drawn as open water too. Buildings and fields stand dry in it, and walkers walk through it (decision Q5).
   - It comes at once at the start of its month and goes at once; there's no event popup with its effects and Show on map (M11's important-event popups), only the message log and the minimap's pings.
   - Its damage is M6's collapse and disease risk, so nothing happens to buildings while risks are off; a farmstead under water loses the harvest it holds even then.
-  - The Flood lens shows the ordinary reach without dykes; its legend, like the other lenses', is English text, not text keys.
+  - The Flood lens's legend, like the other lenses', is English text, not text keys.
   - The flood's size and damage are unbalanced (M13).
 - Dykes (`crate::floods`, `crates/game/src/tile/road.rs`, docs/plans/seasons-floods.md, Phase 3):
   - The embankment is a terrain tile about 6 px high, but walkers on its crest are drawn at ground level, a little sunk into it, and buildings behind it are drawn over its top.
@@ -53,6 +53,13 @@ Last verified against the code on 2026-11-19. Remove an entry once it's resolved
   - A builder resets a dyke cell's wear only by standing on it: patrols wander, so a long dyke far from a builders' guild wears out (the Flood lens and the City book's warning show it). No mission uses `FloodsSurvived` until M13 writes I-4.
   - Its art, the breach's rubble and the dyke glyph are Đại Long's in every realm (Kambara's embankments would reuse `blocks_floods` later). Wear and the breach chance are unbalanced (M13).
   - The developer Tile Inspector shows no dyke wear (the retail panel and World Debug's Floods tab do).
+- Sluice gates and fertility (`crates/game/src/farms/`, `crate::floods`, docs/plans/seasons-floods.md, Phase 4):
+  - A gate's reach is counted along the grid from its footprint, as the inspector's reach is: it waters the fields on both sides of its dyke, with no channel or canal to them, and in the dry season it waters them whether or not its dyke has water against it. Only the flood's silt needs the water to stand against a dyke beside it (or to cover it).
+  - It faces the first side with a dyke (north, east, south, west) as it's placed and keeps that look if the dyke is cleared or breached; it keeps working without its dyke.
+  - Its art and palette glyph are Đại Long's in every realm, and its watering has no animation: a watered field looks like any other (the Fertility lens and the field's panel say so).
+  - Fertility is kept only while the river floods: without floods every cell reads 50, harvests take nothing from it and the Fertility lens isn't offered. Its legend is English text, and it shows a gate's reach only through the fields it colours (a lens colours buildings and fields, and its heat field is the land's fertility).
+  - While floods are on, the minimap's lens row holds eight buttons, set a little closer together than usual to fit its width.
+  - The gate's reach, cost and the silt it lets in are unbalanced (M13).
 - The fire watcher is the guard recoloured (`crates/tools/unit-recolor`) and the builder is a plain peasant; walker art of their own waits for the Blender walker experiment (placeholder-art Phase 6) — `docs/plans/city-risks.md`.
 - A skin or language rebuild (`ui.realm`, `ui.reload_skin`, `text.language`) builds the dialogs and the HUD again: an open popup closes, the inspector closes, the palette selection is dropped, and a button under the cursor plays its hover sound again (`TODO(realm-ui)` at `rebuild_all`). Settings' pending edits and tab and Load / Save's typed name are kept (`settings::STATE`, `load_save::STATE`). The home menu and the campaign picker are also rebuilt when the profile changes or a window resize changes the dialogs' scale, which replays that hover sound too (the picker keeps its pick) — `crates/game/src/menu/dialog/mod.rs`, `crates/game/src/menu/in_game/mod.rs`.
 

@@ -1056,6 +1056,30 @@
       "source_hash": "66350541217fdb16",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/building/sluice_gate_idle.png": {
+      "catalog_hash": "98ad2246a7c51846",
+      "id": "glyph_building_sluice_gate",
+      "png_hash": "09c81a7db7048a78",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "2f83a2aebb41a755",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/sluice_gate_pressed.png": {
+      "catalog_hash": "c38df0006f5e2793",
+      "id": "glyph_building_sluice_gate",
+      "png_hash": "c9410691873f615c",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "a1bca7dbea753a62",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/building/small_well_idle.png": {
       "catalog_hash": "a8586004090d67e5",
       "id": "glyph_building_small_well",
@@ -1558,6 +1582,30 @@
       ],
       "realm": "dailong",
       "source_hash": "23980fce3618aafb",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/fertility_idle.png": {
+      "catalog_hash": "17447b39c569a1a3",
+      "id": "glyph_minimap_fertility",
+      "png_hash": "d2110b9161ead1fd",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "98fefeb2d5582476",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/fertility_pressed.png": {
+      "catalog_hash": "984f6d391a63d07d",
+      "id": "glyph_minimap_fertility",
+      "png_hash": "81180f74792f752f",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "d2e26aaf12baef6a",
       "state": "pressed"
     },
     "assets/ui/skins/dailong/hud/glyphs/minimap/fire_idle.png": {
@@ -3996,6 +4044,30 @@
       "source_hash": "fea9f4e3d8ce6c04",
       "state": "pressed"
     },
+    "assets/ui/skins/kambara/hud/glyphs/building/sluice_gate_idle.png": {
+      "catalog_hash": "6b6661ac7f5f4c09",
+      "id": "glyph_building_sluice_gate",
+      "png_hash": "4149a75586150306",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "b8e7f1e9cd46f6eb",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/sluice_gate_pressed.png": {
+      "catalog_hash": "690355f31623b881",
+      "id": "glyph_building_sluice_gate",
+      "png_hash": "f9ae167069917426",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "95845790053d5443",
+      "state": "pressed"
+    },
     "assets/ui/skins/kambara/hud/glyphs/building/small_well_idle.png": {
       "catalog_hash": "35e2ca63d7bd63e9",
       "id": "glyph_building_small_well",
@@ -4498,6 +4570,30 @@
       ],
       "realm": "kambara",
       "source_hash": "636f4852f7656983",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/fertility_idle.png": {
+      "catalog_hash": "2a1b390c6878d830",
+      "id": "glyph_minimap_fertility",
+      "png_hash": "60391168ec72df75",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "3fd8f7df312863dd",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/fertility_pressed.png": {
+      "catalog_hash": "474a292e61299001",
+      "id": "glyph_minimap_fertility",
+      "png_hash": "98eee997d4d33524",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "d8983d4afca62fe8",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/hud/glyphs/minimap/fire_idle.png": {
@@ -6972,6 +7068,30 @@
       "source_hash": "fcf5977ef5ab359d",
       "state": "pressed"
     },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/sluice_gate_idle.png": {
+      "catalog_hash": "39ee7a5aa0033d8e",
+      "id": "glyph_building_sluice_gate",
+      "png_hash": "05de6adb56d2de45",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "74b9a3972cf304b0",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/sluice_gate_pressed.png": {
+      "catalog_hash": "899c37134ac34264",
+      "id": "glyph_building_sluice_gate",
+      "png_hash": "331795992a12baab",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2295c4a64c6bb16d",
+      "state": "pressed"
+    },
     "assets/ui/skins/tampadesa/hud/glyphs/building/small_well_idle.png": {
       "catalog_hash": "f2edd060dd741967",
       "id": "glyph_building_small_well",
@@ -7474,6 +7594,30 @@
       ],
       "realm": "tampadesa",
       "source_hash": "c8c6e40f5f360eea",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/fertility_idle.png": {
+      "catalog_hash": "e3c68e841a62c823",
+      "id": "glyph_minimap_fertility",
+      "png_hash": "440a75eb87bbe376",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "c84aa76e1edb6958",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/fertility_pressed.png": {
+      "catalog_hash": "9f4a74a95df99f8a",
+      "id": "glyph_minimap_fertility",
+      "png_hash": "35671635bef49c6a",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "f25cc9dc00536cf7",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/hud/glyphs/minimap/fire_idle.png": {

@@ -116,6 +116,7 @@ impl MinimapButton {
             "lens_risk" => "fire",
             "lens_faith" => "religion",
             "lens_flood" => "flood",
+            "lens_fertility" => "fertility",
             "landmarks_on" | "landmarks_off" => "pin",
             "zoom_in" => "plus",
             "zoom_out" => "minus",
@@ -450,14 +451,25 @@ impl BaseMinimapRenderer {
         let buttons = self.buttons.as_mut().unwrap();
 
         // The top row, right-aligned against the tool column. From right to left: the lenses (City
-        // first), the building icons toggle, then the debug toggle in the developer UI.
+        // first), the building icons toggle, then the debug toggle in the developer UI. The buttons
+        // close up when they wouldn't fit the row at their usual spacing (the Flood and Fertility
+        // lenses, offered while the river floods), never closer than touching.
+        let floods_enabled = context.sim.floods().is_enabled();
+        let slots = buttons.lenses.iter().filter(|(lens, _)| lens.is_offered(floods_enabled)).count()
+            + 1
+            + usize::from(buttons.debug.is_some());
+        let row_width = layout.lens_row.width();
+        let step = if slots > 1 {
+            ((row_width - BUTTON_SIZE) / (slots - 1) as f32).clamp(BUTTON_SIZE, BUTTON_SIZE + GAP)
+        } else {
+            BUTTON_SIZE + GAP
+        };
         let right_slot = |slot: usize| {
-            let x = layout.lens_row.max.x - BUTTON_SIZE - slot as f32 * (BUTTON_SIZE + GAP);
+            let x = layout.lens_row.max.x - BUTTON_SIZE - slot as f32 * step;
             Rect::from_pos_and_size(Vec2::new(x, layout.lens_row.min.y), Vec2::new(BUTTON_SIZE, BUTTON_SIZE))
         };
 
         let mut slot = 0;
-        let floods_enabled = context.sim.floods().is_enabled();
         for (lens, button) in &mut buttons.lenses {
             if !lens.is_offered(floods_enabled) {
                 continue;
@@ -481,8 +493,10 @@ impl BaseMinimapRenderer {
 
         // The realm's gap ornament in the row's free stretch, left of its buttons (the HUD's).
         if self.with_frame {
-            let free =
-                Rect { min: layout.lens_row.min, max: Vec2::new(right_slot(slot).max.x - GAP * 0.5, layout.lens_row.max.y) };
+            let free = Rect {
+                min: layout.lens_row.min,
+                max: Vec2::new(right_slot(slot).max.x - (step - BUTTON_SIZE) * 0.5, layout.lens_row.max.y),
+            };
             Self::paint_ornament(context, free);
         }
 

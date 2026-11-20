@@ -26,6 +26,7 @@ RECIPES = {
     "farmstead": farms.build_farmstead,
     "rice_field": farms.build_rice_field,
     "dyke": floods.build_dyke,
+    "sluice_gate": floods.build_sluice_gate,
 }
 
 # The fortress studies predate the engine camera and keep the original one (--cells, 6 px pad).

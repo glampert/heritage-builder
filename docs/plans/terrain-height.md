@@ -197,6 +197,7 @@ These go into `placement::internal::is_placement_on_terrain_valid`, `try_place_t
 ### 9. Gameplay hooks (later milestones use these)
 
 - **Floods** (roadmap M7): a flood covers land cells below the mission's `flood_level`. High ground is safe, and a dyke raises the level that's protected.
+  - M7 built the flood on flat maps ([seasons-floods.md](seasons-floods.md)): its reach is a distance from the river, a breadth-first fill over land (`sim::floods::reach_meeting`, with `reach_fill` and `reach_distances` over it) that never enters a cell its `blocks` predicate refuses (today a dyke, `floods::is_dyke`). Height plugs in there: a cell above the year's flood level blocks too, so the fill stops at high ground and the dykes it meets are only those that hold water back. `MissionFloodsDef` (`campaign/config.rs`) gains the level, and `CityFloods::ordinary_reach` (the Flood lens), `crate::floods::come` (the year's flood and the breaches) and the starting fertility (`CityFloods::start`) all call the fill, so they follow without other changes.
 - **Defence** (Phase 2): attackers path like walkers, so cliffs funnel them through ramps. Towers on high ground get bonus range.
 - **Farming** (later): Đại Long terraced rice fields as a building that spans a run of ramps.
 - **Desirability** (later): a bonus for houses on high ground.
@@ -249,7 +250,7 @@ Done when: the draw order is right in the screenshots, the frame time stays with
 
 ### Stage 6: Gameplay hooks (with M7 and Phase 2)
 
-- [ ] Floods respect height (M7).
+- [ ] Floods respect height (M7): the flood's fill blocks cells above the year's flood level (§9).
 - [ ] Tower range bonus and attackers funnelled through ramps (Phase 2 defence).
 
 ## Scheduling

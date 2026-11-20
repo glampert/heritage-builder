@@ -460,14 +460,20 @@ impl CityFloods {
     pub fn begin_flood(&mut self, mut cells: Vec<Cell>, severity: f32, silt: u32, record: FloodRecord) {
         cells.sort_by_key(|cell| row_order(*cell));
         cells.dedup();
+        self.add_silt(&cells, silt);
+        self.flood = Some(FloodUnderWay { cells, months_left: self.profile.months.max(1), severity });
+        self.log.push(record);
+    }
+
+    // The flood's silt on cells: fertility + `silt`, at most 100, where it's kept. The flood's own
+    // cells take it as it comes, and the fields a sluice gate waters behind a dyke (crate::floods).
+    pub fn add_silt(&mut self, cells: &[Cell], silt: u32) {
         let silt = silt.min(MAX_FERTILITY as u32) as u8;
-        for &cell in &cells {
+        for &cell in cells {
             if let Some(fertility) = self.fertility.get(cell) {
                 self.fertility.set(cell, fertility.saturating_add(silt));
             }
         }
-        self.flood = Some(FloodUnderWay { cells, months_left: self.profile.months.max(1), severity });
-        self.log.push(record);
     }
 
     // A month passes under water: true once the water's months are over (it goes now).

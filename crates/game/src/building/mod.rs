@@ -124,6 +124,7 @@ bitflags_with_display! {
         const FireWatch      = 1 << 22;
         const BuildersGuild  = 1 << 23;
         const FestivalSquare = 1 << 24; // Where the city holds its festivals (faith).
+        const SluiceGate     = 1 << 25; // Waters the fields behind a dyke (crate::farms).
     }
 }
 
@@ -188,7 +189,8 @@ impl BuildingKind {
                 | Self::Garden.bits()
                 | Self::FireWatch.bits()
                 | Self::BuildersGuild.bits()
-                | Self::FestivalSquare.bits(),
+                | Self::FestivalSquare.bits()
+                | Self::SluiceGate.bits(),
         )
     }
 

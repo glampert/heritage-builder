@@ -73,6 +73,7 @@ pub enum TilePlacementErrReason {
     CannotAffordCost,
     CannotAffordMaterials,
     RequiresProximity(PathNodeKind), // Required node proximity violated.
+    RequiresDyke,                    // A sluice gate away from every dyke.
     Obstruction(&'static TileDef),   // Tile obstructing the placement.
 }
 
@@ -236,6 +237,22 @@ pub mod internal {
                         "Building must be placed near {}.",
                         tile_def_to_place.required_proximity
                     );
+                }
+
+                // A sluice gate stands beside a dyke (crate::farms): a terrain tile next to its
+                // footprint, four neighbours, that blocks floods.
+                if tile_def_to_place.requires_dyke {
+                    let mut is_beside_dyke = false;
+                    pathfind::for_each_surrounding_cell(tile_def_to_place.cell_range(target_cell), |cell| {
+                        is_beside_dyke = layers
+                            .get(TileMapLayerKind::Terrain)
+                            .try_tile(cell)
+                            .is_some_and(|tile| tile.tile_def().blocks_floods);
+                        !is_beside_dyke // Stop at the first.
+                    });
+                    if !is_beside_dyke {
+                        return err!(Placement::RequiresDyke, "'{}' must be placed beside a dyke.", tile_def_to_place.name);
+                    }
                 }
             }
         } else if tile_def_to_place.path_kind.is_vacant_lot() {

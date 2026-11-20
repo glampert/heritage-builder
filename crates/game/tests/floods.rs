@@ -11,6 +11,7 @@ use game::{
     campaign::config::{MissionFloodsDef, MissionGoal},
     cheats,
     config::{FloodRules, GameConfigs},
+    debug::game_object_debug::GameObjectDebugVarRef,
     faith::events,
     farms::{self, FieldStage},
     floods::{self as river, FloodNotice},
@@ -53,8 +54,8 @@ mod test_utils;
 use test_utils::TestEnvironment;
 
 // ----------------------------------------------
-// Integration tests for the river's floods, the land's fertility and the dykes
-// (docs/plans/seasons-floods.md, Phases 0, 2 and 3).
+// Integration tests for the river's floods, the land's fertility, the dykes and the sluice gates
+// (docs/plans/seasons-floods.md, Phases 0, 2, 3 and 4).
 // ----------------------------------------------
 
 fn main() {
@@ -93,6 +94,14 @@ fn main() {
         test_utils::test_fn!(test_the_floods_survived_goal),
         test_utils::test_fn!(test_the_flood_lens_shows_the_dykes),
         test_utils::test_fn!(test_dykes_round_trip_a_save),
+        // Fertility and sluice gates (Phase 4):
+        test_utils::test_fn!(test_a_harvest_wears_the_land),
+        test_utils::test_fn!(test_a_sluice_gate_stands_beside_a_dyke),
+        test_utils::test_fn!(test_a_sluice_gate_waters_the_dry_season),
+        test_utils::test_fn!(test_an_unstaffed_sluice_gate_waters_nothing),
+        test_utils::test_fn!(test_a_sluice_gate_lets_the_silt_in),
+        test_utils::test_fn!(test_no_silt_where_the_water_doesnt_reach_the_gate),
+        test_utils::test_fn!(test_the_fertility_lens),
     ]);
 }
 
@@ -859,4 +868,214 @@ fn test_dykes_round_trip_a_save() {
     assert_eq!(back.wear_at(Cell::new(17, 20)), 42.0);
     assert_eq!(back.dyke(Cell::new(17, 21)).and_then(|dyke| dyke.walked), Some(17));
     assert_eq!(back.dyke_wear().len(), env.sim.floods().dyke_wear().len());
+}
+
+// ----------------------------------------------
+// Fertility and sluice gates (Phase 4)
+// ----------------------------------------------
+
+fn gate_def() -> &'static TileDef {
+    test_utils::find_building_def("sluice_gate")
+}
+
+// The start of the month `ordinal` months after year 1's first (0: month 1 of year 1), as the
+// simulation runs it: the river, then the fields.
+fn ordinal_month_start(env: &mut TestEnvironment, ordinal: u32) {
+    let date = CalendarDate { year: 1 + ordinal / 12, month: ordinal % 12 + 1, day: 1 };
+    let context = env.new_sim_context(0.0);
+    river::on_new_month(&context, date);
+    farms::on_new_month(&context, date);
+}
+
+fn sown(env: &TestEnvironment, farmstead: BuildingKindAndId, cell: Cell) -> bool {
+    test_utils::find_building(env, farmstead)
+        .as_producer()
+        .fields()
+        .iter()
+        .any(|plot| plot.cell == cell && plot.crop.is_some())
+}
+
+fn rice_held(env: &TestEnvironment, farmstead: BuildingKindAndId) -> u32 {
+    test_utils::find_building(env, farmstead).available_resources(ResourceKind::Rice)
+}
+
+// Behind the dyke along x = 17: a farmstead at (12, 24) with a field at (15, 24) and one at (12, 29),
+// and a sluice gate at (16, 22) against the dyke, whose reach (5) takes in the first field only.
+fn gated_farm(reach: u32) -> (TestEnvironment, BuildingKindAndId, BuildingKindAndId) {
+    let mut env = dyked_map(reach);
+    let farmstead = farmstead(&mut env, Cell::new(12, 24));
+    for cell in [Cell::new(15, 24), Cell::new(12, 29)] {
+        assert!(place(&mut env, cell, field_def()).is_ok(), "a field at {cell}");
+    }
+    assert!(place(&mut env, Cell::new(16, 22), gate_def()).is_ok(), "the sluice gate");
+    let gate = env.world.find_building_for_cell(Cell::new(16, 22), &env.tile_map).expect("the gate").kind_and_id();
+    (env, farmstead, gate)
+}
+
+// A house of `population` whose people stay put (their updates frozen), to staff buildings from.
+fn house_with(env: &mut TestEnvironment, cell: Cell, population: u32) -> BuildingKindAndId {
+    let house = test_utils::spawn_building(env, cell, "house2");
+    for name in ["freeze_upgrade_update", "freeze_population_update", "freeze_stock_update", "freeze_deprivation"] {
+        let mut value = true;
+        let ok = test_utils::find_building_mut(env, house)
+            .debug_options()
+            .set_debug_option_by_name(name, GameObjectDebugVarRef::Bool(&mut value));
+        assert!(ok, "houses have a '{name}' debug option");
+    }
+    let context = env.new_sim_context(0.0);
+    let cmds = context.cmds_mut();
+    let added = context.find_building_mut(house.kind, house.id).unwrap().add_population(cmds, &context, population);
+    cmds.execute(&context);
+    assert_eq!(added, population, "the house should take {population}");
+    house
+}
+
+fn test_a_harvest_wears_the_land() {
+    // Behind the dyke: no silt, so each harvest leaves the land poorer.
+    let mut env = dyked_map(3);
+    let farmstead = farmstead(&mut env, Cell::new(12, 24));
+    let field = Cell::new(14, 24);
+    assert!(place(&mut env, field, field_def()).is_ok());
+    let before = env.sim.floods().fertility_at(field);
+    assert_eq!(before, 40, "beyond the usual reach");
+    // Sown in month 5, reaped in month 9.
+    months(&mut env, 5, 9);
+    assert!(rice_held(&env, farmstead) > 0, "reaped");
+    assert_eq!(env.sim.floods().fertility_at(field), before - rules().depletion_per_harvest as u8);
+    // 4 rice x (0.5 + 40 / 100): the land's yield.
+    assert_eq!(rice_held(&env, farmstead), 4);
+}
+
+fn test_a_sluice_gate_stands_beside_a_dyke() {
+    let mut env = dyked_map(3);
+    let refused = place(&mut env, Cell::new(14, 20), gate_def());
+    assert!(!refused.is_ok(), "away from the dyke");
+
+    // Beside it on either bank, facing it: the dyke is north (+x) of (16, 20), south (-x) of (18, 20).
+    for (cell, side) in [(Cell::new(16, 20), "north"), (Cell::new(18, 20), "south")] {
+        assert!(place(&mut env, cell, gate_def()).is_ok(), "beside the dyke at {cell}");
+        let tile = env.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects).expect("the gate");
+        assert_eq!(tile.variation_name(), side, "{cell} faces its dyke");
+        assert!(env.world.find_building_for_cell(cell, &env.tile_map).is_some_and(|gate| gate.is(BuildingKind::SluiceGate)));
+    }
+
+    // Placed beside a dyke running along x on its east (-y) side, it faces east.
+    let segment = road::build_segment(&env.tile_map, Cell::new(10, 14), Cell::new(13, 14), RoadKind::Dyke);
+    let context = env.new_sim_context(0.0);
+    TilePlacement::place_road_segment(&context, &segment, false).expect("the dyke");
+    assert!(place(&mut env, Cell::new(11, 15), gate_def()).is_ok());
+    let tile = env.tile_map.try_tile_from_layer(Cell::new(11, 15), TileMapLayerKind::Objects).unwrap();
+    assert_eq!(tile.variation_name(), "east");
+}
+
+fn test_a_sluice_gate_waters_the_dry_season() {
+    let (mut env, farmstead, _) = gated_farm(3);
+    let (watered, dry) = (Cell::new(15, 24), Cell::new(12, 29));
+    let gate_at = |env: &mut TestEnvironment, cell: Cell| {
+        let context = env.new_sim_context(0.0);
+        farms::field_report(&context, cell).and_then(|field| field.gate_cell)
+    };
+    assert_eq!(gate_at(&mut env, watered), Some(Cell::new(16, 22)));
+    assert_eq!(gate_at(&mut env, dry), None, "beyond its reach");
+
+    // The dry season's first month (11): only the watered field is sown.
+    ordinal_month_start(&mut env, 10);
+    assert!(sown(&env, farmstead, watered), "sown in the dry season");
+    assert!(!sown(&env, farmstead, dry), "the rains only: not yet");
+
+    // Reaped four months later, in month 3; both sown again when the rains come in month 5.
+    for ordinal in 11..=14 {
+        ordinal_month_start(&mut env, ordinal);
+    }
+    assert!(rice_held(&env, farmstead) > 0, "the dry season's harvest");
+    assert!(!sown(&env, farmstead, watered));
+    for ordinal in 15..=16 {
+        ordinal_month_start(&mut env, ordinal);
+    }
+    assert!(sown(&env, farmstead, watered) && sown(&env, farmstead, dry), "the wet season's sowing");
+}
+
+fn test_an_unstaffed_sluice_gate_waters_nothing() {
+    cheats::get_mut().ignore_worker_requirements = false;
+    let (mut env, farmstead, gate) = gated_farm(3);
+    let watered = Cell::new(15, 24);
+    // The farmstead's workers: the cheat staffs it no more.
+    let house = house_with(&mut env, Cell::new(8, 30), 4);
+    let added = test_utils::find_building_mut(&mut env, farmstead).add_workers(2, house);
+    assert_eq!(added, 2);
+
+    assert!(!test_utils::find_building(&env, gate).is_operational(), "no workers");
+    ordinal_month_start(&mut env, 10);
+    assert!(!sown(&env, farmstead, watered), "not watered while it lacks workers");
+
+    let added = test_utils::find_building_mut(&mut env, gate).add_workers(1, house);
+    assert_eq!(added, 1);
+    assert!(test_utils::find_building(&env, gate).is_operational());
+    ordinal_month_start(&mut env, 11);
+    assert!(sown(&env, farmstead, watered), "watered once it has a worker");
+    cheats::get_mut().ignore_worker_requirements = true;
+}
+
+fn test_a_sluice_gate_lets_the_silt_in() {
+    // The flood reaches 3 cells: to x 18 on the west bank, against the dyke at x 17.
+    let (mut env, farmstead, _) = gated_farm(3);
+    let (watered, dry) = (Cell::new(15, 24), Cell::new(12, 29));
+    let (before_watered, before_dry) = (env.sim.floods().fertility_at(watered), env.sim.floods().fertility_at(dry));
+    months(&mut env, 5, 6);
+    assert!(sown(&env, farmstead, watered));
+    river::take_notices();
+
+    month_start(&mut env, 7);
+    let city_floods = env.sim.floods();
+    assert!(!city_floods.is_flooded(watered) && !city_floods.is_flooded(Cell::new(16, 22)), "behind the dyke, dry");
+    assert_eq!(city_floods.fertility_at(watered), before_watered + rules().silt as u8, "the silt through the gate");
+    assert_eq!(city_floods.fertility_at(dry), before_dry, "beyond its reach");
+    assert!(sown(&env, farmstead, watered), "its crop kept: the silt, not the water");
+    assert_eq!(city_floods.log()[0].fields_flooded, 0);
+    let notices = river::take_notices();
+    assert!(notices.iter().any(|notice| matches!(notice, FloodNotice::Sluiced { fields: 1 })), "{notices:?}");
+}
+
+fn test_no_silt_where_the_water_doesnt_reach_the_gate() {
+    // A flood of 1 cell stays on the shore (x 19): the dyke at x 17 never has water against it.
+    let (mut env, _, _) = gated_farm(1);
+    let watered = Cell::new(15, 24);
+    let before = env.sim.floods().fertility_at(watered);
+    river::take_notices();
+    month_start(&mut env, 7);
+    assert_eq!(env.sim.floods().fertility_at(watered), before);
+    let notices = river::take_notices();
+    assert!(!notices.iter().any(|notice| matches!(notice, FloodNotice::Sluiced { .. })), "{notices:?}");
+}
+
+fn test_the_fertility_lens() {
+    let (mut env, _, gate) = gated_farm(3);
+    assert!(!MinimapLens::offered(false).contains(&MinimapLens::Fertility), "not while the river doesn't flood");
+    assert!(MinimapLens::offered(true).contains(&MinimapLens::Fertility));
+
+    // A field the gate doesn't water, sown and growing.
+    months(&mut env, 5, 6);
+    env.sim.floods_mut().set_fertility(Cell::new(10, 20), 100);
+    let style = MinimapStyle::default();
+    let mut data = LensData::default();
+    let context = env.new_sim_context(0.0);
+    let map_size = context.tile_map().size_in_cells();
+    let lens_context =
+        LensContext { sim: &context, features: context.tile_map().minimap().features(), map_size, style: &style };
+    lens::provider(MinimapLens::Fertility).expect("a provider").compute(&lens_context, &mut data);
+
+    let value = |cell: Cell| data.values[(cell.y * map_size.width + cell.x) as usize];
+    assert_eq!(value(Cell::new(20, 20)), 0, "water has none");
+    assert!(value(Cell::new(10, 20)) > value(Cell::new(10, 24)), "rich land over poor");
+    assert!(value(Cell::new(10, 24)) > 0, "poor land still shows");
+    let colour = |cell: Cell| data.building_colors.get(&(cell.y, cell.x)).copied();
+    let near = |a: Option<common::Color>, b: common::Color| {
+        a.is_some_and(|a| (a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs() < 1e-4)
+    };
+    assert!(near(colour(Cell::new(15, 24)), style.lenses.fertility_irrigated.color()), "watered");
+    assert!(near(colour(Cell::new(12, 29)), style.lenses.fertility_growing.color()), "growing");
+    let gate_cell = test_utils::find_building(&env, gate).base_cell();
+    assert!(near(colour(gate_cell), style.lenses.fertility_irrigated.color()), "the gate");
+    let legend: Vec<&str> = data.legend.iter().map(|(_, label)| label.as_str()).collect();
+    assert_eq!(legend, ["Fertile", "Poor", "Growing", "Ripe", "Fallow", "Irrigated"]);
 }

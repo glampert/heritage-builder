@@ -727,6 +727,10 @@ impl TilePlacement {
                 // tile orientation in relation to the water.
                 water::update_port_wharf_orientation(context.tile_map_mut(), target_cell);
             }
+            SpawnerResult::Building(_) if tile_def.requires_dyke => {
+                // A sluice gate faces the dyke beside it.
+                farms::face_dyke(context.tile_map_mut(), target_cell);
+            }
             SpawnerResult::Tile(tile) if rubble::is_rubble_def(tile.tile_def()) => {
                 // Rubble joins the pile around it (an undone clear, the editor).
                 rubble::update_variations(context.tile_map_mut(), CellRange::new(target_cell, target_cell));

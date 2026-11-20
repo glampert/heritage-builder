@@ -502,6 +502,9 @@ fn read_service(
         }
         let summary = if building.is(BuildingKind::FestivalSquare) {
             t("summary.hosts_festivals")
+        } else if let Some(gate) = crate::farms::sluice_gate_of(building) {
+            let fields = gate.fields_in_reach(context.tile_map()).len();
+            tc("summary.waters_fields", fields as i64, &[])
         } else if market || config.visits.building_kinds() == BuildingKind::House {
             tc("summary.serves_houses", i64::from(houses), &[])
         } else {
@@ -513,7 +516,9 @@ fn read_service(
 
     report.sections.extend(workers_section(building, false));
 
-    if market {
+    if let Some(gate) = crate::farms::sluice_gate_of(building) {
+        report.sections.push(sluice_section(context, &gate));
+    } else if market {
         let capacity = config.stock_capacity;
         let rows = building
             .stock()
@@ -565,6 +570,23 @@ fn read_service(
     report.sections.push(costs_section(context, building, tile_def));
     report.sections.extend(risks_section(building));
     report.actions = workplace_actions(building);
+}
+
+// A sluice gate's fields (docs/plans/seasons-floods.md, §5): those in its reach, which it waters
+// while it works, sown in the dry season too, and what it does in a flood.
+fn sluice_section(context: &SimContext, gate: &crate::farms::SluiceGate) -> Section {
+    let fields = gate.fields_in_reach(context.tile_map()).len();
+    let note = tf("patrol.within", &[("distance", &super::distance_text(gate.reach as usize).to_lowercase())]);
+    let watered = if gate.working { t("sluice.watered.both") } else { t("sluice.watered.none") };
+    Section::Values {
+        title: t("sluice.title"),
+        note: Some(note),
+        rows: vec![
+            ValueRow { label: t("sluice.fields"), value: fields.to_string(), warn: fields == 0 },
+            ValueRow { label: t("sluice.watered"), value: watered, warn: !gate.working },
+            ValueRow { label: t("sluice.flood"), value: t("sluice.flood.silt"), warn: false },
+        ],
+    }
 }
 
 // A farmstead's fields (docs/plans/seasons-floods.md, §7): how many its workers tend, those left

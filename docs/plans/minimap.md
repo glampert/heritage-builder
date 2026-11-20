@@ -1,6 +1,6 @@
 # Minimap: painted relief, lenses and tools
 
-**Status (2026-11-07): Done.** Phases 0–5 landed on `claude`; the [notes](#notes-2026-11-07) record the deviations and what was verified. The Risk and Faith lenses came with M6 and M8; Flood and Fertility come with M7. This plan turns the minimap concepts in [docs/design/mockups/](../design/mockups/README.md#minimap) into code: concept A (painted relief) as the default view, concept C (lenses) on top of it, and a toolbar. It is milestone MM of the [roadmap](roadmap.md). It was researched against `701b947` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-07): Done.** Phases 0–5 landed on `claude`; the [notes](#notes-2026-11-07) record the deviations and what was verified. The Risk and Faith lenses came with M6 and M8, and Flood and Fertility with M7 (Phases 2 and 4). This plan turns the minimap concepts in [docs/design/mockups/](../design/mockups/README.md#minimap) into code: concept A (painted relief) as the default view, concept C (lenses) on top of it, and a toolbar. It is milestone MM of the [roadmap](roadmap.md). It was researched against `701b947` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Concepts](../design/mockups/minimap-concepts.jpg)
 

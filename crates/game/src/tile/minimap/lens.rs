@@ -1,9 +1,9 @@
 // Minimap lenses: one data layer over a dimmed base. A lens has a heat field (a value per cell,
 // drawn as a small smoothly filtered texture) and colours for the buildings it cares about.
 //
-// Each lens comes from a provider, a game system that owns its data. City (the plain map),
-// Sectors, Water, Risks (M6), Faith (M8) and Flood (M7, offered only while the game's river floods)
-// exist now; Fertility (M7 Phase 4) lands with its provider, and only then shows in the lens bar.
+// Each lens comes from a provider, a game system that owns its data: City (the plain map), Sectors,
+// Water, Risks (M6), Faith (M8), and Flood and Fertility (M7, offered only while the game's river
+// floods).
 
 use std::collections::BTreeMap;
 
@@ -70,11 +70,11 @@ impl MinimapLens {
 
     // Lenses with a provider, in the lens bar's order. City has none: it's the plain map.
     pub const WITH_PROVIDERS: &'static [MinimapLens] =
-        &[Self::City, Self::Sectors, Self::Water, Self::Risk, Self::Faith, Self::Flood];
+        &[Self::City, Self::Sectors, Self::Water, Self::Risk, Self::Faith, Self::Flood, Self::Fertility];
 
-    // Whether the game offers it now: the Flood lens only while its river floods.
+    // Whether the game offers it now: the Flood and Fertility lenses only while its river floods.
     pub fn is_offered(self, floods_enabled: bool) -> bool {
-        Self::WITH_PROVIDERS.contains(&self) && (self != Self::Flood || floods_enabled)
+        Self::WITH_PROVIDERS.contains(&self) && (!matches!(self, Self::Flood | Self::Fertility) || floods_enabled)
     }
 
     // The lenses the game offers now, in the lens bar's order.
@@ -166,6 +166,7 @@ pub fn provider(lens: MinimapLens) -> Option<&'static dyn LensProvider> {
         MinimapLens::Risk => Some(&RiskLens),
         MinimapLens::Faith => Some(&FaithLens),
         MinimapLens::Flood => Some(&FloodLens),
+        MinimapLens::Fertility => Some(&FertilityLens),
         _ => None,
     }
 }
@@ -526,6 +527,90 @@ impl LensProvider for FloodLens {
             (worn, "Dyke worn"),
         ]);
         out.legend_max_columns = 2; // "Floods in an ordinary year" is long.
+    }
+}
+
+// ----------------------------------------------
+// Fertility
+// ----------------------------------------------
+
+// The land (docs/plans/seasons-floods.md, §6): the heat field is each land cell's fertility, from
+// barren to rich; fields take the colour of their stage (growing, ripe, fallow), and those a working
+// sluice gate waters, and the gates themselves, fertility_irrigated. Offered only while the game's
+// river floods (MinimapLens::is_offered): without it the land is the same everywhere.
+pub struct FertilityLens;
+
+// The heat of barren and of the richest land (a share of the ramp): barren land still shows.
+const FERTILITY_HEAT: [f32; 2] = [0.25, 1.0];
+
+impl LensProvider for FertilityLens {
+    fn lens(&self) -> MinimapLens {
+        MinimapLens::Fertility
+    }
+
+    fn compute(&self, context: &LensContext, out: &mut LensData) {
+        use crate::tile::{TileKind, TileMapLayerKind};
+
+        let style = &context.style.lenses;
+        let (width, height) = (context.map_size.width.max(0), context.map_size.height.max(0));
+        out.values = vec![0; (width * height) as usize];
+        out.ramp = [style.fertility_ramp[0].color(), style.fertility_ramp[1].color()];
+        let (growing, ripe, fallow, irrigated) = (
+            style.fertility_growing.color(),
+            style.fertility_ripe.color(),
+            style.fertility_fallow.color(),
+            style.fertility_irrigated.color(),
+        );
+
+        let floods = context.sim.floods();
+        let tile_map = context.sim.tile_map();
+        let max = crate::sim::floods::MAX_FERTILITY as f32;
+        let heat = |fertility: f32| FERTILITY_HEAT[0] + (FERTILITY_HEAT[1] - FERTILITY_HEAT[0]) * (fertility / max);
+        for y in 0..height {
+            for x in 0..width {
+                let cell = Cell::new(x, y);
+                let is_land = tile_map
+                    .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+                    .is_some_and(|tile| !tile.path_kind().is_water());
+                if is_land {
+                    out.values[(y * width + x) as usize] = (heat(floods.fertility_at(cell) as f32) * 255.0).round() as u8;
+                }
+            }
+        }
+
+        // The fields by their stage (their tile's variation), or watered by a sluice gate.
+        let gates = crate::farms::working_sluice_gates(context.sim.world());
+        for cell in crate::farms::field_cells(tile_map) {
+            let color = if gates.iter().any(|gate| gate.reaches(cell)) {
+                irrigated
+            } else {
+                let stage = tile_map
+                    .try_tile_from_layer(cell, TileMapLayerKind::Objects)
+                    .filter(|tile| tile.is(TileKind::Field))
+                    .map_or(0, |tile| tile.variation_index());
+                match stage {
+                    s if s == crate::farms::FieldStage::Ripe.variation() => ripe,
+                    s if s == crate::farms::FieldStage::Fallow.variation() => fallow,
+                    _ => growing,
+                }
+            };
+            out.building_colors.insert((cell.y, cell.x), color);
+        }
+        for gate in crate::farms::sluice_gates(context.sim.world()) {
+            let base = gate.cells.start;
+            out.building_colors.insert((base.y, base.x), if gate.working { irrigated } else { fallow });
+        }
+
+        let poor = mix(out.ramp[0], out.ramp[1], heat(30.0));
+        out.legend = legend(&[
+            (out.ramp[1], "Fertile"),
+            (poor, "Poor"),
+            (growing, "Growing"),
+            (ripe, "Ripe"),
+            (fallow, "Fallow"),
+            (irrigated, "Irrigated"),
+        ]);
+        out.legend_max_columns = 3;
     }
 }
 
