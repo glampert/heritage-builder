@@ -22,6 +22,94 @@
       "tile": "builders_guild",
       "variation": ""
     },
+    "assets/tiles/objects/buildings/dock/east_bank/dock.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 97,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "dock",
+      "hash": "0014f43525dbf9eb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        776
+      ],
+      "tile": "dock",
+      "variation": "east_bank"
+    },
+    "assets/tiles/objects/buildings/dock/north_bank/dock.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 97,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "dock",
+      "hash": "5c8dfbc1a300a8ea",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        776
+      ],
+      "tile": "dock",
+      "variation": "north_bank"
+    },
+    "assets/tiles/objects/buildings/dock/south_bank/dock.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 97,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "dock",
+      "hash": "f937338475f24e16",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        776
+      ],
+      "tile": "dock",
+      "variation": "south_bank"
+    },
+    "assets/tiles/objects/buildings/dock/west_bank/dock.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 97,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "dock",
+      "hash": "2ae2b8063fbefb37",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        776
+      ],
+      "tile": "dock",
+      "variation": "west_bank"
+    },
     "assets/tiles/objects/buildings/farmstead/farmstead.png": {
       "category": "buildings",
       "density": 8,
@@ -1363,6 +1451,94 @@
       ],
       "tile": "rubble",
       "variation": "1111"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_ne/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 97,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "27434d3221c4d021",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        776
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_ne"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_ne/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 97,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "d4b0cca3f878628a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        776
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_ne"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_se/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 97,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "371e529e062bac2d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        776
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_se"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_se/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 97,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "401c91fdc3c7a92c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        776
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_se"
     },
     "assets/tiles/terrain/land/dyke/0000/dyke.png": {
       "category": "land",

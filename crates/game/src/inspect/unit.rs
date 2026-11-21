@@ -30,7 +30,16 @@ use crate::{
     unit::{
         Unit,
         navigation::UnitNavGoal,
-        task::{Emergency, UnitTaskArchetype, UnitTaskFetchState, UnitTaskRespondState, UnitTaskTrade, UnitTaskTradeState},
+        task::{
+            Emergency,
+            UnitTaskArchetype,
+            UnitTaskFetchState,
+            UnitTaskRespondState,
+            UnitTaskShip,
+            UnitTaskShipState,
+            UnitTaskTrade,
+            UnitTaskTradeState,
+        },
     },
     world::object::GameObject,
 };
@@ -39,12 +48,16 @@ pub(super) fn read(context: &SimContext, unit: &Unit, realm: Realm) -> Option<In
     let doing = Doing::read(context, unit, realm);
     let name = spaced_name(unit.name());
     let caravan = unit.current_task_as::<UnitTaskTrade>(context.task_manager());
-    let subtitle = match (caravan, doing.as_ref().and_then(|doing| doing.origin.clone())) {
-        (Some(caravan), _) => {
+    let ship = unit.current_task_as::<UnitTaskShip>(context.task_manager());
+    let subtitle = match (caravan, ship, doing.as_ref().and_then(|doing| doing.origin.clone())) {
+        (Some(caravan), _, _) => {
             tf("kind.caravan_from", &[("partner", &crate::trade::partner_name(context.trade(), &caravan.partner))])
         }
-        (None, Some(origin)) => tf("kind.walker_from", &[("building", &origin)]),
-        (None, None) => t("kind.walker"),
+        (None, Some(ship), _) => {
+            tf("kind.ship_from", &[("partner", &crate::trade::partner_name(context.trade(), &ship.partner))])
+        }
+        (None, None, Some(origin)) => tf("kind.walker_from", &[("building", &origin)]),
+        (None, None, None) => t("kind.walker"),
     };
 
     let remaining = unit.navigation().remaining_cells();
@@ -73,8 +86,11 @@ pub(super) fn read(context: &SimContext, unit: &Unit, realm: Realm) -> Option<In
             warn: false,
         });
     }
-    // A caravan's cargo: the partner's goods it still carries, and what it bought.
-    if let Some(caravan) = caravan {
+    // A caravan's or a ship's cargo: the partner's goods it still carries, and what it bought and sold.
+    let cargo = caravan
+        .map(|caravan| (&caravan.cargo, &caravan.bought, &caravan.sold))
+        .or_else(|| ship.map(|ship| (&ship.cargo, &ship.bought, &ship.sold)));
+    if let Some((cargo, bought, sold)) = cargo {
         let goods = |counts: &[u32]| {
             let goods: Vec<String> = crate::sim::resources::ResourceKind::all()
                 .iter()
@@ -88,18 +104,29 @@ pub(super) fn read(context: &SimContext, unit: &Unit, realm: Realm) -> Option<In
                 .collect();
             goods.join(", ")
         };
-        let carrying = goods(&caravan.cargo);
+        let carrying = goods(cargo);
         if !carrying.is_empty() {
             rows.push(ValueRow { label: t("errand.carrying"), value: carrying, warn: false });
         }
-        let bought = goods(&caravan.bought);
+        let bought = goods(bought);
         if !bought.is_empty() {
             rows.push(ValueRow { label: t("errand.bought"), value: bought, warn: false });
         }
-        let sold = goods(&caravan.sold);
+        let sold = goods(sold);
         if !sold.is_empty() {
             rows.push(ValueRow { label: t("errand.sold"), value: sold, warn: false });
         }
+    }
+    // A moored ship's stay: when it sails at the latest.
+    if let Some(ship) = ship
+        && ship.state == UnitTaskShipState::Moored
+    {
+        let left = (ship_stay_secs() - ship.moored_secs).max(0.0);
+        rows.push(ValueRow {
+            label: t("errand.stay"),
+            value: tf("errand.sails_within", &[("time", &duration_text(left))]),
+            warn: false,
+        });
     }
     if let Some(doing) = &doing {
         if let Some(origin) = &doing.origin {
@@ -263,6 +290,18 @@ impl Doing {
                     ("status.trading", line, ErrandIcon::Cart, None)
                 }
             }
+            UnitTaskArchetype::UnitTaskShip(task) => {
+                let partner = crate::trade::partner_name(context.trade(), &task.partner);
+                let (word, key) = match task.state {
+                    UnitTaskShipState::FindingBerth | UnitTaskShipState::Sailing => {
+                        ("status.sailing", "errand.ship_sailing")
+                    }
+                    UnitTaskShipState::WaitingOff => ("status.waiting", "errand.ship_waiting"),
+                    UnitTaskShipState::Mooring | UnitTaskShipState::Moored => ("status.moored", "errand.ship_moored"),
+                    UnitTaskShipState::Leaving => ("status.leaving", "errand.ship_leaving"),
+                };
+                (word, tf(key, &[("partner", &partner)]), ErrandIcon::Cart, None)
+            }
             _ => ("status.walking", tf("errand.walking", &[("who", &who)]), ErrandIcon::Walker, None),
         };
         // Its home only while it stands.
@@ -281,4 +320,10 @@ pub(super) fn errand(context: &SimContext, unit: &Unit, realm: Realm) -> Option<
 // Where the walker's building is (the "Show its home" button's cell).
 pub fn home_cell(context: &SimContext, unit: &Unit, realm: Realm) -> Option<common::coords::Cell> {
     Doing::read(context, unit, realm).and_then(|doing| doing.home)
+}
+
+// The longest a ship stays moored, in seconds (UnitTaskShip's stay).
+fn ship_stay_secs() -> f32 {
+    let sim = &crate::config::GameConfigs::get().sim;
+    sim.trade.ship_stay_months.max(1) as f32 * sim.seconds_per_month
 }

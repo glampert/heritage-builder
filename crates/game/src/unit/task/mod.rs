@@ -23,6 +23,7 @@ mod manager;
 mod patrol;
 mod respond;
 mod settler;
+mod ship;
 mod state_machine;
 mod trade;
 
@@ -36,6 +37,7 @@ pub use manager::*;
 pub use patrol::*;
 pub use respond::*;
 pub use settler::*;
+pub use ship::*;
 pub use state_machine::*;
 pub use trade::*;
 
@@ -84,6 +86,7 @@ pub enum UnitTaskArchetype {
     UnitTaskFollowPath(UnitTaskFollowPath),
     UnitTaskRespond(UnitTaskRespond),
     UnitTaskTrade(UnitTaskTrade),
+    UnitTaskShip(UnitTaskShip),
 }
 
 // Dispatches a method call to the wrapped concrete task, for every variant.
@@ -100,6 +103,7 @@ macro_rules! archetype_dispatch {
             UnitTaskArchetype::UnitTaskFollowPath($task) => $body,
             UnitTaskArchetype::UnitTaskRespond($task) => $body,
             UnitTaskArchetype::UnitTaskTrade($task) => $body,
+            UnitTaskArchetype::UnitTaskShip($task) => $body,
         }
     };
 }
@@ -162,4 +166,5 @@ archetype_from!(
     UnitTaskFollowPath,
     UnitTaskRespond,
     UnitTaskTrade,
+    UnitTaskShip,
 );

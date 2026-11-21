@@ -185,6 +185,27 @@ class Sync(unittest.TestCase):
         with self.assertRaises(tileset.SyncError):
             self.sync(TILE_SET, [e], sprites)
 
+    def test_unit_def(self):
+        # A unit: its variations are the rendered anim sets' folders, and its `unit` block is the
+        # def's one variation, written as it is; it has a draw_size only.
+        unit = {"iso_offset": {"x": 0, "y": 32}, "anim_sets": [
+            {"name": "idle_ne", "duration": 1.6, "frames_source": {"Files": 2}},
+            {"name": "idle_nw", "duration": 1.6, "mirror": True, "frames_source": {"CopyAllFrom": "idle_ne"}}]}
+        e = entry("ship", [{"name": "idle_ne"}], category="units", frames=[{"name": "frame0"}, {"name": "frame1"}],
+                  unit=unit)
+        self.assertEqual(cat.sprite_path(e, "idle_ne", "frame1"), "assets/tiles/objects/units/ship/idle_ne/frame1.png")
+        sprites = {j["path"]: sprite_rec(1024, 776) for j in cat.jobs([e])}
+        new, _ = self.sync(TILE_SET, [e], sprites)
+        cats = json.loads(new)["categories"]
+        d = next(c for c in cats if c["name"] == "units")["tile_defs"][0]
+        self.assertEqual(list(d), ["name", "draw_size", "variations"])
+        self.assertEqual(d["draw_size"], {"width": 128, "height": 97})
+        self.assertEqual(d["variations"], [unit])
+        again, _ = self.sync(new, [e], sprites)
+        self.assertEqual(again, new, "a second sync must change nothing")
+        with self.assertRaises(cat.CatalogError):
+            entry("ship", [{"name": "idle_ne"}], category="units", unit={"iso_offset": {"x": 0, "y": 0}})
+
     def test_refuses_hand_made_def(self):
         # The catalog renders a variation of "temple", whose existing art the generator never wrote.
         e = entry("temple", [{"name": "var9"}])

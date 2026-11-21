@@ -8,13 +8,14 @@ use serde_json::{Value, json};
 use super::cell_json;
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
+    building::BuildingKind,
     config::GameConfigs,
     sim::{
         resources::ResourceKind,
         trade::{TradeLimit, TradePartner},
     },
     trade::{self, GoodTerms},
-    unit::task::UnitTaskTrade,
+    unit::task::{UnitTaskShip, UnitTaskTrade},
     world_map::config::traded_good,
 };
 
@@ -67,10 +68,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "trade.arrive_now",
-        help: "Sends a partner's caravan now, whatever its schedule (its next one stays due when it was): it comes in at \
-               the partner's entry with the goods the import limits want and trades store by store. Fails while \
-               trade is off or the route is closed, for a river or sea partner, and when there's nothing to trade. \
-               Reports trade.state, its caravan in `caravans`.",
+        help: "Sends a partner's caravan, or its ship by river or sea, now, whatever its schedule (its next one stays \
+               due when it was): a caravan comes in at the partner's entry with the goods the import limits want and \
+               trades store by store; a ship comes in at its entry on the water (else the map's edge nearest a \
+               working dock) and moors at a dock while its dockers carry the goods. Fails while trade is off or the \
+               route is closed, for a ship without a working dock in reach, and when there's nothing to trade. \
+               Reports trade.state, its caravan in `caravans` or its ship in `ships`.",
         params: &[ParamDef { name: "partner", kind: "string", required: true, help: "The partner's city id." }],
         run: cmd_arrive_now,
     },
@@ -113,18 +116,19 @@ fn cmd_arrive_now(context: &mut CommandContext, params: Value) -> CommandResult 
     let params: Params = parse_params(params)?;
     context.require_map()?;
     let delta_time_secs = context.engine.frame_clock().delta_time();
-    let result =
-        context.session.with_sim_context(delta_time_secs, |sim_context| trade::send_caravan(sim_context, &params.partner));
+    let result = context.session.with_sim_context(delta_time_secs, |sim_context| trade::send(sim_context, &params.partner));
     result.map_err(|err| {
         let message = match err {
             trade::NotSent::NotTrading => {
                 format!("'{}' isn't trading now: trade is off, or its route is closed.", params.partner)
             }
-            trade::NotSent::ByWater => format!("'{}' trades by water: its ships come with docks.", params.partner),
+            trade::NotSent::NoDock => {
+                format!("'{}' trades by water, and no working dock's water reaches the map's edge.", params.partner)
+            }
             trade::NotSent::NothingToTrade => {
                 format!("Nothing to trade with '{}': no import below its limit, no export above it.", params.partner)
             }
-            trade::NotSent::NoEntry => format!("A caravan from '{}' couldn't come in at its entry.", params.partner),
+            trade::NotSent::NoEntry => format!("A caravan or ship from '{}' couldn't come in at its entry.", params.partner),
         };
         CommandError::invalid_params(message)
     })?;
@@ -316,7 +320,83 @@ fn state_json(context: &CommandContext) -> Value {
         })).collect::<Vec<_>>(),
         "requests_met": state.requests_met(),
         "caravans": caravans_json(context),
+        "ships": ships_json(context),
+        "docks": docks_json(context),
     })
+}
+
+fn counts_json(counts: &[u32]) -> Value {
+    let map: serde_json::Map<String, Value> = ResourceKind::all()
+        .iter()
+        .filter(|good| counts[good.index()] != 0)
+        .map(|good| (good.name().to_string(), json!(counts[good.index()])))
+        .collect();
+    Value::Object(map)
+}
+
+// The ships in the city: partner, state, where it is and came in, what it carries, sold and bought,
+// the gold, the dock it's bound for or moored at (its base cell) and how long it's been moored.
+fn ships_json(context: &CommandContext) -> Vec<Value> {
+    let task_manager = context.session.sim().task_manager();
+    let world = context.session.world();
+    let mut ships = Vec::new();
+    world.for_each_unit(|unit| {
+        if let Some(ship) = unit.current_task_as::<UnitTaskShip>(task_manager) {
+            let dock =
+                ship.dock.and_then(|dock| world.find_building(dock.kind, dock.id)).map(|dock| cell_json(dock.base_cell()));
+            ships.push(json!({
+                "cell": cell_json(unit.cell()),
+                "partner": ship.partner,
+                "state": format!("{:?}", ship.state),
+                "entry": cell_json(ship.entry),
+                "cargo": counts_json(&ship.cargo),
+                "sold": counts_json(&ship.sold),
+                "bought": counts_json(&ship.bought),
+                "paid": ship.paid,
+                "earned": ship.earned,
+                "dock": dock,
+                "moored_secs": ship.moored_secs,
+                "turned_back": ship.turned_back,
+            }));
+        }
+        true
+    });
+    ships
+}
+
+// The docks: their base cell, whether they work, the ship at the berth (its partner), the dockers
+// out and their errands.
+fn docks_json(context: &CommandContext) -> Vec<Value> {
+    let task_manager = context.session.sim().task_manager();
+    let world = context.session.world();
+    let tile_map = context.session.tile_map();
+    let mut docks = Vec::new();
+    world.for_each_building(BuildingKind::Dock, |dock| {
+        let Some(berth) = trade::ships::berth_of(dock) else {
+            return true;
+        };
+        let ship = berth
+            .ship
+            .and_then(|id| world.find_unit(id))
+            .and_then(|unit| unit.current_task_as::<UnitTaskShip>(task_manager))
+            .map(|ship| ship.partner.clone());
+        docks.push(json!({
+            "cell": cell_json(dock.base_cell()),
+            "variation": tile_map
+                .find_tile(dock.base_cell(), crate::tile::TileKind::Building)
+                .map(|tile| tile.variation_name()),
+            "working": dock.is_operational(),
+            "ship": ship,
+            "dockers_out": berth.dockers_out(),
+            "errands": berth.errands().map(|errand| json!({
+                "good": errand.good.name(),
+                "count": errand.count,
+                "unloading": errand.unloading,
+            })).collect::<Vec<_>>(),
+        }));
+        true
+    });
+    docks
 }
 
 // The caravans in the city: partner, state, where it came in, what it carries, sold and bought, the

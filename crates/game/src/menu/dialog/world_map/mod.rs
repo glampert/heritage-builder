@@ -441,7 +441,8 @@ impl WorldMap {
         {
             let trade = context.sim.trade();
             panel.route_line = crate::trade::route_line(trade, &panel.city_id).or(panel.route_line.take());
-            panel.route_detail = crate::trade::route_detail(trade, &panel.city_id).or(panel.route_detail.take());
+            let has_dock = crate::trade::ships::world_has_dock(context.world);
+            panel.route_detail = crate::trade::route_detail(trade, &panel.city_id, has_dock).or(panel.route_detail.take());
         }
         let selected_city =
             scene.as_ref().and_then(|scene| state.selected.as_deref().and_then(|id| scene.city(id).cloned()));
@@ -994,13 +995,20 @@ fn open_route_popup(context: &mut GameUiContext, city: String, cost: u32) {
         return;
     }
     let name = crate::trade::partner_name(context.sim.trade(), &city);
+    // "caravans", "junks": who comes on the route.
+    let carrier = crate::trade::terms(context.sim.trade(), &city)
+        .map(|terms| ui::text::get(UiTextCategory::Menu, &terms.carrier).to_string())
+        .unwrap_or_default();
     dialog.menu.reset_message_box();
     dialog.menu.open_message_box(context, move |context| {
         let title = ui::text::format(UiTextCategory::Menu, "popup.open_route.title", &[("partner", &name)]);
         let body = if cost == 0 {
-            ui::text::get(UiTextCategory::Menu, "popup.open_route.body_free").to_string()
+            ui::text::format(UiTextCategory::Menu, "popup.open_route.body_free", &[("carrier", &carrier)])
         } else {
-            ui::text::format(UiTextCategory::Menu, "popup.open_route.body", &[("gold", &cost.to_string())])
+            ui::text::format(UiTextCategory::Menu, "popup.open_route.body", &[
+                ("gold", &cost.to_string()),
+                ("carrier", &carrier),
+            ])
         };
         let body = [(UiString::from(body), "ink")];
         let window = ui::screen_size(context.ui_sys());

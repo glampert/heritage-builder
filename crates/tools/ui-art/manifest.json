@@ -600,6 +600,30 @@
       "source_hash": "449ecf7a5daa3403",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/building/dock_idle.png": {
+      "catalog_hash": "f18a618cc7ef738d",
+      "id": "glyph_building_dock",
+      "png_hash": "222a95dfdcadc3fe",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "a11877d34a656831",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/dock_pressed.png": {
+      "catalog_hash": "0f0f4ba1dee2788a",
+      "id": "glyph_building_dock",
+      "png_hash": "59d5400409902ff3",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "d871400dff205755",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/building/dyke_idle.png": {
       "catalog_hash": "8fa34eff76426645",
       "id": "glyph_building_dyke",
@@ -3610,6 +3634,30 @@
       ],
       "realm": "kambara",
       "source_hash": "aad2e459175c4263",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/dock_idle.png": {
+      "catalog_hash": "fd00bf5faa28e8e9",
+      "id": "glyph_building_dock",
+      "png_hash": "4706eb41064e2fc4",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "9e8aede4ee0e1212",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/dock_pressed.png": {
+      "catalog_hash": "e14b843da7f59ee4",
+      "id": "glyph_building_dock",
+      "png_hash": "d7915f498ec1bb69",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "f460aaad2f3010c0",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/hud/glyphs/building/dyke_idle.png": {
@@ -6658,6 +6706,30 @@
       ],
       "realm": "tampadesa",
       "source_hash": "0c06b4bb6dcf8b79",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/dock_idle.png": {
+      "catalog_hash": "1ee6dbca5cfaf179",
+      "id": "glyph_building_dock",
+      "png_hash": "bbecb52bbbb22d87",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "6228331732509efe",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/dock_pressed.png": {
+      "catalog_hash": "fabd87fd4c11225b",
+      "id": "glyph_building_dock",
+      "png_hash": "d35d0948baceb6e4",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "cd484c110489af7b",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/hud/glyphs/building/dyke_idle.png": {

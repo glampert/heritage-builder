@@ -177,6 +177,16 @@ pub mod internal {
                                 tile_def_to_place.name,
                                 tile.name()
                             );
+                        } else if tile_def_to_place.is(TileKind::Unit) && tile_def_to_place.sails {
+                            // A ship sails on open water only: never land or a canal.
+                            if !path_kind.is_water() || water::is_canal_def(tile.tile_def()) {
+                                return err!(
+                                    Placement::Obstruction(tile.tile_def()),
+                                    "Cannot place ship '{}' over terrain tile '{}'.",
+                                    tile_def_to_place.name,
+                                    tile.name()
+                                );
+                            }
                         } else if tile_def_to_place.is(TileKind::Unit)
                             && !tile_def_to_place.flying_object
                             && !path_kind.is_unit_placeable()

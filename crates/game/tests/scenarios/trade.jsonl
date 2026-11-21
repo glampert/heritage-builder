@@ -1,8 +1,11 @@
-# Trade (docs/plans/trade.md). A custom game on the Blank map trades with its realm's land partners,
-# their routes closed (Campaign I's Đê Sơn and the highland clans); trade.set opens a route and sets
-# limits; the City book's Finances page shows the trade lines in a game that trades; the world map's
-# panel shows a partner's terms and opens Đê Sơn's route through its popup; the trade limits dialog
-# sets a limit; caravans trade at a storage yard and a granary; the state survives a save and a load.
+# Trade (docs/plans/trade.md). A custom game on the Blank map trades with its realm's partners, their
+# routes closed (Campaign I's Đê Sơn and the highland clans by land, Vijara by sea); trade.set opens a
+# route and sets limits; the City book's Finances page shows the trade lines in a game that trades; the
+# world map's panel shows a partner's terms and opens Đê Sơn's route through its popup; the trade
+# limits dialog sets a limit; caravans trade at a storage yard and a granary; then a river laid to the
+# map's edge, a dock from the Trade grid, Vijara's sea route opened from the world map (needing the
+# dock first), and a ship that moors while its dockers unload its metal and load the city's rice (the
+# dock's and the ship's panels); the state survives a save and a load.
 # From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/trade.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
@@ -14,7 +17,7 @@
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/map", "value": "blank"}}
 {"method": "sim.pause"}
 
-# ---- The realm's land partners, closed ----
+# ---- The realm's partners, closed ----
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/enabled", "value": true}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/world_map", "value": "dragon_legacy"}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/city", "value": "de_son"}}
@@ -22,25 +25,28 @@
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/open", "value": false}}
 {"method": "assert.gt", "params": {"query": "trade.state", "path": "/partners/0/open_cost", "value": 0}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/good", "value": "Bricks"}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/city", "value": "clan_camps"}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/name", "value": "Clan camps"}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/route/id", "value": "cho_deo_clans"}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/sells/0/good", "value": "Wood"}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/buys/0/good", "value": "Rice"}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/sells/0/limit", "value": "off"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/city", "value": "clan_camps"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/name", "value": "Clan camps"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/route/id", "value": "cho_deo_clans"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/sells/0/good", "value": "Wood"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/buys/0/good", "value": "Rice"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/sells/0/limit", "value": "off"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/city", "value": "vijara"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/route/kind", "value": "sea"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/sells/0/good", "value": "Metal"}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/requests", "value": []}}
 
 # ---- Opening a route and setting limits ----
 {"method": "trade.set", "params": {"partner": "clan_camps", "open": true}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/open", "value": true}}
-{"method": "assert.gt", "params": {"query": "trade.state", "path": "/partners/1/next_arrival", "value": 0}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/open", "value": true}}
+{"method": "assert.gt", "params": {"query": "trade.state", "path": "/partners/2/next_arrival", "value": 0}}
 {"method": "trade.set", "params": {"partner": "clan_camps", "good": "Wood", "import": 40}}
 {"method": "trade.set", "params": {"partner": "clan_camps", "good": "Rice", "export": 100}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/limits/Wood", "value": {"import": 40}}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/sells/0/limit", "value": {"import": 40}}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/buys/0/limit", "value": {"export": 100}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/limits/Wood", "value": {"import": 40}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/sells/0/limit", "value": {"import": 40}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/buys/0/limit", "value": {"export": 100}}}
 {"method": "trade.set", "params": {"partner": "clan_camps", "good": "Rice", "off": true}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/buys/0/limit", "value": "off"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/buys/0/limit", "value": "off"}}
 
 # ---- The Finances page's trade lines ----
 {"method": "dialog.open", "params": {"name": "FinancesManagement"}}
@@ -140,10 +146,88 @@
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [58, 109]}, "path": "/stock/Bricks", "value": 20}}
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [64, 109]}, "path": "/stock/Rice", "value": 10}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/traded", "value": 20}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/buys/0/traded", "value": 20}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/buys/0/traded", "value": 20}}
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Imports", "value": 200}}
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Exports", "value": 120}}
 {"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "trade"}}
+
+# ---- Docks and ships ----
+# Vijara comes by sea: its route needs a dock first.
+{"method": "dialog.open", "params": {"name": "WorldMap"}}
+{"method": "world_map.set", "params": {"city": "vijara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route_detail"}, "path": "/widgets/0/value", "value": "Closed · needs a dock"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Open the route", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Open the route", "kind": "text_button"}, "path": "/widgets/0/tooltip", "value": "Build a dock first: river and sea routes need one"}}
+{"method": "dialog.close"}
+# A river from the map's edge (x + y = 191) along the stores' north, and the Trade grid's dock on
+# its south shore, a road from it down to the stores' road.
+{"method": "world.place_area", "params": {"tile": "water", "from": [60, 100], "to": [88, 103]}}
+{"method": "world.road", "params": {"from": [67, 104], "to": [67, 111]}}
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/trade_and_economy"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: trade_and_economy/Dock"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/trade_grid.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "world.add_stock", "params": {"cell": [58, 109], "resources": {"Wood": 10}}}
+{"method": "world.place", "params": {"tile": "dock", "cell": [66, 102]}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/docks/0/cell", "value": [66, 102]}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/docks/0/variation", "value": "west_bank"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/docks/0/working", "value": true}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [66, 102]}, "path": "/name", "value": "Dock"}}
+# With the dock, the world map opens the route, its popup naming the junks.
+{"method": "dialog.open", "params": {"name": "WorldMap"}}
+{"method": "world_map.set", "params": {"city": "vijara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route_detail"}, "path": "/widgets/0/value", "value": "Closed · opens for free"}}
+{"method": "ui.click", "params": {"path": "WorldMap/panel/Open the route"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/open_sea_route_popup.png"}}
+{"method": "ui.click", "params": {"path": "Open Route Popup/Open the route"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route_detail"}, "path": "/widgets/0/value", "value": "Open · junks every 3 months"}}
+{"method": "dialog.close"}
+# A ship brings 16 metal (two dockers' loads to the yard) and takes the granary's rice above 4. The
+# land routes buy and sell nothing meanwhile, so the figures are the ship's.
+{"method": "trade.set", "params": {"partner": "de_son", "good": "Bricks", "off": true}}
+{"method": "trade.set", "params": {"partner": "clan_camps", "good": "Rice", "off": true}}
+{"method": "trade.set", "params": {"partner": "vijara", "good": "Metal", "import": 16}}
+{"method": "trade.set", "params": {"partner": "vijara", "good": "Rice", "export": 4}}
+{"method": "trade.arrive_now", "params": {"partner": "vijara"}}
+# No other ship meanwhile: the next is due years from now.
+{"method": "trade.set", "params": {"partner": "vijara", "next_arrival": 9999}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/ships/0/partner", "value": "vijara"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/ships/0/entry", "value": [88, 103]}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/ships/0/cargo/Metal", "value": 16}}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "trade.state", "path": "/ships/0/state", "op": "eq", "value": "Moored", "timeout_frames": 6000}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/docks/0/ship", "value": "vijara"}}
+{"method": "time.fast_forward", "params": {"sim_secs": 3}}
+{"method": "sim.pause"}
+{"method": "assert.gt", "params": {"query": "trade.state", "path": "/docks/0/dockers_out", "value": 0}}
+{"method": "camera.teleport", "params": {"cell": [66, 104]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/trade/ship_moored.png"}}
+# The dock's panel: its berth, the ship moored, the routes; the dockers' errands.
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [66, 102]}, "path": "/status/summary", "value": "A ship from Vijara is moored"}}
+{"method": "input.click", "params": {"cell": [66, 102]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/title", "kind": "canvas"}, "path": "/widgets/0/value/name", "value": "Dock"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/Set trade limits"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/dock_panel.png"}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "trade.state", "path": "/ships", "op": "eq", "value": [], "timeout_frames": 12000}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [58, 109]}, "path": "/stock/Metal", "value": 16}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [64, 109]}, "path": "/stock/Rice", "value": 4}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/sells/0/traded", "value": 16}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/docks/0/dockers_out", "value": 0}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Imports", "value": 584}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Exports", "value": 228}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "A ship from Vijara brought 16 metal and took 6 rice: −276 gold."}}
 
 # ---- A save and a load keep it ----
 {"method": "session.save", "params": {"name": "trade_scenario"}}
@@ -152,10 +236,12 @@
 {"method": "session.load_save", "params": {"name": "trade_scenario"}}
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 60}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/enabled", "value": true}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/open", "value": true}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/limits/Rice", "value": {"export": 10}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/limits/Rice", "value": {"export": 4}}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/open", "value": true}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/limits/Bricks", "value": {"import": 20}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/limit", "value": "off"}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/traded", "value": 20}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/docks/0/variation", "value": "west_bank"}}
 {"method": "session.delete_save", "params": {"name": "trade_scenario"}}
 {"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "trade_scenario"}, "path": "/has_thumbnail", "value": false}}

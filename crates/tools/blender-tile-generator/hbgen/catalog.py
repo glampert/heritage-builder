@@ -22,7 +22,11 @@ A catalog file (catalog/*.json, one per realm):
           ],                                             # <tile>/[<variation>/]<frame>.png
           "tile_set": {"cost": 10},  # fields written into the tile def, in this order
           "generated": true,         # false: the art is hand-made; leave it alone
-          "validate": {"ground": false}  # an overlay: skip the ground diamond's checks
+          "validate": {"ground": false}, # an overlay: skip the ground diamond's checks
+          "unit": {                  # a unit (category "units"): its one variation, written as it is
+            "iso_offset": {"x": 0, "y": 32},   # into the tile def, with its anim sets; the
+            "anim_sets": [...]                 # variations above are the rendered anim sets'
+          }                                    # folders, their frames the frames
         }
       ]
     }
@@ -46,7 +50,8 @@ MAX_FRAME_NAME = 24                 # TileSprite::name is an ArrayString<24>
 # Bump to re-render everything, e.g. after a Blender upgrade changes the look.
 GENERATOR_VERSION = 1
 
-_ENTRY_KEYS = {"tile", "layer", "category", "recipe", "params", "palette", "density", "variations", "frames", "tile_set", "generated", "validate", "notes"}
+_ENTRY_KEYS = {"tile", "layer", "category", "recipe", "params", "palette", "density", "variations", "frames", "tile_set", "generated", "validate",
+               "unit", "notes"}
 _FRAME_KEYS = {"name", "params"}
 _VARIATION_KEYS = {"name", "seed", "params", "tile_set"}
 
@@ -80,6 +85,8 @@ def load(paths=None, catalog_dir=CATALOG_DIR):
             e.setdefault("recipe", e["tile"]); e.setdefault("params", {})
             e.setdefault("palette", doc.get("palette", "viet")); e.setdefault("density", doc.get("density", DEFAULT_DENSITY))
             e.setdefault("tile_set", {}); e.setdefault("generated", True); e.setdefault("validate", {})
+            if "unit" in e and not (isinstance(e["unit"], dict) and isinstance(e["unit"].get("anim_sets"), list)):
+                raise CatalogError(f"{where}: 'unit' needs its 'anim_sets'")
             e["variations"] = [dict(v) for v in raw.get("variations", [{"name": ""}])]
             for v in e["variations"]:
                 if set(v) - _VARIATION_KEYS:

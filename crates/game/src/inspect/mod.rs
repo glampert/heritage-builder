@@ -11,7 +11,7 @@ mod building;
 mod tile;
 mod unit;
 
-pub use building::building_name;
+pub use building::{building_name, dock_partner};
 use common::coords::Cell;
 use engine::ui::text::{self, UiTextCategory};
 use serde::Serialize;
@@ -244,6 +244,7 @@ pub enum ActionKind {
     CancelSite,
     ShowHome,
     Clear,
+    TradeLimits, // A dock's: the trade limits dialog for its routes.
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize)]

@@ -270,18 +270,15 @@ pub fn canal_preview_variation(tile_map: &TileMap, tile_def: &TileDef, cell: Cel
 // Ports and Wharfs
 // ----------------------------------------------
 
-const FISHING_WHARF: StrHashPair = StrHashPair::from_str("fishing_wharf");
+// The variation an on-shore building takes for the bank it faces (the side its land is on), in the
+// order they're tried.
+const BANK_VARIATIONS: [(usize, &str); 4] =
+    [(NORTH_BIT, "north_bank"), (SOUTH_BIT, "south_bank"), (EAST_BIT, "east_bank"), (WEST_BIT, "west_bank")];
 
-const PORT_VARIATION_NORTH_BANK: usize = 0;
-const PORT_VARIATION_SOUTH_BANK: usize = 1;
-const PORT_VARIATION_EAST_BANK: usize = 2;
-const PORT_VARIATION_WEST_BANK: usize = 3;
-
-// Port-like buildings, e.g. fishing wharf, port, etc.
-// These buildings must be placed over a water edge tile.
+// Buildings that stand on open water at the shore (TileDef::on_shore): the fishing wharf, the dock.
 #[inline]
 pub fn is_port_or_wharf(tile_def: &TileDef) -> bool {
-    tile_def.is(TileKind::Building) && tile_def.hash == FISHING_WHARF.hash
+    tile_def.is(TileKind::Building) && tile_def.on_shore
 }
 
 pub fn update_port_wharf_orientation(tile_map: &mut TileMap, cell: Cell) {
@@ -301,22 +298,19 @@ fn water_transition_mask(tile_map: &TileMap, cell: Cell) -> usize {
     shore_neighbors(tile_map, cell).sides
 }
 
+// Gives the building at `cell` the variation of the first bank (north, south, east, west) with land
+// beside the cell, found by its name.
 fn try_set_port_wharf_variation(tile_map: &mut TileMap, cell: Cell) -> bool {
     let mask = water_transition_mask(tile_map, cell);
-    if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Objects) {
-        if (mask & NORTH_BIT) != 0 {
-            tile.set_variation_index(PORT_VARIATION_NORTH_BANK);
-            return true;
-        } else if (mask & SOUTH_BIT) != 0 {
-            tile.set_variation_index(PORT_VARIATION_SOUTH_BANK);
-            return true;
-        } else if (mask & EAST_BIT) != 0 {
-            tile.set_variation_index(PORT_VARIATION_EAST_BANK);
-            return true;
-        } else if (mask & WEST_BIT) != 0 {
-            tile.set_variation_index(PORT_VARIATION_WEST_BANK);
-            return true;
-        }
-    }
-    false
+    let Some(&(_, name)) = BANK_VARIATIONS.iter().find(|(bit, _)| mask & bit != 0) else {
+        return false;
+    };
+    let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Objects) else {
+        return false;
+    };
+    let Some(index) = tile.tile_def().find_variation(name) else {
+        return false;
+    };
+    tile.set_variation_index(index);
+    true
 }

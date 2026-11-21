@@ -143,12 +143,21 @@ def desired_def(entry, existing, sprites, notes):
     if any((r["logical_size"], r["draw_size"]) != (recs[0]["logical_size"], recs[0]["draw_size"]) for r in recs):
         raise SyncError(f"{entry['tile']}: its sprites rendered at different sizes; build.py renders a tile's sprites at one height")
     if existing is not None:
-        ours = [ev for ev in existing.get("variations", []) if cat.sprite_path(entry, ev.get("name", "")) in sprites]
+        if "unit" in entry:
+            ours = [v for v in entry["variations"] if cat.sprite_path(entry, v["name"]) in sprites]
+        else:
+            ours = [ev for ev in existing.get("variations", []) if cat.sprite_path(entry, ev.get("name", "")) in sprites]
         if not ours:
             raise SyncError(f"{entry['tile']}: the tile def exists, but none of its sprites came from the generator, "
                             "so it's hand-made. Set \"generated\": false in the catalog, or remove the def first.")
     d = {"name": entry["tile"]}
     d.update(entry["tile_set"])
+    if "unit" in entry:
+        # A unit: its draw_size only (a unit stands on one cell), and its one variation as the
+        # catalog writes it, its anim sets naming the rendered folders.
+        d["draw_size"] = {"width": recs[0]["draw_size"]["width"], "height": recs[0]["draw_size"]["height"]}
+        d["variations"] = [entry["unit"]]
+        return d
     for k in ("logical_size", "draw_size"):            # width first, as the engine's Size and the hand-made defs
         d[k] = {"width": recs[0][k]["width"], "height": recs[0][k]["height"]}
     wanted = {v["name"]: v for v in entry["variations"]}

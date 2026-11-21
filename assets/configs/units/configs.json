@@ -95,6 +95,12 @@
       "tile_def_name": "trader",
       "traversable_node_kinds": "EmptyLand | Road | SettlersSpawnPoint",
       "movement_speed": 1.5
+    },
+    {
+      "name": "TradeShip",
+      "tile_def_name": "trade_ship",
+      "traversable_node_kinds": "Water",
+      "movement_speed": 1.2
     }
   ]
 }

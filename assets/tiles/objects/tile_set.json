@@ -408,6 +408,7 @@
           "name": "fishing_wharf",
           "cost": 5,
           "sector": "FoodAndFarming",
+          "on_shore": true,
           "minimap": { "landmark": "Port" },
           "logical_size": {
             "width": 128,
@@ -1243,6 +1244,75 @@
                   "frames": [
                     {
                       "name": "sluice_gate"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "dock",
+          "cost": 60,
+          "materials": { "Wood": 10, "Bricks": 6 },
+          "upkeep": 10,
+          "construction": "Civic",
+          "sector": "TradeAndEconomy",
+          "occludes_terrain": false,
+          "on_shore": true,
+          "minimap": { "landmark": "Port" },
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 128,
+            "height": 97
+          },
+          "variations": [
+            {
+              "name": "north_bank",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dock"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "south_bank",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dock"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "east_bank",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dock"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "west_bank",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "dock"
                     }
                   ]
                 }
@@ -2879,6 +2949,92 @@
                   "duration": 0.7,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_se" }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "trade_ship",
+          "occludes_terrain": false,
+          "sails": true,
+          "draw_size": {
+            "width": 128,
+            "height": 97
+          },
+          "variations": [
+            {
+              "iso_offset": {
+                "x": 0,
+                "y": 32
+              },
+              "anim_sets": [
+                {
+                  "name": "idle",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_se"
+                  }
+                },
+                {
+                  "name": "idle_ne",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "Files": 2
+                  }
+                },
+                {
+                  "name": "idle_nw",
+                  "duration": 1.6,
+                  "mirror": true,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_ne"
+                  }
+                },
+                {
+                  "name": "idle_se",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "Files": 2
+                  }
+                },
+                {
+                  "name": "idle_sw",
+                  "duration": 1.6,
+                  "mirror": true,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_se"
+                  }
+                },
+                {
+                  "name": "walk_ne",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_ne"
+                  }
+                },
+                {
+                  "name": "walk_nw",
+                  "duration": 1.6,
+                  "mirror": true,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_ne"
+                  }
+                },
+                {
+                  "name": "walk_se",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_se"
+                  }
+                },
+                {
+                  "name": "walk_sw",
+                  "duration": 1.6,
+                  "mirror": true,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_se"
+                  }
                 }
               ]
             }

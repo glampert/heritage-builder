@@ -1,0 +1,176 @@
+{
+  "realm": "shared",
+  "palette": "viet",
+  "density": 8,
+  "notes": "Trade art (docs/plans/trade.md, Phase 2). The dock is a 2x2 building on open water at the shore (on_shore), as the fishing wharf is: its variations are the bank it faces, north_bank, south_bank, east_bank and west_bank, which tile/water.rs picks by name as it's placed. The trade ship is the pipeline's first unit: its rendered variations are the anim sets' folders (idle_ne, idle_se; nw and sw are those mirrored, and its sailing is its idle), two frames each for a slow bob; its 'unit' block is the tile def's one variation, written as it is. Its frame is a 2x2 footprint's, so iso_offset y 32 puts the frame's middle on its cell (the engine stands a unit's sprite on its cell's centre).",
+  "entries": [
+    {
+      "tile": "dock",
+      "recipe": "dock",
+      "tile_set": {
+        "cost": 60,
+        "materials": {
+          "Wood": 10,
+          "Bricks": 6
+        },
+        "upkeep": 10,
+        "construction": "Civic",
+        "sector": "TradeAndEconomy",
+        "occludes_terrain": false,
+        "on_shore": true,
+        "minimap": {
+          "landmark": "Port"
+        }
+      },
+      "variations": [
+        {
+          "name": "north_bank",
+          "seed": 1,
+          "params": {
+            "side": "north"
+          }
+        },
+        {
+          "name": "south_bank",
+          "seed": 2,
+          "params": {
+            "side": "south"
+          }
+        },
+        {
+          "name": "east_bank",
+          "seed": 3,
+          "params": {
+            "side": "east"
+          }
+        },
+        {
+          "name": "west_bank",
+          "seed": 4,
+          "params": {
+            "side": "west"
+          }
+        }
+      ],
+      "notes": "M10 Phase 2: where trade ships moor (service config 'Dock'); its dockers carry their goods to and from the storage yards and granaries."
+    },
+    {
+      "tile": "trade_ship",
+      "category": "units",
+      "recipe": "trade_ship",
+      "tile_set": {
+        "occludes_terrain": false,
+        "sails": true
+      },
+      "variations": [
+        {
+          "name": "idle_ne",
+          "seed": 1,
+          "params": {
+            "facing": "ne"
+          }
+        },
+        {
+          "name": "idle_se",
+          "seed": 2,
+          "params": {
+            "facing": "se"
+          }
+        }
+      ],
+      "frames": [
+        {
+          "name": "frame0",
+          "params": {
+            "bob": 0
+          }
+        },
+        {
+          "name": "frame1",
+          "params": {
+            "bob": 1
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "unit": {
+        "iso_offset": {
+          "x": 0,
+          "y": 32
+        },
+        "anim_sets": [
+          {
+            "name": "idle",
+            "duration": 1.6,
+            "frames_source": {
+              "CopyAllFrom": "idle_se"
+            }
+          },
+          {
+            "name": "idle_ne",
+            "duration": 1.6,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_nw",
+            "duration": 1.6,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_ne"
+            }
+          },
+          {
+            "name": "idle_se",
+            "duration": 1.6,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_sw",
+            "duration": 1.6,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_se"
+            }
+          },
+          {
+            "name": "walk_ne",
+            "duration": 1.6,
+            "frames_source": {
+              "CopyAllFrom": "idle_ne"
+            }
+          },
+          {
+            "name": "walk_nw",
+            "duration": 1.6,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_ne"
+            }
+          },
+          {
+            "name": "walk_se",
+            "duration": 1.6,
+            "frames_source": {
+              "CopyAllFrom": "idle_se"
+            }
+          },
+          {
+            "name": "walk_sw",
+            "duration": 1.6,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_se"
+            }
+          }
+        ]
+      },
+      "notes": "M10 Phase 2: the trade ship (unit config 'TradeShip'), a sea junk for river and sea routes in every realm (Q15)."
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Known issues and unfinished work
 
-Last verified against the code on 2026-11-20. Remove an entry once it's resolved.
+Last verified against the code on 2026-11-21. Remove an entry once it's resolved.
 
 ## Unfinished features
 
@@ -62,12 +62,13 @@ Last verified against the code on 2026-11-20. Remove an entry once it's resolved
   - Fertility is kept only while the river floods: without floods every cell reads 50, harvests take nothing from it and the Fertility lens isn't offered. Its legend is English text.
   - While floods are on, the minimap's lens row holds eight buttons, set a little closer together than usual to fit its width.
   - The gate's and the canal's costs and the silt a gate lets in are unbalanced (M13).
-- Trade (`crates/game/src/trade/`, `crates/game/src/unit/task/trade.rs`, the trade limits dialog `crates/game/src/menu/dialog/trade_limits.rs`; docs/plans/trade.md, Phases 0 and 1 done):
-  - Only land routes trade: river and sea partners (Vijara) say "needs a dock" until Phase 2's docks and ships. Prices move only with faith's easy trade until Phase 3; the world map's side panel shows the base prices. Court requests and the `TradeIncome` and `RequestsFulfilled` goals are Phase 4's; the request log is empty.
-  - Campaign I's land partners are the Clan camps and Đê Sơn, both world cities on its map. Đê Sơn stands in for the delta, the player's earlier cities: when M13 makes it mission 4's city (`MissionDef::city`), a partner must be able to name a mission's city. No mission has a `trade` block yet (M13's I-5); custom games trade with their realm's land partners, and Kambara's and Tampadesa's world maps have none whose goods the game trades.
-  - The caravan is the vendor recoloured (no pack animals or cart), walks land and roads in four directions, and carries its goods in its task, so the city's stats don't count them. Imports are paid only as far as the treasury goes; a skipped month (nothing to trade) is only logged. A store's panel doesn't say when a caravan last traded there.
+- Trade (`crates/game/src/trade/`, `crates/game/src/unit/task/trade.rs` and `ship.rs`, the trade limits dialog `crates/game/src/menu/dialog/trade_limits.rs`; docs/plans/trade.md, Phases 0, 1 and 2 done):
+  - Prices move only with faith's easy trade until Phase 3; the world map's side panel shows the base prices. Court requests and the `TradeIncome` and `RequestsFulfilled` goals are Phase 4's; the request log is empty, and Vijara's static request still names ceramics.
+  - Campaign I's land partners are the Clan camps and Đê Sơn, both world cities on its map. Đê Sơn stands in for the delta, the player's earlier cities: when M13 makes it mission 4's city (`MissionDef::city`), a partner must be able to name a mission's city. No mission has a `trade` block yet (M13's I-5); custom games trade with their realm's partners, and Kambara's and Tampadesa's world maps have none whose goods the game trades.
+  - The caravan is the vendor recoloured (no pack animals or cart), walks land and roads in four directions, and carries its goods in its task, so the city's stats don't count them. Imports are paid only as far as the treasury goes; a skipped month (nothing to trade, no dock) is only logged. A store's panel doesn't say when a caravan last traded there.
+  - Docks and ships: one ship for river and sea routes in every realm (a sea junk), the dock's art and glyph Đại Long's in every realm. The ship sails four directions and is drawn in a 2 × 2 frame; the minimap draws no ships. Dockers are runners: an unloading docker ends its errand at the store without walking home, and a loading one fetches from the nearest store that holds the good. A dock's berth is any open water beside it, so a ship may moor on its land side's corner where the shore allows. Flooded land isn't water, so ships keep to the river. No mission has a river route yet (M13).
   - The trade limits dialog has no mockup (the City book's style), its dropdowns offer fixed steps (a limit set by automation shows as its own item), and it shows the city's holdings as they were when it was built (each month).
-  - Prices, amounts, the intervals, the caravan's capacity and the routes' cost are unbalanced (M13).
+  - Prices, amounts, the intervals, the caravan's and the ship's capacity, the dock's cost and the routes' cost are unbalanced (M13).
 - The fire watcher is the guard recoloured (`crates/tools/unit-recolor`) and the builder is a plain peasant; walker art of their own waits for the Blender walker experiment (placeholder-art Phase 6) — `docs/plans/city-risks.md`.
 - A skin or language rebuild (`ui.realm`, `ui.reload_skin`, `text.language`) builds the dialogs and the HUD again: an open popup closes, the inspector closes, the palette selection is dropped, and a button under the cursor plays its hover sound again (`TODO(realm-ui)` at `rebuild_all`). Settings' pending edits and tab and Load / Save's typed name are kept (`settings::STATE`, `load_save::STATE`). The home menu and the campaign picker are also rebuilt when the profile changes or a window resize changes the dialogs' scale, which replays that hover sound too (the picker keeps its pick) — `crates/game/src/menu/dialog/mod.rs`, `crates/game/src/menu/in_game/mod.rs`.
 

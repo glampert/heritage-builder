@@ -251,6 +251,21 @@ impl TileInspectorMenu {
                 self.close(context);
             }
             Command::Action(ActionKind::PauseWork) => {} // Disabled until M11's labour.
+            Command::Action(ActionKind::TradeLimits) => {
+                let partner = {
+                    let sim = context.new_sim_context();
+                    match target {
+                        InspectTarget::Building { handle, .. } => {
+                            sim.find_building(handle.kind, handle.id).and_then(|dock| inspect::dock_partner(&sim, dock))
+                        }
+                        _ => None,
+                    }
+                };
+                self.close(context);
+                if let Some(city) = partner {
+                    crate::menu::dialog::open_trade_limits(context, &city);
+                }
+            }
             Command::SetOrder(kind, order) => {
                 set_orders(context, target, kind, order);
                 self.refresh(context);

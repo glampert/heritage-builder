@@ -79,7 +79,8 @@ Blender modules (they import `bpy`; use them only inside Blender):
   holds the studies, `workshop.py` the game's workshops, `overlays.py` the
   construction scaffolds and renovation overlays, `services.py` the fire watch
   and the builders' guild, `risks.py` the rubble pieces and the fire overlay,
-  `test.py` the template.
+  `trade.py` the dock and the trade ship (the first unit), `test.py` the
+  template.
 - `hbgen/generate.py`: `generate()` (legacy camera) and `generate_engine()`.
 - `hb_tile_gen.py`: the one-tile command line, and the `exec` entry point.
 - `build.py`: the batch driver (§11), run by `tilegen.sh`.
@@ -325,6 +326,13 @@ above the diamond (`y: -3` for a 35 px sprite); keep a terrain piece inside
 the diamond's outline, low enough that walkers on it still read, and with no
 ink on its cut edges (`B.outline_border = False`).
 
+**Buildings on the shore** (`catalog/trade.json`): the dock stands on open water
+beside land (`"on_shore": true`), as the fishing wharf does, with a variation per
+bank it can face, named `north_bank`, `south_bank`, `east_bank` and `west_bank`
+(the engine picks one by name as it's placed). Its recipe models the land on +Y
+and turns it to each bank; a pile at each corner, from the water line, keeps the
+anchor checks happy where the deck stands over the water.
+
 **Buildings that face something** (`catalog/floods.json`): the sluice gate is
 a 1×1 building placed only beside a dyke (`"requires_dyke": true` in its
 `tile_set`), with a variation per side its dyke can be on, `north`, `east`,
@@ -333,6 +341,22 @@ Its recipe models it once with the dyke on +Y and turns the whole model to
 the variation's side (`params: {"side": ...}`); the engine picks the variation
 as it's placed (`farms::face_dyke`), by name, as the fishing wharf picks its
 bank.
+
+**Units** (`catalog/trade.json`): an entry with a `unit` block renders a unit's
+sprites, the trade ship the first. Its `category` is `units`; its variations are
+the anim sets it renders, named as their folders (`idle_ne`, `idle_se`: a unit's
+sprites are `assets/tiles/objects/units/<tile>/<anim set>/<frame>.png`), and its
+`frames` the frames of each (`frame0`, `frame1`, with their recipe `params`). The
+`unit` block is the tile def's one variation as the engine reads it, written as
+it is: its `iso_offset` and its `anim_sets`, where a rendered set says
+`"frames_source": {"Files": 2}` and the others copy one (`CopyAllFrom`), mirrored
+for nw and sw. The sync writes a unit's `draw_size` only (units have no
+`logical_size`). The recipe turns the model to each facing (`ne`: bow to +Y, `se`:
+to +X) and returns the footprint whose frame it's drawn in: the ship's is 2, a
+128-px-wide frame round a hull longer than a cell, and its `iso_offset` (`y: 32`)
+moves the frame's middle, the model's origin, onto the unit's cell (the engine
+stands a unit's sprite on its cell's centre). Units skip the ground checks
+(`"validate": {"ground": false}`).
 
 `"validate": {"ground": false}` marks an overlay, a sprite without a ground
 diamond (the renovation scaffolds), so the checks skip the corner and

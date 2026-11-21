@@ -515,6 +515,13 @@ fn read_service(
         }
         let summary = if building.is(BuildingKind::FestivalSquare) {
             t("summary.hosts_festivals")
+        } else if let Some(berth) = crate::trade::ships::berth_of(building) {
+            match crate::trade::ships::moored_ship(context, berth) {
+                Some((_, ship)) => {
+                    tf("summary.dock_ship", &[("partner", &crate::trade::partner_name(context.trade(), &ship.partner))])
+                }
+                None => t("summary.dock_waiting"),
+            }
         } else if let Some((_, watered)) = &gate {
             tc("summary.waters_fields", *watered as i64, &[])
         } else if market || config.visits.building_kinds() == BuildingKind::House {
@@ -576,12 +583,115 @@ fn read_service(
     if building.is(BuildingKind::FestivalSquare) {
         report.sections.push(festivals_section(context));
     }
+    if let Some(berth) = crate::trade::ships::berth_of(building) {
+        report.sections.push(dock_section(context, berth));
+        for docker in &berth.dockers {
+            push_errand(&mut report.sections, context, docker.runner.unit_id(), realm);
+        }
+    }
 
     push_errand(&mut report.sections, context, service.runner.unit_id(), realm);
     push_errand(&mut report.sections, context, service.patrol.unit_id(), realm);
     report.sections.push(costs_section(context, building, tile_def));
     report.sections.extend(risks_section(building));
     report.actions = workplace_actions(building);
+    // A dock's routes' limits (the trade limits dialog), while the game trades by water.
+    if building.is(BuildingKind::Dock) {
+        let mut limits = Action::new(ActionKind::TradeLimits, "action.trade_limits");
+        if dock_partner(context, building).is_none() {
+            limits = limits.disabled("action.no_water_routes");
+        }
+        report.actions.insert(0, limits);
+    }
+}
+
+// "16 metal, 8 rice", or None for no goods.
+fn goods_list(counts: &[u32]) -> Option<String> {
+    let goods: Vec<String> = ResourceKind::all()
+        .iter()
+        .filter(|good| counts[good.index()] != 0)
+        .map(|good| tc("production.units", i64::from(counts[good.index()]), &[("good", &good_name(good).to_lowercase())]))
+        .collect();
+    (!goods.is_empty()).then(|| goods.join(", "))
+}
+
+// The river and sea partners the game trades with (open routes first), for a dock's panel.
+fn water_partners(context: &SimContext) -> Vec<(String, bool, Option<u32>)> {
+    let trade = context.trade();
+    let mut partners: Vec<(String, bool, Option<u32>)> = trade
+        .partners()
+        .iter()
+        .filter(|partner| crate::trade::terms(trade, partner.city()).is_some_and(|terms| terms.by_water()))
+        .map(|partner| (partner.city().to_string(), partner.open, partner.next_arrival))
+        .collect();
+    partners.sort_by_key(|(_, open, _)| !open);
+    partners
+}
+
+// The partner a dock's Set trade limits opens on: its ship's, else the first river or sea partner.
+pub fn dock_partner(context: &SimContext, building: &Building) -> Option<String> {
+    if !context.trade().is_enabled() {
+        return None;
+    }
+    let berth = crate::trade::ships::berth_of(building)?;
+    crate::trade::ships::moored_ship(context, berth)
+        .map(|(_, ship)| ship.partner.clone())
+        .or_else(|| water_partners(context).into_iter().next().map(|(city, _, _)| city))
+}
+
+// A dock's berth (docs/plans/trade.md, §5): the ship moored, what's on board and what it's taken on,
+// when it sails, the next ship due, and the river and sea routes the dock serves.
+fn dock_section(context: &SimContext, berth: &crate::trade::ships::DockBerth) -> Section {
+    let trade = context.trade();
+    let mut rows = Vec::new();
+    match crate::trade::ships::moored_ship(context, berth) {
+        Some((_, ship)) => {
+            let partner = crate::trade::partner_name(trade, &ship.partner);
+            rows.push(ValueRow {
+                label: t("dock.ship"),
+                value: tf("dock.ship_from", &[("partner", &partner)]),
+                warn: false,
+            });
+            rows.push(ValueRow {
+                label: t("dock.on_board"),
+                value: goods_list(&ship.cargo).unwrap_or_else(|| t("dock.nothing")),
+                warn: false,
+            });
+            if let Some(bought) = goods_list(&ship.bought) {
+                rows.push(ValueRow { label: t("dock.taken_on"), value: bought, warn: false });
+            }
+        }
+        None => rows.push(ValueRow { label: t("dock.ship"), value: t("dock.no_ship"), warn: false }),
+    }
+    let now = crate::trade::now(context);
+    let next = water_partners(context)
+        .into_iter()
+        .filter(|(_, open, _)| *open)
+        .filter_map(|(city, _, month)| Some((month?, city)))
+        .min();
+    let next = match next {
+        Some((month, city)) => {
+            let partner = crate::trade::partner_name(trade, &city);
+            let months = month.saturating_sub(now);
+            if months == 0 {
+                tf("dock.next_this_month", &[("partner", &partner)])
+            } else {
+                tc("dock.next_in", i64::from(months), &[("partner", &partner)])
+            }
+        }
+        None => t("dock.next_none"),
+    };
+    rows.push(ValueRow { label: t("dock.next_ship"), value: next, warn: false });
+    let routes: Vec<String> = water_partners(context)
+        .into_iter()
+        .map(|(city, open, _)| {
+            let partner = crate::trade::partner_name(trade, &city);
+            tf(if open { "dock.route_open" } else { "dock.route_closed" }, &[("partner", &partner)])
+        })
+        .collect();
+    let routes = if routes.is_empty() { t("dock.no_routes") } else { routes.join(", ") };
+    rows.push(ValueRow { label: t("dock.routes"), value: routes, warn: false });
+    Section::Values { title: t("dock.title"), note: Some(t("dock.note")), rows }
 }
 
 // A sluice gate's water (docs/plans/seasons-floods.md, §9): whether it has water across its dyke,

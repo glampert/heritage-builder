@@ -10,8 +10,11 @@ use game::{
         resources::ResourceKind,
         trade::{CityTrade, TradeLimit},
     },
-    trade::{self, NotSent, OpenRouteError, PartnerTerms, TradeNotice},
-    unit::{config::UnitConfigKey, task::UnitTaskTrade},
+    trade::{self, NotSent, OpenRouteError, PartnerTerms, TradeNotice, ships},
+    unit::{
+        config::UnitConfigKey,
+        task::{UnitTaskShip, UnitTaskShipState, UnitTaskTrade},
+    },
     world_map::{
         WorldMapConfigs,
         config::{RouteKind, TradeGoodDef, WorldMapDef, trade_goods_problems},
@@ -32,7 +35,7 @@ fn main() {
         test_utils::test_fn!(test_campaign_one_has_its_land_partners),
         test_utils::test_fn!(test_a_mission_block_starts_trade),
         test_utils::test_fn!(test_a_block_without_partners_trades_with_no_one),
-        test_utils::test_fn!(test_a_custom_game_trades_with_the_land_partners),
+        test_utils::test_fn!(test_a_custom_game_trades_with_the_realms_partners),
         test_utils::test_fn!(test_routes_limits_and_the_new_year),
         test_utils::test_fn!(test_the_mission_block_is_checked),
         test_utils::test_fn!(test_the_state_round_trips_a_save),
@@ -50,6 +53,14 @@ fn main() {
         test_utils::test_fn!(test_easy_trade_moves_the_prices),
         test_utils::test_fn!(test_envoys_bring_gifts),
         test_utils::test_fn!(test_the_caravans_panel),
+        // Docks and ships (Phase 2):
+        test_utils::test_fn!(test_a_dock_stands_at_the_shore),
+        test_utils::test_fn!(test_a_ship_moors_and_its_dockers_trade),
+        test_utils::test_fn!(test_river_and_sea_routes_need_a_dock),
+        test_utils::test_fn!(test_a_ship_without_a_dock_in_reach_turns_back),
+        test_utils::test_fn!(test_ships_keep_out_of_canals),
+        test_utils::test_fn!(test_a_busy_dock_keeps_a_ship_waiting),
+        test_utils::test_fn!(test_the_monthly_schedule_sends_ships),
     ]);
 }
 
@@ -146,8 +157,8 @@ fn test_the_traded_goods_are_checked() {
     }
 }
 
-// The clans by the hill track, open from Chợ Đèo; the delta's Đê Sơn by a closed road; Vijara's
-// goods are shown only.
+// The clans by the hill track, open from Chợ Đèo; the delta's Đê Sơn by a closed road; Vijara by
+// sea, trading metal for pottery and rice (its other goods are shown only).
 fn test_campaign_one_has_its_land_partners() {
     let clans = terms_of("clan_camps");
     assert_eq!(clans.route, "cho_deo_clans");
@@ -174,7 +185,9 @@ fn test_campaign_one_has_its_land_partners() {
 
     let vijara = terms_of("vijara");
     assert!(vijara.by_water(), "by sea");
-    assert!(vijara.sells.is_empty() && vijara.buys.is_empty(), "its goods are shown only, until the game has them");
+    assert_eq!(vijara.route_kind, RouteKind::Sea);
+    assert_eq!(goods(&vijara.sells), [ResourceKind::Metal], "salt and aloeswood are shown only");
+    assert_eq!(goods(&vijara.buys), [ResourceKind::Pottery, ResourceKind::Rice], "silk is shown only");
 
     // A neighbour without terms isn't a partner.
     assert!(trade::terms_on(dragon_legacy(), &partner("gate_of_the_north", false)).is_none());
@@ -242,15 +255,15 @@ fn test_a_block_without_partners_trades_with_no_one() {
     assert!(!state.is_enabled(), "nothing to trade with");
 }
 
-// A custom map without a trade block trades with its realm's land partners, closed.
-fn test_a_custom_game_trades_with_the_land_partners() {
+// A custom map without a trade block trades with its realm's partners, by land, river or sea, closed.
+fn test_a_custom_game_trades_with_the_realms_partners() {
     world_maps();
     assert_eq!(trade::realm_world_map(game::realm::Realm::DaiLong).as_deref(), Some("dragon_legacy"));
-    let land = trade::land_partners(dragon_legacy());
-    let cities: Vec<&str> = land.partners.iter().map(|partner| partner.city.as_str()).collect();
-    assert_eq!(cities, ["de_son", "clan_camps"], "Vijara is by sea, the Gate of the North has no terms");
-    assert!(land.partners.iter().all(|partner| !partner.open));
-    assert!(land.is_enabled());
+    let all = trade::map_partners(dragon_legacy());
+    let cities: Vec<&str> = all.partners.iter().map(|partner| partner.city.as_str()).collect();
+    assert_eq!(cities, ["de_son", "vijara", "clan_camps"], "the Gate of the North has no terms");
+    assert!(all.partners.iter().all(|partner| !partner.open));
+    assert!(all.is_enabled());
 
     // Every realm's world map is there.
     for realm in [game::realm::Realm::Kambara, game::realm::Realm::Tampadesa] {
@@ -432,7 +445,7 @@ fn set_limit(map: &mut TradeMap, good: ResourceKind, limit: TradeLimit) {
 
 fn send(map: &mut TradeMap, city: &str) -> Result<(), NotSent> {
     let context = map.env.new_sim_context(0.0);
-    trade::send_caravan(&context, city)
+    trade::send(&context, city)
 }
 
 fn caravan(map: &TradeMap) -> Option<UnitTaskTrade> {
@@ -586,7 +599,7 @@ fn test_no_caravan_without_something_to_trade() {
     assert_eq!(stock(&map, map.granary, ResourceKind::Rice), 10);
 
     assert_eq!(send(&mut map, "de_son"), Err(NotSent::NotTrading), "its route is closed");
-    assert_eq!(send(&mut map, "vijara"), Err(NotSent::ByWater), "ships come with docks");
+    assert_eq!(send(&mut map, "vijara"), Err(NotSent::NoDock), "ships come only to a dock");
     map.env.sim.trade_mut().set_enabled(false);
     assert_eq!(send(&mut map, "clan_camps"), Err(NotSent::NotTrading));
 }
@@ -776,4 +789,273 @@ fn test_the_caravans_panel() {
 fn until_it_leaves_now(map: &mut TradeMap) {
     tick_until(&mut map.env, 20_000, STEP_SECS, |env| find_unit_by_config(env, UnitConfigKey::Trader).is_none());
     trade::take_notices();
+}
+
+// ----------------------------------------------
+// Docks and ships (Phase 2)
+// ----------------------------------------------
+
+// The sea: open water from x 14 to 32 and y 30 to 34, its north shore at y 29.
+const SEA_X: std::ops::RangeInclusive<i32> = 14..=32;
+const SEA_Y: std::ops::RangeInclusive<i32> = 30..=34;
+const SEA_ENTRY: Cell = Cell::new(31, 33);
+const DOCK_CELL: Cell = Cell::new(24, 30);
+
+// The trade map with the sea, roads from the stores to the shore, and Vijara's route open, its ships
+// coming in at SEA_ENTRY. A dock at DOCK_CELL with `dock`.
+struct PortMap {
+    map: TradeMap,
+    dock: Option<BuildingKindAndId>,
+}
+
+fn lay_water(env: &mut test_utils::TestEnvironment, xs: std::ops::RangeInclusive<i32>, ys: std::ops::RangeInclusive<i32>) {
+    let water = test_utils::find_water_def();
+    for y in ys {
+        for x in xs.clone() {
+            let cell = Cell::new(x, y);
+            assert!(env.tile_map.is_cell_within_playable_area(cell), "{cell} is off the playable area");
+            test_utils::place_terrain_by_def(env, cell, water);
+        }
+    }
+}
+
+fn port_map(dock: bool) -> PortMap {
+    let mut map = trade_map();
+    lay_water(&mut map.env, SEA_X, SEA_Y);
+    // A road along the stores' fronts and down to the dock.
+    let mut road: Vec<Cell> = (19..=31).map(|x| Cell::new(x, 25)).collect();
+    road.extend((26..=29).map(|y| Cell::new(24, y)));
+    test_utils::place_road(&mut map.env, &road);
+    let mut vijara = partner("vijara", true);
+    vijara.entry = Some([SEA_ENTRY.x, SEA_ENTRY.y]);
+    let mut partners: Vec<MissionPartnerDef> =
+        map.env.sim.trade().partners().iter().map(|partner| partner.def.clone()).collect();
+    partners.retain(|def| def.city != "vijara");
+    partners.push(vijara);
+    trade::start(map.env.sim.trade_mut(), "dragon_legacy", &block(partners), 25, rules());
+    let dock = dock.then(|| spawn_building(&mut map.env, DOCK_CELL, "dock"));
+    tick(&mut map.env, STEP_SECS); // Road links.
+    PortMap { map, dock }
+}
+
+fn set_vijara_limit(port: &mut PortMap, good: ResourceKind, limit: TradeLimit) {
+    assert!(port.map.env.sim.trade_mut().set_limit("vijara", good, limit));
+}
+
+fn ship(port: &PortMap) -> Option<UnitTaskShip> {
+    let unit = find_unit_by_config(&port.map.env, UnitConfigKey::TradeShip)?;
+    let unit = test_utils::find_unit(&port.map.env, unit);
+    unit.current_task_as::<UnitTaskShip>(port.map.env.sim.task_manager()).cloned()
+}
+
+fn ships_in(env: &test_utils::TestEnvironment) -> Vec<UnitTaskShip> {
+    let mut ships = Vec::new();
+    env.world.for_each_unit(|unit| {
+        if let Some(task) = unit.current_task_as::<UnitTaskShip>(env.sim.task_manager()) {
+            ships.push(task.clone());
+        }
+        true
+    });
+    ships
+}
+
+// Ticks until every ship has come and gone; returns the notices they left.
+fn until_the_ships_leave(port: &mut PortMap) -> Vec<TradeNotice> {
+    tick_until(&mut port.map.env, 40_000, STEP_SECS, |env| find_unit_by_config(env, UnitConfigKey::TradeShip).is_none());
+    trade::take_notices()
+}
+
+fn test_a_dock_stands_at_the_shore() {
+    let mut port = port_map(true);
+    let dock = find_building(&port.map.env, port.dock.unwrap());
+    assert!(dock.is(game::building::BuildingKind::Dock));
+    assert!(game::tile::water::is_port_or_wharf(test_utils::find_building_def("dock")));
+    assert!(game::tile::water::is_port_or_wharf(test_utils::find_building_def("fishing_wharf")));
+    assert!(!game::tile::water::is_port_or_wharf(test_utils::find_building_def("storage_yard")));
+    let berth = ships::berth_of(dock).expect("a dock keeps a berth");
+    assert!(berth.ship.is_none());
+    assert_eq!(berth.dockers.len(), rules().dockers as usize);
+    assert!(dock.road_link().is_some(), "linked to the road down to the shore");
+    let context = port.map.env.new_sim_context(0.0);
+    assert!(ships::has_dock(&context));
+    assert_eq!(ships::ship_entry(&context, "vijara"), Some(SEA_ENTRY));
+}
+
+fn test_a_ship_moors_and_its_dockers_trade() {
+    let _gold = PaysForItself::new();
+    let mut port = port_map(true);
+    let (yard, granary) = (port.map.yard, port.map.granary);
+    put(&mut port.map, granary, ResourceKind::Rice, 26);
+    set_vijara_limit(&mut port, ResourceKind::Metal, TradeLimit::Import(16));
+    set_vijara_limit(&mut port, ResourceKind::Rice, TradeLimit::Export(10));
+    port.map.env.sim.finance_mut().set_balance_unrecorded(1000);
+    let balance = port.map.env.sim.finance().balance();
+
+    send(&mut port.map, "vijara").unwrap();
+    assert_eq!(ship(&port).unwrap().carries(ResourceKind::Metal), 16, "it brings what the limit wants");
+
+    // It sails to the dock and moors; the dockers come and go.
+    tick_until(&mut port.map.env, 20_000, STEP_SECS, |env| {
+        find_unit_by_config(env, UnitConfigKey::TradeShip).is_some_and(|unit| {
+            test_utils::find_unit(env, unit)
+                .current_task_as::<UnitTaskShip>(env.sim.task_manager())
+                .is_some_and(|task| task.state == UnitTaskShipState::Moored)
+        })
+    });
+    let moored = ship(&port).unwrap();
+    assert!(moored.dock == port.dock, "moored at the dock");
+    assert!(ships::berth_of(find_building(&port.map.env, port.dock.unwrap())).unwrap().ship.is_some());
+
+    let notices = until_the_ships_leave(&mut port);
+    assert_eq!(stock(&port.map, yard, ResourceKind::Metal), 16, "unloaded to the yard");
+    assert_eq!(stock(&port.map, granary, ResourceKind::Rice), 10, "loaded from the granary down to the limit");
+    let vijara = port.map.env.sim.trade().partner("vijara").unwrap();
+    assert_eq!(vijara.sold[ResourceKind::Metal.index()], 16);
+    assert_eq!(vijara.bought[ResourceKind::Rice.index()], 16);
+    let finance = port.map.env.sim.finance();
+    assert_eq!(finance.this_year().total(LedgerCategory::Imports), 16 * 24);
+    assert_eq!(finance.this_year().total(LedgerCategory::Exports), 16 * 18);
+    assert_eq!(finance.balance(), balance - 16 * 24 + 16 * 18);
+    assert_eq!(notices, [TradeNotice::Ship {
+        partner: "vijara".into(),
+        sold: vec![(ResourceKind::Metal, 16)],
+        bought: vec![(ResourceKind::Rice, 16)],
+        paid: 384,
+        earned: 288,
+        turned_back: false,
+    }]);
+    let (_, _, text) = trade::notice_message(&notices[0], "Vijara");
+    assert_eq!(text, "A ship from Vijara brought 16 metal and took 16 rice: −96 gold.");
+
+    // The berth is free again, and no docker is out.
+    let berth = ships::berth_of(find_building(&port.map.env, port.dock.unwrap())).unwrap();
+    assert!(berth.ship.is_none());
+    assert_eq!(berth.dockers_out(), 0);
+    assert!(find_unit_by_config(&port.map.env, UnitConfigKey::Runner).is_none(), "the dockers are home");
+}
+
+fn test_river_and_sea_routes_need_a_dock() {
+    let _gold = PaysForItself::new();
+    let mut port = port_map(false);
+    port.map.env.sim.trade_mut().close_route("vijara");
+    port.map.env.sim.finance_mut().set_balance_unrecorded(1000);
+    let open = |port: &mut PortMap| {
+        let context = port.map.env.new_sim_context(0.0);
+        trade::open_route(&context, "vijara")
+    };
+    assert_eq!(open(&mut port), Err(OpenRouteError::NeedsDock));
+    {
+        let trade = port.map.env.sim.trade();
+        assert_eq!(trade::route_detail(trade, "vijara", false).as_deref(), Some("Closed · needs a dock"));
+        assert_eq!(trade::route_detail(trade, "vijara", true).as_deref(), Some("Closed · opens for free"));
+    }
+
+    // With a dock, it opens, and its ships come.
+    port.dock = Some(spawn_building(&mut port.map.env, DOCK_CELL, "dock"));
+    tick(&mut port.map.env, STEP_SECS);
+    assert_eq!(open(&mut port), Ok(0));
+    set_vijara_limit(&mut port, ResourceKind::Metal, TradeLimit::Import(8));
+    assert_eq!(send(&mut port.map, "vijara"), Ok(()));
+    until_the_ships_leave(&mut port);
+    assert_eq!(stock(&port.map, port.map.yard, ResourceKind::Metal), 8);
+
+    // Without one, no ship sets out.
+    test_utils::despawn_building(&mut port.map.env, port.dock.unwrap());
+    assert_eq!(send(&mut port.map, "vijara"), Err(NotSent::NoDock));
+}
+
+fn test_a_ship_without_a_dock_in_reach_turns_back() {
+    let mut port = port_map(false);
+    // A pond up the land, cut off from the sea, with the dock on it: no ship sets out.
+    lay_water(&mut port.map.env, 30..=33, 18..=20);
+    let pond_dock = spawn_building(&mut port.map.env, Cell::new(31, 19), "dock");
+    tick(&mut port.map.env, STEP_SECS);
+    set_vijara_limit(&mut port, ResourceKind::Metal, TradeLimit::Import(8));
+    assert_eq!(send(&mut port.map, "vijara"), Err(NotSent::NoDock), "no dock its water reaches");
+
+    // One sets out for the dock on the sea, which is gone before it arrives: it turns back.
+    port.dock = Some(spawn_building(&mut port.map.env, DOCK_CELL, "dock"));
+    tick(&mut port.map.env, STEP_SECS);
+    assert_eq!(send(&mut port.map, "vijara"), Ok(()));
+    tick(&mut port.map.env, STEP_SECS);
+    test_utils::despawn_building(&mut port.map.env, port.dock.unwrap());
+    let notices = until_the_ships_leave(&mut port);
+    assert_eq!(notices.len(), 1);
+    let TradeNotice::Ship { turned_back, sold, .. } = &notices[0] else { panic!("{notices:?}") };
+    assert!(*turned_back && sold.is_empty());
+    let (_, _, text) = trade::notice_message(&notices[0], "Vijara");
+    assert_eq!(text, "A ship from Vijara found no dock to moor at and turned back.");
+    assert_eq!(stock(&port.map, port.map.yard, ResourceKind::Metal), 0);
+    assert!(ships::berth_of(find_building(&port.map.env, pond_dock)).unwrap().ship.is_none());
+}
+
+fn test_ships_keep_out_of_canals() {
+    let mut port = port_map(false);
+    // The pond again, joined to the sea only by a canal.
+    lay_water(&mut port.map.env, 30..=33, 18..=20);
+    let canal = game::tile::sets::TileSets::get()
+        .find_tile_def_by_name(
+            game::tile::TileMapLayerKind::Terrain,
+            game::tile::sets::TERRAIN_WATER_CATEGORY.string,
+            "canal",
+        )
+        .expect("the canal");
+    for y in 21..=29 {
+        test_utils::place_terrain_by_def(&mut port.map.env, Cell::new(33, y), canal);
+    }
+    port.dock = Some(spawn_building(&mut port.map.env, Cell::new(31, 19), "dock"));
+    tick(&mut port.map.env, STEP_SECS);
+    {
+        let context = port.map.env.new_sim_context(0.0);
+        assert!(
+            ships::find_water_path(&context, SEA_ENTRY, |cell| cell == Cell::new(32, 20)).is_none(),
+            "not through a canal"
+        );
+        assert!(ships::find_water_path(&context, SEA_ENTRY, |cell| cell == Cell::new(15, 31)).is_some(), "across the sea");
+        assert!(!ships::reaches_working_dock(&context, SEA_ENTRY), "the dock is on the pond");
+    }
+    set_vijara_limit(&mut port, ResourceKind::Metal, TradeLimit::Import(8));
+    assert_eq!(send(&mut port.map, "vijara"), Err(NotSent::NoDock));
+}
+
+fn test_a_busy_dock_keeps_a_ship_waiting() {
+    let _gold = PaysForItself::new();
+    let mut port = port_map(true);
+    port.map.env.sim.finance_mut().set_balance_unrecorded(10_000);
+    set_vijara_limit(&mut port, ResourceKind::Metal, TradeLimit::Import(40));
+    send(&mut port.map, "vijara").unwrap();
+    send(&mut port.map, "vijara").unwrap();
+    tick_until(&mut port.map.env, 20_000, STEP_SECS, |env| {
+        ships_in(env).iter().any(|ship| ship.state == UnitTaskShipState::Moored)
+    });
+    // One moors; the other waits off the dock until the berth is free.
+    tick(&mut port.map.env, 2.0);
+    let states: Vec<UnitTaskShipState> = ships_in(&port.map.env).iter().map(|ship| ship.state).collect();
+    assert!(states.contains(&UnitTaskShipState::Moored), "{states:?}");
+    assert!(
+        states.iter().any(|state| matches!(state, UnitTaskShipState::WaitingOff | UnitTaskShipState::FindingBerth)),
+        "{states:?}"
+    );
+    let notices = until_the_ships_leave(&mut port);
+    assert_eq!(notices.len(), 2, "{notices:?}");
+    assert!(notices.iter().all(|notice| matches!(notice, TradeNotice::Ship { turned_back: false, .. })), "{notices:?}");
+    assert_eq!(stock(&port.map, port.map.yard, ResourceKind::Metal), 40, "both unloaded, up to the limit");
+}
+
+fn test_the_monthly_schedule_sends_ships() {
+    let mut port = port_map(true);
+    set_vijara_limit(&mut port, ResourceKind::Metal, TradeLimit::Import(8));
+    let due = port.map.env.sim.trade().partner("vijara").unwrap().next_arrival.unwrap();
+    new_month(&mut port.map, due / 12, due % 12 + 1);
+    assert!(ship(&port).is_some(), "a ship sets out");
+    let every = trade::terms(port.map.env.sim.trade(), "vijara").unwrap().every_months;
+    assert_eq!(port.map.env.sim.trade().partner("vijara").unwrap().next_arrival, Some(due + every));
+    until_the_ships_leave(&mut port);
+
+    // Without a working dock it tries again next month.
+    test_utils::despawn_building(&mut port.map.env, port.dock.unwrap());
+    let due = due + every;
+    new_month(&mut port.map, due / 12, due % 12 + 1);
+    assert!(ship(&port).is_none());
+    assert_eq!(port.map.env.sim.trade().partner("vijara").unwrap().next_arrival, Some(due + 1));
 }

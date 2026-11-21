@@ -1,6 +1,6 @@
 # Trade and court requests
 
-**Status (2026-11-21): Phases 0 and 1 done (the data and state, save v12; land routes, the trade limits dialog and caravans); Phase 2, docks and ships, next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
+**Status (2026-11-21): Phases 0, 1 and 2 done (the data and state, save v12; land routes, the trade limits dialog and caravans; docks, trade ships and their dockers, save v13); Phase 3, prices, next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
 - land, river and sea routes the player opens to partner cities, and the buy and sell limits they set per good and per partner;
 - caravans that walk in from the map's edge and trade at the storage yards and granaries themselves, store by store, as in Pharaoh: there's no trade post;
 - docks, and trade ships that sail in from the map's edge, moor at a dock and wait while its dockers carry their goods to the stores and the city's exports back to them;
@@ -23,7 +23,7 @@ It was researched against `28a11acc` on `claude`. File and line references point
 - Work through the [phases](#phases) in order. Each phase is one PR-sized change that is usable on its own.
 - Tick the checkboxes as tasks land, and add a short dated note under the phase (commit, deviations, what was verified). This file is the source of truth for progress.
 - The [open decisions](#open-decisions) each have a default, and the user confirmed them on 2026-11-21 (Q1 decided otherwise, Q2 moved back with it). Record any later answer here.
-- Keep this milestone's UI changes to the ones listed under [UI changes](#ui-changes), and say so in the phase notes if one grows. The retail screens follow the realm UI's skins and mockups ([realm-ui.md](realm-ui.md)). The user's UI redesign lives on `claude-ui`, so flag every UI change in the phase notes.
+- Keep this milestone's UI changes to the ones listed under [UI changes](#ui-changes), and say so in the phase notes if one grows. The retail screens follow the realm UI's skins and mockups ([realm-ui.md](realm-ui.md)). List the UI changes in the phase notes.
 - Follow [AGENTS.md](../../AGENTS.md) throughout:
   - Keep desktop and web compiling.
   - Run `cargo +nightly fmt --all`, both clippy runs, `cargo test --workspace` and the scenario scripts before committing.
@@ -168,7 +168,7 @@ It was researched against `28a11acc` on `claude`. File and line references point
   - The delta: the player's earlier cities, a land route opened for gold. They sell Bricks and RoofTiles and buy Wood and Metal.
 
   M13 writes the mission. M10 writes the world file's terms, and test missions: one by land, and one by river with a dock.
-- **Custom games:** a map in `maps.json` takes an optional `trade` block like a mission's, naming partners from its realm's first campaign's world file. The Blank map and the presets list that realm's land partners, so trade can be tried outside the campaign. Custom Game's Trade partners detail lists them.
+- **Custom games:** a map in `maps.json` takes an optional `trade` block like a mission's, naming partners from its realm's first campaign's world file. The Blank map and the presets list that realm's partners (its land partners until Phase 2, which added the river and sea ones: they open once the city has a dock), so trade can be tried outside the campaign. Custom Game's Trade partners detail lists them.
 - **Checks** (`WorldMapConfigs::validate`, `CampaignConfigs::validate`):
   - every traded good is a `ResourceKind`;
   - prices and amounts are positive;
@@ -394,8 +394,8 @@ The Finances page gains the three lines.
   - **The Finances page lists the three trade lines only in a game that trades**, or whose accounts hold them. Missions 1–4 keep their page as it was, and `ui_city.jsonl` its line indices.
   - **A custom map's `trade` block has no realm.** Partners the chosen realm's world map lacks are left out with a warning. No map in `maps.json` has a block yet.
   - **No test mission yet.** Phase 1 adds one for a route open at the start and an entry cell.
-  - **Phase 2's dock may need its own save bump** if its berth keeps state on the building; or it keeps that state in `CityTrade`. Phase 2 decides.
-- **UI changes, to flag for `claude-ui`:**
+  - **Phase 2's dock may need its own save bump** if its berth keeps state on the building; or it keeps that state in `CityTrade`. Phase 2 decides. (It did: save v13, the berth on the dock's ServiceBuilding.)
+- **UI changes:**
   - The world map's side panel shows the Clan camps' and Đê Sơn's terms.
   - A dotted closed route now runs between Chợ Đèo and Đê Sơn.
   - The Finances page has Exports, Imports and Trade routes lines in a game that trades.
@@ -441,7 +441,7 @@ The Finances page gains the three lines.
   - **Imports are paid as far as the treasury can** (none in debt); the rest leaves with the caravan.
   - **No test mission.** The custom game covers trade's start in game, and `tests/trade.rs` covers the mission block (an open route, an entry). M13's I-5 is the first mission with a block.
   - **The caravan's cargo counts against its capacity both ways:** it sets out with what the limits want, up to `caravan_capacity`, and buys only with the room left. A caravan that brings a full load buys after it has sold.
-- **UI changes, to flag for `claude-ui`:**
+- **UI changes:**
   - the world map's side panel: Open the route and Set trade limits, the route's state line, the Open Route popup, Send a gift's new tooltip;
   - the new `TradeLimits` dialog (no mockup) and its skin size in `dailong.json`;
   - the caravan's inspector panel and the Trade message kind;
@@ -454,13 +454,46 @@ The Finances page gains the three lines.
 
 ### Phase 2: Docks and ships (large)
 
-- [ ] `BuildingKind::Dock` in the Trade sector: its config and tile def, placed at the shore (`on_shore` in place of the wharf's hash), its four bank variations from the Blender pipeline, its palette glyph in each realm, its minimap landmark.
-- [ ] The tile generator's unit output (a rigid model in the unit sprite format) and the trade ship's sprites.
-- [ ] The ship: `UnitConfigKey::TradeShip` on water, kept out of canals, `UnitTaskShip`, its voyage from the water entry to a free berth and back, waiting off a busy dock.
-- [ ] The dockers' errands both ways, paid per load; the ship's stay.
-- [ ] River and sea routes: Open the route needs a dock; nothing sails while no working dock is in reach.
-- [ ] The dock's and the ship's panels; messages.
-- [ ] Tests; `trade.jsonl`'s river part.
+- [x] `BuildingKind::Dock` in the Trade sector: its config and tile def, placed at the shore (`on_shore` in place of the wharf's hash), its four bank variations from the Blender pipeline, its palette glyph in each realm, its minimap landmark.
+- [x] The tile generator's unit output (a rigid model in the unit sprite format) and the trade ship's sprites.
+- [x] The ship: `UnitConfigKey::TradeShip` on water, kept out of canals, `UnitTaskShip`, its voyage from the water entry to a free berth and back, waiting off a busy dock.
+- [x] The dockers' errands both ways, paid per load; the ship's stay.
+- [x] River and sea routes: Open the route needs a dock; nothing sails while no working dock is in reach.
+- [x] The dock's and the ship's panels; messages.
+- [x] Tests; `trade.jsonl`'s river part.
+
+**Notes (2026-11-21):**
+- **What was built:**
+  - **The dock:** `BuildingKind::Dock` (bit 26), a service config (4 to 8 workers, no patrol) and the `dock` tile def: 2 × 2, 60 gold, 10 wood and 6 bricks, upkeep 10, Civic, the Trade sector, the `Port` landmark, `occludes_terrain: false` (the water shows between its piles). `TileDef::on_shore` replaces the wharf's hash check (`water::is_port_or_wharf`): the fishing wharf's def sets it too, and the bank's variation is now found by its name (`north_bank`, `south_bank`, `east_bank`, `west_bank`), not its index.
+  - **The dock's art** is the Blender pipeline's (`catalog/trade.json`, `hbgen/recipes/trade.py`): a plank quay on piles with a stone landing on its bank, a tiled storehouse, a crane with a bale on its rope, bollards and goods on the deck, modelled with its land on +Y and turned to each bank. A pile stands at each corner, from the water line, so the sprite's anchor checks pass where the deck is over water. Its palette glyph (a quay on piles with a crane) is ui-art's in each realm (`palette_glyphs.py`'s `dock`; the Trade sector lists it).
+  - **The ship's art is the pipeline's first unit.** A catalog entry with a `unit` block is a unit: its variations are the rendered anim sets' folders (`idle_ne`, `idle_se`), its frames each set's frames, and the block is written into the tile def as its one variation, with its anim sets (nw and sw mirrored, the sailing sets copies of the idle ones). The sync writes a unit's `draw_size` only. The junk has a dark hull with a high stern and a red-banded gunwale, a deckhouse, two masts with battened ochre sails and cargo on deck, bow to +X (se) or +Y (ne), and bobs on two frames. It's rendered in a 2 × 2 footprint's frame (128 × 97 logical px), and its `iso_offset` (y 32) puts the frame's middle on its cell.
+  - **The ship:** `UnitConfigKey::TradeShip` (`trade_ship`, traversing `Water`, 1.2 cells a second); `TileDef::sails` lets it stand only on open water, never land or a canal. `unit::task::UnitTaskShip` (`unit/task/ship.rs`) keeps its cargo, what it sold and bought and the gold, as a caravan's task does, and sails `FindingBerth`, `Sailing`, `WaitingOff`, `Mooring`, `Moored` and `Leaving`. Its paths are a breadth-first search over open water (`trade::ships::find_water_path`, `WaterSearch`): cells whose node is water, not a canal, with no building over them. It looks for the nearest working dock (finished, staffed, not burning) with a free berth (`find_berth`), sails to the water cell beside it, and claims the berth with a deferred building update (first come, first served). While every dock in reach is busy, it waits 3 cells short of the nearest, looking again every 2 seconds, for a stay at most. A ship that finds no working dock in reach turns back.
+  - **The dock's state** is `trade::ships::DockBerth`, saved on its `ServiceBuilding` (`dock`, None for every other service: **save v13**, `v12_to_v13.py`): the ship moored and a slot per docker (`dockers`, 2; each a `Runner` and its errand). The dock frees its berth when its ship is gone or bound elsewhere.
+  - **The dockers:** while a ship is moored and the dock is staffed, the dock sends a docker whenever a slot is free, one at a time, each once the one before has set out (`next_errand`). Unloading comes first: a load (`docker_load`, 8) of a good the city still wants (below its limit, minus the loads already out), within the stores' room and what the treasury pays. The docker takes it off the ship as it sets out, and the city pays then (`Imports`). It carries the load to the nearest staffed yard or granary that takes it (`UnitTaskDeliverToStorage`). Then loading: a load of an export above its limit, within the ship's room, fetched from the nearest store that holds it (`UnitTaskFetchFromStorage`). It goes onto the ship as the docker comes back, as far as the ship has room and the partner's amount allows, and the partner pays then (`Exports`); what doesn't go on goes back to a store (the fetch task's recovery).
+  - **The stay:** the ship leaves once no docker is out and there's nothing left to do, or after `ship_stay_months` (1). A docker still out keeps it up to half a stay longer. It takes its unsold goods home unpaid and posts its message as it sets out: "A ship from Vijara brought 16 metal and took 6 rice: −276 gold.", or "… found no dock to moor at and turned back."
+  - **Sending:** `trade::send` sends a land partner's caravan or a river or sea partner's ship (`ships::send_ship`); `on_new_month` and `trade.arrive_now` use it. A ship comes in at the partner's `entry` when it's open water, else at the open water on the map's edge nearest a working dock (a search out from the docks' berths, `ship_entry`). Nothing sails while no working dock is in reach of the entry (`NotSent::NoDock`, which replaces `ByWater`); the route tries again next month.
+  - **Opening a river or sea route** needs a finished dock (`ships::has_dock`). The world map's panel says "Closed · needs a dock" and Open the route's tooltip "Build a dock first: river and sea routes need one" until there is one. The Open Route popup names the route's carrier ("Its junks come once you set what to buy and sell.").
+  - **Vijara trades game goods.** Campaign I's sea partner buys rice and pottery (pottery replaces the mockup's "ceramics") and sells metal (in place of cotton); salt, aloeswood and silk stay display-only. Its request still names ceramics (Phase 4). Custom games now trade with every partner of the realm's world map (`trade::map_partners`, which replaces `land_partners`), Vijara included, closed until a dock is built.
+  - **The panels:** the ship's ("Trade ship · from Vijara"; Sailing, Waiting, Moored or Leaving; its errand line; Carrying, Bought and Sold; Stay, "Sails within …" while moored). The dock's has a Berth section (the ship moored, what's on board, what it's taken on, the next ship, the river and sea routes it serves), its dockers' errands and Set trade limits (the trade limits dialog, on the moored ship's partner or the first river or sea partner; `ActionKind::TradeLimits`).
+  - **Automation:** `trade.state` gains `ships` (partner, state, cell, entry, cargo, sold, bought, gold, dock, moored time, turned back) and `docks` (cell, variation, working, the ship's partner, dockers out, errands); `trade.arrive_now` sends a ship.
+  - **Tests:** `tests/trade.rs` has 29: the dock at the shore, a ship moored and its dockers both ways, a dock needed to open a route and to sail, a ship that turns back, canals kept out, a busy dock, the monthly schedule.
+  - **`trade.jsonl`'s river part:** a river laid to the map's edge, the Trade grid, a dock, Vijara's route opened from the world map (needing the dock first), a ship moored with its dockers out, the dock's panel, and the yard's metal, the granary's rice and the gold after it sails.
+- **Deviations:**
+  - **Dockers are runners.** They use the runner's walker, and an unloading docker ends its errand at the store, as producers' runners do, without walking home.
+  - **A loading docker fetches from the nearest store that holds the good**, not the one that holds the most.
+  - **The dock has no "days left" for each errand.** Its panel lists the errands its dockers are on.
+  - **The minimap doesn't draw ships**, as it draws no walkers.
+  - **No test mission with a river route.** The custom game covers it, and M13 writes the missions.
+  - **The ship's 2 × 2 frame** leaves empty room round the hull; it's drawn only, so it costs atlas space and nothing else.
+- **UI changes:**
+  - the build palette's Trade sector (the dock, its glyph in each realm);
+  - the dock's panel (the Berth section, its dockers' errands, Set trade limits) and the ship's;
+  - the world map's panel for a river or sea partner (needs a dock, Open the route's tooltip) and the Open Route popup's carrier;
+  - the dock and the ship on the map.
+- **Verified:**
+  - `cargo test --workspace` and both clippy runs;
+  - all 29 scenarios on a release build (macOS);
+  - the dock on the river, the ship moored with its dockers out, the dock's panel, the Trade grid and the popup, by screenshot.
 
 ### Phase 3: Prices (small)
 

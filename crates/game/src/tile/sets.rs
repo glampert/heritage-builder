@@ -654,6 +654,11 @@ pub struct TileDef {
     #[serde(default)]
     pub flying_object: bool,
 
+    // A unit that sails (the trade ship, crate::trade::ships): placed and moving on open water only,
+    // never on land or a canal. Optional.
+    #[serde(default)]
+    pub sails: bool,
+
     #[serde(default = "default_path_kind")]
     pub path_kind: PathNodeKind,
 
@@ -692,6 +697,13 @@ pub struct TileDef {
     // blocks floods (a sluice gate, crate::farms). Optional.
     #[serde(default)]
     pub requires_dyke: bool,
+
+    // Placed on open water at the shore (not a canal): its footprint on water, beside land. Its
+    // variations are the bank it faces, `north_bank`, `south_bank`, `east_bank` and `west_bank`,
+    // picked as it's placed (tile::water::update_port_wharf_orientation): the fishing wharf, the
+    // dock. Optional.
+    #[serde(default)]
+    pub on_shore: bool,
 
     // How the tile shows on the minimap: its class (Building, Field, Plaza, Decor, None), a
     // landmark icon and a colour override. Optional: see tile::minimap::model.

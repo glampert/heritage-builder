@@ -82,8 +82,8 @@
 # Bến Gốm, the route's port, comes with mission 2: until then the route isn't open.
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route"}, "path": "/widgets/0/value", "value": "Sea route from —"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route_detail"}, "path": "/widgets/0/value", "value": "Not yet open"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/They sell", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Salt", "24"], ["Aloeswood", "60"], ["Cotton", "32"]]}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/They buy", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Silk", "90"], ["Ceramics", "45"], ["Rice", "18"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/They sell", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Salt", "24"], ["Aloeswood", "60"], ["Metal", "24"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/They buy", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Silk", "90"], ["Pottery", "45"], ["Rice", "18"]]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/request/title"}, "path": "/widgets/0/value", "value": "REQUEST FROM THEIR COURT"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/request/goods"}, "path": "/widgets/0/value", "value": "Ceramics × 30 · within 8 months"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Set trade limits", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}

@@ -387,6 +387,11 @@ pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &
 
 // The mission's briefing as its map loads (campaign::take_pending_briefing): only this one offers a
 // choice point's sites, when none is picked yet (mission_briefing::open_at_mission_start).
+// Opens the trade limits dialog for the partner `city` (a dock's Set trade limits).
+pub fn open_trade_limits(context: &mut GameUiContext, city: &str) {
+    trade_limits::open(context, city);
+}
+
 pub fn open_mission_briefing_at_start(context: &mut GameUiContext) -> bool {
     mission_briefing::open_at_mission_start(context)
 }

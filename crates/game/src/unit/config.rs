@@ -30,7 +30,8 @@ pub enum UnitConfigKey {
     Dog = hash::fnv1a_from_str("dog"),
     Bird = hash::fnv1a_from_str("bird"),
     Buffalo = hash::fnv1a_from_str("buffalo"),
-    Trader = hash::fnv1a_from_str("trader"), // A caravan (docs/plans/trade.md).
+    Trader = hash::fnv1a_from_str("trader"),        // A caravan (docs/plans/trade.md).
+    TradeShip = hash::fnv1a_from_str("trade_ship"), // A trade ship on a river or sea route (docs/plans/trade.md).
 }
 
 // ----------------------------------------------

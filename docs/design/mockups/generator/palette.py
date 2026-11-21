@@ -43,7 +43,7 @@ SECTORS = [
     ("infrastructure", "Infrastructure", "Water and government", ["small_well", "large_well", "governor_palace", "citadel"]),
     ("culture", "Culture and religion", "Faith, learning and theatre",
      ["shrine", "temple", "festival_square", "theater", "university"]),
-    ("trade", "Trade and economy", "Nothing to build here yet", []),
+    ("trade", "Trade and economy", "Docks for the river and sea routes", ["dock"]),
     ("beauty", "Beautification", "Gardens and plazas", ["garden"]),
     None,
     ("undo", "Undo", "", []),
@@ -56,7 +56,7 @@ SHORT = {"clear": "Clear", "food": "Food", "industry": "Industry", "infrastructu
 # The game's costs (assets/tiles/objects/tile_set.json) and sizes in tiles.
 COSTS = {
     "rice_farm": (5, {}, "3×3"), "farmstead": (8, {}, "2×2"), "rice_field": (1, {}, "1×1"),
-    "livestock_farm": (6, {}, "3×3"), "fishing_wharf": (5, {}, "2×2"), "granary": (10, {}, "3×3"),
+    "livestock_farm": (6, {}, "3×3"), "fishing_wharf": (5, {}, "2×2"), "dock": (60, {"Wood": 10, "Bricks": 6}, "2×2"), "granary": (10, {}, "3×3"),
     "market": (10, {}, "2×2"), "lumberyard": (4, {}, "2×2"), "clay_pit": (4, {}, "2×2"), "mine": (8, {}, "2×2"),
     "brick_maker": (10, {}, "2×2"), "pottery_kiln": (10, {}, "2×2"), "roof_tile_kiln": (10, {}, "2×2"),
     "distillery": (15, {"Wood": 4, "Bricks": 3}, "2×2"), "storage_yard": (10, {}, "3×3"),

@@ -35,6 +35,7 @@ use crate::{
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
     tile::Tile,
+    trade::ships::{self, DockBerth},
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
@@ -207,6 +208,9 @@ pub struct ServiceBuilding {
     pub(crate) patrol: Patrol,            // Unit we may send out on patrol to provide the service.
     pub(crate) patrol_timer: UpdateTimer, // Min time before we can send out a new patrol unit.
 
+    // A dock's berth and dockers (crate::trade::ships); None for every other service.
+    pub(crate) dock: Option<Box<DockBerth>>,
+
     #[serde(skip)]
     debug: ServiceDebug,
 }
@@ -231,6 +235,9 @@ impl BuildingBehavior for ServiceBuilding {
     fn despawned(&mut self, context: &BuildingContextMut) {
         self.runner.discard_spawn_promise(context.sim_ctx.cmds_mut());
         self.patrol.discard_spawn_promise(context.sim_ctx.cmds_mut());
+        if let Some(berth) = &mut self.dock {
+            berth.discard_spawn_promises(context.sim_ctx.cmds_mut());
+        }
     }
 
     fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
@@ -269,6 +276,11 @@ impl BuildingBehavior for ServiceBuilding {
 
         // A fire watch answers fires, and a hospital outbreaks, as well as patrolling
         // (freeze_patrol leaves this be).
+        // A dock sends its dockers to and from the ship at its berth.
+        if let Some(berth) = &mut self.dock {
+            ships::update_dock(berth, cmds, context, has_min_required_workers);
+        }
+
         if has_min_required_workers {
             if context.kind == BuildingKind::FireWatch {
                 self.send_out_responder(cmds, context, Emergency::Fire);
@@ -281,11 +293,17 @@ impl BuildingBehavior for ServiceBuilding {
     fn pre_save(&mut self, cmds: &mut SimCmds) {
         self.runner.pre_save(cmds);
         self.patrol.pre_save(cmds);
+        if let Some(berth) = &mut self.dock {
+            berth.pre_save(cmds);
+        }
     }
 
     fn post_save(&mut self) {
         self.runner.post_save();
         self.patrol.post_save();
+        if let Some(berth) = &mut self.dock {
+            berth.post_save();
+        }
     }
 
     fn post_load(&mut self, _context: &mut PostLoadContext, kind: BuildingKind, _tile: &Tile) {
@@ -293,6 +311,11 @@ impl BuildingBehavior for ServiceBuilding {
 
         self.runner.post_load();
         self.patrol.post_load();
+        match &mut self.dock {
+            Some(berth) => berth.post_load(),
+            None if kind == BuildingKind::Dock => self.dock = Some(Box::new(DockBerth::new())),
+            None => {}
+        }
 
         let config = BuildingConfigs::get().find_service_config(kind);
 
@@ -494,6 +517,7 @@ impl ServiceBuilding {
             runner: Runner::default(),
             patrol: Patrol::default(),
             patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
+            dock: (config.kind == BuildingKind::Dock).then(|| Box::new(DockBerth::new())),
             debug: ServiceDebug::default(),
         }
     }
@@ -502,6 +526,7 @@ impl ServiceBuilding {
         let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ServiceBuilding::on_resources_fetched);
         let _: Callback<PatrolCompletionCallback> = callback::register!(ServiceBuilding::on_patrol_completed);
         let _: Callback<UnitTaskRespondCompletionCallback> = callback::register!(ServiceBuilding::on_response_done);
+        ships::register_callbacks();
     }
 
     // Fraction [0,1] the building runs at, based on how staffed it is relative to

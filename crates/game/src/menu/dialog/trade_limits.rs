@@ -211,7 +211,8 @@ impl TradeLimits {
         );
         let trade_state = context.sim.trade();
         let line = trade::route_line(trade_state, &city).unwrap_or_default();
-        let detail = trade::route_detail(trade_state, &city).unwrap_or_default();
+        let detail =
+            trade::route_detail(trade_state, &city, trade::ships::world_has_dock(context.world)).unwrap_or_default();
         let open = trade_state.partner(&city).is_some_and(|partner| partner.open);
         let route_value = json!({ "line": line, "detail": detail, "open": open });
         let route_text = if detail.is_empty() { line.clone() } else { format!("{line} · {detail}") };

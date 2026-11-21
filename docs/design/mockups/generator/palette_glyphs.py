@@ -393,6 +393,19 @@ def fishing_wharf(realm):
     return out
 
 
+def dock(realm):
+    """A dock: a timber quay on its piles over the water, a crane at its end with a bale on its rope,
+    and bales waiting on the deck."""
+    out = [R(-42, 10, 58, 5)]
+    out += [R(x, 15, 3.4, 15) for x in (-38, -22, -6, 10)]
+    out += [R(-36, -2, 12, 12), P("M-36,4 H-24 M-30,-2 V10", False, 1.4)]
+    out += [R(-20, 0, 10, 10), P("M-20,5 H-10", False, 1.4)]
+    out += [R(14, -30, 5, 40), P("M16,-28 L38,-38", True, 3), P("M17,-12 L24,-30", True, 2)]
+    out += [P("M37,-37 V-8", True, 1.6), R(31, -8, 12, 10), P("M31,-3 H43", False, 1.4)]
+    out += waves(-44, 44, 33, 4, 3, 2.6)
+    return out
+
+
 def storage_yard(realm):
     out = ground_line(-40, 40)
     out += [R(-36, -6, 4, 40), R(32, -6, 4, 40)] + roof(realm, 0, -5, 78, 10)
@@ -569,6 +582,7 @@ BUILDINGS = {
     "canal": ("Canal", canal),
     "livestock_farm": ("Livestock farm", livestock_farm),
     "fishing_wharf": ("Fishing wharf", fishing_wharf),
+    "dock": ("Dock", dock),
     "storage_yard": ("Storage yard", storage_yard),
     "distillery": ("Distillery", distillery),
     "pottery_kiln": ("Pottery kiln", pottery_kiln),

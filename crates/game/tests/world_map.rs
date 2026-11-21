@@ -239,7 +239,8 @@ fn test_player_cities_and_routes() {
     assert_eq!(configs.campaigns[elsewhere.campaign_index()].realm, Realm::Kambara);
 }
 
-// The side panels' static trade data, as the mockups show it.
+// The side panels' static trade data, as the mockups show it (Vijara's metal, pottery and rice are
+// the game's goods, traded by its ships: docs/plans/trade.md, Phase 2).
 fn test_trade_panels() {
     let (configs, _) = configs();
     let mut profile = Profile::new();
@@ -253,9 +254,9 @@ fn test_trade_panels() {
     assert_eq!(panel.route_line.as_deref(), Some("Sea route from —"), "until Bến Gốm is founded");
     assert_eq!(panel.route_detail.as_deref(), Some("Not yet open"), "its route isn't on the map yet");
     let sells: Vec<(&str, u32)> = panel.sells.iter().map(|offer| (offer.good.as_str(), offer.price)).collect();
-    assert_eq!(sells, [("Salt", 24), ("Aloeswood", 60), ("Cotton", 32)]);
+    assert_eq!(sells, [("Salt", 24), ("Aloeswood", 60), ("Metal", 24)]);
     let buys: Vec<(&str, u32)> = panel.buys.iter().map(|offer| (offer.good.as_str(), offer.price)).collect();
-    assert_eq!(buys, [("Silk", 90), ("Ceramics", 45), ("Rice", 18)]);
+    assert_eq!(buys, [("Silk", 90), ("Pottery", 45), ("Rice", 18)]);
     let request = panel.request.as_ref().unwrap();
     assert_eq!((request.goods.as_str(), request.within.as_str()), ("Ceramics × 30", "within 8 months"));
 
