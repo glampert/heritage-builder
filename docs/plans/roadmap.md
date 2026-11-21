@@ -13,7 +13,8 @@
   - [unit-movement.md](unit-movement.md) (U);
   - [minimap.md](minimap.md) (MM);
   - [realm-ui.md](realm-ui.md) (UI);
-  - [city-risks.md](city-risks.md) (M6).
+  - [city-risks.md](city-risks.md) (M6);
+  - [trade.md](trade.md) (M10).
 - When a milestone starts, finishes or changes scope, update its row in the [Phase 1 table](#phase-1-campaign-i-missions-15-the-vertical-slice) and its entry in the [save-version log](#save-version-log).
 - Follow [AGENTS.md](../../AGENTS.md) throughout:
   - keep desktop and web compiling;
@@ -30,7 +31,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 |---|---|---|
 | **0. Prototype** | Done: engine, renderers, egui UI, saves, housing, services, production, walkers, a campaign framework, automation | [agent-automation.md](agent-automation.md), [egui-migration.md](egui-migration.md) |
 | **1. Core city sim** | Campaign I, missions 1–5 playable from start to finish with placeholder art, on desktop and web | This file (M1–M13, T) |
-| **2. Advanced systems** | All of Campaign I: elite housing, monuments and guilds, defence and attacks, diplomacy, sea trade, story presentation in full | Outlined [below](#phase-2-outline) |
+| **2. Advanced systems** | All of Campaign I: elite housing, monuments and guilds, defence and attacks, diplomacy, story presentation in full | Outlined [below](#phase-2-outline) |
 | **3. Kambara** | The realm layer as data, the Kambara art set, the water network (barays and canals), the lake's pulse, temple estates, rest houses. Campaign II | Later |
 | **4. Tampadesa** | The merit economy, policies, two peoples, calling on allies. Campaign III and the epilogue | Later |
 | **5. Polish and release** | Balance, difficulty, Custom Game, localisation, accessibility, performance, store pages | Later |
@@ -55,7 +56,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | [seasons-floods.md](seasons-floods.md) | Done: the floods' data and state (save v11); farmsteads with rice fields the player lays around them, replacing the rice farm, sown and reaped in harvests; the flood (its damage, the crops it takes, silt, the water drawn on the map, its messages, faith's flood events and the Flood lens); dykes drawn like roads, their wear and the builders who keep them, breaches and the `FloodsSurvived` goal; fertility, sluice gates (a dry-season harvest, the silt without the water) and the Fertility lens; irrigation as connected water (canals from the river or a gate's outlet, water flowing from field to field; Phase 6, at the user's request). Its balance is M13's |
 | M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | Done: data, state and save v10; the patrons' shrines and temples, picked from the palette's variation submenu; favour, the Patrons tab and the Faith lens; blessings and misfortunes; festivals and the festival square (floods' events came with M7 Phase 2; Culture and Legitimacy wait for M9) |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
-| M10 | Trade v1 and court requests | Large | M1, M4, M5 | — | Not started |
+| M10 | Trade v1 and court requests | Large | M1, M4, M5 | [trade.md](trade.md) | Plan written (2026-11-20, revised with the user 2026-11-21); not started. No trade post: caravans trade at the storage yards and granaries (Q1); docks and trade ships brought forward from Phase 2; the `TradeIncome` and `RequestsFulfilled` goals brought forward from M9 (Q10) |
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
 | M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3, the comic viewer (I-A and I-B as data) with Phase 4; the other sequences wait for their missions |
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
@@ -188,11 +189,12 @@ GDD 5.17 and 7:
 GDD 5.12 and 5.14:
 - **World map:** a mission-defined world map with partner cities and routes, set up in mission config; a world-map dialog.
 - **Opening a route** costs gold.
-- **Trade post:** buys and sells within limits set per good and per partner. A **caravan** walker comes from the map edge's entry point, goes to the trade post and trades.
+- **Caravans:** buy and sell within limits set per good and per partner. A **caravan** walker comes from the map edge's entry point and trades at the storage yards and granaries, store by store, as in Pharaoh: there's no trade post (decided with the user, 2026-11-21).
+- **Docks and ships:** river and sea partners trade only once the city has a dock; a trade ship sails in, moors there, and the dock's dockers carry its goods to and from the stores.
 - **Imports** fill storage yards through deliveries; this is how construction materials are imported (GDD 5.1.1).
 - **Prices** come from a per-partner table with simple supply and demand.
-- **Court requests:** "deliver N goods within M months"; goods go out through a dispatch building or the trade post. Fulfilling one raises Legitimacy, and failing one lowers it.
-- **Scope:** Phase 1 needs only land routes (mission I-5). Docks and sea trade come in Phase 2 (I-6).
+- **Court requests:** "deliver N goods within M months"; goods are sent from the stores (the Goods page's Send now). Fulfilling one raises Legitimacy, and failing one lowers it.
+- **Scope:** mission I-5 needs only land routes. Docks and ships come in M10 too, at the user's request (2026-11-21), so later missions can trade by river and sea.
 
 ### M11: Messages and advisors (medium)
 
@@ -267,7 +269,7 @@ These get their own plans when Phase 2 begins:
   - attacker AI, raids, warnings and damage (GDD 5.16);
   - plunder: losing a tax office to an attack takes gold from the city treasury (decided in [finance.md](finance.md));
   - uses terrain height for chokepoints.
-- **Sea trade and docks;** foreign partners on the world map; gifts, relations and tribute (GDD 5.12 and 5.14).
+- **Foreign partners on the world map;** gifts, relations and tribute (GDD 5.12 and 5.14). Docks and ships came into M10.
 - **The silk chain;** Đại Long's signature goods.
 - **Examinations and scholar-officials** (GDD §6).
 - **Crime and unrest.** (Disease and the hospital's medics came early, with M6.)
@@ -306,7 +308,8 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 9 | A store's orders per good (refuse, accept, get, empty), set in the inspector | UI (realm-ui Phase 8) | Done |
 | 10 | The city's faith: the realm, the patrons' favour, the festival plan and log, the effects under way (`sim.faith`) | M8 | Done |
 | 11 | The river's floods and the land's fertility (`sim.floods`); a farmstead's fields on every producer (`fields`); old saves' rice farms turned into livestock farms | M7 | Done |
-| 12 | Elevation map | T | Planned |
+| 12 | The city's trade: partners, routes, limits, prices, caravans and ships under way, requests and their log (`sim.trade`) | M10 | Planned |
+| 13 | Elevation map | T | Planned |
 | … | Ratings state | M9 | Planned |
 
 ## Conventions for every milestone
