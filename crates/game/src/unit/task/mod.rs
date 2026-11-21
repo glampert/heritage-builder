@@ -24,6 +24,7 @@ mod patrol;
 mod respond;
 mod settler;
 mod state_machine;
+mod trade;
 
 pub use common::*;
 pub use deliver::*;
@@ -36,6 +37,7 @@ pub use patrol::*;
 pub use respond::*;
 pub use settler::*;
 pub use state_machine::*;
+pub use trade::*;
 
 // ----------------------------------------------
 // UnitTaskOriginBuildingDebug
@@ -81,6 +83,7 @@ pub enum UnitTaskArchetype {
     UnitTaskHarvestWood(UnitTaskHarvestWood),
     UnitTaskFollowPath(UnitTaskFollowPath),
     UnitTaskRespond(UnitTaskRespond),
+    UnitTaskTrade(UnitTaskTrade),
 }
 
 // Dispatches a method call to the wrapped concrete task, for every variant.
@@ -96,6 +99,7 @@ macro_rules! archetype_dispatch {
             UnitTaskArchetype::UnitTaskHarvestWood($task) => $body,
             UnitTaskArchetype::UnitTaskFollowPath($task) => $body,
             UnitTaskArchetype::UnitTaskRespond($task) => $body,
+            UnitTaskArchetype::UnitTaskTrade($task) => $body,
         }
     };
 }
@@ -157,4 +161,5 @@ archetype_from!(
     UnitTaskHarvestWood,
     UnitTaskFollowPath,
     UnitTaskRespond,
+    UnitTaskTrade,
 );

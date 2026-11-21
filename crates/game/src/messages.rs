@@ -1,6 +1,6 @@
 // The HUD's message log (docs/plans/realm-ui.md, Phase 5: P5d; hud-<realm>.jpg): the notices the
 // game raised lately (a building completed, a fire or collapse, debt and its warnings, a patron's
-// blessing or misfortune, the river and the harvests), newest
+// blessing or misfortune, the river, the harvests and trade), newest
 // first, which the HUD shows at the bottom of the screen. A small store until M11's messages
 // replace it with typed messages and their popups. Runtime only: a new or loaded game starts empty.
 
@@ -21,6 +21,7 @@ pub enum MessageKind {
     Faith,        // A patron's blessing (a misfortune is a Warning).
     Season,       // The river: rising with the wet season, the water going down (docs/plans/seasons-floods.md).
     Harvest,      // The month's harvests reaped (a flood is a Warning).
+    Trade,        // A caravan or ship traded (docs/plans/trade.md).
 }
 
 impl MessageKind {
@@ -33,6 +34,7 @@ impl MessageKind {
             Self::Faith => "temple",
             Self::Season => "water",
             Self::Harvest => "food",
+            Self::Trade => "trade",
         }
     }
 }

@@ -235,6 +235,17 @@ impl CityFaith {
             .product()
     }
 
+    // How much more partners pay for exports, and less they ask for imports, now: the easy-trade
+    // effects under way, 1 + their scales multiplied (1 with none).
+    pub fn trade_scale(&self) -> f32 {
+        self.active_effects()
+            .filter_map(|effect| match effect {
+                FaithEffectDef::TradeWindfall { scale, .. } => Some(1.0 + *scale),
+                _ => None,
+            })
+            .product()
+    }
+
     // What the month's upkeep is multiplied by now: the upkeep effects under way, multiplied.
     pub fn upkeep_scale(&self) -> f32 {
         self.active_effects()

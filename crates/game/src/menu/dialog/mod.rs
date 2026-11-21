@@ -69,6 +69,9 @@ pub mod preview;
 pub mod world_map;
 use world_map::WorldMap;
 
+mod trade_limits;
+use trade_limits::TradeLimits;
+
 // ----------------------------------------------
 // Macro: dialog_menu_factories
 // ----------------------------------------------
@@ -124,6 +127,9 @@ pub enum DialogMenuImpl {
 
     // The story comics:
     StoryComic,
+
+    // Trade (docs/plans/trade.md):
+    TradeLimits,
 }
 
 const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
@@ -148,6 +154,7 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     MissionBriefing,
     WorldMap,
     StoryComic,
+    TradeLimits,
 ];
 
 impl DialogMenuKind {
@@ -234,6 +241,9 @@ pub fn sync(context: &mut GameUiContext) {
         // The realm changed (its rows and dates), the Blank map was picked or left (its options),
         // or the window's size changed the dialog's. What the player picked is kept (custom_game::STATE).
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::CustomGame);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::TradeLimits) && trade_limits::needs_rebuild(context) {
+        // The month passed (its figures), the window's size changed, or the partner or its route.
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::TradeLimits);
     } else if dialogs.menu_stack.contains(&DialogMenuKind::WorldMap)
         && !dialogs.find_dialog(DialogMenuKind::WorldMap).menu().is_message_box_open()
         && world_map::needs_rebuild(context)
@@ -822,6 +832,7 @@ impl DialogMenusSingleton {
             DialogMenuKind::MissionBriefing => Some(mission_briefing::prepare),
             DialogMenuKind::WorldMap => Some(world_map::prepare),
             DialogMenuKind::StoryComic => Some(story_comic::prepare),
+            DialogMenuKind::TradeLimits => Some(trade_limits::prepare),
             _ => None,
         };
         if let Some(prepare_fn) = prepare_on_open

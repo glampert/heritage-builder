@@ -1,6 +1,6 @@
 # Trade and court requests
 
-**Status (2026-11-21): Phase 0 done (the data, the state and save v12); Phase 1 next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
+**Status (2026-11-21): Phases 0 and 1 done (the data and state, save v12; land routes, the trade limits dialog and caravans); Phase 2, docks and ships, next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
 - land, river and sea routes the player opens to partner cities, and the buy and sell limits they set per good and per partner;
 - caravans that walk in from the map's edge and trade at the storage yards and granaries themselves, store by store, as in Pharaoh: there's no trade post;
 - docks, and trade ships that sail in from the map's edge, moor at a dock and wait while its dockers carry their goods to the stores and the city's exports back to them;
@@ -354,7 +354,7 @@ The Finances page gains the three lines.
 | World map, side panel | Open the route (its cost; "Build a dock first" for a river or sea route without a dock) and Set trade limits enabled; the route line's next arrival; live prices and amounts; "not traded yet" for display-only goods; Send a gift stays disabled with a new tooltip. | 1, 2, 3 | `menu/dialog/world_map/`, `world_map/provider.rs` |
 | New dialog | `TradeLimits`: a row per good with an import or export step selector, the price and the amount left. No mockup: built in the Goods page's style. | 1 | `menu/dialog/trade_limits.rs` (new) |
 | Inspector, unit | The caravan's and the ship's errand and cargo. | 1, 2 | `inspect/unit.rs` |
-| Inspector, storage | "Last traded with a caravan" on a yard's and a granary's panel. | 1 | `inspect/building.rs` |
+| Inspector, storage | "Last traded with a caravan" on a yard's and a granary's panel: left out (Phase 1's notes). | 1 | `inspect/building.rs` |
 | Build palette | The dock in the Trade sector (its glyph in each realm); the sector button no longer empty. | 2 | `tile_set.json`, `configs.json`, ui-art, `menu/in_game/palette.rs` |
 | Inspector, dock | The dock's panel: berth, dockers, next ship, its routes with Set trade limits. | 2 | `inspect/building.rs`, `menu/in_game/inspector/` |
 | City book, Goods page | The Requests card after the mockup, with Send now. | 4 | `menu/dialog/city_book/goods.rs` |
@@ -409,13 +409,48 @@ The Finances page gains the three lines.
 
 ### Phase 1: Land routes, limits and caravans (large)
 
-- [ ] Open the route from the world map's panel (`trade.open`), its cost in `Routes`.
-- [ ] The `TradeLimits` dialog from the panel; `trade.set` limits.
-- [ ] The caravan: `UnitConfigKey::Trader` (recoloured art), `UnitTaskTrade`, the monthly schedule from the route's entry, its stops at yards and granaries, gold in `Exports` and `Imports`, `TradeNotice` messages (`MessageKind::Trade`).
-- [ ] The caravan's unit panel; a store's last caravan.
-- [ ] Faith's `trade` system: `TradeWindfall` and `Envoys`.
-- [ ] Custom Game's Trade partners.
-- [ ] `trade.arrive_now`; tests; `trade.jsonl`'s land part.
+- [x] Open the route from the world map's panel (`trade.open`), its cost in `Routes`.
+- [x] The `TradeLimits` dialog from the panel; `trade.set` limits.
+- [x] The caravan: `UnitConfigKey::Trader` (recoloured art), `UnitTaskTrade`, the monthly schedule from the route's entry, its stops at yards and granaries, gold in `Exports` and `Imports`, `TradeNotice` messages (`MessageKind::Trade`).
+- [x] The caravan's unit panel. A store's last caravan is left out (deviations).
+- [x] Faith's `trade` system: `TradeWindfall` and `Envoys`.
+- [x] Custom Game's Trade partners.
+- [x] `trade.arrive_now`; tests; `trade.jsonl`'s land part.
+
+**Notes (2026-11-21):**
+- **What was built:**
+  - **The caravan:** `unit::task::UnitTaskTrade` (`unit/task/trade.rs`), walking `TRADER_NODE_KINDS` (land, roads, the spawn point), its cargo, what it sold and bought, the gold, its stops left and the stores it traded at kept in the task.
+    - It finds the nearest staffed yard or granary where it has business (`trade::has_business_at`, from the city's holdings read once per search, `trade::holdings`), walks there, and is visited through `visit_destination_deferred`. `StorageBuilding::visited_by` accepts it while staffed, and the visit's callback trades (`trade::trade_at_store`).
+    - It leaves once sold out and full, after `caravan_stops`, or when no store in reach has business, posting its `TradeNotice` as it leaves the last store, and despawns at its entry.
+  - **The trader's art** is the vendor recoloured, indigo top and red sash (`crates/tools/unit-recolor`, recipe `trader`); `UnitConfigKey::Trader`, at 1.5 cells a second.
+  - **The schedule:** `trade::on_new_month` runs after the farmsteads' month and before faith's rolls; a new year resets the partners' amounts. A due land route sends its caravan, the next due `every_months` later, or next month when there's nothing to trade (`NotSent::NothingToTrade`). `trade::send_caravan` spawns it at once through the `Spawner` (the month's start runs outside the world step, as a collapse does), at the partner's `entry` when a caravan can stand there, else the settlers' spawn point. On a map without one, it uses the settlers' default cell, moved in to the playable area and flagged at once.
+  - **Opening a route:** `trade::can_open_route` and `open_route` (`OpenRouteError`: trade off, not a partner, already open, needs a dock, can't afford). The world map's side panel shows the game's route state (`trade::route_line`, `route_detail`: "Closed · opens for 400 gold") and Open the route, which asks in `Open Route Popup` (Cancel, Open the route) and posts a Trade message; once open, Set trade limits. A city the game doesn't trade with keeps Set trade limits disabled ("No trade with this city in this game"); Send a gift says "Gifts come later". The screen rebuilds when a partner's route opens (`BuildKey::trade`) and selects a `trade_partner` city first.
+  - **The trade limits dialog:** `TradeLimits` (`menu/dialog/trade_limits.rs`, 1100 × 820 with `show_below`), in the City book's style. It has the partner's title and route line, then a section per side, each good a painted row (in the city, the price now, what's left this year) and a dropdown: Don't import, Up to 10 … 320; Don't export, Keep 0 … 320. A limit set by automation that isn't a step is offered too. It's built afresh on open and again when the month, the window, the partner or its route change.
+  - **Prices:** `trade::import_price` and `export_price` (the base price × (1 + offset), less or more by faith's easy trade, `CityFaith::trade_scale`). Phase 3 moves the offsets.
+  - **Faith:** `FaithSystems::trade` (on with an open route). Easy trade became `TradeWindfall { scale, months }` (Tampadesa's: 0.15 for 6 months); envoys became `Envoys { goods }` (Kambara's: 24), a gift caravan from the first open land partner that sells something (`trade::envoys_partner`, `send_envoys`). It unloads free, outside the limits and the year's amounts, and posts "Envoys from … brought gifts: …".
+  - **Custom Game's Trade partners:** the count of cities the map trades with, through `trade::custom_game_trade`, which `GameSession::start_custom_game` uses too.
+  - **The caravan's inspector panel:** "Caravan · from <partner>", Trading or Leaving, its errand line, and Carrying, Bought and Sold rows.
+  - **Messages:** `MessageKind::Trade` (the `trade` line icon): "A caravan from Đê Son brought 20 bricks: −200 gold.", and the route opened.
+  - **Automation:** `trade.open`, `trade.arrive_now`, and `trade.state`'s `caravans`.
+  - **Tests:** `tests/trade.rs` has 22: caravans selling and buying store by store, the limits, the yearly amounts, the treasury, no store, nothing to trade, the schedule, opening a route, easy trade, envoys, the caravan's panel.
+  - **`trade.jsonl`** adds opening Đê Sơn's route from the world map's popup, the trade limits dialog, and two caravans trading at a yard and a granary, with screenshots.
+  - **The world map's checks** refuse a city that both sells and buys a good (one limit per good).
+- **Deviations:**
+  - **A store's "last caravan" line is left out:** it would be saved state on every store. The caravan's own panel and its message say what it did.
+  - **No message when a caravan skips a month** for want of something to trade: it's logged on the `trade` channel, and the route tries again next month. The plan's "a message the first time" would need saved state per partner. A caravan that finds no store says so in its message ("found nothing to trade and left").
+  - **Imports are paid as far as the treasury can** (none in debt); the rest leaves with the caravan.
+  - **No test mission.** The custom game covers trade's start in game, and `tests/trade.rs` covers the mission block (an open route, an entry). M13's I-5 is the first mission with a block.
+  - **The caravan's cargo counts against its capacity both ways:** it sets out with what the limits want, up to `caravan_capacity`, and buys only with the room left. A caravan that brings a full load buys after it has sold.
+- **UI changes, to flag for `claude-ui`:**
+  - the world map's side panel: Open the route and Set trade limits, the route's state line, the Open Route popup, Send a gift's new tooltip;
+  - the new `TradeLimits` dialog (no mockup) and its skin size in `dailong.json`;
+  - the caravan's inspector panel and the Trade message kind;
+  - Custom Game's Trade partners value;
+  - the trader walker (recoloured art).
+- **Verified:**
+  - `cargo test --workspace` and both clippy runs;
+  - all 29 scenarios on a release build (macOS);
+  - the trade limits dialog, the Open Route popup and two caravans walking to the stores, by screenshot.
 
 ### Phase 2: Docks and ships (large)
 

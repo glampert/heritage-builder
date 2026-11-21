@@ -368,6 +368,7 @@
     "LoadOrSaveGame": {"size": [1540, 940]},
     "MainSettings": {"size": [1200, 920]},
     "CustomGame": {"size": [1700, 960]},
+    "TradeLimits": { "size": [1100, 820], "show_below": true },
     "CityManagement": {"size": [1620, 960]}
   },
   "city": {

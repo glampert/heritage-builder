@@ -77,7 +77,8 @@
     {
       "id": "envoys",
       "effect": {
-        "kind": "envoys"
+        "kind": "envoys",
+        "goods": 24
       },
       "requires": "trade"
     },

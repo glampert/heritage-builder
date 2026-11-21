@@ -5,6 +5,7 @@ use engine::ui::text::{self, UiTextCategory};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::cell_json;
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     config::GameConfigs,
@@ -13,6 +14,7 @@ use crate::{
         trade::{TradeLimit, TradePartner},
     },
     trade::{self, GoodTerms},
+    unit::task::UnitTaskTrade,
     world_map::config::traded_good,
 };
 
@@ -54,7 +56,80 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         ],
         run: cmd_set,
     },
+    CommandDef {
+        name: "trade.open",
+        help: "The player opens a partner's route, as the world map's Open the route does: it costs the route's \
+               open_cost (the Routes account), and its first caravan sets out first_arrival_months later. Fails \
+               while trade is off, for a city that isn't a partner or whose route is open, for a river or sea \
+               route without a dock, and when the treasury can't pay. Reports the cost and trade.state.",
+        params: &[ParamDef { name: "partner", kind: "string", required: true, help: "The partner's city id." }],
+        run: cmd_open,
+    },
+    CommandDef {
+        name: "trade.arrive_now",
+        help: "Sends a partner's caravan now, whatever its schedule (its next one stays due when it was): it comes in at \
+               the partner's entry with the goods the import limits want and trades store by store. Fails while \
+               trade is off or the route is closed, for a river or sea partner, and when there's nothing to trade. \
+               Reports trade.state, its caravan in `caravans`.",
+        params: &[ParamDef { name: "partner", kind: "string", required: true, help: "The partner's city id." }],
+        run: cmd_arrive_now,
+    },
 ];
+
+fn cmd_open(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        partner: String,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    let result =
+        context.session.with_sim_context(delta_time_secs, |sim_context| trade::open_route(sim_context, &params.partner));
+    let cost = result.map_err(|err| {
+        let message = match err {
+            trade::OpenRouteError::TradeOff => "This game doesn't trade.".to_string(),
+            trade::OpenRouteError::NotAPartner => format!("'{}' isn't a trade partner of this game.", params.partner),
+            trade::OpenRouteError::AlreadyOpen => format!("The route to '{}' is open already.", params.partner),
+            trade::OpenRouteError::NeedsDock => format!("The route to '{}' goes by water: it needs a dock.", params.partner),
+            trade::OpenRouteError::CantAfford(cost) => format!("The treasury can't pay the route's {cost} gold."),
+        };
+        CommandError::invalid_params(message)
+    })?;
+    let mut state = state_json(context);
+    state["cost"] = json!(cost);
+    done(state)
+}
+
+fn cmd_arrive_now(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        partner: String,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    let result =
+        context.session.with_sim_context(delta_time_secs, |sim_context| trade::send_caravan(sim_context, &params.partner));
+    result.map_err(|err| {
+        let message = match err {
+            trade::NotSent::NotTrading => {
+                format!("'{}' isn't trading now: trade is off, or its route is closed.", params.partner)
+            }
+            trade::NotSent::ByWater => format!("'{}' trades by water: its ships come with docks.", params.partner),
+            trade::NotSent::NothingToTrade => {
+                format!("Nothing to trade with '{}': no import below its limit, no export above it.", params.partner)
+            }
+            trade::NotSent::NoEntry => format!("A caravan from '{}' couldn't come in at its entry.", params.partner),
+        };
+        CommandError::invalid_params(message)
+    })?;
+    done(state_json(context))
+}
 
 fn cmd_state(context: &mut CommandContext, params: Value) -> CommandResult {
     #[derive(Deserialize)]
@@ -240,5 +315,40 @@ fn state_json(context: &CommandContext) -> Value {
             "met": record.met,
         })).collect::<Vec<_>>(),
         "requests_met": state.requests_met(),
+        "caravans": caravans_json(context),
     })
+}
+
+// The caravans in the city: partner, state, where it came in, what it carries, sold and bought, the
+// gold, its stops left and the stores it traded at.
+fn caravans_json(context: &CommandContext) -> Vec<Value> {
+    let task_manager = context.session.sim().task_manager();
+    let goods = |counts: &[u32]| {
+        let map: serde_json::Map<String, Value> = ResourceKind::all()
+            .iter()
+            .filter(|good| counts[good.index()] != 0)
+            .map(|good| (good.name().to_string(), json!(counts[good.index()])))
+            .collect();
+        Value::Object(map)
+    };
+    let mut caravans = Vec::new();
+    context.session.world().for_each_unit(|unit| {
+        if let Some(caravan) = unit.current_task_as::<UnitTaskTrade>(task_manager) {
+            caravans.push(json!({
+                "cell": cell_json(unit.cell()),
+                "partner": caravan.partner,
+                "state": format!("{:?}", caravan.state),
+                "entry": cell_json(caravan.entry),
+                "cargo": goods(&caravan.cargo),
+                "sold": goods(&caravan.sold),
+                "bought": goods(&caravan.bought),
+                "paid": caravan.paid,
+                "earned": caravan.earned,
+                "stops_left": caravan.stops_left,
+                "stores_visited": caravan.visited.len(),
+            }));
+        }
+        true
+    });
+    caravans
 }

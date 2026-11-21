@@ -714,13 +714,10 @@ impl GameSession {
         self.sim.faith_mut().start_mission(&Default::default());
         self.sim.floods_mut().start(settings.seasons_and_floods, &Default::default(), &configs.sim.floods, &self.tile_map);
         // The map's partners, else every land partner of the realm's world map.
-        if let Some(world_map) = crate::trade::realm_world_map(settings.realm) {
-            let map_trade = custom_game::MapConfigs::is_initialized()
-                .then(|| custom_game::MapConfigs::get().map(&settings.map_id).and_then(|map| map.trade.clone()))
-                .flatten();
-            let trade = map_trade
-                .or_else(|| crate::trade::world_map(&world_map).map(crate::trade::land_partners))
-                .unwrap_or_default();
+        let map_trade = custom_game::MapConfigs::is_initialized()
+            .then(|| custom_game::MapConfigs::get().map(&settings.map_id).and_then(|map| map.trade.clone()))
+            .flatten();
+        if let Some((world_map, trade)) = crate::trade::custom_game_trade(settings.realm, map_trade.as_ref()) {
             let now = self.ordinal_month();
             crate::trade::start(self.sim.trade_mut(), &world_map, &trade, now, &configs.sim.trade);
         }

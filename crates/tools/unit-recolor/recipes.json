@@ -12,6 +12,17 @@
       },
       "keep": ["#503b1a", "#40381f", "#393016", "#2a2313", "#776f47", "#776c47"],
       "notes": "M6 (docs/plans/city-risks.md, decision Q7): the guard with a red jacket and cap, so a fire watcher stands out from guards. The spear (shaft and head) and the leg wraps are kept. Art of its own waits for the Blender walker experiment."
+    },
+    {
+      "name": "trader",
+      "source": "vendor",
+      "outline": "#1a0b03",
+      "colors": {
+        "#fefeff": "#3f5f8f",
+        "#e2c972": "#b8402a"
+      },
+      "keep": [],
+      "notes": "M10 (docs/plans/trade.md, decision Q3): a caravan's trader, the market's vendor with an indigo top and a red sash, so a caravan stands out from the vendors. Art of its own (pack animals or a cart) waits for the Blender walker experiment."
     }
   ]
 }

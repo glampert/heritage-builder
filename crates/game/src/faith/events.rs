@@ -95,7 +95,7 @@ pub fn roll_events(context: &SimContextMut, rules: &FaithRules) -> Vec<(String, 
 
 // Whether the event can happen in this city now: its system exists, and what it acts on is there.
 pub fn can_happen(context: &SimContext, event: &FaithEventDef) -> bool {
-    if !event.is_available(FaithSystems::of(context.floods())) {
+    if !event.is_available(FaithSystems::of(context.floods(), context.trade())) {
         return false;
     }
     match &event.effect {
@@ -112,11 +112,12 @@ pub fn can_happen(context: &SimContext, event: &FaithEventDef) -> bool {
         FaithEffectDef::Windfall { .. } | FaithEffectDef::Upkeep { .. } => true,
         // The next flood's severity, while the river floods (is_available above).
         FaithEffectDef::Flood { .. } => context.floods().is_enabled(),
+        // Trade's, while a route is open (is_available above): the envoys need a partner by land
+        // whose goods the stores can take.
+        FaithEffectDef::TradeWindfall { .. } => true,
+        FaithEffectDef::Envoys { .. } => crate::trade::envoys_partner(context).is_some(),
         // Those wait for their systems (is_available above).
-        FaithEffectDef::Scholars { .. }
-        | FaithEffectDef::Envoys
-        | FaithEffectDef::Novices
-        | FaithEffectDef::TradeWindfall => false,
+        FaithEffectDef::Scholars { .. } | FaithEffectDef::Novices => false,
     }
 }
 
@@ -135,7 +136,7 @@ pub fn set_off_now(context: &SimContextMut, patron_id: &str, event_id: &str) -> 
         return Err(format!("'{event_id}' isn't one of {patron_id}'s events: {}.", ids.join(", ")));
     }
     let event = def.event(event_id).ok_or_else(|| format!("No event '{event_id}' in {realm}."))?;
-    if !event.is_available(FaithSystems::of(context.floods())) {
+    if !event.is_available(FaithSystems::of(context.floods(), context.trade())) {
         let needs = event.requires.or(event.effect.needs()).map_or_else(String::new, |needs| needs.to_string());
         return Err(format!("'{event_id}' waits for {needs}, which the game doesn't have yet."));
     }
@@ -186,10 +187,12 @@ fn set_off(context: &SimContextMut, patron: &PatronDef, event: &FaithEventDef) -
             context.floods_mut().set_next_severity(*severity);
             true
         }
-        FaithEffectDef::Scholars { .. }
-        | FaithEffectDef::Envoys
-        | FaithEffectDef::Novices
-        | FaithEffectDef::TradeWindfall => false,
+        FaithEffectDef::TradeWindfall { months, .. } => {
+            context.faith_mut().add_effect(&patron.id, &event.id, *months);
+            true
+        }
+        FaithEffectDef::Envoys { goods } => crate::trade::send_envoys(context, *goods),
+        FaithEffectDef::Scholars { .. } | FaithEffectDef::Novices => false,
     };
     if !landed {
         return false;

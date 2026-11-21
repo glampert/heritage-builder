@@ -30,7 +30,7 @@ use crate::{
     unit::{
         Unit,
         navigation::UnitNavGoal,
-        task::{Emergency, UnitTaskArchetype, UnitTaskFetchState, UnitTaskRespondState},
+        task::{Emergency, UnitTaskArchetype, UnitTaskFetchState, UnitTaskRespondState, UnitTaskTrade, UnitTaskTradeState},
     },
     world::object::GameObject,
 };
@@ -38,9 +38,13 @@ use crate::{
 pub(super) fn read(context: &SimContext, unit: &Unit, realm: Realm) -> Option<InspectReport> {
     let doing = Doing::read(context, unit, realm);
     let name = spaced_name(unit.name());
-    let subtitle = match doing.as_ref().and_then(|doing| doing.origin.clone()) {
-        Some(origin) => tf("kind.walker_from", &[("building", &origin)]),
-        None => t("kind.walker"),
+    let caravan = unit.current_task_as::<UnitTaskTrade>(context.task_manager());
+    let subtitle = match (caravan, doing.as_ref().and_then(|doing| doing.origin.clone())) {
+        (Some(caravan), _) => {
+            tf("kind.caravan_from", &[("partner", &crate::trade::partner_name(context.trade(), &caravan.partner))])
+        }
+        (None, Some(origin)) => tf("kind.walker_from", &[("building", &origin)]),
+        (None, None) => t("kind.walker"),
     };
 
     let remaining = unit.navigation().remaining_cells();
@@ -68,6 +72,34 @@ pub(super) fn read(context: &SimContext, unit: &Unit, realm: Realm) -> Option<In
             )]),
             warn: false,
         });
+    }
+    // A caravan's cargo: the partner's goods it still carries, and what it bought.
+    if let Some(caravan) = caravan {
+        let goods = |counts: &[u32]| {
+            let goods: Vec<String> = crate::sim::resources::ResourceKind::all()
+                .iter()
+                .filter(|good| counts[good.index()] != 0)
+                .map(|good| {
+                    tc("production.units", i64::from(counts[good.index()]), &[(
+                        "good",
+                        &building::good_name(good).to_lowercase(),
+                    )])
+                })
+                .collect();
+            goods.join(", ")
+        };
+        let carrying = goods(&caravan.cargo);
+        if !carrying.is_empty() {
+            rows.push(ValueRow { label: t("errand.carrying"), value: carrying, warn: false });
+        }
+        let bought = goods(&caravan.bought);
+        if !bought.is_empty() {
+            rows.push(ValueRow { label: t("errand.bought"), value: bought, warn: false });
+        }
+        let sold = goods(&caravan.sold);
+        if !sold.is_empty() {
+            rows.push(ValueRow { label: t("errand.sold"), value: sold, warn: false });
+        }
     }
     if let Some(doing) = &doing {
         if let Some(origin) = &doing.origin {
@@ -218,6 +250,18 @@ impl Doing {
             ),
             UnitTaskArchetype::UnitTaskSettler(_) => {
                 ("status.settling", tf("errand.settling", &[("who", &who)]), ErrandIcon::Walker, None)
+            }
+            UnitTaskArchetype::UnitTaskTrade(task) => {
+                let partner = crate::trade::partner_name(context.trade(), &task.partner);
+                if task.state == UnitTaskTradeState::Leaving {
+                    ("status.leaving", tf("errand.caravan_leaving", &[("partner", &partner)]), ErrandIcon::Cart, None)
+                } else {
+                    let line = match &destination {
+                        Some(store) => tf("errand.caravan_to", &[("partner", &partner), ("building", store)]),
+                        None => tf("errand.caravan", &[("partner", &partner)]),
+                    };
+                    ("status.trading", line, ErrandIcon::Cart, None)
+                }
             }
             _ => ("status.walking", tf("errand.walking", &[("who", &who)]), ErrandIcon::Walker, None),
         };

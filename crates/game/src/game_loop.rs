@@ -306,6 +306,7 @@ impl RunLoop for GameLoop {
         self.notify_faith();
         self.notify_floods();
         self.notify_farms();
+        self.notify_trade();
         self.update_after_save();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
@@ -835,6 +836,16 @@ impl GameLoop {
     // The river (crate::floods): its rising with the wet season and the water going down are Season
     // messages with the Notification sound; the flood is a Warning with Alert (its minimap pings
     // come from the flood).
+    fn notify_trade(&mut self) {
+        let notices = crate::trade::take_notices();
+        for notice in notices {
+            let name = crate::trade::partner_name(self.session.sim().trade(), notice.partner());
+            let (kind, sound, text) = crate::trade::notice_message(&notice, &name);
+            self.post_message(kind, text);
+            ui::sound::play(self.engine.sound_system_mut(), sound);
+        }
+    }
+
     fn notify_floods(&mut self) {
         let notices = crate::floods::take_notices();
         if notices.is_empty() {

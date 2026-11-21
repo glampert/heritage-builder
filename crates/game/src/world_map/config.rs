@@ -435,6 +435,12 @@ impl WorldMapDef {
                     errors.push(format!("City '{}' {list}: {problem}.", city.id));
                 }
             }
+            // A good has one limit per partner: import or export.
+            for good in trade.sells.iter().filter(|good| good.resource().is_some()) {
+                if trade.buys.iter().any(|other| other.good == good.good) {
+                    errors.push(format!("City '{}' both sells and buys '{}'.", city.id, good.good));
+                }
+            }
             if trade.route.as_ref().is_some_and(|route| route.every_months == 0) {
                 errors.push(format!("City '{}' trades every 0 months; it needs 1 or more.", city.id));
             }

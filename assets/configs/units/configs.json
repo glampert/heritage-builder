@@ -89,6 +89,12 @@
       "tile_def_name": "medic",
       "traversable_node_kinds": "Road",
       "movement_speed": 1.66
+    },
+    {
+      "name": "Trader",
+      "tile_def_name": "trader",
+      "traversable_node_kinds": "EmptyLand | Road | SettlersSpawnPoint",
+      "movement_speed": 1.5
     }
   ]
 }

@@ -87,7 +87,7 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/request/title"}, "path": "/widgets/0/value", "value": "REQUEST FROM THEIR COURT"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/request/goods"}, "path": "/widgets/0/value", "value": "Ceramics × 30 · within 8 months"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Set trade limits", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Send a gift", "kind": "text_button"}, "path": "/widgets/0/tooltip", "value": "Coming with trade"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Send a gift", "kind": "text_button"}, "path": "/widgets/0/tooltip", "value": "Gifts come later"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/legend", "kind": "canvas"}, "path": "/widgets/0/value", "value": ["Your cities", "Other realms", "Next mission", "River route", "Sea route", "Land route", "Closed"]}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_world_map/dailong.png"}}

@@ -338,6 +338,25 @@ fn treasury_texts() -> Vec<String> {
         .collect()
 }
 
+// The map's trade partners in the realm: how many, and how they come (custom_game_trade).
+fn trade_partners(state: &CustomGameDialogState) -> String {
+    let map_trade = state.selected_map().and_then(|map| map.trade.as_ref());
+    let partners = crate::trade::custom_game_trade(state.realm, map_trade)
+        .map(|(world_map, block)| {
+            let map = crate::trade::world_map(&world_map);
+            block
+                .partners
+                .iter()
+                .filter(|partner| map.is_some_and(|map| crate::trade::terms_on(map, partner).is_some()))
+                .count()
+        })
+        .unwrap_or(0);
+    if partners == 0 {
+        return ui::text::get(UiTextCategory::Menu, "custom_game.partners.none").to_string();
+    }
+    ui::text::format_count(UiTextCategory::Menu, "custom_game.partners", partners as i64, &[])
+}
+
 // The preview's details for the state's map.
 fn details(state: &CustomGameDialogState) -> Vec<(UiString, UiString)> {
     let none = ui::text::get(UiTextCategory::Menu, "load_save.none").to_string();
@@ -368,8 +387,7 @@ fn details(state: &CustomGameDialogState) -> Vec<(UiString, UiString)> {
             UiString::key(UiTextCategory::Menu, "custom_game.details.woodland"),
             UiString::from(percent(stats.map(|stats| stats.woodland_percent))),
         ),
-        // TODO(realm-ui): the map's trade partners, once M10 brings trade.
-        (UiString::key(UiTextCategory::Menu, "custom_game.details.trade_partners"), UiString::from(none.clone())),
+        (UiString::key(UiTextCategory::Menu, "custom_game.details.trade_partners"), UiString::from(trade_partners(state))),
         (UiString::key(UiTextCategory::Menu, "custom_game.details.hazards"), UiString::from(hazards)),
     ]
 }

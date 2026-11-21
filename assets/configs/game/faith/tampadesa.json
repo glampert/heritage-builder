@@ -89,7 +89,9 @@
     {
       "id": "easy_trade",
       "effect": {
-        "kind": "trade_windfall"
+        "kind": "trade_windfall",
+        "scale": 0.15,
+        "months": 6
       },
       "requires": "trade"
     },

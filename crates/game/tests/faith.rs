@@ -160,10 +160,11 @@ fn test_validation_finds_errors() {
     assert_eq!(errors.len(), expect.len(), "{errors:?}");
 }
 
-// The events that need a system wait for it: the floods while the game's river doesn't flood;
-// trade, education, monasteries and Kambara's reservoirs until their milestones.
+// The events that need a system wait for it: the floods while the game's river doesn't flood, trade
+// while no route is open; education, monasteries and Kambara's reservoirs until their milestones.
 fn test_events_wait_for_their_system() {
-    let (dry, floods) = (FaithSystems::default(), FaithSystems { floods: true });
+    let (dry, floods) = (FaithSystems::default(), FaithSystems { floods: true, trade: false });
+    let trading = FaithSystems { floods: false, trade: true };
     let dai_long = realm_def(Realm::DaiLong);
     assert!(!dai_long.event("gentle_flood").unwrap().is_available(dry), "no river floods");
     assert!(dai_long.event("gentle_flood").unwrap().is_available(floods));
@@ -178,9 +179,18 @@ fn test_events_wait_for_their_system() {
     assert!(!kambara.event("full_reservoirs").unwrap().is_available(floods));
 
     // An effect that needs a system waits even when its event doesn't say so.
-    let event = FaithEventDef { id: "x".to_string(), effect: FaithEffectDef::Envoys, requires: None };
+    let envoys = FaithEffectDef::Envoys { goods: 10 };
+    let event = FaithEventDef { id: "x".to_string(), effect: envoys.clone(), requires: None };
     assert!(!event.is_available(floods));
-    assert_eq!(FaithEffectDef::Envoys.needs(), Some(FaithRequirement::Trade));
+    assert!(event.is_available(trading));
+    assert_eq!(envoys.needs(), Some(FaithRequirement::Trade));
+
+    // Trade's: Kambara's envoys and Tampadesa's easy trade, while a route is open.
+    assert!(!kambara.event("envoys").unwrap().is_available(dry));
+    assert!(kambara.event("envoys").unwrap().is_available(trading));
+    let tampadesa = realm_def(Realm::Tampadesa);
+    assert!(!tampadesa.event("easy_trade").unwrap().is_available(dry));
+    assert!(tampadesa.event("easy_trade").unwrap().is_available(trading));
 }
 
 // ----------------------------------------------

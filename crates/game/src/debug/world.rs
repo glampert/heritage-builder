@@ -49,7 +49,7 @@ impl World {
         if tab.index == 3 {
             self.draw_risks_debug_ui(risks, camera, ui_sys);
         } else if tab.index == 4 {
-            draw_faith_debug_ui(faith, FaithSystems::of(city_floods), ui_sys);
+            draw_faith_debug_ui(faith, FaithSystems::of(city_floods, city_trade), ui_sys);
         } else if tab.index == 5 {
             draw_floods_debug_ui(city_floods, camera, ui_sys);
         } else if tab.index == 6 {

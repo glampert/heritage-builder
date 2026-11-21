@@ -1,16 +1,42 @@
 // Trade (docs/plans/trade.md): the partners a game trades with and their terms, read from the world
 // map files and the mission's (or custom map's) `trade` block. The state is sim::trade::CityTrade.
 //
-// Phase 0 holds the data and the state; caravans (Phase 1), docks and ships (Phase 2), prices
-// (Phase 3) and court requests (Phase 4) build on it.
+// Phase 0 holds the data and the state; caravans (Phase 1) trade at the stores, store by store
+// (`trade_at_store`), sent each month by `on_new_month`. Docks and ships (Phase 2), prices (Phase 3)
+// and court requests (Phase 4) build on it.
 
-use engine::log;
+use common::{coords::Cell, mem::SingleThreadStatic};
+use engine::{
+    log,
+    ui::{
+        sound::UiSoundKey,
+        text::{self, UiTextCategory},
+    },
+};
 
 use crate::{
+    building::Building,
     campaign::config::{CampaignConfigs, MissionPartnerDef, MissionTradeDef},
-    config::TradeRules,
+    cheats,
+    config::{GameConfigs, TradeRules},
+    messages::MessageKind,
+    pathfind::Node,
     realm::Realm,
-    sim::{resources::ResourceKind, trade::CityTrade},
+    sim::{
+        SimContext,
+        SimContextMut,
+        calendar::CalendarDate,
+        finance::LedgerCategory,
+        resources::{RESOURCE_KIND_COUNT, ResourceKind},
+        trade::{CityTrade, TradeLimit, TradePartner},
+    },
+    tile::{TileFlags, TileKind},
+    unit::{
+        Unit,
+        config::UnitConfigKey,
+        task::{TRADE_STORES, TRADER_NODE_KINDS, UnitTaskTrade},
+    },
+    world::{city_stock::CityStock, object::Spawner},
     world_map::{
         WorldMapConfigs,
         config::{RouteKind, TradeGoodDef, WorldCityDef, WorldMapDef},
@@ -29,7 +55,9 @@ pub struct PartnerTerms {
     pub relation: u8,
     pub route: String, // The route's id on the world map.
     pub route_kind: RouteKind,
-    pub from: String, // The player's city the route runs from.
+    pub from: String,    // The player's city the route runs from.
+    pub line: String,    // Menu key with {city}: "Hill track from {city}".
+    pub carrier: String, // Menu key: "caravans".
     pub every_months: u32,
     pub open_cost: u32,
     // The goods the game trades with it; goods it sells or buys that the game doesn't have are
@@ -84,6 +112,8 @@ pub fn terms_on(map: &WorldMapDef, def: &MissionPartnerDef) -> Option<PartnerTer
         route: route.route.clone(),
         route_kind,
         from: route.from.clone(),
+        line: route.line.clone(),
+        carrier: route.carrier.clone(),
         every_months: def.every_months.unwrap_or(route.every_months).max(1),
         open_cost: def.open_cost.unwrap_or(route.open_cost),
         sells: traded(def.sells.as_deref().unwrap_or(&trade.sells)),
@@ -103,6 +133,50 @@ pub fn world_map(name: &str) -> Option<&'static WorldMapDef> {
 pub fn terms(trade: &CityTrade, city: &str) -> Option<PartnerTerms> {
     let partner = trade.partner(city)?;
     terms_on(world_map(trade.world_map())?, &partner.def)
+}
+
+// A city's name on a world map: a world city's, or a mission city's of a campaign that shows that
+// map. The id itself if neither has it.
+pub fn place_name(world_map_name: &str, city: &str) -> String {
+    let key = world_map(world_map_name).and_then(|map| map.city(city)).map(|city| city.name.clone()).or_else(|| {
+        if !CampaignConfigs::is_initialized() {
+            return None;
+        }
+        CampaignConfigs::get()
+            .campaigns
+            .iter()
+            .filter(|campaign| campaign.world_map_name() == world_map_name)
+            .flat_map(|campaign| campaign.missions.iter().filter_map(|mission| mission.city.as_ref()))
+            .find(|mission_city| mission_city.id == city)
+            .map(|mission_city| mission_city.name.clone())
+    });
+    key.map_or_else(|| city.to_string(), |key| text::get(UiTextCategory::Realm, &key).to_string())
+}
+
+// A partner's route as the player reads it: "Hill track from Chợ Đèo".
+pub fn route_line(trade: &CityTrade, city: &str) -> Option<String> {
+    let terms = terms(trade, city)?;
+    let from = place_name(trade.world_map(), &terms.from);
+    Some(text::format(UiTextCategory::Menu, &terms.line, &[("city", &from)]))
+}
+
+// Its route's state: "Open · caravans every 4 months", "Closed · opens for 400 gold", "Closed · needs a
+// dock".
+pub fn route_detail(trade: &CityTrade, city: &str) -> Option<String> {
+    let partner = trade.partner(city)?;
+    let terms = terms(trade, city)?;
+    Some(if partner.open {
+        let carrier = text::get(UiTextCategory::Menu, &terms.carrier);
+        text::format_count(UiTextCategory::Menu, "world_map.route_detail.open", i64::from(terms.every_months), &[(
+            "carrier", carrier,
+        )])
+    } else if terms.by_water() {
+        text::get(UiTextCategory::Menu, "world_map.route_detail.needs_dock").to_string()
+    } else if terms.open_cost == 0 {
+        text::get(UiTextCategory::Menu, "world_map.route_detail.closed_free").to_string()
+    } else {
+        text::format(UiTextCategory::Menu, "world_map.route_detail.closed_cost", &[("gold", &terms.open_cost.to_string())])
+    })
 }
 
 // ----------------------------------------------
@@ -156,6 +230,17 @@ pub fn land_partners(map: &WorldMapDef) -> MissionTradeDef {
     MissionTradeDef { enabled: None, partners }
 }
 
+// A custom game's trade: its world map (the realm's) and its block, the map's own `trade` (maps.json)
+// or else the realm's land partners (land_partners). None for a realm without a world map.
+pub fn custom_game_trade(realm: Realm, map_trade: Option<&MissionTradeDef>) -> Option<(String, MissionTradeDef)> {
+    let name = realm_world_map(realm)?;
+    let block = match map_trade {
+        Some(block) => block.clone(),
+        None => world_map(&name).map(land_partners).unwrap_or_default(),
+    };
+    Some((name, block))
+}
+
 // After a load: drops the partners the world map no longer has terms for, with a warning.
 pub fn sync_on_load(state: &mut CityTrade) {
     if state.partners().is_empty() {
@@ -174,4 +259,507 @@ pub fn sync_on_load(state: &mut CityTrade) {
             "Trade partner '{city}' is dropped: the world map '{world_map_name}' has no trade terms for it any more."
         );
     }
+}
+
+// ----------------------------------------------
+// What the city holds, and prices
+// ----------------------------------------------
+
+// What the city holds of each good, for the limits: its storage yards and granaries, staffed or not.
+pub type Holdings = [u32; RESOURCE_KIND_COUNT];
+
+pub fn holdings(context: &SimContext) -> Holdings {
+    let mut held = [0; RESOURCE_KIND_COUNT];
+    for good in ResourceKind::all().iter().filter(|good| *good != ResourceKind::Gold) {
+        held[good.index()] = CityStock::available_in(context.world(), TRADE_STORES, good);
+    }
+    held
+}
+
+// A good's price with a partner now, gold a unit: its base price × (1 + its offset), at least 1.
+pub fn price(partner: &TradePartner, terms: &GoodTerms) -> u32 {
+    let price = terms.price as f32 * (1.0 + partner.price_offset(terms.good));
+    price.round().max(1.0) as u32
+}
+
+// What the city pays a partner for one of its goods now: its price, less while trade comes easily
+// (`faith_scale`, CityFaith::trade_scale).
+pub fn import_price(faith_scale: f32, partner: &TradePartner, terms: &GoodTerms) -> u32 {
+    (price(partner, terms) as f32 / faith_scale.max(0.01)).round().max(1.0) as u32
+}
+
+// What a partner pays for one of the city's goods now: its price, more while trade comes easily.
+pub fn export_price(faith_scale: f32, partner: &TradePartner, terms: &GoodTerms) -> u32 {
+    (price(partner, terms) as f32 * faith_scale.max(0.0)).round().max(1.0) as u32
+}
+
+// How many of a good the city still wants from a partner: below its import limit, within what the
+// partner sells it this year.
+pub fn import_wanted(partner: &TradePartner, terms: &GoodTerms, holdings: &Holdings) -> u32 {
+    match partner.limit(terms.good) {
+        TradeLimit::Import(limit) => {
+            let left = terms.per_year.saturating_sub(partner.sold[terms.good.index()]);
+            limit.saturating_sub(holdings[terms.good.index()]).min(left)
+        }
+        _ => 0,
+    }
+}
+
+// How many of a good the city has to sell a partner: above its export limit, within what the partner
+// buys this year.
+pub fn export_offered(partner: &TradePartner, terms: &GoodTerms, holdings: &Holdings) -> u32 {
+    match partner.limit(terms.good) {
+        TradeLimit::Export(limit) => {
+            let left = terms.per_year.saturating_sub(partner.bought[terms.good.index()]);
+            holdings[terms.good.index()].saturating_sub(limit).min(left)
+        }
+        _ => 0,
+    }
+}
+
+// How many goods at `price` each the treasury can pay for (none while in debt).
+fn affordable(context: &SimContext, price: u32) -> u32 {
+    if cheats::get().ignore_tile_cost {
+        return u32::MAX;
+    }
+    (context.finance().balance().max(0) / i64::from(price.max(1))).min(i64::from(u32::MAX)) as u32
+}
+
+// ----------------------------------------------
+// Caravans
+// ----------------------------------------------
+
+// Whether the game trades with that partner now: trade on and its route open.
+pub fn is_trading_with(context: &SimContext, city: &str) -> bool {
+    let trade = context.trade();
+    trade.is_enabled() && trade.partner(city).is_some_and(|partner| partner.open)
+}
+
+// What a caravan from `partner` sets out with: each good it sells that the city wants, within its
+// capacity.
+pub fn caravan_cargo(
+    partner: &TradePartner,
+    terms: &PartnerTerms,
+    holdings: &Holdings,
+    capacity: u32,
+) -> [u32; RESOURCE_KIND_COUNT] {
+    let mut cargo = [0; RESOURCE_KIND_COUNT];
+    let mut room = capacity;
+    for good in &terms.sells {
+        let take = import_wanted(partner, good, holdings).min(room);
+        cargo[good.good.index()] = take;
+        room -= take;
+    }
+    cargo
+}
+
+// Whether the city has something to sell a partner now.
+pub fn has_exports(partner: &TradePartner, terms: &PartnerTerms, holdings: &Holdings) -> bool {
+    terms.buys.iter().any(|good| export_offered(partner, good, holdings) != 0)
+}
+
+// Whether a caravan can sell or buy something at `store` now.
+pub fn has_business_at(context: &SimContext, caravan: &UnitTaskTrade, store: &Building, holdings: &Holdings) -> bool {
+    let trade = context.trade();
+    let (Some(partner), Some(terms)) = (trade.partner(&caravan.partner), terms(trade, &caravan.partner)) else {
+        return false;
+    };
+    if !partner.open || !trade.is_enabled() {
+        return false;
+    }
+    let sells = terms.sells.iter().any(|good| {
+        caravan.carries(good.good) != 0
+            && (caravan.gift || import_wanted(partner, good, holdings) != 0)
+            && store.receivable_resources(good.good) != 0
+    });
+    let buys = caravan.room() != 0
+        && terms
+            .buys
+            .iter()
+            .any(|good| export_offered(partner, good, holdings) != 0 && store.available_resources(good.good) != 0);
+    sells || buys
+}
+
+// A caravan's visit to a store (docs/plans/trade.md, §4): first it sells what the store takes and the
+// city still wants, as far as the treasury can pay (`Imports`); then it buys what the city has above
+// its export limits and the store holds, within its room (`Exports`). Each good counts toward the
+// partner's amounts this year.
+pub fn trade_at_store(context: &SimContextMut, store: &mut Building, unit: &mut Unit) {
+    let Some(caravan) = unit.current_task_as_mut::<UnitTaskTrade>(context.task_manager_mut()) else {
+        return;
+    };
+    let Some(terms) = terms(context.trade(), &caravan.partner) else {
+        return;
+    };
+    if !is_trading_with(context, &caravan.partner) {
+        return;
+    }
+    let mut held = holdings(context);
+    let faith_scale = context.faith().trade_scale();
+    let trade = context.trade_mut();
+    let Some(partner) = trade.partner_mut(&caravan.partner) else {
+        return;
+    };
+
+    // Envoys' gifts: whatever the stores take, free, outside the limits and the year's amounts.
+    if caravan.gift {
+        for good in &terms.sells {
+            let kind = good.good;
+            let count = caravan.carries(kind).min(store.receivable_resources(kind));
+            let received = store.receive_resources(kind, count);
+            caravan.cargo[kind.index()] -= received;
+            caravan.sold[kind.index()] += received;
+        }
+        return;
+    }
+
+    for good in &terms.sells {
+        let kind = good.good;
+        let price = import_price(faith_scale, partner, good);
+        let count = caravan
+            .carries(kind)
+            .min(import_wanted(partner, good, &held))
+            .min(store.receivable_resources(kind))
+            .min(affordable(context, price));
+        if count == 0 {
+            continue;
+        }
+        let received = store.receive_resources(kind, count);
+        caravan.cargo[kind.index()] -= received;
+        caravan.sold[kind.index()] += received;
+        partner.sold[kind.index()] += received;
+        held[kind.index()] += received;
+        let gold = received * price;
+        context.finance_mut().spend(LedgerCategory::Imports, gold);
+        caravan.paid += gold;
+    }
+
+    for good in &terms.buys {
+        let kind = good.good;
+        let count = caravan.room().min(export_offered(partner, good, &held)).min(store.available_resources(kind));
+        if count == 0 {
+            continue;
+        }
+        let removed = store.remove_resources(kind, count);
+        caravan.bought[kind.index()] += removed;
+        partner.bought[kind.index()] += removed;
+        held[kind.index()] -= removed.min(held[kind.index()]);
+        let gold = removed * export_price(faith_scale, partner, good);
+        context.finance_mut().earn(LedgerCategory::Exports, gold);
+        caravan.earned += gold;
+    }
+}
+
+// The partner whose envoys bring gifts (faith's Envoys): the first partner by land whose route is
+// open and that sells a good the game trades.
+pub fn envoys_partner(context: &SimContext) -> Option<String> {
+    let trade = context.trade();
+    if !trade.is_enabled() {
+        return None;
+    }
+    trade.partners().iter().filter(|partner| partner.open).find_map(|partner| {
+        let terms = terms(trade, partner.city())?;
+        (!terms.by_water() && !terms.sells.is_empty()).then(|| partner.city().to_string())
+    })
+}
+
+// Envoys bring gifts: a caravan from envoys_partner carrying `goods` of the partner's goods, shared
+// out among them, unloaded free at the stores. False if there's no such partner or it can't come in.
+pub fn send_envoys(context: &SimContextMut, goods: u32) -> bool {
+    let Some(city) = envoys_partner(context) else {
+        return false;
+    };
+    let (Some(partner), Some(terms)) = (context.trade().partner(&city), terms(context.trade(), &city)) else {
+        return false;
+    };
+    let mut cargo = [0; RESOURCE_KIND_COUNT];
+    let share = goods / terms.sells.len() as u32;
+    for (index, good) in terms.sells.iter().enumerate() {
+        let extra = u32::from((index as u32) < goods % terms.sells.len() as u32);
+        cargo[good.good.index()] = share + extra;
+    }
+    let entry = caravan_entry(context, partner);
+    let rules = &GameConfigs::get().sim.trade;
+    match Spawner::new(context).try_spawn_unit_with_config(entry, UnitConfigKey::Trader) {
+        Ok(unit) => {
+            let task = UnitTaskTrade::new(&city, entry, cargo, goods, rules.caravan_stops).as_gift();
+            let task_id = context.task_manager_mut().new_task(task);
+            unit.assign_task(context.task_manager_mut(), task_id);
+            true
+        }
+        Err(err) => {
+            log::error!(log::channel!("trade"), "Envoys from '{city}' couldn't come in at {entry}: {}", err.message);
+            false
+        }
+    }
+}
+
+// The settlers' spawn point, or, on a map without one, the default the settlers would take (the
+// bottom edge's middle, moved in to the playable area where the map's corners are trimmed), flagged
+// as one at once, as the settlers do through a deferred update.
+fn spawn_point(context: &SimContextMut) -> Cell {
+    if let Some(node) = context.graph().settlers_spawn_point() {
+        return node.cell;
+    }
+    let size = context.map_size_in_cells();
+    let mut cell = Cell::new(size.width / 2 - 1, size.height - 1);
+    while cell.y > 0 && !context.tile_map().is_cell_within_playable_area(cell) {
+        cell.y -= 1;
+    }
+    context.tile_map_mut().set_tile_flags(cell, TileKind::Terrain, TileFlags::SettlersSpawnPoint, true);
+    cell
+}
+
+// Where a partner's caravans come in: its `entry` cell when a caravan can stand there, else the
+// settlers' spawn point.
+pub fn caravan_entry(context: &SimContextMut, partner: &TradePartner) -> Cell {
+    if let Some([x, y]) = partner.def.entry {
+        let cell = Cell::new(x, y);
+        let walkable = context.graph().node_kind(Node::new(cell)).is_some_and(|kind| kind.intersects(TRADER_NODE_KINDS));
+        if walkable {
+            return cell;
+        }
+        log::warning!(
+            log::channel!("trade"),
+            "Trade partner '{}': its entry {cell} isn't land a caravan can stand on; the settlers' spawn point stands in.",
+            partner.city()
+        );
+    }
+    spawn_point(context)
+}
+
+// Why a caravan didn't set out.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum NotSent {
+    NotTrading,     // Trade is off, or the partner isn't one or its route is closed.
+    ByWater,        // A river or sea partner: ships come with docks (Phase 2).
+    NothingToTrade, // No import below its limit and no export above it, within this year's amounts.
+    NoEntry,        // It couldn't come in at its entry (something stands there).
+}
+
+// Sends a caravan from `city` now, whatever its schedule.
+pub fn send_caravan(context: &SimContextMut, city: &str) -> Result<(), NotSent> {
+    if !is_trading_with(context, city) {
+        return Err(NotSent::NotTrading);
+    }
+    let trade = context.trade();
+    let (Some(partner), Some(terms)) = (trade.partner(city), terms(trade, city)) else {
+        return Err(NotSent::NotTrading);
+    };
+    if terms.by_water() {
+        return Err(NotSent::ByWater);
+    }
+    let rules = &GameConfigs::get().sim.trade;
+    let held = holdings(context);
+    let cargo = caravan_cargo(partner, &terms, &held, rules.caravan_capacity);
+    if cargo.iter().all(|&count| count == 0) && !has_exports(partner, &terms, &held) {
+        return Err(NotSent::NothingToTrade);
+    }
+    let entry = caravan_entry(context, partner);
+    // At once: this runs outside the world step (the month's start, automation), as a collapse does.
+    match Spawner::new(context).try_spawn_unit_with_config(entry, UnitConfigKey::Trader) {
+        Ok(unit) => {
+            let task = UnitTaskTrade::new(city, entry, cargo, rules.caravan_capacity, rules.caravan_stops);
+            let task_id = context.task_manager_mut().new_task(task);
+            unit.assign_task(context.task_manager_mut(), task_id);
+            log::info!(log::channel!("trade"), "A caravan sets out from '{city}' at {entry}.");
+            Ok(())
+        }
+        Err(err) => {
+            log::error!(log::channel!("trade"), "A caravan from '{city}' couldn't set out at {entry}: {}", err.message);
+            Err(NotSent::NoEntry)
+        }
+    }
+}
+
+// A new month (after the floods' and the farmsteads' months, before faith's rolls): a new year
+// starts the partners' amounts again; each open land route whose caravan is due sends it, the next
+// due `every_months` later, or next month when there's nothing to trade yet.
+pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
+    if date.month == 1 {
+        context.trade_mut().new_year();
+    }
+    if !context.trade().is_enabled() {
+        return;
+    }
+    let now = date.ordinal_month();
+    let due: Vec<String> = context
+        .trade()
+        .partners()
+        .iter()
+        .filter(|partner| partner.open && partner.next_arrival.is_some_and(|month| month <= now))
+        .map(|partner| partner.city().to_string())
+        .collect();
+    for city in due {
+        let Some(terms) = terms(context.trade(), &city) else {
+            continue;
+        };
+        let next = match send_caravan(context, &city) {
+            Ok(()) => now + terms.every_months,
+            Err(NotSent::NothingToTrade) => {
+                log::info!(log::channel!("trade"), "No caravan from '{city}' this month: nothing to trade.");
+                now + 1
+            }
+            Err(NotSent::NoEntry) => now + 1,
+            Err(NotSent::ByWater | NotSent::NotTrading) => now + terms.every_months,
+        };
+        if let Some(partner) = context.trade_mut().partner_mut(&city) {
+            partner.next_arrival = Some(next);
+        }
+    }
+}
+
+// ----------------------------------------------
+// Opening a route
+// ----------------------------------------------
+
+// Why a route can't be opened.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum OpenRouteError {
+    TradeOff,        // The game doesn't trade.
+    NotAPartner,     // The city isn't one of this game's partners.
+    AlreadyOpen,     // Its route is open.
+    NeedsDock,       // A river or sea route, and the city has no dock (Phase 2).
+    CantAfford(u32), // The treasury can't pay its cost (the cost).
+}
+
+// The calendar's ordinal month now.
+pub fn now(context: &SimContext) -> u32 {
+    let sim = &GameConfigs::get().sim;
+    context.calendar().date(sim.days_per_month, sim.seconds_per_month).ordinal_month()
+}
+
+// Whether the player can open a partner's route now, and what it costs.
+pub fn can_open_route(context: &SimContext, city: &str) -> Result<u32, OpenRouteError> {
+    let trade = context.trade();
+    if !trade.is_enabled() {
+        return Err(OpenRouteError::TradeOff);
+    }
+    let (Some(partner), Some(terms)) = (trade.partner(city), terms(trade, city)) else {
+        return Err(OpenRouteError::NotAPartner);
+    };
+    if partner.open {
+        return Err(OpenRouteError::AlreadyOpen);
+    }
+    if terms.by_water() {
+        // TODO(trade): Phase 2's docks open river and sea routes.
+        return Err(OpenRouteError::NeedsDock);
+    }
+    if !context.finance().can_afford(terms.open_cost) {
+        return Err(OpenRouteError::CantAfford(terms.open_cost));
+    }
+    Ok(terms.open_cost)
+}
+
+// The player opens a partner's route (the world map's Open the route): its cost spent on `Routes`,
+// its first caravan due `first_arrival_months` later. Returns the cost.
+pub fn open_route(context: &SimContextMut, city: &str) -> Result<u32, OpenRouteError> {
+    let cost = can_open_route(context, city)?;
+    if cost != 0 && !cheats::get().ignore_tile_cost {
+        context.finance_mut().spend(LedgerCategory::Routes, cost);
+    }
+    let now = now(context);
+    context.trade_mut().open_route(city, now, &GameConfigs::get().sim.trade);
+    log::info!(log::channel!("trade"), "The route to '{city}' is open, for {cost} gold.");
+    Ok(cost)
+}
+
+// ----------------------------------------------
+// Notices
+// ----------------------------------------------
+
+// What GameLoop posts to the message log (notify_trade).
+#[derive(Clone, PartialEq, Debug)]
+pub enum TradeNotice {
+    // A caravan left the city's last store: what it sold the city, what it bought, and the gold.
+    Caravan { partner: String, sold: Vec<(ResourceKind, u32)>, bought: Vec<(ResourceKind, u32)>, paid: u32, earned: u32 },
+    // Envoys left gifts (faith's Envoys).
+    Gifts { partner: String, goods: Vec<(ResourceKind, u32)> },
+}
+
+impl TradeNotice {
+    pub fn caravan(caravan: &UnitTaskTrade) -> Self {
+        let goods = |counts: &[u32; RESOURCE_KIND_COUNT]| {
+            ResourceKind::all()
+                .iter()
+                .filter(|good| counts[good.index()] != 0)
+                .map(|good| (good, counts[good.index()]))
+                .collect::<Vec<_>>()
+        };
+        if caravan.gift {
+            return Self::Gifts { partner: caravan.partner.clone(), goods: goods(&caravan.sold) };
+        }
+        Self::Caravan {
+            partner: caravan.partner.clone(),
+            sold: goods(&caravan.sold),
+            bought: goods(&caravan.bought),
+            paid: caravan.paid,
+            earned: caravan.earned,
+        }
+    }
+
+    // The partner's city id.
+    pub fn partner(&self) -> &str {
+        match self {
+            Self::Caravan { partner, .. } | Self::Gifts { partner, .. } => partner,
+        }
+    }
+}
+
+static NOTICES: SingleThreadStatic<Vec<TradeNotice>> = SingleThreadStatic::new(Vec::new());
+
+pub fn notify(notice: TradeNotice) {
+    NOTICES.as_mut().push(notice);
+}
+
+pub fn take_notices() -> Vec<TradeNotice> {
+    std::mem::take(NOTICES.as_mut())
+}
+
+// "20 wood, 8 metal".
+fn goods_text(goods: &[(ResourceKind, u32)]) -> String {
+    goods
+        .iter()
+        .map(|(good, count)| {
+            text::format(UiTextCategory::Messages, "trade.goods_item", &[
+                ("count", &count.to_string()),
+                ("good", &good.display_name().to_lowercase()),
+            ])
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+// A notice's message: its kind, sound and text. `partner_name` names the partner's city.
+pub fn notice_message(notice: &TradeNotice, partner_name: &str) -> (MessageKind, UiSoundKey, String) {
+    match notice {
+        TradeNotice::Caravan { sold, bought, paid, earned, .. } => {
+            let net = i64::from(*earned) - i64::from(*paid);
+            let gold = if net >= 0 {
+                text::format(UiTextCategory::Messages, "trade.gold_in", &[("gold", &net.to_string())])
+            } else {
+                text::format(UiTextCategory::Messages, "trade.gold_out", &[("gold", &(-net).to_string())])
+            };
+            let args =
+                [("partner", partner_name), ("brought", &goods_text(sold)), ("took", &goods_text(bought)), ("gold", &gold)];
+            let key = match (sold.is_empty(), bought.is_empty()) {
+                (false, false) => "trade.caravan",
+                (false, true) => "trade.caravan_brought",
+                (true, false) => "trade.caravan_took",
+                (true, true) => "trade.caravan_nothing",
+            };
+            (MessageKind::Trade, UiSoundKey::Notification, text::format(UiTextCategory::Messages, key, &args))
+        }
+        TradeNotice::Gifts { goods, .. } => {
+            let key = if goods.is_empty() { "trade.envoys_nothing" } else { "trade.envoys" };
+            let args = [("partner", partner_name), ("goods", &goods_text(goods))];
+            (MessageKind::Trade, UiSoundKey::Notification, text::format(UiTextCategory::Messages, key, &args))
+        }
+    }
+}
+
+// A partner's name as the player reads it, from its city id in this game's world map.
+pub fn partner_name(trade: &CityTrade, city: &str) -> String {
+    terms(trade, city)
+        .map_or_else(|| city.to_string(), |terms| text::get(UiTextCategory::Realm, &terms.name_key).to_string())
 }

@@ -1,7 +1,9 @@
-# Trade (docs/plans/trade.md). Phase 0: a custom game on the Blank map trades with its realm's land
-# partners, their routes closed (Campaign I's Đê Sơn and the highland clans); trade.set opens a route
-# and sets limits; the City book's Finances page shows the trade lines in a game that trades; the
-# state survives a save and a load. From the repository root:
+# Trade (docs/plans/trade.md). A custom game on the Blank map trades with its realm's land partners,
+# their routes closed (Campaign I's Đê Sơn and the highland clans); trade.set opens a route and sets
+# limits; the City book's Finances page shows the trade lines in a game that trades; the world map's
+# panel shows a partner's terms and opens Đê Sơn's route through its popup; the trade limits dialog
+# sets a limit; caravans trade at a storage yard and a granary; the state survives a save and a load.
+# From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/trade.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
@@ -69,6 +71,80 @@
 {"method": "screenshot", "params": {"path": "out/trade/world_map_de_son.png"}}
 {"method": "dialog.close"}
 
+# ---- Opening a route from the world map ----
+# Đê Sơn's road is closed: its panel offers Open the route for 400 gold, which asks first.
+{"method": "dialog.open", "params": {"name": "WorldMap"}}
+{"method": "world_map.set", "params": {"city": "de_son"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route_detail"}, "path": "/widgets/0/value", "value": "Closed · opens for 400 gold"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Open the route", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Open the route", "kind": "text_button"}, "path": "/widgets/0/tooltip", "value": "Opens for 400 gold"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Send a gift", "kind": "text_button"}, "path": "/widgets/0/tooltip", "value": "Gifts come later"}}
+{"method": "ui.click", "params": {"path": "WorldMap/panel/Open the route"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Open Route Popup/Open the route"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/open_route_popup.png"}}
+{"method": "ui.click", "params": {"path": "Open Route Popup/Open the route"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Routes", "value": 400}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "trade"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "The route to Đê Son is open."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route_detail"}, "path": "/widgets/0/value", "value": "Open · caravans every 3 months"}}
+
+# ---- The trade limits dialog ----
+{"method": "ui.click", "params": {"path": "WorldMap/panel/Set trade limits"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "TradeLimits"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/title", "kind": "canvas"}, "path": "/widgets/0/value/partner", "value": "de_son"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/route", "kind": "canvas"}, "path": "/widgets/0/value/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks terms", "kind": "canvas"}, "path": "/widgets/0/value/price", "value": 10}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks terms", "kind": "canvas"}, "path": "/widgets/0/value/left", "value": 120}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Wood terms", "kind": "canvas"}, "path": "/widgets/0/value/side", "value": "export"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Don't import"}}
+{"method": "ui.set", "params": {"path": "TradeLimits/Bricks", "value": "Up to 20"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/limits/Bricks", "value": {"import": 20}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/trade_limits.png"}}
+{"method": "ui.click", "params": {"path": "TradeLimits/Close"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "dialog.close"}
+
+# ---- Caravans trade at the stores ----
+# A storage yard and a granary near where caravans come in (the map's bottom edge: a Blank map has
+# no spawn point), staffed by the cheat. Đê Sơn brings 20 bricks; the clans buy the granary's rice
+# above 10.
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "cheats.set", "params": {"name": "no_city_risks", "value": true}}
+{"method": "world.road", "params": {"from": [56, 112], "to": [70, 112]}}
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [58, 109]}}
+{"method": "world.place", "params": {"tile": "granary", "cell": [64, 109]}}
+{"method": "world.add_stock", "params": {"cell": [64, 109], "resources": {"Rice": 30}}}
+{"method": "trade.set", "params": {"partner": "clan_camps", "good": "Rice", "export": 10}}
+{"method": "trade.set", "params": {"partner": "clan_camps", "good": "Wood", "off": true}}
+{"method": "trade.arrive_now", "params": {"partner": "de_son"}}
+{"method": "trade.arrive_now", "params": {"partner": "clan_camps"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/caravans/0/cargo/Bricks", "value": 20}}
+{"method": "sim.resume"}
+{"method": "time.fast_forward", "params": {"sim_secs": 12}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+{"method": "camera.teleport", "params": {"cell": [62, 114]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/trade/caravans.png"}}
+{"method": "time.fast_forward", "params": {"sim_secs": 140}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/caravans", "value": []}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [58, 109]}, "path": "/stock/Bricks", "value": 20}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [64, 109]}, "path": "/stock/Rice", "value": 10}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/traded", "value": 20}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/buys/0/traded", "value": 20}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Imports", "value": 200}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Exports", "value": 120}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "trade"}}
+
 # ---- A save and a load keep it ----
 {"method": "session.save", "params": {"name": "trade_scenario"}}
 # The thumbnail is written a few frames after the save: wait for it, so the deletion takes it too.
@@ -77,7 +153,9 @@
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 60}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/enabled", "value": true}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/open", "value": true}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/limits/Wood", "value": {"import": 40}}}
-{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/open", "value": false}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/limits/Rice", "value": {"export": 10}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/limits/Bricks", "value": {"import": 20}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/traded", "value": 20}}
 {"method": "session.delete_save", "params": {"name": "trade_scenario"}}
 {"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "trade_scenario"}, "path": "/has_thumbnail", "value": false}}

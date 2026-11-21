@@ -334,7 +334,7 @@ impl Simulation {
             // Month-end charges and the new year's accounts, once the world is unlocked (upkeep
             // scaled by the patrons' effects under way); then the river: the water going, the
             // wet season and the year's flood; then the farmsteads' fields, sown and reaped; then
-            // the patrons' favour, the month's festival, and the blessings and misfortunes, which
+            // the caravans due; then the patrons' favour, the month's festival, and the blessings and misfortunes, which
             // may set buildings on fire or collapse them.
             let upkeep_scale = self.faith.upkeep_scale();
             self.finance.on_calendar_events(&step.calendar_events, world, tile_map, upkeep_scale);
@@ -351,6 +351,7 @@ impl Simulation {
                 for date in new_months {
                     crate::floods::on_new_month(&context, date);
                     crate::farms::on_new_month(&context, date);
+                    crate::trade::on_new_month(&context, date);
                     crate::faith::events::on_new_month(&context, &GameConfigs::get().sim.faith, date);
                 }
             }

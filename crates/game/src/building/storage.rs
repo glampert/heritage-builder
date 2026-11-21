@@ -28,7 +28,7 @@ use crate::{
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
-        task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage},
+        task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage, UnitTaskTrade},
     },
     world::stats::WorldStats,
 };
@@ -201,6 +201,10 @@ impl BuildingBehavior for StorageBuilding {
                     return BuildingVisitResult::Accepted;
                 }
             }
+        } else if unit.current_task_as::<UnitTaskTrade>(task_manager).is_some() {
+            // A caravan: it trades in its visit's callback (trade::trade_at_store), with a staffed
+            // store only.
+            return BuildingVisitResult::Accepted;
         } else {
             panic!("Unhandled Unit Task in StorageBuilding::visited_by()!");
         }

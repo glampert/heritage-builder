@@ -147,6 +147,7 @@ struct BuildKey {
     campaign: Option<usize>,
     selected: Option<String>,
     bar: (String, String, String), // The date, the season and the treasury as shown.
+    trade: Vec<(String, bool)>,    // The game's partners on this map, and whether each route is open.
     rebuilds: u32,
 }
 
@@ -238,8 +239,32 @@ fn build_key(context: &GameUiContext) -> BuildKey {
         campaign: state.campaign,
         selected: state.selected.clone(),
         bar: bar_values(context),
+        trade: trade_key(context, state.campaign),
         rebuilds: state.rebuilds,
     }
+}
+
+// The game's partners on the map of `campaign`, with whether each route is open: the panel's buttons
+// and route lines follow them.
+fn trade_key(context: &GameUiContext, campaign: Option<usize>) -> Vec<(String, bool)> {
+    if !shows_game_trade(context, campaign) {
+        return Vec::new();
+    }
+    context.sim.trade().partners().iter().map(|partner| (partner.city().to_string(), partner.open)).collect()
+}
+
+// Whether the map of `campaign` is the one the game trades on.
+fn shows_game_trade(context: &GameUiContext, campaign: Option<usize>) -> bool {
+    let trade = context.sim.trade();
+    trade.is_enabled()
+        && campaign
+            .and_then(|index| CampaignConfigs::get().campaign(index))
+            .is_some_and(|campaign| campaign.world_map_name() == trade.world_map())
+}
+
+// Whether the game trades with the city `city` on the screen's map.
+fn is_game_partner(context: &GameUiContext, city: &str) -> bool {
+    shows_game_trade(context, STATE.as_ref().campaign) && context.sim.trade().partner(city).is_some()
 }
 
 // The screen's state for automation (world_map.state): the campaign shown, the city selected and
@@ -408,7 +433,16 @@ impl WorldMap {
         let state = STATE.as_ref();
         let provider = state.campaign.and_then(world_map_data::provider);
         let scene = provider.as_ref().map(|provider| Rc::new(MapScene::new(provider)));
-        let panel = provider.as_ref().and_then(|provider| state.selected.as_deref().and_then(|id| provider.city_panel(id)));
+        let mut panel =
+            provider.as_ref().and_then(|provider| state.selected.as_deref().and_then(|id| provider.city_panel(id)));
+        // A partner of this game: its route as the game's trade has it, open or closed.
+        if let Some(panel) = panel.as_mut()
+            && is_game_partner(context, &panel.city_id)
+        {
+            let trade = context.sim.trade();
+            panel.route_line = crate::trade::route_line(trade, &panel.city_id).or(panel.route_line.take());
+            panel.route_detail = crate::trade::route_detail(trade, &panel.city_id).or(panel.route_detail.take());
+        }
         let selected_city =
             scene.as_ref().and_then(|scene| state.selected.as_deref().and_then(|id| scene.city(id).cloned()));
 
@@ -856,19 +890,19 @@ fn side_panel(
     let padding = PANEL_PADDING.map(|side| scales.pt(side));
     let inner = Vec2::new(size.x - padding[0] - padding[2], size.y - padding[1] - padding[3]);
 
-    // The trade buttons at the bottom, disabled until M10.
-    // TODO(realm-ui): M10's trade opens the trade limits dialog and the gift dialog from these.
-    let buttons: Vec<UiTextButton> = ["world_map.set_trade_limits", "world_map.send_gift"]
-        .into_iter()
-        .map(|key| {
-            let button = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, key), |_, _| {})
-                .with_width(UiTextButtonWidth::Fixed(inner.x))
-                .with_min_height(scales.pt(PANEL_BUTTON_HEIGHT))
-                .with_enabled(false)
-                .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Menu, "world_map.coming_with_trade")));
-            scales.button_text(button, BUTTON_TEXT_SIZE)
-        })
-        .collect();
+    // The trade buttons at the bottom: Set trade limits for a partner whose route is open, Open the
+    // route for one whose route is closed (disabled, saying why, while it can't be), and Send a
+    // gift, disabled until gifts come (game Phase 2).
+    let sized = |button: UiTextButton| {
+        let button = button.with_width(UiTextButtonWidth::Fixed(inner.x)).with_min_height(scales.pt(PANEL_BUTTON_HEIGHT));
+        scales.button_text(button, BUTTON_TEXT_SIZE)
+    };
+    let trade_button = trade_button(context, city.map(|city| city.id.as_str()));
+    let gift =
+        skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "world_map.send_gift"), |_, _| {})
+            .with_enabled(false)
+            .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Menu, "world_map.gifts_later")));
+    let buttons: Vec<UiTextButton> = vec![sized(trade_button), sized(gift)];
     let gap = scales.pt(PANEL_BUTTON_GAP);
     let buttons_height: f32 = buttons.iter().map(|button| button.measure(context).y).sum::<f32>() + gap;
 
@@ -907,6 +941,97 @@ fn side_panel(
         frame = frame.with_panel(slice);
     }
     frame
+}
+
+// The side panel's trade button for the city `city`: Set trade limits for a partner of this game
+// whose route is open (the trade limits dialog), Open the route for one whose route is closed (a
+// popup asks first), else Set trade limits, disabled.
+fn trade_button(context: &mut GameUiContext, city: Option<&str>) -> UiTextButton {
+    let key = |key: &'static str| UiString::key(UiTextCategory::Menu, key);
+    let Some(city) = city.filter(|city| is_game_partner(context, city)).map(str::to_string) else {
+        return skin::button(context, ButtonRole::Secondary, key("world_map.set_trade_limits"), |_, _| {})
+            .with_enabled(false)
+            .with_tooltip(skin::tooltip(context, key("world_map.no_trade_here")));
+    };
+    let open = context.sim.trade().partner(&city).is_some_and(|partner| partner.open);
+    if open {
+        return skin::button(context, ButtonRole::Secondary, key("world_map.set_trade_limits"), move |_, context| {
+            super::trade_limits::open(context_as_mut::<GameUiContext>(context), &city);
+        });
+    }
+    let can_open = crate::trade::can_open_route(&context.new_sim_context(), &city);
+    let tooltip = match can_open {
+        Ok(0) => key("world_map.open_route.free"),
+        Ok(cost) => UiString::from(ui::text::format(UiTextCategory::Menu, "world_map.open_route.cost", &[(
+            "gold",
+            &cost.to_string(),
+        )])),
+        Err(crate::trade::OpenRouteError::NeedsDock) => key("world_map.open_route.needs_dock"),
+        Err(crate::trade::OpenRouteError::CantAfford(cost)) => UiString::from(ui::text::format(
+            UiTextCategory::Menu,
+            "world_map.open_route.cant_afford",
+            &[("gold", &cost.to_string())],
+        )),
+        Err(_) => key("world_map.no_trade_here"),
+    };
+    let enabled = can_open.is_ok();
+    let cost = can_open.unwrap_or(0);
+    skin::button(context, ButtonRole::Primary, key("world_map.open_route"), move |_, context| {
+        open_route_popup(context_as_mut::<GameUiContext>(context), city.clone(), cost);
+    })
+    .with_enabled(enabled)
+    .with_tooltip(skin::tooltip(context, tooltip))
+}
+
+// The label of the popup that asks before a route opens.
+pub const OPEN_ROUTE_POPUP_LABEL: &str = "Open Route Popup";
+
+// Asks before the route to `city` opens for `cost` gold; Open opens it (trade::open_route), and a
+// message says so.
+fn open_route_popup(context: &mut GameUiContext, city: String, cost: u32) {
+    let dialog = super::find::<WorldMap>();
+    if !dialog.menu.is_open() || dialog.menu.is_message_box_open() {
+        return;
+    }
+    let name = crate::trade::partner_name(context.sim.trade(), &city);
+    dialog.menu.reset_message_box();
+    dialog.menu.open_message_box(context, move |context| {
+        let title = ui::text::format(UiTextCategory::Menu, "popup.open_route.title", &[("partner", &name)]);
+        let body = if cost == 0 {
+            ui::text::get(UiTextCategory::Menu, "popup.open_route.body_free").to_string()
+        } else {
+            ui::text::format(UiTextCategory::Menu, "popup.open_route.body", &[("gold", &cost.to_string())])
+        };
+        let body = [(UiString::from(body), "ink")];
+        let window = ui::screen_size(context.ui_sys());
+        let sized = |button: UiTextButton| skin::size_popup_button(button, window);
+        let city = city.clone();
+        let name = name.clone();
+        skin::popup_with_colored_body(context, OPEN_ROUTE_POPUP_LABEL, [UiString::from(title)], body).with_buttons([
+            sized(make_text_button(
+                context,
+                ButtonRole::Secondary,
+                UiString::key(UiTextCategory::Menu, "button.cancel"),
+                |_, context| {
+                    super::find::<WorldMap>().menu.close_message_box(context);
+                },
+            )),
+            sized(make_text_button(
+                context,
+                ButtonRole::Primary,
+                UiString::key(UiTextCategory::Menu, "popup.open_route.open"),
+                move |_, context| {
+                    let game = context_as_mut::<GameUiContext>(context);
+                    let opened = crate::trade::open_route(&game.new_sim_context(), &city);
+                    if opened.is_ok() {
+                        let text = ui::text::format(UiTextCategory::Messages, "trade.route_opened", &[("partner", &name)]);
+                        crate::messages::push(crate::messages::MessageKind::Trade, text);
+                    }
+                    super::find::<WorldMap>().menu.close_message_box(context);
+                },
+            )),
+        ])
+    });
 }
 
 // The side panel's parts above its buttons, `width` points wide, their gaps, the emblem and the

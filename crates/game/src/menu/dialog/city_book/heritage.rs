@@ -129,7 +129,7 @@ fn patron_rows(context: &mut GameUiContext) -> Patrons {
     let population = faith::population(context.world);
     let favours: Vec<f32> = def.patrons.iter().map(|patron| faith_state.favour(&patron.id).unwrap_or_default()).collect();
 
-    let systems = faith_config::FaithSystems::of(context.sim.floods());
+    let systems = faith_config::FaithSystems::of(context.sim.floods(), context.sim.trade());
     let event_name = |ids: &[String]| -> Option<String> {
         let id = ids.iter().find(|id| def.event(id).is_some_and(|event| event.is_available(systems))).or(ids.first())?;
         Some(ui::text::get(UiTextCategory::Realm, &faith_config::event_name_key(realm, id)).to_lowercase())

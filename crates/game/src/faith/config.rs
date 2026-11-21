@@ -89,12 +89,14 @@ pub enum FaithEffectDef {
     Flood { severity: f32 },
     // Scholars come to the city (education, later).
     Scholars { count: u32 },
-    // Envoys bring gifts (trade, M10).
-    Envoys,
+    // Envoys bring gifts: a caravan from a partner whose route is open unloads that many of its
+    // goods at the stores, free (trade, M10).
+    Envoys { goods: u32 },
     // Novices join the monasteries (Tampadesa's monasteries, later).
     Novices,
-    // Trade comes easily (trade, M10).
-    TradeWindfall,
+    // Trade comes easily for `months`: partners pay `1 + scale` times their price for the city's
+    // exports and ask that much less for its imports (trade, M10).
+    TradeWindfall { scale: f32, months: u32 },
 }
 
 // A system an event needs before it can happen.
@@ -113,21 +115,26 @@ pub enum FaithRequirement {
 #[derive(Copy, Clone, Default, Debug)]
 pub struct FaithSystems {
     pub floods: bool,
+    pub trade: bool,
 }
 
 impl FaithSystems {
-    pub fn of(floods: &crate::sim::CityFloods) -> Self {
-        Self { floods: floods.is_enabled() }
+    pub fn of(floods: &crate::sim::CityFloods, trade: &crate::sim::CityTrade) -> Self {
+        Self {
+            floods: floods.is_enabled(),
+            trade: trade.is_enabled() && trade.partners().iter().any(|partner| partner.open),
+        }
     }
 }
 
 impl FaithRequirement {
-    // Whether the game has the system now: floods while they're on; the others land with their
-    // milestones.
+    // Whether the game has the system now: floods while they're on, trade while a route is open;
+    // the others land with their milestones.
     pub fn is_met(self, systems: FaithSystems) -> bool {
         match self {
             Self::Floods => systems.floods,
-            Self::Reservoirs | Self::Trade | Self::Education | Self::Monasteries => false,
+            Self::Trade => systems.trade,
+            Self::Reservoirs | Self::Education | Self::Monasteries => false,
         }
     }
 }
@@ -138,7 +145,7 @@ impl FaithEffectDef {
         match self {
             Self::Flood { .. } => Some(FaithRequirement::Floods),
             Self::Scholars { .. } => Some(FaithRequirement::Education),
-            Self::Envoys | Self::TradeWindfall => Some(FaithRequirement::Trade),
+            Self::Envoys { .. } | Self::TradeWindfall { .. } => Some(FaithRequirement::Trade),
             Self::Novices => Some(FaithRequirement::Monasteries),
             _ => None,
         }
