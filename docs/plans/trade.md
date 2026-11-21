@@ -1,6 +1,6 @@
 # Trade and court requests
 
-**Status (2026-11-21): Phases 0, 1 and 2 done (the data and state, save v12; land routes, the trade limits dialog and caravans; docks, trade ships and their dockers, save v13); Phase 3, prices, next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
+**Status (2026-11-22): Phases 0 to 3 done (the data and state, save v12; land routes, the trade limits dialog and caravans; docks, trade ships and their dockers, save v13; prices); Phase 4, court requests and the goals, next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
 - land, river and sea routes the player opens to partner cities, and the buy and sell limits they set per good and per partner;
 - caravans that walk in from the map's edge and trade at the storage yards and granaries themselves, store by store, as in Pharaoh: there's no trade post;
 - docks, and trade ships that sail in from the map's edge, moor at a dock and wait while its dockers carry their goods to the stores and the city's exports back to them;
@@ -294,7 +294,7 @@ The Finances page gains the three lines.
 
 - Each traded good has a base price per partner (the world file's). The partner's price now is base × (1 + offset).
 - The offset moves by `price_step` (2%) for every `price_units` (10) units traded: down for what the partner buys from the city, up for what it sells to it. It stays within ±`price_cap` (40%) and drifts a quarter of the way back to 0 each month.
-- Relations (0–5) scale the price by `relation_step` (3%) a level from 3 (Q7). They don't move in M10.
+- Relations (0–5) scale the price by `relation_step` (3%) a level from 3 (Q7), in the city's favour above it: a friend asks less for its goods and pays more for the city's. They don't move in M10.
 - The side panel's They sell and They buy show the prices now, with an arrow when they've moved. The dialog shows them too, and `trade.state` reports them.
 
 ### 8. Faith
@@ -351,8 +351,8 @@ The Finances page gains the three lines.
 
 | Where | Change | Phase | Files |
 |---|---|---|---|
-| World map, side panel | Open the route (its cost; "Build a dock first" for a river or sea route without a dock) and Set trade limits enabled; the route line's next arrival; live prices and amounts; "not traded yet" for display-only goods; Send a gift stays disabled with a new tooltip. | 1, 2, 3 | `menu/dialog/world_map/`, `world_map/provider.rs` |
-| New dialog | `TradeLimits`: a row per good with an import or export step selector, the price and the amount left. No mockup: built in the Goods page's style. | 1 | `menu/dialog/trade_limits.rs` (new) |
+| World map, side panel | Open the route (its cost; "Build a dock first" for a river or sea route without a dock) and Set trade limits enabled; the route line's next arrival; live prices with ▲ or ▼ once trade has moved them (the amounts left out: Phase 3's notes); "—" for display-only goods; Send a gift stays disabled with a new tooltip. | 1, 2, 3 | `menu/dialog/world_map/`, `world_map/provider.rs` |
+| New dialog | `TradeLimits`: a row per good with an import or export step selector, the price and the amount left; the price's arrow once trade has moved it (Phase 3). No mockup: built in the Goods page's style. | 1, 3 | `menu/dialog/trade_limits.rs` (new) |
 | Inspector, unit | The caravan's and the ship's errand and cargo. | 1, 2 | `inspect/unit.rs` |
 | Inspector, storage | "Last traded with a caravan" on a yard's and a granary's panel: left out (Phase 1's notes). | 1 | `inspect/building.rs` |
 | Build palette | The dock in the Trade sector (its glyph in each realm); the sector button no longer empty. | 2 | `tile_set.json`, `configs.json`, ui-art, `menu/in_game/palette.rs` |
@@ -497,9 +497,33 @@ The Finances page gains the three lines.
 
 ### Phase 3: Prices (small)
 
-- [ ] Price offsets per partner and good, moved by trade and drifting back; relations' scale.
-- [ ] The panel's and the dialog's live prices.
-- [ ] Tests; the scenario checks a price moving.
+- [x] Price offsets per partner and good, moved by trade and drifting back; relations' scale.
+- [x] The panel's and the dialog's live prices.
+- [x] Tests; the scenario checks a price moving.
+
+**Notes (2026-11-22):**
+- **What was built:**
+  - **Moving prices:** `TradePartner::record_sold` and `record_bought` count a trade toward the year's amounts and move the good's offset, up for what the partner sold the city and down for what it bought, `price_step` (2%) per `price_units` (10), within `price_cap` (40%). Every trade goes through them: a caravan's store visit, a docker's load off the ship and onto it. Envoys' gifts move nothing. `CityTrade::drift_prices` takes each offset `price_drift` (a quarter) of the way back at every month's start (`trade::on_new_month`, while the game trades), and to 0 once it's below 0.05%.
+  - **The price now:** `trade::price_now(side, faith_scale, terms, partner, good)` (`TradeSide::Import` or `Export`; `import_price` and `export_price` wrap it) is the base price × (1 + offset), better for the city by `relation_step` (3%) a relations level above Neutral (3) and worse below it, then better again while faith's easy trade lasts. It's rounded once, at the end, at least 1. A trade is paid at the price before it moves the offset, so a caravan's second store or a docker's next load pays the moved price.
+  - **The trend:** `trade::price_trend` (`PriceTrend`: steady, up, down) compares the price shown with what it would be without its offset, so an offset too small to change the whole number shows no arrow. Up or down is drawn ▲ or ▼ after the price.
+  - **The world map's panel:** for a partner of the game, `trade::panel_offers` replaces the world file's goods and prices with the game's (the mission's goods, else its city's): the goods the game trades at their price now and trend, the display-only ones (Vijara's salt, aloeswood and silk) with "—". `TradeOffer`'s price became an `Option` and gained its `trend`. Other cities, and a game that doesn't trade, keep the file's prices.
+  - **The trade limits dialog:** its price column shows the arrow ("10 gold ▲"), and its row canvas records `trend`. It's built again when the partner's amounts this year or faith's trade scale change, not just each month, so its prices and amounts follow each trade (automation can trade while it's open; the simulation is paused under it otherwise).
+  - **Automation:** `trade.state`'s goods report `price_now` and `trend` beside the base `price` and `offset`; `world_map.state`'s offers report a `trend`.
+  - **World Debug's Trade tab** lists each moved price's offset.
+  - **The glyph test** (`ui::GLYPH_TEST_TEXTS`) lays out "26 ▲ 18 ▼ —", so every realm style is checked for the arrows: Protest Revolution, Jaini and Amita lack them, and Source Code Pro, Spectral and Alegreya draw them.
+  - **Tests:** `tests/trade.rs` has 32: trade moving prices within the cap and the drift back (`on_new_month` included), the relations' scale, the world map panel's live prices with their trends and easy trade. The ship's test pays Vijara's prices (its first load of metal at 23, the next at 24).
+  - **`trade.jsonl`** checks Đê Sơn's allied price (9) in the dialog, then that the bricks its caravan sold cost 10 ▲ afterwards in `trade.state`, the world map's panel and the dialog, with screenshots (`world_map_prices.png`, `trade_limits_prices.png`); its gold totals follow the new prices.
+- **Deviations:**
+  - **A price moves per trade, not per unit:** a caravan's store visit or a docker's load goes at one price, and moves it once.
+  - **The panel shows no amounts this year**, only the prices (§9 had both): its two goods columns have no room, and the trade limits dialog shows what's left.
+  - **Relations change prices**, so Campaign I's land and sea partners trade at prices other than their base: Đê Sơn, allied, sells its bricks at 9; Vijara, friendly, its metal at 23. M13 balances them with that in mind.
+- **UI changes:**
+  - the world map's side panel: a game partner's prices now with ▲ or ▼, and "—" for goods the game doesn't trade with it;
+  - the trade limits dialog's price column: the arrow.
+- **Verified:**
+  - `cargo test --workspace` and both clippy runs;
+  - all 29 scenarios on a release build (macOS);
+  - the world map's panel and the trade limits dialog with a moved price, by screenshot.
 
 ### Phase 4: Court requests and the goals (medium)
 

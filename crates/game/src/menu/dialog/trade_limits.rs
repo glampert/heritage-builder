@@ -3,19 +3,21 @@
 //
 // Its title names the partner; a line under it gives the route and whether it's open. Then a section
 // per side: the goods the partner sells (They sell: imports) and those it buys (They buy: exports), a
-// row per good: its name, what the city holds (yards and granaries), the partner's price and how
-// many it still sells or buys this year, and a dropdown for the limit: Don't import, or Up to N in
+// row per good: its name, what the city holds (yards and granaries), the partner's price now (with
+// ▲ or ▼ when trade has moved it, docs/plans/trade.md, §7) and how many it still sells or buys this
+// year, and a dropdown for the limit: Don't import, or Up to N in
 // the city; Don't export, or Keep N in the city. The dropdowns set the limit at once
 // (CityTrade::set_limit). Close at the bottom.
 //
 // The world map's side panel opens it for a partner whose route is open (open); dialog.open opens
 // it for the game's first partner. Only in a game that trades. Built afresh when it opens, and
-// again when the window's size, the partner, its route or the month changes (needs_rebuild), so
-// the figures follow the city month by month, as the City book's do.
+// again when the window's size, the partner, its route, what it traded this year, faith's trade
+// scale or the month changes (needs_rebuild), so its prices and amounts follow each trade and what
+// the city holds follows it month by month, as the City book's figures do.
 //
 // Paths: TradeLimits/title (canvas: partner, name), TradeLimits/route (canvas: line, detail, open),
 // TradeLimits/They sell and TradeLimits/They buy (canvas: the column titles), a row per good,
-// TradeLimits/<Good> terms (canvas: good, held, price, left, side) and its dropdown
+// TradeLimits/<Good> terms (canvas: good, held, price, trend, left, side) and its dropdown
 // TradeLimits/<Good>, and TradeLimits/Close.
 
 use common::Color;
@@ -30,7 +32,7 @@ use crate::{
     GameLoop,
     config::GameConfigs,
     sim::{resources::ResourceKind, trade::TradeLimit},
-    trade::{self, GoodTerms},
+    trade::{self, GoodTerms, PriceTrend, TradeSide as Side},
 };
 
 // ----------------------------------------------
@@ -68,6 +70,8 @@ struct BuildKey {
     window: (u32, u32),
     partner: Option<String>,
     open: bool,
+    traded: u32,      // What the partner sold and bought this year, all told: each trade moves its prices.
+    faith_scale: u32, // Its bits.
     month: u32,
 }
 
@@ -101,14 +105,17 @@ fn shown_partner(context: &GameUiContext) -> Option<String> {
 fn build_key(context: &GameUiContext) -> BuildKey {
     let window = ui::screen_size(context.ui_sys);
     let partner = shown_partner(context);
-    let open = partner.as_deref().and_then(|city| context.sim.trade().partner(city)).is_some_and(|partner| partner.open);
+    let state = partner.as_deref().and_then(|city| context.sim.trade().partner(city));
+    let open = state.is_some_and(|partner| partner.open);
+    let traded = state.map_or(0, |partner| partner.sold.iter().chain(&partner.bought).sum());
+    let faith_scale = context.sim.faith().trade_scale().to_bits();
     let sim = &GameConfigs::get().sim;
     let month = context.sim.calendar().date(sim.days_per_month, sim.seconds_per_month).ordinal_month();
-    BuildKey { window: (window.x.round() as u32, window.y.round() as u32), partner, open, month }
+    BuildKey { window: (window.x.round() as u32, window.y.round() as u32), partner, open, traded, faith_scale, month }
 }
 
-// Whether the open dialog must be built again: the window's size, the partner, its route or the
-// month changed.
+// Whether the open dialog must be built again: the window's size, the partner, its route, its trade
+// this year, faith's trade scale or the month changed.
 pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
     STATE.as_ref().built.as_ref() != Some(&build_key(context))
 }
@@ -240,15 +247,16 @@ impl TradeLimits {
                     Side::Import => partner.sold[good.good.index()],
                     Side::Export => partner.bought[good.good.index()],
                 });
-                let price = partner.as_ref().map_or(good.price, |partner| match side {
-                    Side::Import => trade::import_price(faith_scale, partner, good),
-                    Side::Export => trade::export_price(faith_scale, partner, good),
+                let (price, trend) = partner.as_ref().map_or((good.price, PriceTrend::Steady), |partner| {
+                    let price = trade::price_now(side, faith_scale, &terms, partner, good);
+                    (price, trade::price_trend(side, faith_scale, &terms, partner, good))
                 });
                 let row = TermsRow {
                     good: *good,
                     side,
                     held: holdings[good.good.index()],
                     price,
+                    trend,
                     left: good.per_year.saturating_sub(traded),
                 };
                 let current = partner.as_ref().map_or(TradeLimit::Off, |partner| partner.limit(good.good));
@@ -283,27 +291,13 @@ impl TradeLimits {
 // Rows
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-enum Side {
-    Import, // A good the partner sells.
-    Export, // A good it buys.
-}
-
-impl Side {
-    fn name(self) -> &'static str {
-        match self {
-            Self::Import => "import",
-            Self::Export => "export",
-        }
-    }
-}
-
 // The figures in a good's row.
 struct TermsRow {
     good: GoodTerms,
     side: Side,
     held: u32,
     price: u32,
+    trend: PriceTrend,
     left: u32,
 }
 
@@ -320,10 +314,15 @@ impl TermsRow {
             "side": self.side.name(),
             "held": self.held,
             "price": self.price,
+            "trend": self.trend.name(),
             "left": self.left,
         });
         let held = group_digits(i64::from(self.held));
         let price = ui::text::format(UiTextCategory::Menu, "trade_limits.price_value", &[("gold", &self.price.to_string())]);
+        let price = match self.trend {
+            PriceTrend::Steady => price,
+            trend => format!("{price} {}", trend.arrow()),
+        };
         let left = group_digits(i64::from(self.left));
         let label = format!("{name} terms");
         let w = width / k;

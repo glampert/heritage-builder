@@ -10,7 +10,7 @@ use game::{
         resources::ResourceKind,
         trade::{CityTrade, TradeLimit},
     },
-    trade::{self, NotSent, OpenRouteError, PartnerTerms, TradeNotice, ships},
+    trade::{self, GoodTerms, NotSent, OpenRouteError, PartnerTerms, PriceTrend, TradeNotice, TradeSide, ships},
     unit::{
         config::UnitConfigKey,
         task::{UnitTaskShip, UnitTaskShipState, UnitTaskTrade},
@@ -25,7 +25,8 @@ mod test_utils;
 use test_utils::{TestEnvironment, find_building, find_building_mut, find_unit_by_config, spawn_building, tick, tick_until};
 
 // ----------------------------------------------
-// Integration tests for trade (docs/plans/trade.md): Phase 0's data and state.
+// Integration tests for trade (docs/plans/trade.md): the data and state (Phase 0), caravans (Phase 1),
+// docks and ships (Phase 2) and prices (Phase 3).
 // ----------------------------------------------
 
 fn main() {
@@ -61,6 +62,10 @@ fn main() {
         test_utils::test_fn!(test_ships_keep_out_of_canals),
         test_utils::test_fn!(test_a_busy_dock_keeps_a_ship_waiting),
         test_utils::test_fn!(test_the_monthly_schedule_sends_ships),
+        // Prices (Phase 3):
+        test_utils::test_fn!(test_trade_moves_prices_and_they_drift_back),
+        test_utils::test_fn!(test_relations_scale_the_prices),
+        test_utils::test_fn!(test_the_world_maps_panel_shows_the_prices_now),
     ]);
 }
 
@@ -687,9 +692,9 @@ fn test_easy_trade_moves_the_prices() {
     let clans = map.env.sim.trade().partner("clan_camps").unwrap();
     let wood = *terms.sells(ResourceKind::Wood).unwrap();
     let rice = *terms.buys(ResourceKind::Rice).unwrap();
-    assert_eq!(trade::import_price(1.0, clans, &wood), 7);
-    assert_eq!(trade::import_price(scale, clans, &wood), 6, "7 / 1.15");
-    assert_eq!(trade::export_price(scale, clans, &rice), 7, "6 × 1.15");
+    assert_eq!(trade::import_price(1.0, &terms, clans, &wood), 7);
+    assert_eq!(trade::import_price(scale, &terms, clans, &wood), 6, "7 / 1.15");
+    assert_eq!(trade::export_price(scale, &terms, clans, &rice), 7, "6 × 1.15");
 
     // A caravan trades at them.
     map.env.sim.finance_mut().set_balance_unrecorded(1000);
@@ -912,20 +917,23 @@ fn test_a_ship_moors_and_its_dockers_trade() {
     let vijara = port.map.env.sim.trade().partner("vijara").unwrap();
     assert_eq!(vijara.sold[ResourceKind::Metal.index()], 16);
     assert_eq!(vijara.bought[ResourceKind::Rice.index()], 16);
+    // Paid load by load, at Vijara's prices then (friendly, relations 4: 3% better for the city), each
+    // load moving the next one's: metal 24 × 0.97 = 23, then × 1.016 = 24; rice 18 × 1.03 = 19,
+    // then × 0.984 = 18.
     let finance = port.map.env.sim.finance();
-    assert_eq!(finance.this_year().total(LedgerCategory::Imports), 16 * 24);
-    assert_eq!(finance.this_year().total(LedgerCategory::Exports), 16 * 18);
-    assert_eq!(finance.balance(), balance - 16 * 24 + 16 * 18);
+    assert_eq!(finance.this_year().total(LedgerCategory::Imports), 8 * 23 + 8 * 24);
+    assert_eq!(finance.this_year().total(LedgerCategory::Exports), 8 * 19 + 8 * 18);
+    assert_eq!(finance.balance(), balance - 376 + 296);
     assert_eq!(notices, [TradeNotice::Ship {
         partner: "vijara".into(),
         sold: vec![(ResourceKind::Metal, 16)],
         bought: vec![(ResourceKind::Rice, 16)],
-        paid: 384,
-        earned: 288,
+        paid: 376,
+        earned: 296,
         turned_back: false,
     }]);
     let (_, _, text) = trade::notice_message(&notices[0], "Vijara");
-    assert_eq!(text, "A ship from Vijara brought 16 metal and took 16 rice: −96 gold.");
+    assert_eq!(text, "A ship from Vijara brought 16 metal and took 16 rice: −80 gold.");
 
     // The berth is free again, and no docker is out.
     let berth = ships::berth_of(find_building(&port.map.env, port.dock.unwrap())).unwrap();
@@ -1058,4 +1066,134 @@ fn test_the_monthly_schedule_sends_ships() {
     new_month(&mut port.map, due / 12, due % 12 + 1);
     assert!(ship(&port).is_none());
     assert_eq!(port.map.env.sim.trade().partner("vijara").unwrap().next_arrival, Some(due + 1));
+}
+
+// ----------------------------------------------
+// Prices (Phase 3)
+// ----------------------------------------------
+
+fn offset(state: &CityTrade, city: &str, good: ResourceKind) -> f32 {
+    state.partner(city).unwrap().price_offset(good)
+}
+
+fn assert_near(value: f32, expected: f32) {
+    assert!((value - expected).abs() < 1e-5, "{value}, expected {expected}");
+}
+
+// What a partner sells the city grows dearer and what it buys cheaper, 2% for every 10 traded, at
+// most 40% either way; each month they drift a quarter of the way back.
+fn test_trade_moves_prices_and_they_drift_back() {
+    let mut state = started();
+    let terms = terms_of("clan_camps");
+    let (wood, rice, metal) = (ResourceKind::Wood, ResourceKind::Rice, ResourceKind::Metal);
+    let clans = state.partner_mut("clan_camps").unwrap();
+    clans.record_sold(wood, 50, rules());
+    clans.record_bought(rice, 30, rules());
+    assert_eq!((clans.sold[wood.index()], clans.bought[rice.index()]), (50, 30), "the year's amounts");
+    assert_near(clans.price_offset(wood), 0.10);
+    assert_near(clans.price_offset(rice), -0.06);
+
+    clans.record_sold(wood, 1000, rules());
+    clans.record_bought(rice, 1000, rules());
+    assert_near(clans.price_offset(wood), 0.4);
+    assert_near(clans.price_offset(rice), -0.4);
+
+    // The clans (neutral, relations 3) at their base prices: wood 7 × 1.4 = 10, rice 6 × 0.6 = 4;
+    // metal, untraded, 18.
+    let clans = state.partner("clan_camps").unwrap();
+    let price = |side, good: ResourceKind| {
+        let terms_good = match side {
+            TradeSide::Import => terms.sells(good),
+            TradeSide::Export => terms.buys(good),
+        };
+        let terms_good = terms_good.unwrap();
+        (trade::price_now(side, 1.0, &terms, clans, terms_good), trade::price_trend(side, 1.0, &terms, clans, terms_good))
+    };
+    assert_eq!(price(TradeSide::Import, wood), (10, PriceTrend::Up));
+    assert_eq!(price(TradeSide::Export, rice), (4, PriceTrend::Down));
+    assert_eq!(price(TradeSide::Import, metal), (18, PriceTrend::Steady));
+
+    // A month: a quarter of the way back.
+    state.drift_prices(rules());
+    assert_near(offset(&state, "clan_camps", wood), 0.3);
+    assert_near(offset(&state, "clan_camps", rice), -0.3);
+    state.drift_prices(rules());
+    assert_near(offset(&state, "clan_camps", wood), 0.225);
+
+    // Back to the base once too small to move a price.
+    for _ in 0..40 {
+        state.drift_prices(rules());
+    }
+    assert_eq!(offset(&state, "clan_camps", wood), 0.0);
+    assert_eq!(offset(&state, "clan_camps", rice), 0.0);
+
+    // In a game, the month's start drifts them.
+    let mut map = trade_map();
+    map.env.sim.trade_mut().partner_mut("clan_camps").unwrap().record_sold(wood, 40, rules());
+    assert_near(offset(map.env.sim.trade(), "clan_camps", wood), 0.08);
+    new_month(&mut map, 3, 2);
+    assert_near(offset(map.env.sim.trade(), "clan_camps", wood), 0.06);
+}
+
+// Relations move prices 3% a level from the middle (3): a friend asks less for its goods and pays
+// more for the city's.
+fn test_relations_scale_the_prices() {
+    let state = started();
+    let clans = state.partner("clan_camps").unwrap();
+    let mut terms = terms_of("clan_camps");
+    assert_eq!(terms.relation, 3);
+    let hundred = GoodTerms { good: ResourceKind::Wood, price: 100, per_year: 10 };
+    for (relation, import, export) in [(0, 109, 91), (2, 103, 97), (3, 100, 100), (4, 97, 103), (5, 94, 106)] {
+        terms.relation = relation;
+        assert_eq!(trade::import_price(1.0, &terms, clans, &hundred), import, "relations {relation}");
+        assert_eq!(trade::export_price(1.0, &terms, clans, &hundred), export, "relations {relation}");
+        assert_eq!(trade::price_trend(TradeSide::Import, 1.0, &terms, clans, &hundred), PriceTrend::Steady);
+    }
+
+    // Campaign I's: the delta is allied (5), Vijara friendly (4).
+    let delta = terms_of("de_son");
+    let bricks = *delta.sells(ResourceKind::Bricks).unwrap();
+    assert_eq!((delta.relation, trade::import_price(1.0, &delta, clans, &bricks)), (5, 9), "10 × 0.94");
+    let vijara = terms_of("vijara");
+    let rice = *vijara.buys(ResourceKind::Rice).unwrap();
+    assert_eq!((vijara.relation, trade::export_price(1.0, &vijara, clans, &rice)), (4, 19), "18 × 1.03");
+}
+
+// The world map's side panel shows a partner's goods at their prices now, with the way trade moved
+// them; the goods the game doesn't trade show no price.
+fn test_the_world_maps_panel_shows_the_prices_now() {
+    let mut map = trade_map();
+    let rows = |offers: &[game::world_map::provider::TradeOffer]| -> Vec<(String, Option<u32>, PriceTrend)> {
+        offers.iter().map(|offer| (offer.good.clone(), offer.price, offer.trend)).collect()
+    };
+    let row = |good: &str, price: Option<u32>, trend| (good.to_string(), price, trend);
+
+    let (sells, buys) = trade::panel_offers(map.env.sim.trade(), "vijara", 1.0).unwrap();
+    assert_eq!(rows(&sells), [
+        row("Salt", None, PriceTrend::Steady),
+        row("Aloeswood", None, PriceTrend::Steady),
+        row("Metal", Some(23), PriceTrend::Steady),
+    ]);
+    assert_eq!(rows(&buys), [
+        row("Silk", None, PriceTrend::Steady),
+        row("Pottery", Some(46), PriceTrend::Steady),
+        row("Rice", Some(19), PriceTrend::Steady),
+    ]);
+
+    // Vijara sold the city 40 metal and bought 50 rice: metal 24 × 1.08 × 0.97 = 25, rice
+    // 18 × 0.9 × 1.03 = 17.
+    let vijara = map.env.sim.trade_mut().partner_mut("vijara").unwrap();
+    vijara.record_sold(ResourceKind::Metal, 40, rules());
+    vijara.record_bought(ResourceKind::Rice, 50, rules());
+    let (sells, buys) = trade::panel_offers(map.env.sim.trade(), "vijara", 1.0).unwrap();
+    assert_eq!(rows(&sells)[2], row("Metal", Some(25), PriceTrend::Up));
+    assert_eq!(rows(&buys)[2], row("Rice", Some(17), PriceTrend::Down));
+
+    // Easy trade improves both for the city, the trend still trade's alone.
+    let (sells, buys) = trade::panel_offers(map.env.sim.trade(), "vijara", 1.15).unwrap();
+    assert_eq!(rows(&sells)[2], row("Metal", Some(22), PriceTrend::Up), "25.14 / 1.15");
+    assert_eq!(rows(&buys)[2], row("Rice", Some(19), PriceTrend::Down), "16.69 × 1.15");
+
+    // A city the game doesn't trade with has none: the panel keeps the world file's.
+    assert!(trade::panel_offers(map.env.sim.trade(), "cho_deo", 1.0).is_none());
 }

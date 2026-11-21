@@ -42,6 +42,7 @@ use crate::{
     world_map::{
         WorldMapConfigs,
         config::{RouteKind, TradeGoodDef, WorldCityDef, WorldMapDef},
+        provider::TradeOffer,
     },
 };
 
@@ -153,6 +154,36 @@ pub fn place_name(world_map_name: &str, city: &str) -> String {
             .map(|mission_city| mission_city.name.clone())
     });
     key.map_or_else(|| city.to_string(), |key| text::get(UiTextCategory::Realm, &key).to_string())
+}
+
+// A partner's goods on the world map's side panel (docs/plans/trade.md, §9): what it sells and what it
+// buys in this game (the mission's goods, else its city's), those the game trades at their price now
+// with the way trade has moved it, the others (shown only) without a price. None for a city the game
+// doesn't trade with.
+pub fn panel_offers(trade: &CityTrade, city: &str, faith_scale: f32) -> Option<(Vec<TradeOffer>, Vec<TradeOffer>)> {
+    let partner = trade.partner(city)?;
+    let map = world_map(trade.world_map())?;
+    let terms = terms_on(map, &partner.def)?;
+    let city_trade = map.city(city)?.trade.as_ref()?;
+    let offers = |goods: &[TradeGoodDef], side: TradeSide| -> Vec<TradeOffer> {
+        goods
+            .iter()
+            .map(|def| {
+                let good = def.resource().and_then(|kind| match side {
+                    TradeSide::Import => terms.sells(kind),
+                    TradeSide::Export => terms.buys(kind),
+                });
+                let (price, trend) = good.map_or((None, PriceTrend::Steady), |good| {
+                    let price = price_now(side, faith_scale, &terms, partner, good);
+                    (Some(price), price_trend(side, faith_scale, &terms, partner, good))
+                });
+                TradeOffer { good: def.display_name(), price, trend }
+            })
+            .collect()
+    };
+    let sells = offers(partner.def.sells.as_deref().unwrap_or(&city_trade.sells), TradeSide::Import);
+    let buys = offers(partner.def.buys.as_deref().unwrap_or(&city_trade.buys), TradeSide::Export);
+    Some((sells, buys))
 }
 
 // A partner's route as the player reads it: "Hill track from Chợ Đèo".
@@ -280,21 +311,100 @@ pub fn holdings(context: &SimContext) -> Holdings {
     held
 }
 
-// A good's price with a partner now, gold a unit: its base price × (1 + its offset), at least 1.
-pub fn price(partner: &TradePartner, terms: &GoodTerms) -> u32 {
-    let price = terms.price as f32 * (1.0 + partner.price_offset(terms.good));
+// Which way a good goes: the city imports what a partner sells, and exports what it buys.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum TradeSide {
+    Import,
+    Export,
+}
+
+impl TradeSide {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Import => "import",
+            Self::Export => "export",
+        }
+    }
+}
+
+// Which way trade has moved a price: up, down or not at all, as the player would read it (the price
+// shown against the one it would be without its offset).
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub enum PriceTrend {
+    #[default]
+    Steady,
+    Up,
+    Down,
+}
+
+impl PriceTrend {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Steady => "steady",
+            Self::Up => "up",
+            Self::Down => "down",
+        }
+    }
+
+    // The mark shown after a price: none while it's steady.
+    pub fn arrow(self) -> &'static str {
+        match self {
+            Self::Steady => "",
+            Self::Up => "▲",
+            Self::Down => "▼",
+        }
+    }
+}
+
+// A good's price as `side` trades it (docs/plans/trade.md, §7), gold a unit, at least 1: its base
+// price × (1 + `offset`); better for the city by `relation_step` a relations level above the middle
+// (3), worse below it; and better again while trade comes easily (`faith_scale`,
+// CityFaith::trade_scale). Rounded once, at the end.
+fn unit_price(side: TradeSide, faith_scale: f32, relation: u8, offset: f32, base: u32) -> u32 {
+    let rules = &GameConfigs::get().sim.trade;
+    let levels = f32::from(relation) - f32::from(MIDDLE_RELATION);
+    let price = base as f32 * (1.0 + offset);
+    let price = match side {
+        TradeSide::Import => price * (1.0 - rules.relation_step * levels) / faith_scale.max(0.01),
+        TradeSide::Export => price * (1.0 + rules.relation_step * levels) * faith_scale.max(0.0),
+    };
     price.round().max(1.0) as u32
 }
 
-// What the city pays a partner for one of its goods now: its price, less while trade comes easily
-// (`faith_scale`, CityFaith::trade_scale).
-pub fn import_price(faith_scale: f32, partner: &TradePartner, terms: &GoodTerms) -> u32 {
-    (price(partner, terms) as f32 / faith_scale.max(0.01)).round().max(1.0) as u32
+// The relations level at which prices are their base (Neutral).
+const MIDDLE_RELATION: u8 = 3;
+
+// A good's price with a partner now, as `side` trades it.
+pub fn price_now(side: TradeSide, faith_scale: f32, terms: &PartnerTerms, partner: &TradePartner, good: &GoodTerms) -> u32 {
+    unit_price(side, faith_scale, terms.relation, partner.price_offset(good.good), good.price)
 }
 
-// What a partner pays for one of the city's goods now: its price, more while trade comes easily.
-pub fn export_price(faith_scale: f32, partner: &TradePartner, terms: &GoodTerms) -> u32 {
-    (price(partner, terms) as f32 * faith_scale.max(0.0)).round().max(1.0) as u32
+// What the city pays a partner for one of its goods now.
+pub fn import_price(faith_scale: f32, terms: &PartnerTerms, partner: &TradePartner, good: &GoodTerms) -> u32 {
+    price_now(TradeSide::Import, faith_scale, terms, partner, good)
+}
+
+// What a partner pays for one of the city's goods now.
+pub fn export_price(faith_scale: f32, terms: &PartnerTerms, partner: &TradePartner, good: &GoodTerms) -> u32 {
+    price_now(TradeSide::Export, faith_scale, terms, partner, good)
+}
+
+// Which way trade has moved a good's price with a partner: its price now against the one it would be
+// without its offset.
+pub fn price_trend(
+    side: TradeSide,
+    faith_scale: f32,
+    terms: &PartnerTerms,
+    partner: &TradePartner,
+    good: &GoodTerms,
+) -> PriceTrend {
+    let now = price_now(side, faith_scale, terms, partner, good);
+    let unmoved = unit_price(side, faith_scale, terms.relation, 0.0, good.price);
+    match now.cmp(&unmoved) {
+        std::cmp::Ordering::Greater => PriceTrend::Up,
+        std::cmp::Ordering::Less => PriceTrend::Down,
+        std::cmp::Ordering::Equal => PriceTrend::Steady,
+    }
 }
 
 // How many of a good the city still wants from a partner: below its import limit, within what the
@@ -417,9 +527,10 @@ pub fn trade_at_store(context: &SimContextMut, store: &mut Building, unit: &mut 
         return;
     }
 
+    let rules = &GameConfigs::get().sim.trade;
     for good in &terms.sells {
         let kind = good.good;
-        let price = import_price(faith_scale, partner, good);
+        let price = import_price(faith_scale, &terms, partner, good);
         let count = caravan
             .carries(kind)
             .min(import_wanted(partner, good, &held))
@@ -431,7 +542,7 @@ pub fn trade_at_store(context: &SimContextMut, store: &mut Building, unit: &mut 
         let received = store.receive_resources(kind, count);
         caravan.cargo[kind.index()] -= received;
         caravan.sold[kind.index()] += received;
-        partner.sold[kind.index()] += received;
+        partner.record_sold(kind, received, rules);
         held[kind.index()] += received;
         let gold = received * price;
         context.finance_mut().spend(LedgerCategory::Imports, gold);
@@ -444,11 +555,12 @@ pub fn trade_at_store(context: &SimContextMut, store: &mut Building, unit: &mut 
         if count == 0 {
             continue;
         }
+        let price = export_price(faith_scale, &terms, partner, good);
         let removed = store.remove_resources(kind, count);
         caravan.bought[kind.index()] += removed;
-        partner.bought[kind.index()] += removed;
+        partner.record_bought(kind, removed, rules);
         held[kind.index()] -= removed.min(held[kind.index()]);
-        let gold = removed * export_price(faith_scale, partner, good);
+        let gold = removed * price;
         context.finance_mut().earn(LedgerCategory::Exports, gold);
         caravan.earned += gold;
     }
@@ -583,8 +695,9 @@ fn send_caravan(context: &SimContextMut, city: &str) -> Result<(), NotSent> {
 }
 
 // A new month (after the floods' and the farmsteads' months, before faith's rolls): a new year
-// starts the partners' amounts again; each open route whose caravan or ship is due sends it, the next
-// due `every_months` later, or next month when there's nothing to trade yet or no dock to sail to.
+// starts the partners' amounts again; prices drift back toward their base; each open route whose
+// caravan or ship is due sends it, the next due `every_months` later, or next month when there's
+// nothing to trade yet or no dock to sail to.
 pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     if date.month == 1 {
         context.trade_mut().new_year();
@@ -592,6 +705,7 @@ pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     if !context.trade().is_enabled() {
         return;
     }
+    context.trade_mut().drift_prices(&GameConfigs::get().sim.trade);
     let now = date.ordinal_month();
     let due: Vec<String> = context
         .trade()

@@ -2,7 +2,8 @@
 # routes closed (Campaign I's Đê Sơn and the highland clans by land, Vijara by sea); trade.set opens a
 # route and sets limits; the City book's Finances page shows the trade lines in a game that trades; the
 # world map's panel shows a partner's terms and opens Đê Sơn's route through its popup; the trade
-# limits dialog sets a limit; caravans trade at a storage yard and a granary; then a river laid to the
+# limits dialog sets a limit; caravans trade at a storage yard and a granary, and the bricks they sold
+# cost more afterwards (trade.state, the world map's panel and the limits dialog); then a river laid to the
 # map's edge, a dock from the Trade grid, Vijara's sea route opened from the world map (needing the
 # dock first), and a ship that moors while its dockers unload its metal and load the city's rice (the
 # dock's and the ship's panels); the state survives a save and a load.
@@ -103,7 +104,9 @@
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "TradeLimits"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/title", "kind": "canvas"}, "path": "/widgets/0/value/partner", "value": "de_son"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/route", "kind": "canvas"}, "path": "/widgets/0/value/open", "value": true}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks terms", "kind": "canvas"}, "path": "/widgets/0/value/price", "value": 10}}
+# Đê Sơn is allied (relations 5): its bricks cost 10 × 0.94 = 9.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks terms", "kind": "canvas"}, "path": "/widgets/0/value/price", "value": 9}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks terms", "kind": "canvas"}, "path": "/widgets/0/value/trend", "value": "steady"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks terms", "kind": "canvas"}, "path": "/widgets/0/value/left", "value": 120}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Wood terms", "kind": "canvas"}, "path": "/widgets/0/value/side", "value": "export"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Don't import"}}
@@ -147,9 +150,36 @@
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [64, 109]}, "path": "/stock/Rice", "value": 10}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/traded", "value": 20}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/buys/0/traded", "value": 20}}
-{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Imports", "value": 200}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Imports", "value": 180}}
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Exports", "value": 120}}
 {"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "trade"}}
+
+# ---- Prices move with trade ----
+# The 20 bricks Đê Sơn sold raised its price 4% (drifting back a quarter each month since): 9.4 × 1.03
+# is 10, up; the clans' rice, 20 bought, stays at 6.
+{"method": "assert.gt", "params": {"query": "trade.state", "path": "/partners/0/sells/0/offset", "value": 0}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/price", "value": 10}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/price_now", "value": 10}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/trend", "value": "up"}}
+{"method": "assert.lt", "params": {"query": "trade.state", "path": "/partners/2/buys/0/offset", "value": 0}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/buys/0/price_now", "value": 6}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/2/buys/0/trend", "value": "steady"}}
+{"method": "dialog.open", "params": {"name": "WorldMap"}}
+{"method": "world_map.set", "params": {"city": "de_son"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/They sell", "kind": "table"}, "path": "/widgets/0/value/rows/0", "value": ["Bricks", "10 ▲"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/world_map_prices.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/panel/Set trade limits"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks terms", "kind": "canvas"}, "path": "/widgets/0/value/price", "value": 10}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks terms", "kind": "canvas"}, "path": "/widgets/0/value/trend", "value": "up"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TradeLimits/Bricks terms", "kind": "canvas"}, "path": "/widgets/0/value/left", "value": 100}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/trade_limits_prices.png"}}
+{"method": "ui.click", "params": {"path": "TradeLimits/Close"}}
+{"method": "dialog.close"}
 
 # ---- Docks and ships ----
 # Vijara comes by sea: its route needs a dock first.
@@ -225,9 +255,11 @@
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [64, 109]}, "path": "/stock/Rice", "value": 4}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/sells/0/traded", "value": 16}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/docks/0/dockers_out", "value": 0}}
-{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Imports", "value": 584}}
-{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Exports", "value": 228}}
-{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "A ship from Vijara brought 16 metal and took 6 rice: −276 gold."}}
+# Vijara is friendly (relations 4): its first 8 metal at 24 × 0.97 = 23, the next 8 at 24 (the first
+# load raised the price); the city's 6 rice at 18 × 1.03 = 19.
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Imports", "value": 556}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Exports", "value": 234}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "A ship from Vijara brought 16 metal and took 6 rice: −262 gold."}}
 
 # ---- A save and a load keep it ----
 {"method": "session.save", "params": {"name": "trade_scenario"}}

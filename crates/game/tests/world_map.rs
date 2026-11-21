@@ -253,10 +253,11 @@ fn test_trade_panels() {
     assert_eq!((relation.level, relation.max, relation.word.as_str()), (4, 5, "Friendly"));
     assert_eq!(panel.route_line.as_deref(), Some("Sea route from —"), "until Bến Gốm is founded");
     assert_eq!(panel.route_detail.as_deref(), Some("Not yet open"), "its route isn't on the map yet");
-    let sells: Vec<(&str, u32)> = panel.sells.iter().map(|offer| (offer.good.as_str(), offer.price)).collect();
-    assert_eq!(sells, [("Salt", 24), ("Aloeswood", 60), ("Metal", 24)]);
-    let buys: Vec<(&str, u32)> = panel.buys.iter().map(|offer| (offer.good.as_str(), offer.price)).collect();
-    assert_eq!(buys, [("Silk", 90), ("Pottery", 45), ("Rice", 18)]);
+    // The world file's prices: a game's live ones are trade::panel_offers' (tests/trade.rs).
+    let sells: Vec<(&str, Option<u32>)> = panel.sells.iter().map(|offer| (offer.good.as_str(), offer.price)).collect();
+    assert_eq!(sells, [("Salt", Some(24)), ("Aloeswood", Some(60)), ("Metal", Some(24))]);
+    let buys: Vec<(&str, Option<u32>)> = panel.buys.iter().map(|offer| (offer.good.as_str(), offer.price)).collect();
+    assert_eq!(buys, [("Silk", Some(90)), ("Pottery", Some(45)), ("Rice", Some(18))]);
     let request = panel.request.as_ref().unwrap();
     assert_eq!((request.goods.as_str(), request.within.as_str()), ("Ceramics × 30", "within 8 months"));
 

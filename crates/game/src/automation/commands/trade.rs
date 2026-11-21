@@ -14,7 +14,7 @@ use crate::{
         resources::ResourceKind,
         trade::{TradeLimit, TradePartner},
     },
-    trade::{self, GoodTerms},
+    trade::{self, PartnerTerms, TradeSide},
     unit::task::{UnitTaskShip, UnitTaskTrade},
     world_map::config::traded_good,
 };
@@ -26,8 +26,10 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                relations, route (id, kind: land, river or sea; the city it runs from), whether it's open, what \
                opening it costs, how often it comes, the ordinal month its next caravan or ship sets out \
                (next_arrival, null while closed), where it comes in (entry, null: the default), and the goods \
-               it sells and buys (good, price, per_year, this year's sold or bought and what's left, the \
-               price's offset) with the player's limit for each (off, or {\"import\": N}: until the city \
+               it sells and buys (good, its base price, per_year, this year's sold or bought and what's left, \
+               the price's offset, its price now (`price_now`, gold a unit as the city trades it: the offset, \
+               relations and faith's easy trade) and its `trend`: up, down or steady) with the player's limit \
+               for each (off, or {\"import\": N}: until the city \
                holds N, or {\"export\": N}: what's above N). Then the court's requests under way, their log and \
                how many were met.",
         params: &[],
@@ -249,19 +251,31 @@ pub(super) fn limit_json(limit: TradeLimit) -> Value {
     }
 }
 
-fn goods_json(goods: &[GoodTerms], partner: &TradePartner, traded: &[u32]) -> Vec<Value> {
+fn goods_json(
+    side: TradeSide,
+    faith_scale: f32,
+    terms: &PartnerTerms,
+    partner: &TradePartner,
+    traded: &[u32],
+) -> Vec<Value> {
+    let goods = match side {
+        TradeSide::Import => &terms.sells,
+        TradeSide::Export => &terms.buys,
+    };
     goods
         .iter()
-        .map(|terms| {
-            let done = traded[terms.good.index()];
+        .map(|good| {
+            let done = traded[good.good.index()];
             json!({
-                "good": terms.good.name(),
-                "price": terms.price,
-                "per_year": terms.per_year,
+                "good": good.good.name(),
+                "price": good.price,
+                "price_now": trade::price_now(side, faith_scale, terms, partner, good),
+                "trend": trade::price_trend(side, faith_scale, terms, partner, good).name(),
+                "per_year": good.per_year,
                 "traded": done,
-                "left": terms.per_year.saturating_sub(done),
-                "offset": partner.price_offset(terms.good),
-                "limit": limit_json(partner.limit(terms.good)),
+                "left": good.per_year.saturating_sub(done),
+                "offset": partner.price_offset(good.good),
+                "limit": limit_json(partner.limit(good.good)),
             })
         })
         .collect()
@@ -269,6 +283,7 @@ fn goods_json(goods: &[GoodTerms], partner: &TradePartner, traded: &[u32]) -> Ve
 
 fn state_json(context: &CommandContext) -> Value {
     let state = context.session.sim().trade();
+    let faith_scale = context.session.sim().faith().trade_scale();
     let partners: Vec<Value> = state
         .partners()
         .iter()
@@ -293,8 +308,8 @@ fn state_json(context: &CommandContext) -> Value {
                 "every_months": terms.as_ref().map(|terms| terms.every_months),
                 "next_arrival": partner.next_arrival,
                 "entry": partner.def.entry,
-                "sells": terms.as_ref().map(|terms| goods_json(&terms.sells, partner, &partner.sold)),
-                "buys": terms.as_ref().map(|terms| goods_json(&terms.buys, partner, &partner.bought)),
+                "sells": terms.as_ref().map(|terms| goods_json(TradeSide::Import, faith_scale, terms, partner, &partner.sold)),
+                "buys": terms.as_ref().map(|terms| goods_json(TradeSide::Export, faith_scale, terms, partner, &partner.bought)),
                 "limits": limits,
             })
         })

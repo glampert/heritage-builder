@@ -230,8 +230,8 @@ fn draw_faith_debug_ui(faith: &mut CityFaith, systems: FaithSystems, ui_sys: &Ui
 }
 
 // The Trade tab: the switch, the partners (their routes, open or not, a button to open or close one
-// for free, `now` being the calendar's ordinal month, the next arrival and their limits) and the
-// requests.
+// for free, `now` being the calendar's ordinal month, the next arrival, their limits and the prices
+// trade has moved) and the requests.
 fn draw_trade_debug_ui(city_trade: &mut CityTrade, now: u32, ui_sys: &UiSystem) {
     let mut enabled = city_trade.is_enabled();
     if ui::checkbox(ui_sys, "Trade Enabled", &mut enabled) {
@@ -271,6 +271,10 @@ fn draw_trade_debug_ui(city_trade: &mut CityTrade, now: u32, ui_sys: &UiSystem) 
                 TradeLimit::Off => {}
                 TradeLimit::Import(amount) => ui::text(ui_sys, format_small!("    {}: import up to {amount}", good.name())),
                 TradeLimit::Export(amount) => ui::text(ui_sys, format_small!("    {}: export above {amount}", good.name())),
+            }
+            let offset = partner.price_offset(good);
+            if offset != 0.0 {
+                ui::text(ui_sys, format_small!("    {}: price {:+.1}%", good.name(), offset * 100.0));
             }
         }
     }

@@ -292,6 +292,8 @@ pub const GLYPH_TEST_TEXTS: &[&str] = &[
     "aăâbcdđeêghiklmnoôơpqrstuưvxy àảãáạ ằẳẵắặ ầẩẫấậ èẻẽéẹ ềểễếệ ìỉĩíị òỏõóọ ồổỗốộ ờởỡớợ ùủũúụ ừửữứự ỳỷỹýỵ",
     "AĂÂBCDĐEÊGHIKLMNOÔƠPQRSTUƯVXY ÀẢÃÁẠ ẰẲẴẮẶ ẦẨẪẤẬ ÈẺẼÉẸ ỀỂỄẾỆ ÌỈĨÍỊ ÒỎÕÓỌ ỒỔỖỐỘ ỜỞỠỚỢ ÙỦŨÚỤ ỪỬỮỨỰ ỲỶỸÝỴ",
     "fjwz FJWZ 0123456789 + - % / ( ) : ; , . ! ? ' \"",
+    // A price's trend (crate::trade::PriceTrend) and the "none" dash.
+    "26 ▲ 18 ▼ —",
 ];
 
 // Icons the `icon` text style must draw: the ones the UI shows (ui::icon_button's).

@@ -1,6 +1,6 @@
 # Known issues and unfinished work
 
-Last verified against the code on 2026-11-21. Remove an entry once it's resolved.
+Last verified against the code on 2026-11-22. Remove an entry once it's resolved.
 
 ## Unfinished features
 
@@ -62,8 +62,9 @@ Last verified against the code on 2026-11-21. Remove an entry once it's resolved
   - Fertility is kept only while the river floods: without floods every cell reads 50, harvests take nothing from it and the Fertility lens isn't offered. Its legend is English text.
   - While floods are on, the minimap's lens row holds eight buttons, set a little closer together than usual to fit its width.
   - The gate's and the canal's costs and the silt a gate lets in are unbalanced (M13).
-- Trade (`crates/game/src/trade/`, `crates/game/src/unit/task/trade.rs` and `ship.rs`, the trade limits dialog `crates/game/src/menu/dialog/trade_limits.rs`; docs/plans/trade.md, Phases 0, 1 and 2 done):
-  - Prices move only with faith's easy trade until Phase 3; the world map's side panel shows the base prices. Court requests and the `TradeIncome` and `RequestsFulfilled` goals are Phase 4's; the request log is empty, and Vijara's static request still names ceramics.
+- Trade (`crates/game/src/trade/`, `crates/game/src/unit/task/trade.rs` and `ship.rs`, the trade limits dialog `crates/game/src/menu/dialog/trade_limits.rs`; docs/plans/trade.md, Phases 0 to 3 done):
+  - Court requests and the `TradeIncome` and `RequestsFulfilled` goals are Phase 4's; the request log is empty, and Vijara's static request still names ceramics.
+  - Relations don't move until gifts and tribute (game Phase 2), so their scale on a partner's prices is fixed. A price moves once per caravan's store visit or docker's load, not per unit, so a large load goes at the price it started at. The world map's panel shows the prices now but not this year's amounts (the trade limits dialog has them). The ▲ and ▼ after a moved price come from a fallback font where a realm's own lacks them (Source Code Pro in Đại Long's skin).
   - Campaign I's land partners are the Clan camps and Đê Sơn, both world cities on its map. Đê Sơn stands in for the delta, the player's earlier cities: when M13 makes it mission 4's city (`MissionDef::city`), a partner must be able to name a mission's city. No mission has a `trade` block yet (M13's I-5); custom games trade with their realm's partners, and Kambara's and Tampadesa's world maps have none whose goods the game trades.
   - The caravan is the vendor recoloured (no pack animals or cart), walks land and roads in four directions, and carries its goods in its task, so the city's stats don't count them. Imports are paid only as far as the treasury goes; a skipped month (nothing to trade, no dock) is only logged. A store's panel doesn't say when a caravan last traded there.
   - Docks and ships: one ship for river and sea routes in every realm (a sea junk), the dock's art and glyph Đại Long's in every realm. The ship sails four directions and is drawn in a 2 × 2 frame; the minimap draws no ships. Dockers are runners: an unloading docker ends its errand at the store without walking home, and a loading one fetches from the nearest store that holds the good. A dock's berth is any open water beside it, so a ship may moor on its land side's corner where the shore allows. Flooded land isn't water, so ships keep to the river. No mission has a river route yet (M13).

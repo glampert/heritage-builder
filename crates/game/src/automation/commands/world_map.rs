@@ -213,7 +213,10 @@ fn city_json(provider: &impl WorldMapProvider, city: &MapCity) -> Value {
 
 fn panel_json(panel: &CityPanel) -> Value {
     let offers = |offers: &[world_map::provider::TradeOffer]| {
-        offers.iter().map(|offer| json!({"good": offer.good, "price": offer.price})).collect::<Vec<_>>()
+        offers
+            .iter()
+            .map(|offer| json!({"good": offer.good, "price": offer.price, "trend": offer.trend.name()}))
+            .collect::<Vec<_>>()
     };
     json!({
         "name": panel.name,

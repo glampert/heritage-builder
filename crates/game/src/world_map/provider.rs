@@ -25,6 +25,7 @@ use crate::{
     },
     profile::Profile,
     realm::Realm,
+    trade::PriceTrend,
 };
 
 // ----------------------------------------------
@@ -93,7 +94,10 @@ pub struct Relation {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TradeOffer {
     pub good: String, // "Salt".
-    pub price: u32,
+    // Gold a unit: the world file's, or, for a partner of the game being played, its price now
+    // (crate::trade::panel_offers). None for a good that game doesn't trade with it ("—").
+    pub price: Option<u32>,
+    pub trend: PriceTrend, // Which way trade has moved it.
 }
 
 // "Ceramics × 30", "within 8 months".
@@ -318,8 +322,9 @@ impl WorldMapProvider for ConfigWorldMapProvider<'_> {
             .collect()
     }
 
-    // TODO(realm-ui): M10's trade gives relations, prices, limits and requests here; until then
-    // they're the world map file's static values.
+    // The world map file's values. For a partner of the game being played, the screen puts the
+    // game's route and prices over them (crate::trade::route_line, route_detail, panel_offers).
+    // TODO(realm-ui): M10's Phase 4 gives the game's requests here.
     fn city_panel(&self, city_id: &str) -> Option<CityPanel> {
         let city = self.cities().into_iter().find(|city| city.id == city_id)?;
         let def = self.map.city(city_id);
@@ -375,7 +380,10 @@ impl WorldMapProvider for ConfigWorldMapProvider<'_> {
         }
 
         let offers = |goods: &[super::config::TradeGoodDef]| {
-            goods.iter().map(|good| TradeOffer { good: good.display_name(), price: good.price }).collect()
+            goods
+                .iter()
+                .map(|good| TradeOffer { good: good.display_name(), price: Some(good.price), trend: PriceTrend::Steady })
+                .collect()
         };
         panel.sells = offers(&trade.sells);
         panel.buys = offers(&trade.buys);

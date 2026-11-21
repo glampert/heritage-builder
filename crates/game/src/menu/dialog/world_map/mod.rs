@@ -443,6 +443,11 @@ impl WorldMap {
             panel.route_line = crate::trade::route_line(trade, &panel.city_id).or(panel.route_line.take());
             let has_dock = crate::trade::ships::world_has_dock(context.world);
             panel.route_detail = crate::trade::route_detail(trade, &panel.city_id, has_dock).or(panel.route_detail.take());
+            let faith_scale = context.sim.faith().trade_scale();
+            if let Some((sells, buys)) = crate::trade::panel_offers(trade, &panel.city_id, faith_scale) {
+                panel.sells = sells;
+                panel.buys = buys;
+            }
         }
         let selected_city =
             scene.as_ref().and_then(|scene| state.selected.as_deref().and_then(|id| scene.city(id).cloned()));
@@ -1221,7 +1226,13 @@ fn goods_table(
         .with_column(UiTableColumn::new(title, UiColumnWidth::Fraction(1.0), UiColumnAlign::Left))
         .with_column(UiTableColumn::new("", UiColumnWidth::Fixed(scales.pt(PRICE_WIDTH)), UiColumnAlign::Right));
     for good in goods.iter().take(GOODS_ROWS) {
-        table = table.with_row(UiTableRow::new([good.good.clone(), good.price.to_string()]));
+        // "26 ▲" once trade has moved it; "—" for a good the game doesn't trade with this partner.
+        let price = match good.price {
+            Some(price) if good.trend == crate::trade::PriceTrend::Steady => price.to_string(),
+            Some(price) => format!("{price} {}", good.trend.arrow()),
+            None => ui::text::get(UiTextCategory::Menu, "world_map.none").to_string(),
+        };
+        table = table.with_row(UiTableRow::new([good.good.clone(), price]));
     }
     table
 }

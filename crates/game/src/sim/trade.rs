@@ -55,7 +55,9 @@ pub struct TradePartner {
     pub sold: [u32; RESOURCE_KIND_COUNT],
     #[serde(with = "per_kind_map")]
     pub bought: [u32; RESOURCE_KIND_COUNT],
-    // Each good's price now is its base price × (1 + offset) (docs/plans/trade.md, §7).
+    // Each good's price now is its base price × (1 + offset) (docs/plans/trade.md, §7): what the
+    // partner sold the city raises it, what it bought lowers it (record_sold, record_bought), and it
+    // drifts back each month.
     #[serde(with = "per_kind_map")]
     pub price_offsets: [f32; RESOURCE_KIND_COUNT],
     // The ordinal month (year × 12 + month - 1) its next caravan or ship sets out in. None while its
@@ -91,7 +93,44 @@ impl TradePartner {
     pub fn price_offset(&self, good: ResourceKind) -> f32 {
         self.price_offsets[good.index()]
     }
+
+    // It sold the city `count` of `good`: it counts toward this year's amount, and its price rises
+    // (docs/plans/trade.md, §7).
+    pub fn record_sold(&mut self, good: ResourceKind, count: u32, rules: &TradeRules) {
+        self.sold[good.index()] += count;
+        self.move_price(good, count as f32, rules);
+    }
+
+    // It bought `count` of `good` from the city: this year's amount, and what it pays falls.
+    pub fn record_bought(&mut self, good: ResourceKind, count: u32, rules: &TradeRules) {
+        self.bought[good.index()] += count;
+        self.move_price(good, -(count as f32), rules);
+    }
+
+    // Moves a good's offset by `price_step` for every `price_units` traded (`units`, up for what it
+    // sold, down for what it bought), within `price_cap` either way.
+    fn move_price(&mut self, good: ResourceKind, units: f32, rules: &TradeRules) {
+        let cap = rules.price_cap.max(0.0);
+        let step = rules.price_step * units / rules.price_units.max(1) as f32;
+        let offset = &mut self.price_offsets[good.index()];
+        *offset = (*offset + step).clamp(-cap, cap);
+    }
+
+    // A new month: each offset goes `price_drift` of the way back to 0, and to 0 once it's too small
+    // to move a price.
+    fn drift_prices(&mut self, rules: &TradeRules) {
+        let keep = 1.0 - rules.price_drift.clamp(0.0, 1.0);
+        for offset in &mut self.price_offsets {
+            *offset *= keep;
+            if offset.abs() < PRICE_OFFSET_EPSILON {
+                *offset = 0.0;
+            }
+        }
+    }
 }
+
+// An offset this small moves no price (a base price of 1,000 by half a gold): it drifts to 0.
+const PRICE_OFFSET_EPSILON: f32 = 0.0005;
 
 // ----------------------------------------------
 // Court requests
@@ -239,6 +278,13 @@ impl CityTrade {
         for partner in &mut self.partners {
             partner.sold = [0; RESOURCE_KIND_COUNT];
             partner.bought = [0; RESOURCE_KIND_COUNT];
+        }
+    }
+
+    // A new month: every partner's prices drift back toward their base (docs/plans/trade.md, §7).
+    pub fn drift_prices(&mut self, rules: &TradeRules) {
+        for partner in &mut self.partners {
+            partner.drift_prices(rules);
         }
     }
 

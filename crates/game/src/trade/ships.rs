@@ -270,7 +270,7 @@ pub fn next_errand(context: &SimContext, berth: &DockBerth, ship: &UnitTaskShip)
             .min(ship.carries(kind))
             .min(import_wanted(partner, good, &held).saturating_sub(out))
             .min(store_room(context, kind).saturating_sub(out))
-            .min(affordable(context, import_price(faith_scale, partner, good)));
+            .min(affordable(context, import_price(faith_scale, &terms, partner, good)));
         if count != 0 {
             return Some(DockerErrand { good: kind, count, unloading: true });
         }
@@ -432,10 +432,10 @@ fn take_off_ship(context: &SimContextMut, ship: UnitId, city: &str, errand: Dock
         let trade = context.trade_mut();
         let partner = trade.partner_mut(city)?;
         let taken = errand.count.min(task.carries(kind));
-        let price = import_price(faith_scale, partner, &good);
+        let price = import_price(faith_scale, &terms, partner, &good);
         task.cargo[kind.index()] -= taken;
         task.sold[kind.index()] += taken;
-        partner.sold[kind.index()] += taken;
+        partner.record_sold(kind, taken, &GameConfigs::get().sim.trade);
         let gold = taken * price;
         context.finance_mut().spend(LedgerCategory::Imports, gold);
         task.paid += gold;
@@ -483,10 +483,11 @@ fn on_docker_loaded(context: &SimContextMut, dock: &mut Building, docker: &mut U
         let partner = trade.partner_mut(&city)?;
         let left = good.per_year.saturating_sub(partner.bought[kind.index()]);
         let count = item.count.min(task.room()).min(left);
+        let price = export_price(faith_scale, &terms, partner, &good);
         let removed = docker.remove_resources(kind, count);
         task.bought[kind.index()] += removed;
-        partner.bought[kind.index()] += removed;
-        let gold = removed * export_price(faith_scale, partner, &good);
+        partner.record_bought(kind, removed, &GameConfigs::get().sim.trade);
+        let gold = removed * price;
         context.finance_mut().earn(LedgerCategory::Exports, gold);
         task.earned += gold;
         Some(removed)
