@@ -36,12 +36,15 @@ pub enum LedgerCategory {
     // Income:
     Taxes,
     Offerings, // Gifts a pleased patron's faithful bring (faith: a windfall).
+    Exports,   // What partners paid for the city's goods (docs/plans/trade.md).
 
     // Spending:
     Construction,
     Wages,
     Upkeep,
     Festivals, // The gold the festivals held cost (faith::festivals).
+    Imports,   // What the city paid partners for their goods.
+    Routes,    // Trade routes opened.
 }
 
 pub const LEDGER_CATEGORY_COUNT: usize = LedgerCategory::COUNT;
@@ -49,7 +52,7 @@ pub const LEDGER_CATEGORY_COUNT: usize = LedgerCategory::COUNT;
 impl LedgerCategory {
     #[inline]
     pub fn is_income(self) -> bool {
-        matches!(self, Self::Taxes | Self::Offerings)
+        matches!(self, Self::Taxes | Self::Offerings | Self::Exports)
     }
 
     #[inline]
@@ -66,6 +69,9 @@ impl LedgerCategory {
             Self::Wages => "Wages",
             Self::Upkeep => "Upkeep",
             Self::Festivals => "Festivals",
+            Self::Exports => "Exports",
+            Self::Imports => "Imports",
+            Self::Routes => "Routes",
         }
     }
 }

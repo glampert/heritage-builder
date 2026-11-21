@@ -130,3 +130,7 @@ harness = false
 [[test]]
 name    = "floods"
 harness = false
+
+[[test]]
+name    = "trade"
+harness = false

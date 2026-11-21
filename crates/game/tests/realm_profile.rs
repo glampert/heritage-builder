@@ -69,6 +69,7 @@ fn mission(name: &str) -> MissionDef {
         risks: None,
         faith: None,
         floods: None,
+        trade: None,
         city: None,
         choices: Vec::new(),
         choice_text: None,

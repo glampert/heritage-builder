@@ -198,6 +198,10 @@ pub struct SimConfigs {
     #[debug_ui(nested)]
     pub floods: FloodRules,
 
+    // Caravans, ships, docks and prices (docs/plans/trade.md).
+    #[debug_ui(nested)]
+    pub trade: TradeRules,
+
     // Workers/Population:
     pub workers_search_radius: i32,
     pub workers_update_frequency_secs: Seconds,
@@ -228,6 +232,7 @@ impl Default for SimConfigs {
             risks: RiskConfigs::default(),
             faith: FaithRules::default(),
             floods: FloodRules::default(),
+            trade: TradeRules::default(),
             // Workers/Population:
             workers_search_radius: 20,
             workers_update_frequency_secs: 20.0,
@@ -482,6 +487,56 @@ impl Default for FloodRules {
             wear_per_month: 8.0,
             wear_jitter: 0.25,
             worn_wear: 50.0,
+        }
+    }
+}
+
+// How trade goes (docs/plans/trade.md). The partners and their terms are data (the world map files and
+// the missions' `trade` blocks). To be balanced in M13.
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TradeRules {
+    // Months from a route's opening (or a mission's start, for one open then) to its first caravan
+    // or ship.
+    pub first_arrival_months: u32,
+
+    // How many goods a caravan carries, all told, and how many stores it trades at before it goes.
+    pub caravan_capacity: u32,
+    pub caravan_stops: u32,
+
+    // How many goods a ship carries, and the longest it stays moored, in months.
+    pub ship_capacity: u32,
+    pub ship_stay_months: u32,
+
+    // A dock's dockers at a time, and how many goods one carries a trip.
+    pub dockers: u32,
+    pub docker_load: u32,
+
+    // Prices: a good's price moves by `price_step` (a share of its base price) for every
+    // `price_units` traded, at most `price_cap` either way, and drifts back by `price_drift` of the
+    // way each month. Relations move prices by `relation_step` a level from the middle (3).
+    pub price_step: f32,
+    pub price_units: u32,
+    pub price_cap: f32,
+    pub price_drift: f32,
+    pub relation_step: f32,
+}
+
+impl Default for TradeRules {
+    fn default() -> Self {
+        Self {
+            first_arrival_months: 1,
+            caravan_capacity: 32,
+            caravan_stops: 6,
+            ship_capacity: 64,
+            ship_stay_months: 1,
+            dockers: 2,
+            docker_load: 8,
+            price_step: 0.02,
+            price_units: 10,
+            price_cap: 0.4,
+            price_drift: 0.25,
+            relation_step: 0.03,
         }
     }
 }

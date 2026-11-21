@@ -15,7 +15,8 @@ use crate::{
         events as faith_events,
     },
     floods,
-    sim::{CityFaith, CityFloods, Finance, risks::CityRisks},
+    sim::{CityFaith, CityFloods, CityTrade, Finance, risks::CityRisks, trade::TradeLimit},
+    trade,
     world::{World, stats::WorldStats},
 };
 
@@ -26,17 +27,21 @@ const RISKIEST_LISTED: usize = 10;
 // World / WorldStats Debug UI
 // ----------------------------------------------
 
+// The simulation's city-wide state the window's tabs show, and the calendar's ordinal month.
+pub(crate) struct CityDebugState<'a> {
+    pub finance: &'a mut Finance,
+    pub risks: &'a mut CityRisks,
+    pub faith: &'a mut CityFaith,
+    pub floods: &'a mut CityFloods,
+    pub trade: &'a mut CityTrade,
+    pub now: u32,
+}
+
 impl World {
-    pub(crate) fn draw_debug_ui(
-        &mut self,
-        finance: &mut Finance,
-        risks: &mut CityRisks,
-        faith: &mut CityFaith,
-        city_floods: &mut CityFloods,
-        camera: &mut Camera,
-        ui_sys: &UiSystem,
-    ) {
-        const TABS: [&str; 6] = ["Population/Workers/Housing", "Tax/Treasury", "Resources", "Risks", "Faith", "Floods"];
+    pub(crate) fn draw_debug_ui(&mut self, city: CityDebugState, camera: &mut Camera, ui_sys: &UiSystem) {
+        let CityDebugState { finance, risks, faith, floods: city_floods, trade: city_trade, now } = city;
+        const TABS: [&str; 7] =
+            ["Population/Workers/Housing", "Tax/Treasury", "Resources", "Risks", "Faith", "Floods", "Trade"];
         let Some(tab) = ui::tab_bar(ui_sys, "World Stats Tab Bar", &TABS) else {
             return;
         };
@@ -47,6 +52,8 @@ impl World {
             draw_faith_debug_ui(faith, FaithSystems::of(city_floods), ui_sys);
         } else if tab.index == 5 {
             draw_floods_debug_ui(city_floods, camera, ui_sys);
+        } else if tab.index == 6 {
+            draw_trade_debug_ui(city_trade, now, ui_sys);
         } else {
             self.stats_mut().draw_debug_ui(tab.index, finance, ui_sys);
         }
@@ -220,6 +227,70 @@ fn draw_faith_debug_ui(faith: &mut CityFaith, systems: FaithSystems, ui_sys: &Ui
             format_small!("Farms x{:.2}, upkeep x{:.2}", faith.production_scale(BuildingKind::Farm), faith.upkeep_scale()),
         );
     }
+}
+
+// The Trade tab: the switch, the partners (their routes, open or not, a button to open or close one
+// for free, `now` being the calendar's ordinal month, the next arrival and their limits) and the
+// requests.
+fn draw_trade_debug_ui(city_trade: &mut CityTrade, now: u32, ui_sys: &UiSystem) {
+    let mut enabled = city_trade.is_enabled();
+    if ui::checkbox(ui_sys, "Trade Enabled", &mut enabled) {
+        city_trade.set_enabled(enabled);
+    }
+    ui::text(ui_sys, format_small!("World map: {}", city_trade.world_map()));
+    if city_trade.partners().is_empty() {
+        ui::text(ui_sys, "No trade partners in this game.");
+    }
+    let mut toggle: Option<(String, bool)> = None;
+    for partner in city_trade.partners() {
+        ui::separator(ui_sys);
+        let terms = trade::terms(city_trade, partner.city());
+        let (kind, every, cost) = terms
+            .as_ref()
+            .map_or(("?".to_string(), 0, 0), |terms| (terms.route_kind.to_string(), terms.every_months, terms.open_cost));
+        ui::text(
+            ui_sys,
+            format_small!(
+                "{}: {} route, every {} months, opens for {} gold: {}",
+                partner.city(),
+                kind,
+                every,
+                cost,
+                if partner.open { "open" } else { "closed" }
+            ),
+        );
+        if let Some(month) = partner.next_arrival {
+            ui::text(ui_sys, format_small!("    Next sets out in year {} month {}", month / 12, month % 12 + 1));
+        }
+        let label = if partner.open { "Close Route" } else { "Open Route (free)" };
+        if ui::small_button(ui_sys, &format!("{label}##trade_{}", partner.city())) {
+            toggle = Some((partner.city().to_string(), !partner.open));
+        }
+        for good in crate::sim::resources::ResourceKind::all().iter() {
+            match partner.limit(good) {
+                TradeLimit::Off => {}
+                TradeLimit::Import(amount) => ui::text(ui_sys, format_small!("    {}: import up to {amount}", good.name())),
+                TradeLimit::Export(amount) => ui::text(ui_sys, format_small!("    {}: export above {amount}", good.name())),
+            }
+        }
+    }
+    if let Some((city, open)) = toggle {
+        if open {
+            city_trade.open_route(&city, now, &crate::config::GameConfigs::get().sim.trade);
+        } else {
+            city_trade.close_route(&city);
+        }
+    }
+    ui::separator(ui_sys);
+    ui::text(
+        ui_sys,
+        format_small!(
+            "Requests under way: {}, met: {} of {}",
+            city_trade.requests().len(),
+            city_trade.requests_met(),
+            city_trade.request_log().len()
+        ),
+    );
 }
 
 // The Floods tab: the switch, a flood now and the water going (each run at the start of the next

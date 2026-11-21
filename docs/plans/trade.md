@@ -1,6 +1,6 @@
 # Trade and court requests
 
-**Status (2026-11-21): Plan written and revised with the user; not started.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
+**Status (2026-11-21): Phase 0 done (the data, the state and save v12); Phase 1 next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
 - land, river and sea routes the player opens to partner cities, and the buy and sell limits they set per good and per partner;
 - caravans that walk in from the map's edge and trade at the storage yards and granaries themselves, store by store, as in Pharaoh: there's no trade post;
 - docks, and trade ships that sail in from the map's edge, moor at a dock and wait while its dockers carry their goods to the stores and the city's exports back to them;
@@ -371,13 +371,41 @@ The Finances page gains the three lines.
 
 ### Phase 0: Data, state and the save format (medium)
 
-- [ ] World files: traded goods as `ResourceKind` names with `per_year`, display-only goods kept as keys; routes' `open_cost`; Campaign I's land partners (the clans, the delta) and their terms; checks.
-- [ ] The mission's `trade` block (`MissionTradeDef`) with land and water entries, and a map's in `maps.json`; checks.
-- [ ] `sim::trade::CityTrade` in `Simulation`, `SimContext::trade()` and `SimContextMut::trade_mut()`, started per mission and custom game, synced on load; `TradeRules` in `GameConfigs::sim`.
-- [ ] `LedgerCategory::Exports`, `Imports` and `Routes`, and their Finances page lines.
-- [ ] Save v12, `v11_to_v12.py` (an empty trade state), migrated sample saves, `--smoke-test-saves`; the roadmap's log moves T to 13.
-- [ ] `trade.state`, `trade.set`; World Debug's Trade tab.
-- [ ] Tests: the data, the round trip.
+- [x] World files: traded goods as `ResourceKind` names with `per_year`, display-only goods kept as keys; routes' `open_cost`; Campaign I's land partners (the clans, the delta) and their terms; checks.
+- [x] The mission's `trade` block (`MissionTradeDef`) with land and water entries, and a map's in `maps.json`; checks.
+- [x] `sim::trade::CityTrade` in `Simulation`, `SimContext::trade()` and `SimContextMut::trade_mut()`, started per mission and custom game, synced on load; `TradeRules` in `GameConfigs::sim`.
+- [x] `LedgerCategory::Exports`, `Imports` and `Routes`, and their Finances page lines.
+- [x] Save v12, `v11_to_v12.py` (an empty trade state), migrated sample saves, `--smoke-test-saves`; the roadmap's log moves T to 13.
+- [x] `trade.state`, `trade.set`; World Debug's Trade tab.
+- [x] Tests: the data, the round trip.
+
+**Notes (2026-11-21):**
+- **What was built:**
+  - `world_map::config`: `TradeGoodDef::per_year`, `resource()`, `display_name()` and `problems()`; `traded_good` (a single `ResourceKind` but Gold); `trade_goods_problems`; `TradeRouteDef::open_cost`; `WorldMapDef::trade_problems` for a mission's block, which `validate` runs on every mission.
+  - `campaign::config::MissionTradeDef` and `MissionPartnerDef`; `campaign::active_mission_trade`; `custom_game::config::MapDef::trade` and `MapConfigs::map`.
+  - `sim::trade` (`CityTrade`, `TradePartner`, `TradeLimit`, `TradeRequest`, `RequestRecord`) and `crate::trade` (`PartnerTerms`, `GoodTerms`, `terms`, `terms_on`, `start`, `realm_world_map`, `land_partners`, `sync_on_load`).
+  - `TradeRules`; the ledger's three lines; save v12 and `v11_to_v12.py`; `trade.state` and `trade.set`; World Debug's Trade tab (the window's state now goes in as `debug::world::CityDebugState`, since clippy refuses nine arguments).
+  - `tests/trade.rs` (11 tests), and `trade.jsonl`, brought forward from Phase 1: a custom game on the Blank map trades with Campaign I's land partners, `trade.set`, the Finances page's lines, the world map's panels, and a save and a load. It's in CI's scenario list.
+- **Deviations:**
+  - **The delta is Đê Sơn**, mission 4's placeholder city on Campaign I's world map, by a new closed land route from Chợ Đèo (`cho_deo_de_son`, 400 gold to open). The capital would have changed Hoa Thành's panel, which `ui_world_map.jsonl` checks ("One of your cities"). When M13 makes Đê Sơn mission 4's city (`MissionDef::city`), the world map can't keep it as a world city too (`validate` refuses a mission city with a world city's id), so a partner will need to be able to name a mission's city then.
+  - **The Clan camps became a `trade_partner`** with terms on their open hill track. The world map screen now selects the first trade partner at open, then the first city with terms (`default_selection`), so Vijara stays the first selection.
+  - **Partners' terms aren't copied into the save.** The state keeps each partner's `MissionPartnerDef` (the mission's entry and overrides) and reads the rest from the world map file each time, so a change to the file reaches older saves. `sync_on_load` drops a partner whose terms are gone.
+  - **The trade income isn't kept in `CityTrade`.** The ledger's Exports line holds it, this year and last, so Phase 4's `TradeIncome` reads it there.
+  - **The Finances page lists the three trade lines only in a game that trades**, or whose accounts hold them. Missions 1–4 keep their page as it was, and `ui_city.jsonl` its line indices.
+  - **A custom map's `trade` block has no realm.** Partners the chosen realm's world map lacks are left out with a warning. No map in `maps.json` has a block yet.
+  - **No test mission yet.** Phase 1 adds one for a route open at the start and an entry cell.
+  - **Phase 2's dock may need its own save bump** if its berth keeps state on the building; or it keeps that state in `CityTrade`. Phase 2 decides.
+- **UI changes, to flag for `claude-ui`:**
+  - The world map's side panel shows the Clan camps' and Đê Sơn's terms.
+  - A dotted closed route now runs between Chợ Đèo and Đê Sơn.
+  - The Finances page has Exports, Imports and Trade routes lines in a game that trades.
+  - World Debug has a Trade tab (developer UI).
+- **Verified:**
+  - `cargo test --workspace`;
+  - both clippy runs;
+  - `--smoke-test-saves` on the migrated saves;
+  - all 28 scenarios plus `trade.jsonl` on a release build (macOS);
+  - the Finances page and the two world map panels by screenshot.
 
 ### Phase 1: Land routes, limits and caravans (large)
 

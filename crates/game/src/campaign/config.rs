@@ -211,6 +211,9 @@ pub struct MissionDef {
     // The river's yearly flood (docs/plans/seasons-floods.md). None: no floods.
     #[serde(default)]
     pub floods: Option<MissionFloodsDef>,
+    // The partners the city trades with and their terms (docs/plans/trade.md). None: no trade.
+    #[serde(default)]
+    pub trade: Option<MissionTradeDef>,
     // The city the mission founds, on its campaign's world map: the player's once the mission is
     // finished, and while it's played. None: it founds none.
     #[serde(default)]
@@ -427,6 +430,47 @@ impl MissionFloodsDef {
         }
         problems
     }
+}
+
+// A mission's trade (docs/plans/trade.md, §1), or a custom map's (custom_game::config::MapDef): the
+// partners it trades with, cities of its campaign's world map (WorldMapDef::trade_problems checks
+// them). Trade is on when it lists partners, unless `enabled` says not.
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MissionTradeDef {
+    pub enabled: Option<bool>,
+    pub partners: Vec<MissionPartnerDef>,
+}
+
+impl MissionTradeDef {
+    #[inline]
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.unwrap_or(!self.partners.is_empty())
+    }
+}
+
+// A partner of a mission: a world map city with trade terms (WorldCityDef::trade), its route open at
+// the start or not, where its caravans or ships come in, and what the mission changes of its terms.
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MissionPartnerDef {
+    pub city: String,
+    #[serde(default)]
+    pub open: bool,
+    // The cell its caravans come in at (land) or its ships (open water on the map's edge). None: the
+    // settlers' spawn point, or for a ship the edge of the largest water body (trade::entry_cell).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<[i32; 2]>,
+    // Overrides of the world map's terms: the gold to open its route, how often it comes, and what
+    // it sells and buys (a whole list, goods the game trades only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub open_cost: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub every_months: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sells: Option<Vec<crate::world_map::config::TradeGoodDef>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buys: Option<Vec<crate::world_map::config::TradeGoodDef>>,
 }
 
 // How a mission's starting map is loaded.

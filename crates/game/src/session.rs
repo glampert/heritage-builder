@@ -685,6 +685,18 @@ impl GameSession {
             let floods = floods.unwrap_or_default();
             self.sim.floods_mut().start(enabled, &floods, &GameConfigs::get().sim.floods, &self.tile_map);
         }
+        // A mission without a trade block trades with no one.
+        if let Some((world_map, trade)) = campaign::active_mission_trade() {
+            let now = self.ordinal_month();
+            let rules = &GameConfigs::get().sim.trade;
+            crate::trade::start(self.sim.trade_mut(), &world_map, &trade.unwrap_or_default(), now, rules);
+        }
+    }
+
+    // The calendar's ordinal month now (year × 12 + month - 1).
+    fn ordinal_month(&self) -> u32 {
+        let configs = &GameConfigs::get().sim;
+        self.sim.calendar().date(configs.days_per_month, configs.seconds_per_month).ordinal_month()
     }
 
     // A custom game's start, on the map it was created with: its calendar from the first day of the
@@ -701,6 +713,17 @@ impl GameSession {
         self.sim.faith_mut().start(settings.realm, &configs.sim.faith);
         self.sim.faith_mut().start_mission(&Default::default());
         self.sim.floods_mut().start(settings.seasons_and_floods, &Default::default(), &configs.sim.floods, &self.tile_map);
+        // The map's partners, else every land partner of the realm's world map.
+        if let Some(world_map) = crate::trade::realm_world_map(settings.realm) {
+            let map_trade = custom_game::MapConfigs::is_initialized()
+                .then(|| custom_game::MapConfigs::get().map(&settings.map_id).and_then(|map| map.trade.clone()))
+                .flatten();
+            let trade = map_trade
+                .or_else(|| crate::trade::world_map(&world_map).map(crate::trade::land_partners))
+                .unwrap_or_default();
+            let now = self.ordinal_month();
+            crate::trade::start(self.sim.trade_mut(), &world_map, &trade, now, &configs.sim.trade);
+        }
         // TODO(realm-ui): the difficulty, once M4 and M9 read it; raids (game Phase 2) once they
         // exist. Stored with the game until then (CustomGameRecord).
         custom_game::set_active(Some(ActiveCustomGame::from_settings(settings)));
@@ -970,7 +993,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 11;
+const CURRENT_SAVE_VERSION: u32 = 12;
 
 // What the menus show of a save without loading it (the home menu's Continue, the Load / Save
 // dialog): whether this game can load it (its save version is this game's) and its header (blank

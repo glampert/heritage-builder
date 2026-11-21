@@ -7,6 +7,7 @@
 //   save's map (by its name in saves/; listed only while that save is there).
 //   TODO(realm-ui): real custom maps, made for it, in place of the sample saves' test maps and the
 //   debug presets (which turn on their cheats, as session.load_preset does).
+//   A map may name the partners a game on it trades with (`trade`, as a mission's block).
 // - `starting_treasury`: the gold choices, and the one picked at first.
 
 use common::hash;
@@ -32,6 +33,10 @@ pub struct MapDef {
     pub id: String,
     pub name: String,
     pub source: MapSource,
+    // The partners a game on it trades with (docs/plans/trade.md, §1), cities of its realm's world
+    // map. None: every partner of that map with a land route, their routes closed.
+    #[serde(default)]
+    pub trade: Option<crate::campaign::config::MissionTradeDef>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -122,6 +127,11 @@ impl MapConfigs {
         self.maps.iter().filter(|map| map.is_available(&saves)).cloned().collect()
     }
 
+    // The map with that id, if the file has one.
+    pub fn map(&self, id: &str) -> Option<&MapDef> {
+        self.maps.iter().find(|map| map.id == id)
+    }
+
     // The index in the treasury choices of the default one.
     pub fn default_treasury_index(&self) -> usize {
         let treasury = &self.starting_treasury;
@@ -154,6 +164,7 @@ mod tests {
             id: "isle".into(),
             name: "Isle".into(),
             source: MapSource::SaveGame { save_file: "tiny_island".into() },
+            trade: None,
         };
         assert!(map.is_available(&["tiny_island".to_string()]));
         assert!(!map.is_available(&["other".to_string()]));
@@ -161,14 +172,19 @@ mod tests {
             id: "blank".into(),
             name: "Blank".into(),
             source: MapSource::Blank { width: 64, height: 64, terrain: "grass".into() },
+            trade: None,
         };
         assert!(blank.is_available(&[]));
     }
 
     #[test]
     fn preset_maps_need_their_preset() {
-        let preset =
-            |id: &str, preset_number| MapDef { id: id.into(), name: id.into(), source: MapSource::Preset { preset_number } };
+        let preset = |id: &str, preset_number| MapDef {
+            id: id.into(),
+            name: id.into(),
+            source: MapSource::Preset { preset_number },
+            trade: None,
+        };
         let mut configs = MapConfigs { maps: vec![preset("farm", 2), preset("nowhere", 9999)], ..Default::default() };
         configs.post_load();
         let ids: Vec<&str> = configs.maps.iter().map(|map| map.id.as_str()).collect();

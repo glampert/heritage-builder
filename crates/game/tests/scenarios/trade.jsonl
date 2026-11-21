@@ -1,0 +1,83 @@
+# Trade (docs/plans/trade.md). Phase 0: a custom game on the Blank map trades with its realm's land
+# partners, their routes closed (Campaign I's Đê Sơn and the highland clans); trade.set opens a route
+# and sets limits; the City book's Finances page shows the trade lines in a game that trades; the
+# state survives a save and a load. From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/trade.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
+{"method": "ui.click", "params": {"path": "Home/Custom Game"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CustomGame"}}
+{"method": "ui.click", "params": {"path": "CustomGame/Start"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/map", "value": "blank"}}
+{"method": "sim.pause"}
+
+# ---- The realm's land partners, closed ----
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/world_map", "value": "dragon_legacy"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/city", "value": "de_son"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/route/kind", "value": "land"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/open", "value": false}}
+{"method": "assert.gt", "params": {"query": "trade.state", "path": "/partners/0/open_cost", "value": 0}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/good", "value": "Bricks"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/city", "value": "clan_camps"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/name", "value": "Clan camps"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/route/id", "value": "cho_deo_clans"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/sells/0/good", "value": "Wood"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/buys/0/good", "value": "Rice"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/sells/0/limit", "value": "off"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/requests", "value": []}}
+
+# ---- Opening a route and setting limits ----
+{"method": "trade.set", "params": {"partner": "clan_camps", "open": true}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/open", "value": true}}
+{"method": "assert.gt", "params": {"query": "trade.state", "path": "/partners/1/next_arrival", "value": 0}}
+{"method": "trade.set", "params": {"partner": "clan_camps", "good": "Wood", "import": 40}}
+{"method": "trade.set", "params": {"partner": "clan_camps", "good": "Rice", "export": 100}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/limits/Wood", "value": {"import": 40}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/sells/0/limit", "value": {"import": 40}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/buys/0/limit", "value": {"export": 100}}}
+{"method": "trade.set", "params": {"partner": "clan_camps", "good": "Rice", "off": true}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/buys/0/limit", "value": "off"}}
+
+# ---- The Finances page's trade lines ----
+{"method": "dialog.open", "params": {"name": "FinancesManagement"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/accounts", "kind": "canvas"}, "path": "/widgets/0/value/2/line", "value": "Exports"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/accounts", "kind": "canvas"}, "path": "/widgets/0/value/8/line", "value": "Imports"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/accounts", "kind": "canvas"}, "path": "/widgets/0/value/9/line", "value": "Trade routes"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/finances.png"}}
+{"method": "dialog.close"}
+
+# ---- The world map's side panel shows a partner's terms ----
+# Vijara stays the city selected at first: trade partners come before realm cities with terms.
+{"method": "dialog.open", "params": {"name": "WorldMap"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/selected", "value": "vijara"}}
+{"method": "world_map.set", "params": {"city": "clan_camps"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Clan camps"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/They sell"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/world_map_clans.png"}}
+{"method": "world_map.set", "params": {"city": "de_son"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Đê Son"}}
+{"method": "screenshot", "params": {"path": "out/trade/world_map_de_son.png"}}
+{"method": "dialog.close"}
+
+# ---- A save and a load keep it ----
+{"method": "session.save", "params": {"name": "trade_scenario"}}
+# The thumbnail is written a few frames after the save: wait for it, so the deletion takes it too.
+{"method": "wait.until", "params": {"query": "session.save_info", "args": {"name": "trade_scenario"}, "path": "/has_thumbnail", "op": "eq", "value": true, "timeout_frames": 60}}
+{"method": "session.load_save", "params": {"name": "trade_scenario"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/limits/Wood", "value": {"import": 40}}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/open", "value": false}}
+{"method": "session.delete_save", "params": {"name": "trade_scenario"}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "trade_scenario"}, "path": "/has_thumbnail", "value": false}}

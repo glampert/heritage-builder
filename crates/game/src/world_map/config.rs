@@ -20,13 +20,18 @@
 
 use std::collections::BTreeMap;
 
-use engine::{file_sys::paths::PathRef, log, ui::text::UiTextCategory};
+use engine::{
+    file_sys::paths::PathRef,
+    log,
+    ui::text::{self, UiTextCategory},
+};
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
 use crate::{
-    campaign::config::{CampaignConfigs, CampaignDef},
+    campaign::config::{CampaignConfigs, CampaignDef, MissionTradeDef},
     realm::Realm,
+    sim::resources::ResourceKind,
 };
 
 // The highest relations level (Allied); 0 is Hostile.
@@ -133,7 +138,9 @@ pub enum LabelSide {
     Right,
 }
 
-// A trade partner's static data, the side panel's until M10.
+// A trade partner's terms (docs/plans/trade.md, §1): its relations, its route, what it sells and buys
+// and the court's request. A mission's `trade` block names the partners it trades with and may
+// override their terms (campaign::config::MissionTradeDef); the side panel shows them.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CityTradeDef {
@@ -157,14 +164,84 @@ pub struct TradeRouteDef {
     pub from: String,    // The player's city it starts from.
     pub line: String,    // Menu key with {city}, e.g. "world_map.route_line.sea_route".
     pub carrier: String, // Menu key, e.g. "world_map.carrier.junks".
+    // How often a caravan or ship comes once it's open.
     pub every_months: u32,
+    // The gold it costs to open, once. 0: free.
+    #[serde(default)]
+    pub open_cost: u32,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+// A good a partner sells or buys: one the game trades, by its ResourceKind name ("Wood"), with how
+// many it sells or buys a year; or one the game doesn't have yet, by its Menu key
+// ("trade_good.salt"), shown on the side panel only.
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TradeGoodDef {
-    pub good: String, // Menu key, e.g. "trade_good.salt".
+    pub good: String,
+    // Its base price, gold a unit.
     pub price: u32,
+    // How many a year, for a good the game trades. Required for one, refused for a shown one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_year: Option<u32>,
+}
+
+// The prefix of a shown-only good's Menu key.
+pub const SHOWN_GOOD_PREFIX: &str = "trade_good.";
+
+// The good a world file's name trades: a single ResourceKind but Gold. None: a shown-only key, or a
+// name that's neither (validate says so).
+pub fn traded_good(name: &str) -> Option<ResourceKind> {
+    ResourceKind::from_name(name).filter(|kind| kind.is_single_resource() && *kind != ResourceKind::Gold)
+}
+
+impl TradeGoodDef {
+    // The good the game trades, if it's one (traded_good).
+    #[inline]
+    pub fn resource(&self) -> Option<ResourceKind> {
+        traded_good(&self.good)
+    }
+
+    // Its name as the player reads it: a traded good's ("Roof Tiles"), else its Menu key's text.
+    pub fn display_name(&self) -> String {
+        match self.resource() {
+            Some(kind) => kind.display_name().into_owned(),
+            None => text::get(UiTextCategory::Menu, &self.good).to_string(),
+        }
+    }
+
+    // What's wrong with it, if anything: a name that's neither a traded good nor a shown one's key,
+    // a price of 0, a traded good without its yearly amount or a shown one with one.
+    pub fn problems(&self) -> Vec<String> {
+        let mut problems = Vec::new();
+        match self.resource() {
+            Some(_) if self.per_year.is_none_or(|amount| amount == 0) => {
+                problems.push(format!("the traded good '{}' needs a per_year of 1 or more", self.good))
+            }
+            Some(_) => {}
+            None if !self.good.starts_with(SHOWN_GOOD_PREFIX) => problems
+                .push(format!("'{}' is neither a good the game trades nor a key under '{SHOWN_GOOD_PREFIX}'", self.good)),
+            None if self.per_year.is_some() => {
+                problems.push(format!("the shown good '{}' isn't traded, so it takes no per_year", self.good))
+            }
+            None => {}
+        }
+        if self.price == 0 {
+            problems.push(format!("'{}' has a price of 0", self.good));
+        }
+        problems
+    }
+}
+
+// What's wrong with a list of goods a partner sells or buys: each good's problems, and a good given
+// twice.
+pub fn trade_goods_problems(goods: &[TradeGoodDef]) -> Vec<String> {
+    let mut problems: Vec<String> = goods.iter().flat_map(TradeGoodDef::problems).collect();
+    for (index, good) in goods.iter().enumerate() {
+        if goods[..index].iter().any(|other| other.good == good.good) {
+            problems.push(format!("'{}' is given twice", good.good));
+        }
+    }
+    problems
 }
 
 // "Ceramics × 30", "within 8 months".
@@ -353,6 +430,14 @@ impl WorldMapDef {
             if trade.relation > MAX_RELATION_LEVEL {
                 errors.push(format!("City '{}' has relations {}, past {MAX_RELATION_LEVEL}.", city.id, trade.relation));
             }
+            for (list, goods) in [("sells", &trade.sells), ("buys", &trade.buys)] {
+                for problem in trade_goods_problems(goods) {
+                    errors.push(format!("City '{}' {list}: {problem}.", city.id));
+                }
+            }
+            if trade.route.as_ref().is_some_and(|route| route.every_months == 0) {
+                errors.push(format!("City '{}' trades every 0 months; it needs 1 or more.", city.id));
+            }
             if let Some(route) = &trade.route {
                 match self.route(&route.route) {
                     None => errors.push(format!(
@@ -420,6 +505,11 @@ impl WorldMapDef {
                         ));
                     }
                 }
+                if let Some(trade) = &mission.trade {
+                    for problem in self.trade_problems(trade) {
+                        errors.push(format!("Campaign '{}', mission {index}: {problem}.", campaign.id));
+                    }
+                }
                 for choice in mission.choices.iter().filter(|choice| !self.contains(choice.position)) {
                     errors
                         .push(format!("Campaign '{}', mission {index}: site {} is off the map.", campaign.id, choice.site));
@@ -427,6 +517,38 @@ impl WorldMapDef {
             }
         }
         errors
+    }
+
+    // What's wrong with a mission's or a custom map's trade block against this map: a partner that
+    // isn't a city of it, has no trade terms or route, or is named twice, and its overrides' goods
+    // (the cities' own goods are checked with the file).
+    pub fn trade_problems(&self, trade: &MissionTradeDef) -> Vec<String> {
+        let mut problems = Vec::new();
+        for (index, partner) in trade.partners.iter().enumerate() {
+            let name = &partner.city;
+            if trade.partners[..index].iter().any(|other| other.city == *name) {
+                problems.push(format!("trade names the partner '{name}' twice"));
+            }
+            match self.city(name).and_then(|city| city.trade.as_ref()) {
+                None => problems.push(format!("trade names '{name}', no city of the map with trade terms")),
+                Some(terms) if terms.route.is_none() => {
+                    problems.push(format!("trade names '{name}', whose terms have no route"))
+                }
+                Some(_) => {}
+            }
+            for (list, goods) in [("sells", &partner.sells), ("buys", &partner.buys)] {
+                for problem in goods.iter().flat_map(|goods| trade_goods_problems(goods)) {
+                    problems.push(format!("trade partner '{name}' {list}: {problem}"));
+                }
+                if goods.as_ref().is_some_and(|goods| goods.iter().any(|good| good.resource().is_none())) {
+                    problems.push(format!("trade partner '{name}' {list}: an override lists only goods the game trades"));
+                }
+            }
+            if partner.every_months == Some(0) {
+                problems.push(format!("trade partner '{name}' comes every 0 months; it needs 1 or more"));
+            }
+        }
+        problems
     }
 
     // Every text key the file names, with its category, for the tests that check en.json has them.
@@ -445,7 +567,14 @@ impl WorldMapDef {
                     keys.push(menu(&route.line));
                     keys.push(menu(&route.carrier));
                 }
-                keys.extend(trade.sells.iter().chain(&trade.buys).map(|good| menu(&good.good)));
+                keys.extend(
+                    trade
+                        .sells
+                        .iter()
+                        .chain(&trade.buys)
+                        .filter(|good| good.resource().is_none())
+                        .map(|good| menu(&good.good)),
+                );
                 keys.extend(trade.request.iter().map(|request| menu(&request.good)));
             }
         }

@@ -78,16 +78,28 @@ fn accounts(context: &GameUiContext, page: &PageContext) -> UiCanvas {
         if category.is_income() { total } else { -total }
     };
     let both = |f: &dyn Fn(&YearAccounts) -> i64| [f(&last), f(&this)];
+    // The trade lines only in a game that trades, or whose accounts hold them.
+    let trades = context.sim.trade().is_enabled()
+        || [LedgerCategory::Exports, LedgerCategory::Imports, LedgerCategory::Routes]
+            .iter()
+            .any(|&category| last.total(category) != 0 || this.total(category) != 0);
     let mut lines: Vec<(String, [i64; 2], Line)> = Vec::new();
-    lines.push((get("book.accounts.taxes"), both(&|a| signed(a, LedgerCategory::Taxes)), Line::Row));
-    lines.push((get("book.accounts.offerings"), both(&|a| signed(a, LedgerCategory::Offerings)), Line::Row));
-    lines.push((get("book.accounts.income"), both(&|a| a.income()), Line::Total));
-    for (key, category) in [
+    let mut income = vec![("taxes", LedgerCategory::Taxes), ("offerings", LedgerCategory::Offerings)];
+    let mut spending = vec![
         ("construction", LedgerCategory::Construction),
         ("wages", LedgerCategory::Wages),
         ("upkeep", LedgerCategory::Upkeep),
         ("festivals", LedgerCategory::Festivals),
-    ] {
+    ];
+    if trades {
+        income.push(("exports", LedgerCategory::Exports));
+        spending.extend([("imports", LedgerCategory::Imports), ("routes", LedgerCategory::Routes)]);
+    }
+    for (key, category) in income {
+        lines.push((get(&format!("book.accounts.{key}")), both(&|a| signed(a, category)), Line::Row));
+    }
+    lines.push((get("book.accounts.income"), both(&|a| a.income()), Line::Total));
+    for (key, category) in spending {
         lines.push((get(&format!("book.accounts.{key}")), both(&|a| signed(a, category)), Line::Row));
     }
     lines.push((get("book.accounts.spending"), both(&|a| -a.spending()), Line::Total));

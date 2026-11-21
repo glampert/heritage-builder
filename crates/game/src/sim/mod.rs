@@ -40,9 +40,11 @@ pub use finance::Finance;
 pub mod faith;
 pub mod floods;
 pub mod risks;
+pub mod trade;
 pub use faith::CityFaith;
 pub use floods::CityFloods;
 pub use risks::CityRisks;
+pub use trade::CityTrade;
 
 pub mod calendar;
 pub use calendar::{CalendarEvents, CalendarSettings, GameCalendar};
@@ -82,6 +84,7 @@ pub struct Simulation {
     risks: CityRisks,
     faith: CityFaith,
     floods: CityFloods,
+    trade: CityTrade,
 
     // Path finding:
     #[serde(skip)]
@@ -110,6 +113,7 @@ impl Simulation {
             risks: CityRisks::new(&configs.sim.risks),
             faith: CityFaith::new(&configs.sim.faith),
             floods: CityFloods::new(&configs.sim.floods),
+            trade: CityTrade::new(),
             search: Search::with_grid_size(map_size_in_cells),
             speed: configs.sim.default_speed.clamp(Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED),
             is_paused: false,
@@ -144,6 +148,7 @@ impl Simulation {
             risks: &mut self.risks,
             faith: &mut self.faith,
             floods: &mut self.floods,
+            trade: &mut self.trade,
             cmds: &mut self.cmds,
         }
     }
@@ -225,6 +230,16 @@ impl Simulation {
     #[inline]
     pub fn floods_mut(&mut self) -> &mut CityFloods {
         &mut self.floods
+    }
+
+    #[inline]
+    pub fn trade(&self) -> &CityTrade {
+        &self.trade
+    }
+
+    #[inline]
+    pub fn trade_mut(&mut self) -> &mut CityTrade {
+        &mut self.trade
     }
 
     #[inline]
@@ -507,14 +522,17 @@ impl Simulation {
 
     // World:
     pub fn draw_world_debug_ui(&mut self, context: &mut GameUiContext) {
-        context.world.draw_debug_ui(
-            &mut self.finance,
-            &mut self.risks,
-            &mut self.faith,
-            &mut self.floods,
-            context.camera,
-            context.ui_sys,
-        );
+        let configs = &GameConfigs::get().sim;
+        let now = self.calendar.date(configs.days_per_month, configs.seconds_per_month).ordinal_month();
+        let city = crate::debug::world::CityDebugState {
+            finance: &mut self.finance,
+            risks: &mut self.risks,
+            faith: &mut self.faith,
+            floods: &mut self.floods,
+            trade: &mut self.trade,
+            now,
+        };
+        context.world.draw_debug_ui(city, context.camera, context.ui_sys);
     }
 
     // Game Systems:
@@ -640,5 +658,6 @@ impl Load for Simulation {
         self.task_manager.post_load();
         self.cmds.post_load();
         self.faith.sync_patrons(&context.configs().sim.faith);
+        crate::trade::sync_on_load(&mut self.trade);
     }
 }

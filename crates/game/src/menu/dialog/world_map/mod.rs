@@ -55,7 +55,12 @@ use crate::{
     profile,
     realm::{self, Realm},
     sim::calendar::Season,
-    world_map::{self as world_map_data, WorldMapProvider, config::CityKind, provider::ChoiceSiteInfo},
+    world_map::{
+        self as world_map_data,
+        WorldMapProvider,
+        config::{CityKind, CityRole},
+        provider::ChoiceSiteInfo,
+    },
 };
 
 // ----------------------------------------------
@@ -176,13 +181,14 @@ pub fn shows_campaign_in_game(campaign_index: usize) -> bool {
     screen_campaign(realm::ui_realm_for(false).realm) == Some(campaign_index)
 }
 
-// The city selected when the screen opens: the first trade partner, else the player's capital,
-// else the first city.
+// The city selected when the screen opens: the first trade partner, else the first city with trade
+// terms (a realm city the player trades with), else the player's capital, else the first city.
 fn default_selection(provider: &impl WorldMapProvider) -> Option<String> {
     let cities = provider.cities();
     cities
         .iter()
-        .find(|city| city.has_trade)
+        .find(|city| city.has_trade && city.role == Some(CityRole::TradePartner))
+        .or_else(|| cities.iter().find(|city| city.has_trade))
         .or_else(|| cities.iter().find(|city| city.player_owned && city.kind == CityKind::Capital))
         .or_else(|| cities.first())
         .map(|city| city.id.clone())

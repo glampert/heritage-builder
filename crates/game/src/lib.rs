@@ -32,6 +32,7 @@ pub mod sim;
 pub mod story;
 pub mod system;
 pub mod tile;
+pub mod trade;
 pub mod ui_context;
 pub mod undo_redo;
 pub mod unit;

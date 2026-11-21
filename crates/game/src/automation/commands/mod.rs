@@ -32,6 +32,7 @@ mod sim;
 mod story;
 mod strings;
 mod time;
+mod trade;
 mod ui;
 mod world;
 mod world_map;
@@ -49,6 +50,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     faith::COMMANDS,
     farms::COMMANDS,
     floods::COMMANDS,
+    trade::COMMANDS,
     camera::COMMANDS,
     minimap::COMMANDS,
     city::COMMANDS,

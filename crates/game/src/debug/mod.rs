@@ -43,7 +43,7 @@ mod settings;
 mod sim;
 mod systems;
 mod unit;
-mod world;
+pub(crate) mod world;
 
 // ----------------------------------------------
 // DebugUiMode

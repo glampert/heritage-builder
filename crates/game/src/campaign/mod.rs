@@ -17,7 +17,15 @@ pub mod config;
 pub mod preview;
 pub mod stele;
 
-use config::{CampaignConfigs, MissionFaithDef, MissionFinanceDef, MissionFloodsDef, MissionMap, MissionRisksDef};
+use config::{
+    CampaignConfigs,
+    MissionFaithDef,
+    MissionFinanceDef,
+    MissionFloodsDef,
+    MissionMap,
+    MissionRisksDef,
+    MissionTradeDef,
+};
 use engine::log;
 use serde::{Deserialize, Serialize};
 
@@ -311,6 +319,15 @@ pub fn active_mission_floods() -> Option<MissionFloodsDef> {
     let active = CampaignManager::get().progress.active.clone()?;
     let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
     campaign.missions.get(active.mission_index)?.floods.clone()
+}
+
+// The trade block of the active mission, with the name of its campaign's world map, which names its
+// partners. None outside a campaign; the block is None for a mission without trade.
+pub fn active_mission_trade() -> Option<(String, Option<MissionTradeDef>)> {
+    let active = CampaignManager::get().progress.active.clone()?;
+    let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
+    let trade = campaign.missions.get(active.mission_index)?.trade.clone();
+    Some((campaign.world_map_name().to_string(), trade))
 }
 
 // The risks setting of the active mission, if it sets one. None outside a campaign.

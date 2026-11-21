@@ -15,7 +15,7 @@ use rand::{
 };
 use smallvec::SmallVec;
 
-use super::{CityFaith, CityFloods, CityRisks, Finance, GameCalendar, RandomGenerator, SimCmds};
+use super::{CityFaith, CityFloods, CityRisks, CityTrade, Finance, GameCalendar, RandomGenerator, SimCmds};
 use crate::{
     building::{Building, BuildingId, BuildingKind},
     pathfind::{
@@ -99,6 +99,9 @@ pub struct SimContext<'game> {
     // The river's floods and the land's fertility:
     floods: RawPtr<CityFloods>,
 
+    // Trade partners, their routes and limits, and the court's requests:
+    trade: RawPtr<CityTrade>,
+
     // Update delta time.
     delta_time_secs: Seconds,
 
@@ -136,6 +139,7 @@ pub(super) struct SimContextParts<'a> {
     pub risks: &'a mut CityRisks,
     pub faith: &'a mut CityFaith,
     pub floods: &'a mut CityFloods,
+    pub trade: &'a mut CityTrade,
     pub cmds: &'a mut SimCmds,
 }
 
@@ -160,6 +164,7 @@ impl<'game> SimContext<'game> {
             risks: RawPtr::from_ref(parts.risks),
             faith: RawPtr::from_ref(parts.faith),
             floods: RawPtr::from_ref(parts.floods),
+            trade: RawPtr::from_ref(parts.trade),
             delta_time_secs,
             is_world_teardown,
             _borrow: PhantomData,
@@ -249,6 +254,11 @@ impl<'game> SimContext<'game> {
     #[inline]
     pub fn floods(&self) -> &CityFloods {
         &self.floods
+    }
+
+    #[inline]
+    pub fn trade(&self) -> &CityTrade {
+        &self.trade
     }
 
     // The game's realm: its campaign's, its custom game's, else Đại Long's (kept with its faith).
@@ -688,6 +698,11 @@ impl<'game> SimContextMut<'game> {
     #[inline]
     pub fn floods_mut(&self) -> &mut CityFloods {
         self.floods.mut_ref_cast()
+    }
+
+    #[inline]
+    pub fn trade_mut(&self) -> &mut CityTrade {
+        self.trade.mut_ref_cast()
     }
 
     #[inline]

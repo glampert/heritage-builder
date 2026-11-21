@@ -375,10 +375,7 @@ impl WorldMapProvider for ConfigWorldMapProvider<'_> {
         }
 
         let offers = |goods: &[super::config::TradeGoodDef]| {
-            goods
-                .iter()
-                .map(|good| TradeOffer { good: text::get(UiTextCategory::Menu, &good.good).to_string(), price: good.price })
-                .collect()
+            goods.iter().map(|good| TradeOffer { good: good.display_name(), price: good.price }).collect()
         };
         panel.sells = offers(&trade.sells);
         panel.buys = offers(&trade.buys);
