@@ -108,6 +108,12 @@ pub struct Camera {
 
     #[serde(skip)]
     is_scrolling: bool,
+
+    // How far the map's highest ground stands up, in logical px (tile::elevation): a raised cell
+    // below the screen's bottom in flat terms can rise into view, and one at the map's back rises
+    // above its flat edge. Set each frame from the tile map (set_raised_terrain).
+    #[serde(skip)]
+    raised_terrain_px: f32,
 }
 
 impl Camera {
@@ -128,12 +134,20 @@ impl Camera {
             target_zoom: clamped_scaling,
             is_zooming: false,
             is_scrolling: false,
+            raised_terrain_px: 0.0,
         }
     }
 
     #[inline]
     pub fn visible_cells_range(&self) -> CellRange {
-        calc_visible_cells_range(self.map_size_in_cells, self.viewport_size, self.transform)
+        calc_visible_cells_range(self.map_size_in_cells, self.viewport_size, self.transform, self.raised_terrain_px)
+    }
+
+    // The map's highest ground, in levels (TileMap::elevation's max_height): the visible cells
+    // reach that much further down the screen, and the camera that much further up the map.
+    #[inline]
+    pub fn set_raised_terrain(&mut self, max_height: u8) {
+        self.raised_terrain_px = f32::from(max_height) * crate::tile::elevation::LEVEL_STEP_PX;
     }
 
     #[inline]
@@ -267,7 +281,9 @@ impl Camera {
     // cheaper and trivial compared to those of CameraConstraintsIsoDiamond.
     fn build_constraints(&self, _: bool) -> CameraConstraintsInnerRect {
         let diamond = self.map_diamond(false);
-        let playable_area = diamond.inner_rect();
+        let mut playable_area = diamond.inner_rect();
+        // Raised ground at the map's back rises above its flat edge.
+        playable_area.min.y -= self.raised_terrain_px * self.current_zoom();
         let camera_half_extents = self.viewport_center();
         CameraConstraintsInnerRect::new(playable_area, camera_half_extents)
     }
@@ -451,6 +467,11 @@ impl Camera {
 
     // Snaps the camera to `destination_cell`.
     pub fn teleport(&mut self, destination_cell: Cell) -> bool {
+        self.teleport_raised(destination_cell, 0.0)
+    }
+
+    // Snaps the camera to `destination_cell`, its ground `levels` up (tile::elevation).
+    pub fn teleport_raised(&mut self, destination_cell: Cell, levels: f32) -> bool {
         if !destination_cell.is_valid() {
             return false;
         }
@@ -461,7 +482,8 @@ impl Camera {
 
         let transform_no_offset = WorldToScreenTransform::new(self.current_zoom(), Vec2::zero());
 
-        let desired_camera_center = coords::iso_to_screen_point(iso_point, transform_no_offset);
+        let mut desired_camera_center = coords::iso_to_screen_point(iso_point, transform_no_offset);
+        desired_camera_center.y -= levels * crate::tile::elevation::LEVEL_STEP_PX * self.current_zoom();
 
         // If unconstrained, teleport freely.
         if !GameConfigs::get().camera.constrain_to_playable_map_area {
@@ -946,7 +968,12 @@ fn draw_diamond_edges_and_normals(debug_draw: &mut DebugDraw, diamond: &IsoDiamo
     }
 }
 
-fn calc_visible_cells_range(map_size_in_cells: Size, viewport_size: Size, transform: WorldToScreenTransform) -> CellRange {
+fn calc_visible_cells_range(
+    map_size_in_cells: Size,
+    viewport_size: Size,
+    transform: WorldToScreenTransform,
+    raised_terrain_px: f32,
+) -> CellRange {
     if !map_size_in_cells.is_valid() {
         return CellRange::new(Cell::zero(), Cell::zero());
     }
@@ -955,8 +982,11 @@ fn calc_visible_cells_range(map_size_in_cells: Size, viewport_size: Size, transf
     let tile_width = BASE_TILE_WIDTH_F32 * transform.scaling;
     let tile_height = BASE_TILE_HEIGHT_F32 * transform.scaling;
 
+    // A raised cell that's below the screen in flat terms can rise into view.
+    let raised = raised_terrain_px * transform.scaling;
+
     let pos = Vec2::new(-tile_width, -tile_height);
-    let size = Vec2::new((viewport_size.width as f32) + tile_width, (viewport_size.height as f32) + tile_height);
+    let size = Vec2::new((viewport_size.width as f32) + tile_width, (viewport_size.height as f32) + tile_height + raised);
     let screen_rect = Rect::from_pos_and_size(pos, size);
 
     crate::tile::selection::bounds(&screen_rect, map_size_in_cells, transform)

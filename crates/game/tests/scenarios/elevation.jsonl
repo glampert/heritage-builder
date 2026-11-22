@@ -52,6 +52,21 @@
 {"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/shape", "value": "ramp_n_high"}}
 {"method": "session.delete_save", "params": {"name": "scenario_elevation"}}
 
+# Drawn raised (Stage 3): a terrace behind the plateau with a ramp up its south side, a building on
+# it and one behind it, and a walker on the ramp. The camera centres on raised ground.
+{"method": "terrain.set_elevation", "params": {"from": [13, 14], "to": [16, 17], "level": 1}}
+{"method": "terrain.set_elevation", "params": {"cell": [11, 15], "level": 0, "shape": "ramp_n_low"}}
+{"method": "terrain.set_elevation", "params": {"cell": [12, 15], "level": 0, "shape": "ramp_n_high"}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/problem_count", "value": 0}}
+{"method": "world.place", "params": {"tile": "theater", "cell": [14, 15]}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [17, 16]}}
+{"method": "world.spawn_unit", "params": {"unit": "peasant", "cell": [12, 15]}}
+{"method": "camera.zoom", "params": {"zoom": 1.5}}
+{"method": "camera.teleport", "params": {"cell": [12, 12]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/elevation/terraces.png", "include_ui": false}}
+
 # The developer palette's Height tools: open the section, pick Raise, click a cell.
 {"method": "menus.mode", "params": {"mode": "DevEditor"}}
 {"method": "camera.teleport", "params": {"cell": [10, 10]}}

@@ -107,6 +107,20 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_spawn_unit,
     },
     CommandDef {
+        name: "world.walk",
+        help: "Send a unit along the shortest path over land and roads to a cell, as a task would; fails without a path.",
+        params: &[
+            ParamDef {
+                name: "id",
+                kind: "string",
+                required: true,
+                help: "A unit's id, from world.spawn_unit or world.list.",
+            },
+            ParamDef { name: "to", kind: "cell", required: true, help: "[x, y]." },
+        ],
+        run: cmd_walk,
+    },
+    CommandDef {
         name: "world.despawn",
         help: "Remove a building, unit or prop by id, for test setup: no refund, no undo.",
         params: &[ParamDef {
@@ -482,6 +496,41 @@ fn cmd_spawn_unit(context: &mut CommandContext, params: Value) -> CommandResult 
 
     let unit_id = unit_id.map_err(CommandError::failed)?;
     done(json!({ "id": ObjectId::Unit(unit_id).to_json(), "unit": tile_def.name, "cell": cell_json(cell) }))
+}
+
+fn cmd_walk(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        id: String,
+        to: CellParam,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let ObjectId::Unit(id) = ObjectId::parse(&params.id)? else {
+        return Err(CommandError::invalid_params(format!("'{}' isn't a unit's id.", params.id)));
+    };
+    let to = params.to.0;
+    context.require_cell_in_map(to)?;
+
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    let result = context.session.with_sim_context(delta_time_secs, |sim| {
+        let from = sim.find_unit(id).map(|unit| unit.cell()).ok_or_else(|| format!("No unit with id '{}'.", params.id))?;
+        let kinds = crate::pathfind::NodeKind::EmptyLand | crate::pathfind::NodeKind::Road;
+        let path = match sim.find_path(kinds, from, to) {
+            crate::pathfind::SearchResult::PathFound(path) => path.clone(),
+            crate::pathfind::SearchResult::PathNotFound => {
+                return Err(format!("No path from [{}, {}] to [{}, {}].", from.x, from.y, to.x, to.y));
+            }
+        };
+        let unit = sim.find_unit_mut(id).ok_or("The unit is gone.")?;
+        unit.set_traversable_node_kinds(kinds);
+        unit.follow_path(Some(&path));
+        Ok(path.len())
+    });
+    let cells = result.map_err(CommandError::failed)?;
+    done(json!({ "path_cells": cells }))
 }
 
 fn cmd_despawn(context: &mut CommandContext, params: Value) -> CommandResult {

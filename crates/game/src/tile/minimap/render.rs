@@ -543,12 +543,12 @@ impl BaseMinimapRenderer {
                 MinimapTool::ZoomOut => minimap.view_mut().zoom_by(-1),
                 MinimapTool::Alerts => {
                     if let Some(cell) = minimap.next_alert() {
-                        context.camera.teleport(cell);
+                        context.camera.teleport_raised(cell, minimap.grid().height(cell));
                     }
                 }
                 MinimapTool::Home => match minimap.seat_cell() {
                     Some(cell) => {
-                        context.camera.teleport(cell);
+                        context.camera.teleport_raised(cell, minimap.grid().height(cell));
                     }
                     None => context.camera.center(),
                 },

@@ -54,6 +54,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         ],
         run: cmd_brush,
     },
+    CommandDef {
+        name: "terrain.hills",
+        help: "Rolling hills over the whole map from value noise, for tests and timing: refused under buildings and on \
+               water, no undo.",
+        params: &[
+            ParamDef { name: "seed", kind: "integer", required: false, help: "Noise seed (1)." },
+            ParamDef { name: "coverage", kind: "number", required: false, help: "Share of cells raised (0.3)." },
+            ParamDef { name: "max_level", kind: "integer", required: false, help: "Highest level (3)." },
+            ParamDef { name: "feature_cells", kind: "number", required: false, help: "Hill size in cells (12)." },
+        ],
+        run: cmd_hills,
+    },
 ];
 
 fn map_json(context: &CommandContext) -> Value {
@@ -194,4 +206,34 @@ fn cmd_brush(context: &mut CommandContext, params: Value) -> CommandResult {
     let mut reply = map_json(context);
     reply["painted"] = json!(changed);
     done(reply)
+}
+
+fn cmd_hills(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        seed: Option<u64>,
+        coverage: Option<f32>,
+        max_level: Option<u8>,
+        feature_cells: Option<f32>,
+    }
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+
+    let size = context.session.tile_map().size_in_cells();
+    let hills = elevation::hills(
+        size,
+        params.seed.unwrap_or(1),
+        params.coverage.unwrap_or(0.3),
+        params.max_level.unwrap_or(3),
+        params.feature_cells.unwrap_or(12.0),
+    );
+    let bytes: Vec<(Cell, u8)> = hills
+        .iter()
+        .enumerate()
+        .map(|(index, &byte)| (Cell::new(index as i32 % size.width, index as i32 / size.width), byte))
+        .collect();
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    let placed = context.session.with_sim_context(delta_time_secs, |sim| TilePlacement::set_elevation(sim, &bytes, false));
+    done(placement_json(context, &placed))
 }

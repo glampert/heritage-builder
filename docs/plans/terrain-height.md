@@ -1,6 +1,6 @@
 # Terrain height: analysis and plan
 
-**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stage 1 (the data, save v15) and Stage 2 (the pieces, from Blender) done; Stage 3, rendering, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
+**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stages 1 (the data, save v15), 2 (the pieces, from Blender) and 3 (rendering) done; Stage 4, picking and placement, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
 
 - It was first written on 2026-11-05 against `d0696fe`, before M3 to M10.
 - It was refreshed on 2026-11-22 against `d6801146` (M10 done, save version 14):
@@ -452,12 +452,22 @@ Before the rendering, so Stage 3 draws real sprites (batched with the buildings)
 
 ### Stage 3: Rendering (medium to large)
 
-- [ ] Lifts as things are drawn (§3), from the spike: terrain, objects, walkers at the ground's height where they stand, and the overlays drawn with a tile.
-- [ ] The two-pass draw order (§3), with its tie rules (terrain first, the ground under a building with the building, walkers by their nearest cell) and the hidden-ground gate; cliff courses, ramp halves and rims from Stage 2's sprites (`tile::height_pieces`).
-- [ ] Washes and previews on raised cells.
-- [ ] Culling padding, camera bounds, `teleport`.
-- [ ] Overlays: grid, search-graph debug view, hover highlight, previews, tile bounds.
-- [ ] Measure the dense scene again (Stage 0's script) and decide whether raised tops join the objects atlas.
+- [x] Lifts as things are drawn (§3), from the spike: terrain, objects, walkers at the ground's height where they stand, and the overlays drawn with a tile.
+- [x] The two-pass draw order (§3), with its tie rules (terrain first, the ground under a building with the building, walkers by their nearest cell) and the hidden-ground gate; cliff courses, ramp halves and rims from Stage 2's sprites (`tile::height_pieces`).
+- [x] Washes and previews on raised cells.
+- [x] Culling padding, camera bounds, `teleport`.
+- [x] Overlays: grid, search-graph debug view, hover highlight, previews, tile bounds.
+- [x] Measure the dense scene again (Stage 0's script) and decide whether raised tops join the objects atlas.
+
+**Notes (2026-11-22): done.**
+- **The pass** (`tile/rendering.rs`): a map with raised ground (`ElevationMap::is_flat` false; a flat map takes none of this) leaves its raised cells out of the terrain pass, and the level-0 cells a raised flat top in front covers whole (`is_ground_hidden`: the cell `k` steps behind one at level `k`). Each raised cell joins the sorted objects pass as up to three entries with its cell's key (a building's when one stands there): its cliff courses (`DrawPart::Courses`: from `lowest_ground_along` each front edge up to its level, the top one `Course::Top` with its terrain's lip), its top (`Top`: the terrain tile lifted through `draw_tile`, or its ramp half) and its rims (`Rims`: each side where `highest_ground_along` is lower). Ties on the key draw a row's courses, then its tops, then its rims, then what stands there: cells in a row don't overlap, and grouping them halves the texture switches (the pieces are in the objects atlas, the tops in the terrain's). Each piece is anchored as a 1 × 1 building and lifted (`draw_piece`).
+- **Lifts:** `draw_tile` takes how far up a thing is drawn and moves everything it draws with it (scaffolds, renovation, fire, sickness, the festival dress, the flood and dry-canal washes, road previews). Objects stand on their base cell's ground (`centre_height`), walkers on the ground where they are (`surface_height` at the position read back from their iso coords), and on raised maps walkers sort by their nearest cell. Positions stay flat (§2).
+- **Overlays:** the grid, the search graph's view and the heights overlay draw each cell's diamond at its ground's height (`ground_diamond`, a ramp's sloped). The depth-sorted grid's line for a raised cell is drawn after its top (raised ground is drawn after the grid's pass); the heights overlay is drawn over everything. A highlighted cell's courses, top and rims are tinted. Picking is still flat until Stage 4, so the hover highlight marks the cell under the cursor in flat terms.
+- **Camera:** `Camera::set_raised_terrain` (each frame, from the map's `max_height`) pads the visible cells for a raised cell rising into view and lets the camera scroll that much further up the map; `teleport_raised` centres on a cell's ground, used by `camera.teleport`, the minimap's Home and Alerts and the inspector's Show its home. `input.click`'s and `ui.drag`'s centring stays flat until Stage 4 makes picking follow heights.
+- **Automation for tests:** `terrain.hills` (value noise hills over the map, `elevation::hills`) and `world.walk` (a unit along a path to a cell).
+- **Cost** at the widest zoom, the dense scene of Stage 0 (the 128 × 128 sample map, about 2,400 objects in view, 30% of the cells raised up to level 3, release builds, OpenGL): CPU per frame 5.6 → 7.2 ms (+28%); the map's drawing 0.4 → 0.9 ms; texture switches 839 → 2,091 (3,345 before grouping parts by row); 1,420 more sprites. At zoom 1: 2.5 → 2.7 ms (+8%), within Q8's budget. Wgpu held 60 fps, its drawing 0.33 → 0.80 ms. The frame rate on this display swings run to run (its present wait varies from 5 to 25 ms whether the map is flat or not), so the CPU time is the measure.
+- **Raised tops stay in the terrain atlas.** Grouping by row already took the terrain-objects switches down to about two a row; most of the switches left are between the objects atlas's own pages, which flat maps pay too (839). Copying the terrain sprites into the objects atlas would save at most a few hundred more; revisit if M13's maps (with far less raised ground than 30%) show a cost.
+- **Verified:** the new renderer tests (`lowest_ground_along`, rims, hidden ground), `cargo test --workspace`, the 29 scenarios in release, `elevation.jsonl` with a drawn terrace (`out/elevation/terraces.png`), screenshots of a plateau with a two-level block, ramps on four sides with a road over them, buildings on, behind and in front of cliffs, trees on rims and walkers on ramps, fmt and both clippies.
 
 ### Stage 4: Picking and placement (medium)
 

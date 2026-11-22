@@ -11,6 +11,7 @@
 use common::{
     coords::Cell,
     hash::{fnv1a_from_str, splitmix64},
+    mem::SingleThreadStatic,
 };
 
 use super::{
@@ -109,29 +110,88 @@ fn piece(tile: &str, variation: &str) -> Option<(&'static TileDef, usize)> {
     def.find_variation(variation).map(|index| (def, index))
 }
 
+type Piece = Option<(&'static TileDef, usize)>;
+
+// Every piece, looked up by name once (the renderer asks for them every frame): by edge, the grass
+// tops, the mid courses and the dirt top; the rims by side; the ramps by surface, direction and half.
+struct Pieces {
+    tops: [[Piece; 2]; 2],
+    mids: [[Piece; 2]; 2],
+    dirt_tops: [Piece; 2],
+    rims: [Piece; 4],
+    ramps: [[[Piece; 2]; 4]; 4],
+}
+
+impl Pieces {
+    fn look_up() -> Self {
+        let edge_pieces = |names: [&str; 2]| FaceEdge::ALL.map(|edge| names.map(|name| piece(edge.tile_name(), name)));
+        Self {
+            tops: edge_pieces(TOP_COURSES),
+            mids: edge_pieces(MID_COURSES),
+            dirt_tops: FaceEdge::ALL.map(|edge| piece(edge.tile_name(), DIRT_TOP_COURSE)),
+            rims: Dir::ALL.map(|side| piece("cliff_rim", side.letter())),
+            ramps: RampSurface::ALL.map(|surface| {
+                Dir::ALL
+                    .map(|dir| ["low", "high"].map(|half| piece(surface.tile_name(), &format!("{}_{half}", dir.letter()))))
+            }),
+        }
+    }
+}
+
+static PIECES: SingleThreadStatic<Option<Pieces>> = SingleThreadStatic::new(None);
+
+fn pieces() -> &'static Pieces {
+    if PIECES.as_ref().is_none() {
+        PIECES.set(Some(Pieces::look_up()));
+    }
+    PIECES.as_ref().as_ref().expect("looked up above")
+}
+
+const fn edge_index(edge: FaceEdge) -> usize {
+    match edge {
+        FaceEdge::Left => 0,
+        FaceEdge::Right => 1,
+    }
+}
+
+const fn dir_index(dir: Dir) -> usize {
+    match dir {
+        Dir::N => 0,
+        Dir::E => 1,
+        Dir::S => 2,
+        Dir::W => 3,
+    }
+}
+
+const fn surface_index(surface: RampSurface) -> usize {
+    match surface {
+        RampSurface::Grass => 0,
+        RampSurface::Dirt => 1,
+        RampSurface::DirtRoad => 2,
+        RampSurface::PavedRoad => 3,
+    }
+}
+
 // The course of a cliff on `edge` of `cell` whose foot is at `level`: its tile def and variation.
-pub fn cliff_course(edge: FaceEdge, course: Course, cell: Cell, level: u8) -> Option<(&'static TileDef, usize)> {
+pub fn cliff_course(edge: FaceEdge, course: Course, cell: Cell, level: u8) -> Piece {
     let pick = (splitmix64(((cell.x as u32 as u64) << 32) ^ (cell.y as u32 as u64) ^ ((level as u64) << 56)) & 1) as usize;
-    let variation = match course {
-        Course::Mid => MID_COURSES[pick],
-        Course::Top { dirt_lip: false } => TOP_COURSES[pick],
-        Course::Top { dirt_lip: true } => DIRT_TOP_COURSE,
-    };
-    piece(edge.tile_name(), variation)
+    let pieces = pieces();
+    let edge = edge_index(edge);
+    match course {
+        Course::Mid => pieces.mids[edge][pick],
+        Course::Top { dirt_lip: false } => pieces.tops[edge][pick],
+        Course::Top { dirt_lip: true } => pieces.dirt_tops[edge],
+    }
 }
 
 // The rim along `side` of a raised cell's top.
-pub fn rim(side: Dir) -> Option<(&'static TileDef, usize)> {
-    piece("cliff_rim", side.letter())
+pub fn rim(side: Dir) -> Piece {
+    pieces().rims[dir_index(side)]
 }
 
 // Half of a ramp climbing towards `dir`, its top `surface`.
-pub fn ramp(surface: RampSurface, dir: Dir, half: Half) -> Option<(&'static TileDef, usize)> {
-    let half = match half {
-        Half::Low => "low",
-        Half::High => "high",
-    };
-    piece(surface.tile_name(), &format!("{}_{half}", dir.letter()))
+pub fn ramp(surface: RampSurface, dir: Dir, half: Half) -> Piece {
+    pieces().ramps[surface_index(surface)][dir_index(dir)][usize::from(half == Half::High)]
 }
 
 // Every piece's name, as (tile, variation): what the tile sets must hold for raised terrain to draw.

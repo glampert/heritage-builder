@@ -25,7 +25,8 @@ use super::{
     TileKind,
     TileMap,
     TileMapLayerKind,
-    elevation::{self, ElevationProblem, Shape},
+    elevation::{self, Dir, ElevationMap, ElevationProblem, LEVEL_STEP_PX, Shape},
+    height_pieces::{self, Course, FaceEdge, RampSurface},
     road,
     sets::{OBJECTS_OVERLAYS_CATEGORY, TileDef, TileSets, TileTexInfo},
     water,
@@ -191,7 +192,7 @@ impl TileMapRenderer {
 
         if flags.contains(TileMapRenderFlags::DrawGrid) && !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Draw the grid now so that lines will be on top of the terrain but not on top of buildings.
-            self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
+            self.draw_isometric_grid(render_sys, tile_map, transform, visible_range, false);
         } else if flags.contains(TileMapRenderFlags::DrawSearchGraphDebug) {
             // Base terrain search graph debug pass draws with respect to scene depth.
             self.draw_search_graph_debug_grid(
@@ -204,16 +205,17 @@ impl TileMapRenderer {
             );
         }
 
+        self.draw_objects_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
+
+        // Over everything: raised ground is drawn in the objects pass.
         if flags.contains(TileMapRenderFlags::DrawElevation) {
             Self::draw_elevation_overlay(render_sys, tile_map, transform, visible_range);
         }
 
-        self.draw_objects_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
-
         if flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Allow grid lines to draw later and effectively bypass the draw order
             // and appear on top of everything else (useful for debugging).
-            self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
+            self.draw_isometric_grid(render_sys, tile_map, transform, visible_range, true);
         } else if flags.contains(TileMapRenderFlags::DrawSearchGraphDebug) {
             // Search graph debug objects pass draws on top of everything else.
             self.draw_search_graph_debug_grid(
@@ -251,8 +253,16 @@ impl TileMapRenderer {
         debug_assert!(objects.size_in_cells() == tile_map.size_in_cells());
 
         let cull_occluded_terrain = flags.intersects(TileMapRenderFlags::CullOccludedTerrainTiles);
+        let raised = raised_terrain(tile_map);
 
         for cell in visible_range.iter_rev() {
+            // Raised ground is drawn in the sorted objects pass; ground a raised top in front of it
+            // covers whole isn't drawn at all (docs/plans/terrain-height.md, §3).
+            if let Some(map) = raised
+                && (map.is_raised(cell) || is_ground_hidden(map, cell))
+            {
+                continue;
+            }
             if let Some(tile) = terrain.try_tile(cell) {
                 // Terrain tiles size is constrained. Sanity check it:
                 debug_assert!(tile.is(TileKind::Terrain) && tile.logical_size() == BASE_TILE_SIZE_I32);
@@ -265,7 +275,7 @@ impl TileMapRenderer {
                     continue;
                 }
 
-                Self::draw_tile(render_sys, debug_draw, &mut self.stats, ui_sys, transform, tile, tile_map, flags);
+                Self::draw_tile(render_sys, debug_draw, &mut self.stats, ui_sys, transform, tile, tile_map, flags, 0.0);
             }
         }
     }
@@ -280,7 +290,9 @@ impl TileMapRenderer {
         visible_range: CellRange,
         flags: TileMapRenderFlags,
     ) {
-        if !flags.intersects(TileMapRenderFlags::DrawAllObjects) {
+        let raised = raised_terrain(tile_map);
+        let draw_raised_terrain = raised.is_some() && flags.contains(TileMapRenderFlags::DrawTerrain);
+        if !flags.intersects(TileMapRenderFlags::DrawAllObjects) && !draw_raised_terrain {
             return;
         }
 
@@ -302,12 +314,12 @@ impl TileMapRenderer {
             }
 
             if should_draw(tile, flags) {
-                self.temp_tile_sort_list.push(TileDrawListEntry::new(tile, transform));
+                self.temp_tile_sort_list.push(TileDrawListEntry::new(tile, transform, raised.is_some()));
 
                 // Push stacked chained tiles into the list so they will sort.
                 tile_map.visit_next_tiles(tile, |next_tile| {
                     if should_draw(next_tile, flags) {
-                        self.temp_tile_sort_list.push(TileDrawListEntry::new(next_tile, transform));
+                        self.temp_tile_sort_list.push(TileDrawListEntry::new(next_tile, transform, raised.is_some()));
                     }
                 });
             }
@@ -323,7 +335,9 @@ impl TileMapRenderer {
             if should_draw {
                 // Debug display for blocker tiles:
                 let tile_iso_pos = coords::cell_to_iso(cell);
-                let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_pos, BASE_TILE_SIZE_I32, transform);
+                let lift = raised.map_or(0.0, |map| map.centre_height(cell) * LEVEL_STEP_PX * transform.scaling);
+                let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_pos, BASE_TILE_SIZE_I32, transform)
+                    .translated(Vec2::new(0.0, -lift));
                 debug::utils::draw_tile_debug(debug_draw, ui_sys, tile_screen_rect, transform, tile, flags);
             }
             should_draw
@@ -339,17 +353,162 @@ impl TileMapRenderer {
             }
         }
 
+        // Raised ground sorts with the objects, by its own cell's diamond (§3). The ground under a
+        // building takes the building's key, so it's drawn just before it (ties put ground first):
+        // a footprint's front cells' keys are in front of the building's own.
+        if let Some(map) = raised
+            && draw_raised_terrain
+        {
+            for cell in visible_range.iter_rev() {
+                if !map.is_raised(cell) {
+                    continue;
+                }
+                let Some(tile) = terrain.try_tile(cell) else {
+                    continue;
+                };
+                let key = match objects.try_tile(cell) {
+                    Some(object) if object.is(TileKind::Building | TileKind::Field | TileKind::Blocker) => {
+                        coords::cell_to_screen_diamond_center_y(object.base_cell(), object.logical_size(), transform)
+                    }
+                    _ => coords::cell_to_screen_diamond_center_y(cell, BASE_TILE_SIZE_I32, transform),
+                };
+                let tile_ptr = RawPtr::from_ref(tile);
+                if has_courses(map, cell) {
+                    self.temp_tile_sort_list.push(TileDrawListEntry {
+                        tile: tile_ptr,
+                        depth_sort_key: key,
+                        part: DrawPart::Courses,
+                    });
+                }
+                self.temp_tile_sort_list.push(TileDrawListEntry {
+                    tile: tile_ptr,
+                    depth_sort_key: key,
+                    part: DrawPart::Top,
+                });
+                if has_rims(map, cell) {
+                    self.temp_tile_sort_list.push(TileDrawListEntry {
+                        tile: tile_ptr,
+                        depth_sort_key: key,
+                        part: DrawPart::Rims,
+                    });
+                }
+            }
+        }
+
         self.temp_tile_sort_list.sort_by(TileDrawListEntry::compare);
+
+        let occluded = |cell| {
+            flags.intersects(TileMapRenderFlags::CullOccludedTerrainTiles)
+                && objects.try_tile(cell).is_some_and(|object| object.has_flags(TileFlags::OccludesTerrain))
+        };
 
         for entry in &self.temp_tile_sort_list {
             let tile = entry.tile();
-            debug_assert!(tile.is(TileKind::Object));
 
-            Self::draw_tile(render_sys, debug_draw, &mut self.stats, ui_sys, transform, tile, tile_map, flags);
+            if entry.part != DrawPart::Object {
+                let map = raised.expect("raised ground in the sort list");
+                Self::draw_raised_part(
+                    render_sys,
+                    debug_draw,
+                    &mut self.stats,
+                    ui_sys,
+                    transform,
+                    tile,
+                    tile_map,
+                    map,
+                    flags,
+                    occluded(tile.base_cell()),
+                    (self.grid_color, self.grid_line_thickness),
+                    entry.part,
+                );
+                continue;
+            }
+
+            debug_assert!(tile.is(TileKind::Object));
+            let lift = raised.map_or(0.0, |map| object_lift_px(map, tile) * transform.scaling);
+            Self::draw_tile(render_sys, debug_draw, &mut self.stats, ui_sys, transform, tile, tile_map, flags, lift);
         }
 
         self.stats.tile_sort_list_len += self.temp_tile_sort_list.len() as u32;
         self.temp_tile_sort_list.clear();
+    }
+
+    // A part of a raised cell (docs/plans/terrain-height.md, §3 and §5): its cliff courses on its two
+    // front edges, from the ground in front up to its level (the top one with its terrain's lip); its
+    // terrain lifted to its level, or its ramp half; or a rim along each side whose ground is lower.
+    fn draw_raised_part(
+        render_sys: &mut RenderSystem,
+        debug_draw: &mut DebugDraw,
+        stats: &mut TileMapRenderStats,
+        ui_sys: &UiSystem,
+        transform: WorldToScreenTransform,
+        tile: &Tile,
+        tile_map: &TileMap,
+        map: &ElevationMap,
+        flags: TileMapRenderFlags,
+        occluded: bool,
+        (grid_color, grid_thickness): (Color, f32),
+        part: DrawPart,
+    ) {
+        let cell = tile.base_cell();
+        let (level, shape) = map.get(cell);
+        let tint = highlight_tint(tile);
+
+        match part {
+            DrawPart::Courses => {
+                // A level each, from the lowest ground along the edge up to the cell's.
+                for edge in FaceEdge::ALL {
+                    let ground = lowest_ground_along(map, cell, edge.side());
+                    for course_level in ground..level {
+                        let course = if shape == Shape::Flat && course_level + 1 == level {
+                            Course::Top { dirt_lip: height_pieces::has_dirt_lip(tile.tile_def()) }
+                        } else {
+                            Course::Mid
+                        };
+                        if let Some((def, variation)) = height_pieces::cliff_course(edge, course, cell, course_level) {
+                            draw_piece(render_sys, transform, def, variation, cell, f32::from(course_level), tint);
+                        }
+                    }
+                }
+            }
+            DrawPart::Top => match shape {
+                Shape::Flat => {
+                    if !occluded {
+                        let lift = f32::from(level) * LEVEL_STEP_PX * transform.scaling;
+                        Self::draw_tile(render_sys, debug_draw, stats, ui_sys, transform, tile, tile_map, flags, lift);
+                    }
+                    // The depth-sorted grid's line for this cell, over its top.
+                    if flags.contains(TileMapRenderFlags::DrawGrid)
+                        && !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth)
+                    {
+                        let points = ground_diamond(Some(map), cell, transform);
+                        render_sys.draw_polyline_with_thickness(
+                            &points,
+                            grid_color,
+                            grid_thickness * transform.scaling,
+                            true,
+                        );
+                    }
+                }
+                Shape::Ramp(dir, half) => {
+                    let surface = RampSurface::of_terrain(tile.tile_def());
+                    if let Some((def, variation)) = height_pieces::ramp(surface, dir, half) {
+                        draw_piece(render_sys, transform, def, variation, cell, f32::from(level), tint);
+                        stats.tiles_drawn += 1;
+                    }
+                }
+            },
+            DrawPart::Rims => {
+                for side in Dir::ALL {
+                    if highest_ground_along(map, cell, side) < f32::from(level)
+                        && let Some((def, variation)) = height_pieces::rim(side)
+                    {
+                        draw_piece(render_sys, transform, def, variation, cell, f32::from(level), tint);
+                    }
+                }
+            }
+            DrawPart::Object => unreachable!("objects are drawn by draw_tile"),
+        }
     }
 
     fn draw_isometric_grid(
@@ -358,6 +517,7 @@ impl TileMapRenderer {
         tile_map: &TileMap,
         transform: WorldToScreenTransform,
         visible_range: CellRange,
+        over_everything: bool,
     ) {
         let viewport = render_sys.viewport();
 
@@ -366,9 +526,15 @@ impl TileMapRenderer {
 
         let mut highlighted_cells = SmallVec::<[[Vec2; 4]; 64]>::new();
         let mut invalidated_cells = SmallVec::<[[Vec2; 4]; 64]>::new();
+        let raised = raised_terrain(tile_map);
 
         for cell in &visible_range {
-            let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+            // Raised cells draw their own line after their top (draw_raised_cell), so raised ground
+            // drawn in the objects pass doesn't cover it; the grid drawn over everything draws all.
+            if !over_everything && raised.is_some_and(|map| map.is_raised(cell)) {
+                continue;
+            }
+            let points = ground_diamond(raised, cell, transform);
             if Self::is_fully_offscreen(&viewport, &points) {
                 continue; // Cull if fully offscreen.
             }
@@ -422,7 +588,7 @@ impl TileMapRenderer {
                     let path_kind = graph.node_kind(Node::new(cell)).unwrap_or(PathNodeKind::empty());
 
                     if path_kind.intersects(PathNodeKind::Water) {
-                        let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+                        let points = ground_diamond(raised_terrain(tile_map), cell, transform);
                         if Self::is_fully_offscreen(&viewport, &points) {
                             continue; // Cull if fully offscreen.
                         }
@@ -462,8 +628,9 @@ impl TileMapRenderer {
 
                 nodes.sort_by_key(|node| std::cmp::Reverse(node.1));
 
+                let raised = raised_terrain(tile_map);
                 for (cell, path_kind) in nodes {
-                    let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+                    let points = ground_diamond(raised, cell, transform);
                     if Self::is_fully_offscreen(&viewport, &points) {
                         continue; // Cull if fully offscreen.
                     }
@@ -496,7 +663,7 @@ impl TileMapRenderer {
             if byte == 0 && problem.is_none() {
                 continue;
             }
-            let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+            let points = ground_diamond(Some(map), cell, transform);
             if Self::is_fully_offscreen(&viewport, &points) {
                 continue;
             }
@@ -510,17 +677,13 @@ impl TileMapRenderer {
             if let Shape::Ramp(dir, _) = shape {
                 // From the middle of the downhill edge to the middle of the uphill one.
                 let (dx, dy) = dir.offset();
-                let centre = coords::iso_to_screen_point_f32(
-                    coords::cell_to_iso_f32(coords::CellF32(Vec2::new(cell.x as f32, cell.y as f32))),
-                    transform,
-                );
-                let towards = coords::iso_to_screen_point_f32(
-                    coords::cell_to_iso_f32(coords::CellF32(Vec2::new(
-                        cell.x as f32 + dx as f32 * 0.4,
-                        cell.y as f32 + dy as f32 * 0.4,
-                    ))),
-                    transform,
-                );
+                let (x, y) = (cell.x as f32, cell.y as f32);
+                let at = |fx: f32, fy: f32| {
+                    let height = map.surface_height(coords::CellF32(Vec2::new(x + fx, y + fy)));
+                    ground_point(x + fx, y + fy, height, transform)
+                };
+                let centre = at(0.0, 0.0);
+                let towards = at(dx as f32 * 0.4, dy as f32 * 0.4);
                 let tail = centre - (towards - centre);
                 render_sys.draw_line_with_thickness(tail, towards, RAMP_ARROW_COLOR, line_thickness);
                 let back = (centre - towards) * 0.45;
@@ -560,11 +723,13 @@ impl TileMapRenderer {
         tile: &Tile,
         tile_map: &TileMap,
         flags: TileMapRenderFlags,
+        lift: f32, // How far up it's drawn, in screen px: the height of the ground it stands on.
     ) {
         debug_assert!(tile.is_valid());
         debug_assert!(!tile.is(TileKind::Blocker));
 
-        let tile_screen_rect = tile.screen_rect(transform, true);
+        let up = Vec2::new(0.0, -lift);
+        let tile_screen_rect = tile.screen_rect(transform, true).translated(up);
 
         if !tile.has_flags(TileFlags::Hidden)
             && let Some(tile_sprite) = tile.anim_frame_tex_info()
@@ -588,7 +753,12 @@ impl TileMapRenderer {
             if let Some(stage) = building::construction_stage_from_tile_flags(tile.flags()) {
                 if let Some((rect, scaffold)) = construction_overlay(tile, &SCAFFOLD_TILES, usize::from(stage), transform) {
                     // Construction site: the scaffold for its footprint and stage, instead of the building.
-                    render_sys.draw_textured_colored_rect(rect, &scaffold.coords, scaffold.texture, highlight_color);
+                    render_sys.draw_textured_colored_rect(
+                        rect.translated(up),
+                        &scaffold.coords,
+                        scaffold.texture,
+                        highlight_color,
+                    );
                 } else {
                     // No scaffold art for this size: a faint outline of the whole building, and
                     // the part built so far rising from the ground through it.
@@ -612,6 +782,7 @@ impl TileMapRenderer {
                     highlight_color,
                     &FIRE_TILE,
                     FIRE_FRAME_SECS,
+                    up,
                 );
             } else if tile.has_flags(TileFlags::Diseased) {
                 // A sick house: a sickly tint, with a yellow cloth and incense smoke over each of its cells.
@@ -624,12 +795,18 @@ impl TileMapRenderer {
                     highlight_color,
                     &SICKNESS_TILE,
                     SICKNESS_FRAME_SECS,
+                    up,
                 );
             } else if tile.has_flags(TileFlags::Renovating) {
                 // A house being renovated before an upgrade: lightly tinted, with scaffolding over it.
                 render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * RENOVATION_COLOR);
                 if let Some((rect, overlay)) = construction_overlay(tile, &RENOVATION_TILES, 0, transform) {
-                    render_sys.draw_textured_colored_rect(rect, &overlay.coords, overlay.texture, highlight_color);
+                    render_sys.draw_textured_colored_rect(
+                        rect.translated(up),
+                        &overlay.coords,
+                        overlay.texture,
+                        highlight_color,
+                    );
                 }
             } else if tile.has_flags(TileFlags::Flooded) && tile.is(TileKind::Terrain) {
                 // A cell under the river's flood (crate::floods): silty water in place of its land or
@@ -637,7 +814,7 @@ impl TileMapRenderer {
                 // cells in front cover its sides.
                 for (rect, sprite, overlay_color) in flood_overlays(tile, transform) {
                     render_sys.draw_textured_colored_rect(
-                        rect,
+                        rect.translated(up),
                         &sprite.coords,
                         sprite.texture,
                         overlay_color * highlight_color,
@@ -649,7 +826,7 @@ impl TileMapRenderer {
                 render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * DRY_CANAL_COLOR);
                 if let Some((rect, dirt)) = terrain_sprite(tile, LAND_CATEGORY, SILT_TILE, transform) {
                     render_sys.draw_textured_colored_rect(
-                        rect,
+                        rect.translated(up),
                         &dirt.coords,
                         dirt.texture,
                         DRY_CANAL_WASH * highlight_color,
@@ -659,7 +836,7 @@ impl TileMapRenderer {
                 && let Some((rect, festive)) = festive_overlay(tile, transform)
             {
                 // A festival square during a festival: dressed for it, in its place.
-                render_sys.draw_textured_colored_rect(rect, &festive.coords, festive.texture, color);
+                render_sys.draw_textured_colored_rect(rect.translated(up), &festive.coords, festive.texture, color);
             } else {
                 // Standard render:
                 render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
@@ -668,7 +845,7 @@ impl TileMapRenderer {
 
             // Road placement overlay:
             if tile.has_flags(road::ROAD_PLACEMENT_FLAGS) {
-                Self::draw_road_placement_overlay(render_sys, transform, tile, tile_map);
+                Self::draw_road_placement_overlay(render_sys, transform, tile, tile_map, up);
             }
         }
 
@@ -680,6 +857,7 @@ impl TileMapRenderer {
         transform: WorldToScreenTransform,
         tile: &Tile,
         tile_map: &TileMap,
+        up: Vec2,
     ) {
         let cell = tile.base_cell();
 
@@ -703,7 +881,8 @@ impl TileMapRenderer {
             let texture = tile_sprite.texture;
 
             let iso_position = IsoPointF32::from_integer_iso(coords::cell_to_iso(cell));
-            let tile_screen_rect = coords::iso_to_screen_rect_f32(iso_position, tile_def.draw_size, transform);
+            let tile_screen_rect =
+                coords::iso_to_screen_rect_f32(iso_position, tile_def.draw_size, transform).translated(up);
 
             let mut color = tile_def.color;
             if tile.has_flags(TileFlags::Invalidated) {
@@ -755,24 +934,47 @@ struct TileDrawListEntry {
     // Simulates a pseudo depth value so we can render units and buildings correctly.
     // May be overridden by TileDepthSortOverride.
     depth_sort_key: f32,
+
+    // Which part of a raised cell a terrain entry draws, or Object for anything else: ties on the
+    // key draw a row's courses, then its tops, then its rims, then what stands there. Cells in a row
+    // don't overlap, so each part's sprites stay together, a texture switch a part a row rather than
+    // two a raised cell (the courses and rims are in the objects atlas, the tops in the terrain's).
+    part: DrawPart,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum DrawPart {
+    Courses,
+    Top,
+    Rims,
+    Object,
 }
 
 impl TileDrawListEntry {
     #[inline]
-    fn new(tile: &Tile, transform: WorldToScreenTransform) -> Self {
+    fn new(tile: &Tile, transform: WorldToScreenTransform, raised_terrain: bool) -> Self {
         let depth_sort_key = {
             // User defined override?
             match tile.depth_sort_override() {
                 TileDepthSortOverride::None => {
+                    // On raised ground a walker sorts by the cell it's nearest, not the one it
+                    // started its step from: otherwise the raised ground it steps onto, drawn after
+                    // it, would cover its feet (docs/plans/terrain-height.md, §3).
+                    let cell = if raised_terrain && tile.is(TileKind::Unit) {
+                        let at = unit_position(tile);
+                        coords::Cell::new(at.0.x.round() as i32, at.0.y.round() as i32)
+                    } else {
+                        tile.base_cell()
+                    };
                     // Compute from tile screen space diamond.
-                    coords::cell_to_screen_diamond_center_y(tile.base_cell(), tile.logical_size(), transform)
+                    coords::cell_to_screen_diamond_center_y(cell, tile.logical_size(), transform)
                 }
                 TileDepthSortOverride::Topmost => TILE_DEPTH_SORT_KEY_TOPMOST,
                 TileDepthSortOverride::Bottommost => TILE_DEPTH_SORT_KEY_BOTTOMMOST,
             }
         };
 
-        Self { tile: RawPtr::from_ref(tile), depth_sort_key }
+        Self { tile: RawPtr::from_ref(tile), depth_sort_key, part: DrawPart::Object }
     }
 
     #[inline]
@@ -783,6 +985,8 @@ impl TileDrawListEntry {
         a.depth_sort_key
             .partial_cmp(&b.depth_sort_key)
             .unwrap()
+            // Raised ground's parts, in order, before what stands on it.
+            .then_with(|| a.part.cmp(&b.part))
             .then_with(|| {
                 // In case of tie, draw units/props in front of buildings.
                 let a_prio = a_tile.is(TileKind::Unit | TileKind::Vegetation | TileKind::Rocks);
@@ -800,6 +1004,141 @@ impl TileDrawListEntry {
         // is always cleared at the end of the drawing pass.
         &self.tile
     }
+}
+
+// ----------------------------------------------
+// Terrain height
+// ----------------------------------------------
+
+// The map's heights when it has raised ground, else None: a flat map draws exactly as before.
+fn raised_terrain(tile_map: &TileMap) -> Option<&ElevationMap> {
+    let map = tile_map.elevation();
+    (!map.is_flat()).then_some(map)
+}
+
+// A point in continuous cell space (a cell's centre at whole numbers) at a height in levels, on
+// screen: where the ground there is drawn.
+fn ground_point(x: f32, y: f32, height: f32, transform: WorldToScreenTransform) -> Vec2 {
+    let mut iso = coords::cell_to_iso_f32(coords::CellF32(Vec2::new(x, y)));
+    iso.0.x += HALF_BASE_TILE_WIDTH_F32;
+    iso.0.y += HALF_BASE_TILE_HEIGHT_F32 - height * LEVEL_STEP_PX;
+    transform.apply_to_iso_point(iso)
+}
+
+// A cell's ground diamond on screen, [top, right, bottom, left], at its height (a ramp's sloped):
+// the grid's, the overlays' and the search graph view's.
+fn ground_diamond(raised: Option<&ElevationMap>, cell: coords::Cell, transform: WorldToScreenTransform) -> [Vec2; 4] {
+    let Some(map) = raised else {
+        return coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+    };
+    let (x, y) = (cell.x as f32, cell.y as f32);
+    let corner = |dx: f32, dy: f32| ground_point(x + dx, y + dy, map.corner_height(cell, dx, dy), transform);
+    [corner(0.5, 0.5), corner(0.5, -0.5), corner(-0.5, -0.5), corner(-0.5, 0.5)]
+}
+
+// The two corners of a cell's side, as offsets from its centre: north is +x, east -y, south -x and
+// west +y (tile::elevation).
+fn side_corners(side: Dir) -> [(f32, f32); 2] {
+    match side {
+        Dir::N => [(0.5, -0.5), (0.5, 0.5)],
+        Dir::E => [(-0.5, -0.5), (0.5, -0.5)],
+        Dir::S => [(-0.5, -0.5), (-0.5, 0.5)],
+        Dir::W => [(-0.5, 0.5), (0.5, 0.5)],
+    }
+}
+
+// The neighbour's ground along `cell`'s `side`, at the two corners they share: past the map's
+// edge, the ground at 0.
+fn ground_along(map: &ElevationMap, cell: coords::Cell, side: Dir) -> [f32; 2] {
+    let neighbour = side.neighbour(cell);
+    if !map.is_cell_within_bounds(neighbour) {
+        return [0.0, 0.0];
+    }
+    side_corners(side.opposite()).map(|(dx, dy)| map.corner_height(neighbour, dx, dy))
+}
+
+// The lowest ground beside `side`, in whole levels: where a cliff on that side starts.
+fn lowest_ground_along(map: &ElevationMap, cell: coords::Cell, side: Dir) -> u8 {
+    let [a, b] = ground_along(map, cell, side);
+    a.min(b).floor().max(0.0) as u8
+}
+
+// Whether a raised cell has a cliff course on either front edge.
+fn has_courses(map: &ElevationMap, cell: coords::Cell) -> bool {
+    let level = map.level(cell);
+    FaceEdge::ALL.into_iter().any(|edge| lowest_ground_along(map, cell, edge.side()) < level)
+}
+
+// Whether a flat raised cell has a rim on any side.
+fn has_rims(map: &ElevationMap, cell: coords::Cell) -> bool {
+    let (level, shape) = map.get(cell);
+    shape == Shape::Flat && Dir::ALL.into_iter().any(|side| highest_ground_along(map, cell, side) < f32::from(level))
+}
+
+// The highest ground beside `side`: a raised top above it has a rim on that side.
+fn highest_ground_along(map: &ElevationMap, cell: coords::Cell, side: Dir) -> f32 {
+    let [a, b] = ground_along(map, cell, side);
+    a.max(b)
+}
+
+// Whether a level-0 cell's ground is covered whole by the top of a raised flat cell in front of it:
+// a cell at level `k` draws its top over the cell `k` steps behind it along the screen's vertical.
+fn is_ground_hidden(map: &ElevationMap, cell: coords::Cell) -> bool {
+    (1..=map.max_height()).any(|k| {
+        let front = coords::Cell::new(cell.x - i32::from(k), cell.y - i32::from(k));
+        map.get(front) == (k, Shape::Flat)
+    })
+}
+
+// Where a walker stands in continuous cell space (its cell's centre at whole numbers), from the
+// position its navigation set (tile::calc_unit_iso_coords, blended between cells).
+fn unit_position(tile: &Tile) -> coords::CellF32 {
+    let draw_size = tile.draw_size();
+    let mut iso = tile.iso_coords_f32();
+    iso.0.x -= (HALF_BASE_TILE_WIDTH_I32 - (draw_size.width / 2)) as f32;
+    iso.0.y += (draw_size.height - HALF_BASE_TILE_HEIGHT_I32) as f32;
+    coords::iso_to_cell_f32(iso)
+}
+
+// How far up an object is drawn, in logical px: a walker at the ground's height where it stands (so
+// it climbs a ramp smoothly), anything else at its base cell's ground.
+fn object_lift_px(map: &ElevationMap, tile: &Tile) -> f32 {
+    if tile.is(TileKind::Unit) {
+        map.surface_height(unit_position(tile)) * LEVEL_STEP_PX
+    } else {
+        map.centre_height(tile.base_cell()) * LEVEL_STEP_PX
+    }
+}
+
+// The tint a tile is drawn with while the cursor's selection marks it.
+fn highlight_tint(tile: &Tile) -> Color {
+    if tile.has_flags(TileFlags::Highlighted) {
+        HIGHLIGHT_TILE_COLOR
+    } else if tile.has_flags(TileFlags::Invalidated) {
+        INVALID_TILE_COLOR
+    } else {
+        Color::white()
+    }
+}
+
+// A piece of raised terrain (tile::height_pieces) on `cell`, anchored as a 1 × 1 building and
+// lifted `levels` up.
+fn draw_piece(
+    render_sys: &mut RenderSystem,
+    transform: WorldToScreenTransform,
+    def: &'static TileDef,
+    variation: usize,
+    cell: coords::Cell,
+    levels: f32,
+    tint: Color,
+) {
+    let Some(sprite) = def.anim_set_by_index(variation, 0).and_then(|set| set.frames.first()) else {
+        return;
+    };
+    let iso = super::calc_object_iso_coords(TileKind::Building, cell, BASE_TILE_SIZE_I32, def.draw_size);
+    let rect = coords::iso_to_screen_rect_f32(iso, def.draw_size, transform)
+        .translated(Vec2::new(0.0, -levels * LEVEL_STEP_PX * transform.scaling));
+    render_sys.draw_textured_colored_rect(rect, &sprite.tex_info.coords, sprite.tex_info.texture, def.color * tint);
 }
 
 // ----------------------------------------------
@@ -958,6 +1297,7 @@ fn draw_cell_overlay(
     color: Color,
     overlay: &StrHashPair,
     default_frame_secs: f32,
+    up: Vec2,
 ) {
     let Some(def) =
         TileSets::get().try_find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_OVERLAYS_CATEGORY.hash, overlay.hash)
@@ -981,7 +1321,7 @@ fn draw_cell_overlay(
         let phase = (cell.x * 3 + cell.y * 5).rem_euclid(frames.len() as i32) as usize;
         let sprite = &frames[(tick + phase) % frames.len()];
         let iso = super::calc_object_iso_coords(TileKind::Building, cell, def.logical_size, def.draw_size);
-        flames.push((coords::iso_to_screen_rect_f32(iso, def.draw_size, transform), &sprite.tex_info));
+        flames.push((coords::iso_to_screen_rect_f32(iso, def.draw_size, transform).translated(up), &sprite.tex_info));
     }
 
     // Back to front: the pieces lower on screen stand in front.
@@ -1019,4 +1359,72 @@ fn construction_site_rect(screen_rect: Rect, tex_coords: &RectTexCoords, stage: 
     }
 
     (rect, coords)
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use common::Size;
+
+    use super::*;
+    use crate::tile::elevation::{Half, encode};
+
+    fn plateau() -> ElevationMap {
+        // Level 1 over x 2..=4, y 2..=4 on an 8 × 8 map; a ramp up its south side, climbing north.
+        let mut map = ElevationMap::new(Size::new(8, 8));
+        for y in 2..=4 {
+            for x in 2..=4 {
+                map.set_byte(coords::Cell::new(x, y), encode(1, Shape::Flat));
+            }
+        }
+        map.set_byte(coords::Cell::new(0, 3), encode(0, Shape::Ramp(Dir::N, Half::Low)));
+        map.set_byte(coords::Cell::new(1, 3), encode(0, Shape::Ramp(Dir::N, Half::High)));
+        map
+    }
+
+    #[test]
+    fn test_cliffs_and_rims_follow_the_ground_around() {
+        let map = plateau();
+        let c = coords::Cell::new;
+
+        // The plateau's front corner: courses on both front edges, rims on its south and east sides.
+        assert_eq!(lowest_ground_along(&map, c(2, 2), Dir::S), 0);
+        assert_eq!(lowest_ground_along(&map, c(2, 2), Dir::E), 0);
+        assert!(has_courses(&map, c(2, 2)) && has_rims(&map, c(2, 2)));
+        // Its middle: neither.
+        assert!(!has_courses(&map, c(3, 3)) && !has_rims(&map, c(3, 3)));
+        // Its back corner: no courses (its back edges face away), but rims on its north and west sides.
+        assert!(!has_courses(&map, c(4, 4)));
+        assert!(has_rims(&map, c(4, 4)));
+        assert!(highest_ground_along(&map, c(4, 4), Dir::N) < 1.0);
+        assert!(highest_ground_along(&map, c(4, 4), Dir::W) < 1.0);
+
+        // Where the ramp's head meets the plateau: the ground along that side is the ramp's top, a
+        // level up, so no course and no rim there.
+        assert_eq!(highest_ground_along(&map, c(2, 3), Dir::S), 1.0);
+        assert_eq!(lowest_ground_along(&map, c(2, 3), Dir::S), 1);
+        // Beside the ramp's flank (the plateau's south edge at y 2): the ground at 0.
+        assert_eq!(lowest_ground_along(&map, c(2, 2), Dir::S), 0);
+
+        // Past the map's edge the ground is at 0.
+        let mut edge = ElevationMap::new(Size::new(2, 2));
+        edge.set_byte(c(0, 0), encode(2, Shape::Flat));
+        assert_eq!(lowest_ground_along(&edge, c(0, 0), Dir::S), 0);
+    }
+
+    #[test]
+    fn test_ground_hidden_behind_a_raised_top() {
+        let map = plateau();
+        let c = coords::Cell::new;
+        // (2, 2) at level 1 draws its top over (3, 3)'s flat diamond: that's raised too. The cell
+        // behind the plateau's back corner, (5, 5), is covered by (4, 4)'s top.
+        assert!(is_ground_hidden(&map, c(5, 5)));
+        // Ground beside the plateau isn't.
+        assert!(!is_ground_hidden(&map, c(6, 1)));
+        // A ramp's top doesn't cover the cell behind it whole.
+        assert!(!is_ground_hidden(&map, c(1, 4)));
+    }
 }

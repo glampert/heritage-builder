@@ -620,8 +620,10 @@ impl GameLoop {
         // A dialog over the city (the world map, the Game menu) holds it still too.
         let is_any_ui_item_hovered = self.engine.ui_system().is_any_widget_hovered() || self.session.menus_cover_hud();
 
+        let max_height = self.session.tile_map().elevation().max_height();
         let camera = self.session.camera_mut();
         camera.set_viewport_size(viewport_size);
+        camera.set_raised_terrain(max_height);
         camera.update_zooming(delta_time_secs);
 
         // Map scrolling, if cursor not hovering a menu item.

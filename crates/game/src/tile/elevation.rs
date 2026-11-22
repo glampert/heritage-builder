@@ -705,6 +705,70 @@ pub fn brush_edits(
 }
 
 // ----------------------------------------------
+// Test terrain
+// ----------------------------------------------
+
+// Rolling hills over a map `size` cells wide, for tests and timing (automation's terrain.hills): a
+// byte a cell, row by row, from smooth value noise in whole levels, about `coverage` of the cells
+// raised, up to `max_level`, with features about `feature_cells` across. The same `seed` gives the
+// same hills.
+pub fn hills(size: Size, seed: u64, coverage: f32, max_level: u8, feature_cells: f32) -> Vec<u8> {
+    let count = (size.width.max(0) * size.height.max(0)) as usize;
+    if count == 0 {
+        return Vec::new();
+    }
+    let feature_cells = feature_cells.max(1.0);
+    let mut values = Vec::with_capacity(count);
+    for y in 0..size.height {
+        for x in 0..size.width {
+            values.push(value_noise(seed, x as f32 / feature_cells, y as f32 / feature_cells));
+        }
+    }
+    let mut sorted = values.clone();
+    sorted.sort_by(f32::total_cmp);
+    let cut = (((1.0 - coverage.clamp(0.0, 1.0)) * count as f32) as usize).min(count - 1);
+    let threshold = sorted[cut];
+    let top = sorted[count - 1].max(threshold + f32::EPSILON);
+    let max_level = max_level.clamp(1, MAX_LEVEL);
+    values
+        .into_iter()
+        .map(|value| {
+            if value <= threshold {
+                return 0;
+            }
+            let t = (value - threshold) / (top - threshold);
+            (1.0 + t * f32::from(max_level)).floor().min(f32::from(max_level)) as u8
+        })
+        .collect()
+}
+
+fn hash01(seed: u64, x: i32, y: i32) -> f32 {
+    let h = common::hash::splitmix64(seed ^ (((x as u32 as u64) << 32) | (y as u32 as u64)));
+    (h >> 40) as f32 / (1u64 << 24) as f32
+}
+
+fn value_noise(seed: u64, x: f32, y: f32) -> f32 {
+    let smooth = |t: f32| t * t * (3.0 - 2.0 * t);
+    let mut total = 0.0;
+    let mut amplitude = 1.0;
+    let mut frequency = 1.0;
+    for octave in 0..3u64 {
+        let (fx, fy) = (x * frequency, y * frequency);
+        let (x0, y0) = (fx.floor() as i32, fy.floor() as i32);
+        let (tx, ty) = (smooth(fx - x0 as f32), smooth(fy - y0 as f32));
+        let s = seed.wrapping_add(octave.wrapping_mul(0x9E37_79B9));
+        let a = hash01(s, x0, y0);
+        let b = hash01(s, x0 + 1, y0);
+        let c = hash01(s, x0, y0 + 1);
+        let d = hash01(s, x0 + 1, y0 + 1);
+        total += amplitude * (a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty);
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    total
+}
+
+// ----------------------------------------------
 // Unit Tests
 // ----------------------------------------------
 
@@ -897,6 +961,18 @@ mod tests {
         // Flatten makes a ramp's half flat again.
         map.set_byte(centre, encode(1, ramp(Dir::E, Half::Low)));
         assert_eq!(brush_edits(&map, HeightTool::Flatten, centre, 1, None), vec![(centre, encode(1, Shape::Flat))]);
+    }
+
+    #[test]
+    fn test_hills() {
+        let size = Size::new(40, 30);
+        let bytes = hills(size, 7, 0.3, 3, 8.0);
+        assert_eq!(bytes.len(), 1200);
+        let raised = bytes.iter().filter(|&&byte| byte != 0).count();
+        assert!((300..=420).contains(&raised), "{raised} raised");
+        assert!(bytes.iter().all(|&byte| byte <= 3));
+        assert_eq!(hills(size, 7, 0.3, 3, 8.0), bytes);
+        assert_ne!(hills(size, 8, 0.3, 3, 8.0), bytes);
     }
 
     #[test]

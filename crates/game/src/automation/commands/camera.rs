@@ -59,7 +59,9 @@ fn cmd_teleport(context: &mut CommandContext, params: Value) -> CommandResult {
     context.require_map()?;
     context.require_cell_in_map(params.cell.0)?;
 
-    context.session.camera_mut().teleport(params.cell.0);
+    // Onto the cell's ground, raised or not.
+    let height = context.session.tile_map().elevation().centre_height(params.cell.0);
+    context.session.camera_mut().teleport_raised(params.cell.0, height);
     done(camera_state(context))
 }
 

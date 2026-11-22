@@ -246,7 +246,8 @@ impl TileInspectorMenu {
                     }
                 };
                 if let Some(cell) = home {
-                    context.camera.teleport(cell);
+                    let height = context.tile_map.elevation().centre_height(cell);
+                    context.camera.teleport_raised(cell, height);
                 }
                 self.close(context);
             }
