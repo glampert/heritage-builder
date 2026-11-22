@@ -20,7 +20,7 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 | 2 | Fish and Clay | Coastal delta | 3–6 | M | Fishing, clay and pottery, storage yard, taxes and treasury, building material costs |
 | 3 | The Village of Spirits | Karst valley | 6–9 | M | Shrines and temples, communal hall, health, fire and collapse, festivals, Culture rating |
 | 4 | Taming the Cinnabar River | Delta lowland | 9–15 | M | Seasons, the flood cycle, dykes and sluices, irrigation, patron favour, disease |
-| 5 | The Mountain Market | Highland pass | 15–20 | M | Timber and mining, trade post, the world map, trade routes, importing materials, court requests, the Mandate rating |
+| 5 | The Mountain Market | Highland pass | 15–20 | M | Timber and mining, the world map, trade routes and caravans, importing materials, court requests, the Mandate rating |
 | 6 | The Southern Shore ⇄ | The port of Hội Thủy, or the island harbour of Vân Cảng | 20–24 | M + S | Docks and sea trade, the silk chain, elite housing, first defences: palisade, watchtower, garrison |
 | 7 | The Scholar's Gate ⇄ | An Lạc or Thạch Lâm prefecture | 24–28 | H | Academy and examinations, scholar-officials, monuments and guilds |
 | 8 | The Western Marches ⇄ | A mountain pass or a river crossing | 28–32 | S + M | Walls, gatehouses, towers, fortress, weapons, the levy choice |
@@ -84,7 +84,7 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 - **Setting:** a highland pass linking the delta and the hill clans.
 - **Teaches:**
   - lumberyards and mines;
-  - the trade post and the world map;
+  - the world map, and the caravans that trade at the storage yards (there's no trade post);
   - opening a route and setting buy and sell limits;
   - importing construction materials: a caravan brings timber or bricks to the storage yards;
   - court requests;

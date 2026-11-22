@@ -93,7 +93,7 @@ Status codes: **P** = in the prototype today, **P+** = in the prototype but to b
 | 5.9 | City risks | N | Fire, collapse, disease, crime and unrest, each countered by a service walker |
 | 5.10 | Seasons and environment | N | Wet and dry seasons, floods, droughts, storms, crop cycles |
 | 5.11 | Faith and festivals | N | Patron spirits or deities per realm, favour, blessings and misfortunes, festivals |
-| 5.12 | Trade | N | World map, trade routes by river, sea and land, trade posts and docks, buying and selling, importing construction materials |
+| 5.12 | Trade | N | World map, trade routes by river, sea and land, caravans and docks, buying and selling, importing construction materials |
 | 5.13 | Realm layers | N | Signature systems, buildings, goods and art per realm (section 6) |
 | 5.14 | Diplomacy and requests | N | Court and foreign requests, gifts, relations, tribute |
 | 5.15 | Heritage monuments | N | Large projects built in stages from materials and specialist workers |
@@ -109,7 +109,7 @@ Basic buildings cost only gold. Larger buildings also cost construction material
 | Tier | Cost | Buildings (examples) |
 |---|---|---|
 | **Basic** | Gold only | Roads, housing plots, wells, farms, fishing wharf, lumberyard, clay pit, mine, brick maker, pottery kiln, granary, storage yard, market, shrine, gardens and statues |
-| **Civic** | Gold + common materials (wood, bricks, roof tiles) | Temples, tax office, apothecary, police, theatre, academy, hospital, trade post, dock, larger workshops, elite housing plots, palisade, watchtower, garrison |
+| **Civic** | Gold + common materials (wood, bricks, roof tiles) | Temples, tax office, apothecary, police, theatre, academy, hospital, dock, larger workshops, elite housing plots, palisade, watchtower, garrison |
 | **Grand** | Gold + stone or the realm's premium material (sandstone, laterite, fired brick in quantity) + metal | Governor's palace, citadel, fortress, stone or brick walls and gatehouses, towers, the largest temples |
 | **Monument** | Materials delivered over time, plus specialist workers | See 5.15 |
 
@@ -189,10 +189,10 @@ Each building shows its risk in its info panel and on a risk overlay.
 ### 5.12 Trade
 
 - The **world map** shows the player's earlier cities, the other realms and the non-playable powers.
-- The player pays to **open a route**. Land routes need a trade post, river and sea routes need a dock.
-- For each good and each partner, the player sets **buy and sell limits**. Caravans, river boats and sea junks are walkers that travel the map to the trade building.
+- The player pays to **open a route**. A land route needs nothing more; river and sea routes need a **dock**.
+- For each good and each partner, the player sets **buy and sell limits**. **Caravans** walk in from the map's edge and trade at the storage yards and granaries themselves, store by store, as in Pharaoh: there is no trade post. **River boats and sea junks** sail in to a dock and moor while its dockers carry their goods to the stores and the city's exports back to them.
 - **Imports**, including construction materials, always arrive by delivery. A caravan or ship brings the goods to the city's storage yards; there is never an instant purchase. When a city lacks a material, it opens a route and waits for the delivery.
-- Prices move with supply and demand, and with events such as a war that closes a route or a festival that raises demand.
+- Prices move with supply and demand (selling a good to a partner lowers what it pays, buying raises what it asks, and both drift back), with relations, and with events such as a war that closes a route or a festival that raises demand.
 - Trade income feeds Prosperity and is a goal in several missions.
 
 ### 5.14 Diplomacy and requests
@@ -271,7 +271,7 @@ Each mission draws its goals from three families:
 2. **Heritage:** finish a monument, or certain stages of it.
 3. **Survival:** survive N attack waves, or hold out until a given year, without losing the palace or citadel.
 
-Many missions mix families. Planned goal types (the first three exist today):
+Many missions mix families. Planned goal types (`Population`, `Employment`, `Treasury`, `TradeIncome` and `RequestsFulfilled` exist today, and so do `FestivalsHeld` and the code's forms of `Stockpile` and `SeasonsSurvived`, `Resource` and `FloodsSurvived`):
 
 | Goal | Example |
 |---|---|
@@ -282,7 +282,7 @@ Many missions mix families. Planned goal types (the first three exist today):
 | `HousesAtLevel { level, count }` | 30 houses at level 4 or above |
 | `TradeIncome { per_year }` | 2,000 gold a year from exports |
 | `Stockpile { good, amount }` | 400 bricks in storage |
-| `RequestsFulfilled { count }` | 5 court requests met |
+| `RequestsFulfilled { min }` | 5 court requests met |
 | `SeasonsSurvived { kind, count }` | 3 floods without a breached dyke |
 | `MonumentComplete { id, stage }` | Suryagiri, every stage |
 | `SurviveAttacks { waves }` | 4 waves repelled |

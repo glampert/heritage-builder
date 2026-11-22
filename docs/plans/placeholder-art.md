@@ -126,7 +126,7 @@ crates/tools/blender-tile-generator/
 | `house(level, size, style)` | storeys, roof type (thatch, tile, tiered), stilts, veranda, lanterns | 6 common levels, elite estates, and Kambara stilt houses later |
 | `hall(size, roof_tiers, columns)` | open sides, plinth height | communal hall, tax office, temple, academy, market hall |
 | `workshop(size, kiln, chimney, yard_props)` | kiln or furnace, stacks of goods | pottery kiln, brick maker, roof-tile kiln, weapons workshop, distillery |
-| `yard(size, fence, props)` | crates, sacks, jars, timber stacks | storage yard, granary (with silos), trade post, lumberyard |
+| `yard(size, fence, props)` | crates, sacks, jars, timber stacks | storage yard, granary (with silos), lumberyard |
 | `field(size, crop, water)` | crop rows, paddy water, bunds | rice paddy, mulberry field, vegetable plots |
 | `well(kind)`, `shrine(kind)`, `pond`, `statue`, `garden(size)` | — | small services and decoration |
 | `linear(kind, mask)` | 4-bit junction mask, like roads | dykes, palisades, walls (later), canals |
@@ -274,7 +274,7 @@ Notes (2026-11-05):
 - [ ] `buildings_daiLong.json` for the buildings that Campaign I, missions 1–5 need and that have no hand-made art yet. The roadmap's M5–M10 list them:
   - roof-tile kiln, communal hall, fire watch, builders' guild, festival square (the kiln, the fire watch and the builders' guild done);
   - dyke, with junction variations, and sluice gate;
-  - trade post, mulberry field, rice paddy (if it becomes a terrain-like building), common house level 5;
+  - mulberry field, rice paddy (if it becomes a terrain-like building), common house level 5;
   - statue and pond decorations.
 - [x] Overlays: `scaffold` for 1×1 to 5×5 in 3 stages, `renovation` for each house size. Done 2026-11-06, with 4 stages to match the engine; see the notes in [construction.md](construction.md) §6.
 - [x] `rubble` (with M6): done 2026-11-09 as 16 1×1 pieces picked by neighbour mask, which build piles of any size, instead of one sprite per footprint size ([city-risks.md](city-risks.md) §2). Also `fire_1x1`, the burning building overlay, and the fire watch and builders' guild buildings (`catalog/risks.json`, `buildings_daiLong.json`).

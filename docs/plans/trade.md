@@ -1,6 +1,6 @@
 # Trade and court requests
 
-**Status (2026-11-22): Phases 0 to 4 done (the data and state, save v12; land routes, the trade limits dialog and caravans; docks, trade ships and their dockers, save v13; prices; court requests and the goals, save v14); Phase 5, the docs, next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
+**Status (2026-11-22): done. Phases 0 to 5: the data and state, save v12; land routes, the trade limits dialog and caravans; docks, trade ships and their dockers, save v13; prices; court requests and the goals, save v14; the docs.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
 - land, river and sea routes the player opens to partner cities, and the buy and sell limits they set per good and per partner;
 - caravans that walk in from the map's edge and trade at the storage yards and granaries themselves, store by store, as in Pharaoh: there's no trade post;
 - docks, and trade ships that sail in from the map's edge, moor at a dock and wait while its dockers carry their goods to the stores and the city's exports back to them;
@@ -8,7 +8,7 @@
 - prices that move with supply and demand;
 - court requests: "deliver N goods within M months", met or failed.
 
-Mission I-5, The Mountain Market, teaches "the trade post and the world map; opening a route and setting buy and sell limits; importing construction materials: a caravan brings timber or bricks to the storage yards; court requests". Its goals are "trade income 1,000 a year; fulfil 3 court requests; Mandate 30" ([campaigns.md](../design/campaigns.md#5-the-mountain-market)). The Mandate is M9's. With no trade post, I-5 teaches the world map and caravans at the storage yards; M13 rewords its line. Gifts, relations that move and tribute are Phase 2's (roadmap, Phase 2 outline); docks and ships, which that outline also held, come into M10 at the user's request (2026-11-21).
+Mission I-5, The Mountain Market, teaches "the trade post and the world map; opening a route and setting buy and sell limits; importing construction materials: a caravan brings timber or bricks to the storage yards; court requests". Its goals are "trade income 1,000 a year; fulfil 3 court requests; Mandate 30" ([campaigns.md](../design/campaigns.md#5-the-mountain-market)). The Mandate is M9's. With no trade post, I-5 teaches the world map and caravans at the storage yards; campaigns.md's line says so (Phase 5), and M13 writes the mission. Gifts, relations that move and tribute are Phase 2's (roadmap, Phase 2 outline); docks and ships, which that outline also held, come into M10 at the user's request (2026-11-21).
 
 It was researched against `28a11acc` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
@@ -566,10 +566,19 @@ The Finances page gains the three lines.
 
 ### Phase 5: Documentation (small)
 
-- [ ] AGENTS.md: a Trade entry under Runtime architecture, `trade.jsonl` in the scenario list and `trade` in the test list.
-- [ ] The roadmap: the M10 and M11 rows and the save-version log.
-- [ ] The GDD: 5.12 without the trade post (land routes need nothing; river and sea routes need a dock) and 5.1.2's Civic list; campaigns.md's I-5 line.
-- [ ] known-issues: what's left.
+- [x] AGENTS.md: a Trade entry under Runtime architecture, `trade.jsonl` in the scenario list and `trade` in the test list.
+- [x] The roadmap: the M10 and M11 rows and the save-version log.
+- [x] The GDD: 5.12 without the trade post (land routes need nothing; river and sea routes need a dock) and 5.1.2's Civic list; campaigns.md's I-5 line.
+- [x] known-issues: what's left.
+
+**Notes (2026-11-22):**
+- **AGENTS.md:** the Trade entry grew with each phase (data and state, caravans, docks and ships, prices, requests and the goals); it now says M10 is done, and its code names were checked against the source. `trade.jsonl` is in the scenario list, `trade` in the test list, and the plans and roadmap lines say M10 is done.
+- **The roadmap:** M10's row says done; the status line counts it. M9's goals bullet drops `TradeIncome` and `RequestsFulfilled`, which came with M10 (as `FloodsSurvived` and `FestivalsHeld` came with M7 and M8), and gains the Mandate's reading of the request log. M11's message log gains the request's event popup (the Kambara mockup's). The save-version log has v12 to v14 for M10, and the elevation map moved to v15.
+- **The GDD:** 5.12 says a land route needs nothing and a river or sea route a dock, that caravans trade at the storage yards and granaries store by store with no trade post, and that ships moor at a dock while its dockers carry their goods. Its prices line names supply and demand's drift and relations. 5.1.2's Civic list drops the trade post. 7's goal table names the goals the code has and spells `RequestsFulfilled { min }`.
+- **campaigns.md:** I-5's overview row and its Teaches list say the world map and caravans, with no trade post.
+- **placeholder-art.md:** its recipe and building lists drop the trade post.
+- **known-issues:** the trade entry says M10 is done and lists what's left (balance, the art in every realm, no mission yet, requests' effects not applied). The entries that waited for M10 are updated: Custom Game's trade partners, the world map's data and side panel, the debrief's goals, faith's trade events, and the City book's Requests card.
+- **Left as they are:** the mockup generator's trade post on its minimap mockup (`docs/design/mockups/generator/minimap.py`) and realm-ui.md's "M10's trade posts", which record what those were made against.
 
 ## Risks
 
