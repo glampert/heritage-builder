@@ -4,7 +4,8 @@ use game::{
     tile::{
         TileKind,
         TileMapLayerKind,
-        elevation::{self, Dir, HeightTool, Shape},
+        elevation::{self, Dir, Half, HeightTool, Shape},
+        height_pieces::{self, Course, FaceEdge, RampSurface},
     },
     undo_redo,
 };
@@ -43,6 +44,7 @@ fn main() {
         test_utils::test_fn!(test_height_brush_stroke_is_one_undo_step),
         test_utils::test_fn!(test_heights_reach_the_minimap),
         test_utils::test_fn!(test_heights_reset_with_the_map),
+        test_utils::test_fn!(test_height_pieces_exist),
     ]);
 }
 
@@ -428,9 +430,14 @@ fn test_heights_set_undo_and_redo() {
     assert_eq!(env.tile_map.elevation().raised_count(), 9);
     assert_eq!(env.tile_map.elevation().max_height(), 2);
 
-    // A ramp up its south-west side: from the ground at 0 to... level 2 is two levels up, so it's
-    // a problem until a step at 1 joins them.
-    set_heights(&mut env, &[Cell::new(2, 4)], 0, Shape::Ramp(Dir::N), true);
+    // A ramp up its south-west side, its foot at (1, 4) and its head at (2, 4), one undo step: it
+    // climbs one level, but the plateau is two up, so its head is a problem.
+    let ramp = [
+        (Cell::new(1, 4), elevation::encode(0, Shape::Ramp(Dir::N, Half::Low))),
+        (Cell::new(2, 4), elevation::encode(0, Shape::Ramp(Dir::N, Half::High))),
+    ];
+    TilePlacement::set_elevation(&env.new_sim_context(0.0), &ramp, true);
+    assert_eq!(env.tile_map.elevation().problem_at(Cell::new(1, 4)), None);
     assert_eq!(
         env.tile_map.elevation().problem_at(Cell::new(2, 4)),
         Some(elevation::ElevationProblem::RampUphill { dir: Dir::N })
@@ -438,6 +445,7 @@ fn test_heights_set_undo_and_redo() {
 
     // Undo takes the ramp back, then the plateau; redo puts the plateau back.
     undo_redo::undo(&env.new_sim_context(0.0));
+    assert_eq!(env.tile_map.elevation().shape(Cell::new(1, 4)), Shape::Flat);
     assert_eq!(env.tile_map.elevation().shape(Cell::new(2, 4)), Shape::Flat);
     assert_eq!(level_at(&env, 4, 4), 2);
     undo_redo::undo(&env.new_sim_context(0.0));
@@ -501,10 +509,10 @@ fn test_height_brush_stroke_is_one_undo_step() {
 fn test_heights_reach_the_minimap() {
     let mut env = grass_map();
     set_heights(&mut env, &[Cell::new(5, 5)], 3, Shape::Flat, false);
-    set_heights(&mut env, &[Cell::new(6, 5)], 1, Shape::Ramp(Dir::E), false);
+    set_heights(&mut env, &[Cell::new(6, 5)], 1, Shape::Ramp(Dir::E, Half::Low), false);
     let grid = env.tile_map.minimap().grid();
     assert_eq!(grid.height(Cell::new(5, 5)), 3.0);
-    assert_eq!(grid.height(Cell::new(6, 5)), 1.5);
+    assert_eq!(grid.height(Cell::new(6, 5)), 1.25);
     assert_eq!(grid.height(Cell::new(1, 1)), 0.0);
     assert!(!grid.bake_grid().heights.is_empty());
 
@@ -520,4 +528,45 @@ fn test_heights_reset_with_the_map() {
     let map = env.tile_map.elevation();
     assert!(map.is_flat());
     assert_eq!(map.size(), Size::new(20, 16));
+}
+
+// The renderer's pieces for raised terrain (tile::height_pieces): every one it can ask for is in the
+// objects tile set, a 1 × 1 sprite, and a cell always draws the same course.
+fn test_height_pieces_exist() {
+    for (tile, variation) in height_pieces::all_piece_names() {
+        assert!(height_pieces::has_piece(tile, &variation), "No height piece {tile}/{variation} in the tile sets");
+    }
+
+    let mut looks = std::collections::HashSet::new();
+    for edge in FaceEdge::ALL {
+        for course in [Course::Mid, Course::Top { dirt_lip: false }, Course::Top { dirt_lip: true }] {
+            for x in 0..6 {
+                let cell = Cell::new(x, 3);
+                let (def, variation) = height_pieces::cliff_course(edge, course, cell, 1).expect("a cliff course");
+                assert_eq!(def.logical_size, common::Size::new(64, 32), "{} isn't a 1 × 1 piece", def.name);
+                let again = height_pieces::cliff_course(edge, course, cell, 1)
+                    .map(|(def, variation)| (def.name.as_str(), variation));
+                assert_eq!(again, Some((def.name.as_str(), variation)));
+                looks.insert((def.name.as_str(), variation));
+            }
+        }
+    }
+    // Two looks each for the grass-lipped top and the mid course, one dirt-lipped top, both edges.
+    assert_eq!(looks.len(), 10, "{looks:?}");
+
+    for side in Dir::ALL {
+        assert!(height_pieces::rim(side).is_some());
+    }
+    for surface in RampSurface::ALL {
+        for dir in Dir::ALL {
+            for half in [Half::Low, Half::High] {
+                assert!(height_pieces::ramp(surface, dir, half).is_some(), "{surface:?} {dir:?} {half:?}");
+            }
+        }
+    }
+
+    assert_eq!(RampSurface::of_terrain(find_terrain_def("dirt_road")), RampSurface::DirtRoad);
+    assert_eq!(RampSurface::of_terrain(find_terrain_def("grass")), RampSurface::Grass);
+    assert!(height_pieces::has_dirt_lip(find_terrain_def("dirt")));
+    assert!(!height_pieces::has_dirt_lip(find_terrain_def("grass")));
 }

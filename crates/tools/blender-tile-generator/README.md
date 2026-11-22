@@ -80,9 +80,8 @@ Blender modules (they import `bpy`; use them only inside Blender):
   construction scaffolds and renovation overlays, `services.py` the fire watch
   and the builders' guild, `risks.py` the rubble pieces and the fire overlay,
   `trade.py` the dock and the trade ship (the first unit), `heights.py` the
-  terrain-height pieces (a prototype: one-level cliff courses and ramp wedges,
-  one level being √(2/3) units, 32 logical px; no catalog entries yet), `test.py`
-  the template.
+  terrain-height pieces (cliff courses, rims, half-ramps; §11), `test.py` the
+  template.
 - `hbgen/generate.py`: `generate()` (legacy camera) and `generate_engine()`.
 - `hb_tile_gen.py`: the one-tile command line, and the `exec` entry point.
 - `build.py`: the batch driver (§11), run by `tilegen.sh`.
@@ -327,6 +326,25 @@ frame's bottom, so each variation's `iso_offset` lifts the sprite by its height
 above the diamond (`y: -3` for a 35 px sprite); keep a terrain piece inside
 the diamond's outline, low enough that walkers on it still read, and with no
 ink on its cut edges (`B.outline_border = False`).
+
+**Height pieces** (`catalog/heights.json`, [terrain-height.md](../../../docs/plans/terrain-height.md) §5):
+what the renderer draws for raised terrain, in the objects tile set's `overlays`
+category, each anchored as a 1×1 building and lifted to its level. A level is 32
+logical px, √(2/3) units (`LEVEL` in `heights.py`). `cliff` builds one level of
+rock face on a cell's south (`left`) or east (`right`) edge: one open mesh swept
+along the edge (no end caps, so no ink at its ends), its ledges the same in every
+piece and its rock's noise sampled on two circles (`_wrapping_rock`, 4D noise), so
+it wraps every cell along the edge and every level up and courses join stacked and
+side by side; it reaches `OVERLAP` past the cell's ends, so neighbours overlap on
+solid pixels (the checks warn that it's wider than the frame: clipped there by
+design). `rim` is the inked lip along one side of a raised top. `ramp` is half a
+ramp (a ramp climbs a level over two cells, since one level in one cell is steeper
+than the camera and a ramp climbing towards it would face away): a wedge built in
+place (no object turn, so its top's UVs land each terrain-sprite corner on the
+cell's screen corner), its top the terrain's own sprite (`RAMP_SPRITES`, read from
+`assets/tiles/terrain/land/` and not hashed: re-render with `--force` after
+changing them), unlit and shaded by its facing (`SLOPE_SHADE`), so flat it would
+render as the sprite does. All are `"validate": {"ground": false}`.
 
 **Buildings on the shore** (`catalog/trade.json`): the dock stands on open water
 beside land (`"on_shore": true`), as the fishing wharf does, with a variation per

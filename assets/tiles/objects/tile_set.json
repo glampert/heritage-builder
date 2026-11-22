@@ -3395,6 +3395,649 @@
               ]
             }
           ]
+        },
+        {
+          "name": "cliff_left",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 53
+          },
+          "variations": [
+            {
+              "name": "top_a",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_left"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "top_b",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_left"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "top_dirt",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_left"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "mid_a",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_left"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "mid_b",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_left"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "cliff_right",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 53
+          },
+          "variations": [
+            {
+              "name": "top_a",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_right"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "top_b",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_right"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "top_dirt",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_right"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "mid_a",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_right"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "mid_b",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_right"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "cliff_rim",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 36
+          },
+          "variations": [
+            {
+              "name": "n",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_rim"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "e",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_rim"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "s",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_rim"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "w",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "cliff_rim"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "ramp_grass",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 67
+          },
+          "variations": [
+            {
+              "name": "n_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_grass"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "n_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_grass"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "e_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_grass"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "e_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_grass"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "s_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_grass"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "s_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_grass"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "w_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_grass"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "w_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_grass"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "ramp_dirt",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 67
+          },
+          "variations": [
+            {
+              "name": "n_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "n_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "e_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "e_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "s_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "s_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "w_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "w_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "ramp_dirt_road",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 67
+          },
+          "variations": [
+            {
+              "name": "n_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "n_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "e_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "e_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "s_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "s_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "w_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "w_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_dirt_road"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "ramp_paved_road",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 67
+          },
+          "variations": [
+            {
+              "name": "n_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_paved_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "n_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_paved_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "e_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_paved_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "e_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_paved_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "s_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_paved_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "s_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_paved_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "w_low",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_paved_road"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "w_high",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ramp_paved_road"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },

@@ -31,6 +31,7 @@ use crate::{
 };
 
 pub mod elevation;
+pub mod height_pieces;
 pub mod minimap;
 pub mod placement;
 pub mod rendering;

@@ -30,6 +30,7 @@ RECIPES = {
     "dock": trade.build_dock,
     "trade_ship": trade.build_trade_ship,
     "cliff": heights.build_cliff,
+    "rim": heights.build_rim,
     "ramp": heights.build_ramp,
 }
 

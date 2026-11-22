@@ -374,6 +374,314 @@
       "tile": "rice_field",
       "variation": "sown"
     },
+    "assets/tiles/objects/overlays/cliff_left/mid_a/cliff_left.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_left",
+      "hash": "3031ca74f95dc826",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_left",
+      "variation": "mid_a"
+    },
+    "assets/tiles/objects/overlays/cliff_left/mid_b/cliff_left.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_left",
+      "hash": "8b92d52f61a50d3c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_left",
+      "variation": "mid_b"
+    },
+    "assets/tiles/objects/overlays/cliff_left/top_a/cliff_left.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_left",
+      "hash": "515e27bf307b0153",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_left",
+      "variation": "top_a"
+    },
+    "assets/tiles/objects/overlays/cliff_left/top_b/cliff_left.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_left",
+      "hash": "fc0cb61a22f3d509",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_left",
+      "variation": "top_b"
+    },
+    "assets/tiles/objects/overlays/cliff_left/top_dirt/cliff_left.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_left",
+      "hash": "94304fabcac7b81c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_left",
+      "variation": "top_dirt"
+    },
+    "assets/tiles/objects/overlays/cliff_right/mid_a/cliff_right.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_right",
+      "hash": "a43381216174a9d7",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_right",
+      "variation": "mid_a"
+    },
+    "assets/tiles/objects/overlays/cliff_right/mid_b/cliff_right.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_right",
+      "hash": "d5827913c5cde2b5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_right",
+      "variation": "mid_b"
+    },
+    "assets/tiles/objects/overlays/cliff_right/top_a/cliff_right.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_right",
+      "hash": "c3b3ae748d314ae6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_right",
+      "variation": "top_a"
+    },
+    "assets/tiles/objects/overlays/cliff_right/top_b/cliff_right.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_right",
+      "hash": "e4adc225c771529a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_right",
+      "variation": "top_b"
+    },
+    "assets/tiles/objects/overlays/cliff_right/top_dirt/cliff_right.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 53,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_right",
+      "hash": "014031d08c3bf216",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        424
+      ],
+      "tile": "cliff_right",
+      "variation": "top_dirt"
+    },
+    "assets/tiles/objects/overlays/cliff_rim/e/cliff_rim.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 36,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_rim",
+      "hash": "55e4b23f2123479d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        288
+      ],
+      "tile": "cliff_rim",
+      "variation": "e"
+    },
+    "assets/tiles/objects/overlays/cliff_rim/n/cliff_rim.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 36,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_rim",
+      "hash": "3a65d9f1c3767904",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        288
+      ],
+      "tile": "cliff_rim",
+      "variation": "n"
+    },
+    "assets/tiles/objects/overlays/cliff_rim/s/cliff_rim.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 36,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_rim",
+      "hash": "7628815748c224b4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        288
+      ],
+      "tile": "cliff_rim",
+      "variation": "s"
+    },
+    "assets/tiles/objects/overlays/cliff_rim/w/cliff_rim.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 36,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "cliff_rim",
+      "hash": "1765bcbbdeda216b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        288
+      ],
+      "tile": "cliff_rim",
+      "variation": "w"
+    },
     "assets/tiles/objects/overlays/festival_square_festive/festival_square_festive.png": {
       "category": "overlays",
       "density": 8,
@@ -483,6 +791,710 @@
       ],
       "tile": "fire_1x1",
       "variation": ""
+    },
+    "assets/tiles/objects/overlays/ramp_dirt/e_high/ramp_dirt.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt",
+      "hash": "3795699aa86b557a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt",
+      "variation": "e_high"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt/e_low/ramp_dirt.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt",
+      "hash": "94592b59f370c352",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt",
+      "variation": "e_low"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt/n_high/ramp_dirt.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt",
+      "hash": "5f7d7950304593ef",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt",
+      "variation": "n_high"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt/n_low/ramp_dirt.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt",
+      "hash": "7c2ef9449b7e0e25",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt",
+      "variation": "n_low"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt/s_high/ramp_dirt.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt",
+      "hash": "c606fa7fe288875b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt",
+      "variation": "s_high"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt/s_low/ramp_dirt.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt",
+      "hash": "a9d3972c162c050f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt",
+      "variation": "s_low"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt/w_high/ramp_dirt.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt",
+      "hash": "b3ff07c8408d42fc",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt",
+      "variation": "w_high"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt/w_low/ramp_dirt.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt",
+      "hash": "ce45eb0ee67dff0c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt",
+      "variation": "w_low"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt_road/e_high/ramp_dirt_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt_road",
+      "hash": "b3044693ec6a11e3",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt_road",
+      "variation": "e_high"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt_road/e_low/ramp_dirt_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt_road",
+      "hash": "a1e7781a6721708f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt_road",
+      "variation": "e_low"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt_road/n_high/ramp_dirt_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt_road",
+      "hash": "89908f0bd6531b69",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt_road",
+      "variation": "n_high"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt_road/n_low/ramp_dirt_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt_road",
+      "hash": "7382e6c0c6fef9c2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt_road",
+      "variation": "n_low"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt_road/s_high/ramp_dirt_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt_road",
+      "hash": "7824037b25695633",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt_road",
+      "variation": "s_high"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt_road/s_low/ramp_dirt_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt_road",
+      "hash": "a5aeff3720a35465",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt_road",
+      "variation": "s_low"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt_road/w_high/ramp_dirt_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt_road",
+      "hash": "dbc1d1e2a27b8eb6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt_road",
+      "variation": "w_high"
+    },
+    "assets/tiles/objects/overlays/ramp_dirt_road/w_low/ramp_dirt_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_dirt_road",
+      "hash": "fdd4906785e3b322",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_dirt_road",
+      "variation": "w_low"
+    },
+    "assets/tiles/objects/overlays/ramp_grass/e_high/ramp_grass.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_grass",
+      "hash": "458a3d645a89ae50",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_grass",
+      "variation": "e_high"
+    },
+    "assets/tiles/objects/overlays/ramp_grass/e_low/ramp_grass.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_grass",
+      "hash": "113809d802a06aa9",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_grass",
+      "variation": "e_low"
+    },
+    "assets/tiles/objects/overlays/ramp_grass/n_high/ramp_grass.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_grass",
+      "hash": "1edf0c99ef4d6891",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_grass",
+      "variation": "n_high"
+    },
+    "assets/tiles/objects/overlays/ramp_grass/n_low/ramp_grass.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_grass",
+      "hash": "4522ffda06014beb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_grass",
+      "variation": "n_low"
+    },
+    "assets/tiles/objects/overlays/ramp_grass/s_high/ramp_grass.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_grass",
+      "hash": "0ff755a8391de833",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_grass",
+      "variation": "s_high"
+    },
+    "assets/tiles/objects/overlays/ramp_grass/s_low/ramp_grass.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_grass",
+      "hash": "d6c52b6d486fedeb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_grass",
+      "variation": "s_low"
+    },
+    "assets/tiles/objects/overlays/ramp_grass/w_high/ramp_grass.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_grass",
+      "hash": "494a2bb5d734c171",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_grass",
+      "variation": "w_high"
+    },
+    "assets/tiles/objects/overlays/ramp_grass/w_low/ramp_grass.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_grass",
+      "hash": "e06e75d98845d204",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_grass",
+      "variation": "w_low"
+    },
+    "assets/tiles/objects/overlays/ramp_paved_road/e_high/ramp_paved_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_paved_road",
+      "hash": "5bc801b2f86378d1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_paved_road",
+      "variation": "e_high"
+    },
+    "assets/tiles/objects/overlays/ramp_paved_road/e_low/ramp_paved_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_paved_road",
+      "hash": "af3a84ab0d8b826e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_paved_road",
+      "variation": "e_low"
+    },
+    "assets/tiles/objects/overlays/ramp_paved_road/n_high/ramp_paved_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_paved_road",
+      "hash": "9ec06cd1c7ee5759",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_paved_road",
+      "variation": "n_high"
+    },
+    "assets/tiles/objects/overlays/ramp_paved_road/n_low/ramp_paved_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_paved_road",
+      "hash": "40b23cba57a8fe35",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_paved_road",
+      "variation": "n_low"
+    },
+    "assets/tiles/objects/overlays/ramp_paved_road/s_high/ramp_paved_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_paved_road",
+      "hash": "2dc788abec85e36e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_paved_road",
+      "variation": "s_high"
+    },
+    "assets/tiles/objects/overlays/ramp_paved_road/s_low/ramp_paved_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_paved_road",
+      "hash": "3c5b29ca5284f62e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_paved_road",
+      "variation": "s_low"
+    },
+    "assets/tiles/objects/overlays/ramp_paved_road/w_high/ramp_paved_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_paved_road",
+      "hash": "f38b5074d310e8e0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_paved_road",
+      "variation": "w_high"
+    },
+    "assets/tiles/objects/overlays/ramp_paved_road/w_low/ramp_paved_road.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 67,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "ramp_paved_road",
+      "hash": "3eeed6fb5054614d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        536
+      ],
+      "tile": "ramp_paved_road",
+      "variation": "w_low"
     },
     "assets/tiles/objects/overlays/renovation_1x1/renovation_1x1.png": {
       "category": "overlays",

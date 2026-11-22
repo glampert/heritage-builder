@@ -507,7 +507,7 @@ impl TileMapRenderer {
                 render_sys.draw_colored_indexed_triangles(&points, &[0, 1, 2, 2, 3, 0], color);
             }
 
-            if let Shape::Ramp(dir) = shape {
+            if let Shape::Ramp(dir, _) = shape {
                 // From the middle of the downhill edge to the middle of the uphill one.
                 let (dx, dy) = dir.offset();
                 let centre = coords::iso_to_screen_point_f32(

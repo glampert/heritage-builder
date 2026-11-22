@@ -9,15 +9,19 @@
 {"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
 {"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/flat", "value": true}}
 
-# A plateau at level 1, and a ramp up its south side, climbing north.
+# A plateau at level 1, and a ramp up its south side, climbing north over two cells: its foot at
+# (6, 10), its head at (7, 10).
 {"method": "terrain.set_elevation", "params": {"from": [8, 8], "to": [12, 12], "level": 1}}
 {"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/raised_cells", "value": 25}}
-{"method": "terrain.set_elevation", "params": {"cell": [7, 10], "level": 0, "shape": "ramp_n"}}
+{"method": "terrain.set_elevation", "params": {"cell": [7, 10], "level": 0, "shape": "ramp_n_high"}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/problems/0/problem", "value": "ramp_downhill"}}
+{"method": "terrain.set_elevation", "params": {"cell": [6, 10], "level": 0, "shape": "ramp_n_low"}}
 {"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/problem_count", "value": 0}}
-{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/shape", "value": "ramp_n"}}
-{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/height", "value": 0.5}}
-# Turned the wrong way, it's a problem.
-{"method": "terrain.set_elevation", "params": {"cell": [7, 10], "level": 0, "shape": "ramp_s"}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/shape", "value": "ramp_n_high"}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/height", "value": 0.75}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [6, 10]}, "path": "/height", "value": 0.25}}
+# Its head turned the wrong way is a problem.
+{"method": "terrain.set_elevation", "params": {"cell": [7, 10], "level": 0, "shape": "ramp_s_high"}}
 {"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/problems/0/problem", "value": "ramp_uphill"}}
 {"method": "undo", "params": {}}
 {"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/problem_count", "value": 0}}
@@ -44,8 +48,8 @@
 {"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/flat", "value": true}}
 {"method": "session.load_save", "params": {"name": "scenario_elevation"}}
 {"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/max_height", "value": 2}}
-{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/raised_cells", "value": 26}}
-{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/shape", "value": "ramp_n"}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/raised_cells", "value": 27}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/shape", "value": "ramp_n_high"}}
 {"method": "session.delete_save", "params": {"name": "scenario_elevation"}}
 
 # The developer palette's Height tools: open the section, pick Raise, click a cell.

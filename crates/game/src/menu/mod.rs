@@ -690,8 +690,7 @@ impl TilePlacement {
         }
         let stroke = HEIGHT_STROKE.as_mut().as_mut().expect("a stroke was just started");
 
-        let cells = elevation::brush_cells(elevation_map, centre, brush.size);
-        let bytes = elevation::brush_edits(elevation_map, brush.tool, &cells, stroke.level);
+        let bytes = elevation::brush_edits(elevation_map, brush.tool, centre, brush.size, stroke.level);
         if bytes.is_empty() {
             return false;
         }

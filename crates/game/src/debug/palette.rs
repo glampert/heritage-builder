@@ -343,7 +343,7 @@ impl TilePaletteDevMenu {
             let centre =
                 context.tile_map.find_exact_cell_for_point(TileMapLayerKind::Terrain, context.cursor_screen_pos, transform);
             if centre.is_valid() {
-                for cell in elevation::brush_cells(context.tile_map.elevation(), centre, brush.size) {
+                for cell in elevation::brush_cells(context.tile_map.elevation(), brush.tool, centre, brush.size) {
                     let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
                     for i in 0..points.len() {
                         let (from, to) = (points[i], points[(i + 1) % points.len()]);

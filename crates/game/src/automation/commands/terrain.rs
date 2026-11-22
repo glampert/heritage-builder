@@ -33,7 +33,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                 name: "shape",
                 kind: "string",
                 required: false,
-                help: "flat (default), or ramp_n, ramp_e, ramp_s, ramp_w: a ramp climbing that way.",
+                help: "flat (default), or ramp_n_low, ramp_n_high, ... (n, e, s, w): the foot or head of a ramp climbing that way.",
             },
         ],
         run: cmd_set_elevation,
@@ -46,7 +46,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                 name: "tool",
                 kind: "string",
                 required: true,
-                help: "raise, lower, terrace, smooth, flatten, ramp_n, ramp_e, ramp_s or ramp_w.",
+                help: "raise, lower, terrace, smooth, flatten, or ramp_n, ramp_e, ramp_s, ramp_w (a two-cell ramp from the cell up that way).",
             },
             ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]: the brush's centre." },
             ParamDef { name: "size", kind: "integer", required: false, help: "The brush's width: 1 (default), 3 or 5." },
@@ -121,7 +121,7 @@ fn cmd_set_elevation(context: &mut CommandContext, params: Value) -> CommandResu
 
     let shape_name = params.shape.as_deref().unwrap_or("flat");
     let shape = Shape::parse(shape_name).ok_or_else(|| {
-        CommandError::invalid_params(format!("Unknown shape '{shape_name}': flat or ramp_n, ramp_e, ramp_s, ramp_w."))
+        CommandError::invalid_params(format!("Unknown shape '{shape_name}': flat, or ramp_<n|e|s|w>_<low|high>."))
     })?;
     if params.level > elevation::MAX_LEVEL {
         return Err(CommandError::invalid_params(format!("level must be from 0 to {}.", elevation::MAX_LEVEL)));

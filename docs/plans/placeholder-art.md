@@ -300,13 +300,14 @@ Notes (2026-11-06), the scaffold and renovation overlays:
 
 Done when: the new terrain types tile cleanly with the existing ones in the game.
 
-### Phase 5: Height pieces (small to medium; scheduled as terrain-height Stage 2)
+### Phase 5: Height pieces (small to medium; done as terrain-height Stage 2)
 
-The pieces the renderer draws for raised terrain ([terrain-height.md](terrain-height.md) §5): one level is 32 logical px, √(2/3) ≈ 0.8165 Blender units. A prototype recipe, `hbgen/recipes/heights.py` (`cliff`, `ramp`), rendered fast on 2026-11-22: its courses stack and join.
-- [ ] `cliff(edge, course)`: one-level courses for the left (south) and right (east) edges, `top` with the grass lip and `mid`, with variations, per terrain kind (grassy or bare rock; karst later).
-- [ ] `ramp(dir, kind)`: solid wedges carrying their flanks, for grass, dirt, dirt road and paved road, in 4 directions.
-- [ ] `rim(edge)`: the lip along a raised back edge.
-- [ ] The level height comes from the engine's constant; both read it from one shared value.
+The pieces the renderer draws for raised terrain ([terrain-height.md](terrain-height.md) §5): one level is 32 logical px, √(2/3) ≈ 0.8165 Blender units. `hbgen/recipes/heights.py` (`cliff`, `rim`, `ramp`), `catalog/heights.json`, 46 sprites in the objects tile set's `overlays` category.
+- [x] `cliff(edge, course, lip)`: one-level courses for the left (south) and right (east) edges, `top` with a grass or dirt lip and `mid`, two looks each; one open mesh a course, rock noise wrapping every cell along the edge and every level up, reaching a hair past the cell's ends so neighbours show no seam.
+- [x] `ramp(dir, half, kind)`: half-ramp wedges (a ramp climbs one level over two cells) with rock flanks, for grass, dirt, dirt road and paved road, in 4 directions; the top is the terrain's own sprite on the slope, unlit and shaded by its facing, so it matches the ground.
+- [x] `rim(side)`: the inked lip along each side of a raised top where the ground drops (all four sides, at the user's request).
+- [x] The level height comes from the engine's constant (`LEVEL_STEP_PX`), written into the recipe as √(2/3).
+- **Notes (2026-11-22):** ramps climbing towards the viewer had no visible top at one level a cell (39°, steeper than the camera's 30°), which made ramps two cells long (terrain-height §1). A mock-up composited from the sprites as the engine draws them showed courses joining along edges and at corners; the remaining notches along a cliff's lip are the hand-made terrain sprites' own edge.
 
 ### Phase 6: Walker experiment (medium)
 

@@ -1,6 +1,6 @@
 # Terrain height: analysis and plan
 
-**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stage 1 (the data, save v15) done; Stage 2, the pieces in Blender, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
+**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stage 1 (the data, save v15) and Stage 2 (the pieces, from Blender) done; Stage 3, rendering, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
 
 - It was first written on 2026-11-05 against `d0696fe`, before M3 to M10.
 - It was refreshed on 2026-11-22 against `d6801146` (M10 done, save version 14):
@@ -127,8 +127,9 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
 
 ### 1. The model
 
-- **Each cell** has a level `h` from 0 to 7, which fits in 3 bits, and a shape: `Flat` or `Ramp(dir)`, where `dir` is the uphill direction (N, E, S or W).
-- **A ramp at level `L`** joins its downhill neighbour at `L` to its uphill neighbour at `L + 1`. Its top face slopes by one level. A longer climb is a chain of ramps facing the same way.
+- **Each cell** has a level `h` from 0 to 7, which fits in 3 bits, and a shape: `Flat`, or half of a ramp, `Ramp(dir, half)`, where `dir` is the uphill direction (N, E, S or W) and `half` is `Low` or `High`.
+- **A ramp climbs one level over two cells** (decided in Stage 2, 2026-11-22): its low half, at level `L`, rises from `L` to `L + ½`, and its high half, the next cell uphill, also at level `L`, from `L + ½` to `L + 1`. So it joins ground at `L` below it to ground at `L + 1` above it. A longer climb is a chain of ramps facing the same way.
+  - Why two cells: at 32 px a level, one level in one cell climbs about 39°, steeper than the camera looks down (30°). A ramp climbing towards the viewer (south or east) then faces away from the camera and vanishes behind its own top edge, which Stage 2's first renders showed. Two cells a level climb about 22°, and every ramp shows; seen from the front, at a shallow angle. Zeus's slopes span several cells too (§11).
 - **Ramps are stored, not worked out** (Q12):
   - Zeus works its slopes out from the heights, with an ordered table of 152 neighbourhood patterns (§11).
   - We store them, because a ramp is a gameplay decision (a chokepoint, a road's way up) that the designer places.
@@ -146,7 +147,8 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
 - `TileMap` gains `elevation: ElevationMap { size, cells: Vec<u8> }`:
   - bits 0–2 hold the level;
   - bits 3–5 hold the shape (0 means flat; 1–4 mean a ramp facing N, E, S or W);
-  - bits 6–7 are reserved.
+  - bit 6 marks a ramp's high half (Stage 2: v15's format, unchanged, since no save had a ramp yet);
+  - bit 7 is reserved.
 
   It's saved as runs, as the floods' fertility is (`CityFloods`). An all-flat map is one run; a 128 × 128 map with hills is a few KB of JSON.
 - It sits alongside the layers rather than in each `Tile`, so `Tile`'s layout and size stay the same and edits are one-byte writes.
@@ -210,26 +212,26 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
 
 ### 5. Cliff and ramp art
 
-The pieces are sprites the renderer draws from the heights, **not** tiles in the map: they add nothing to saves and need no variation bookkeeping. They come from the Blender pipeline (`crates/tools/blender-tile-generator`, recipes in `hbgen/recipes/heights.py`; placeholder-art Phase 5), in the objects tile set's `overlays` category (or a category of their own the palettes skip), so they share the objects atlas with the buildings (§3, Cost).
+The pieces are sprites the renderer draws from the heights, **not** tiles in the map: they add nothing to saves and need no variation bookkeeping. They come from the Blender pipeline (`crates/tools/blender-tile-generator`, the recipes in `hbgen/recipes/heights.py`, the entries in `catalog/heights.json`; placeholder-art Phase 5), in the objects tile set's `overlays` category, so they share the objects atlas with the buildings (§3, Cost). Each is anchored as a 1 × 1 building on its cell and lifted to its level. The game finds them by name through `tile::height_pieces`.
 
-- **Cliff faces.** Only a cell's **two front edges** can show one, since the back edges face away from the camera. For each, `drop = h(cell) − h(front neighbour)` (a ramp neighbour counts its surface's height at the edge's corners; past the map's edge, 0). The renderer stacks one **one-level course** per level of the drop, from the lower ground up, each anchored as a 1 × 1 building at its level.
-  - `cliff_left` (the south edge, lower left on screen) and `cliff_right` (the east edge, lower right), each in a `top` course (with the grass lip) and a `mid` course, and two or three variations of each to break up repetition. A variation is picked by a hash of the cell and level (`common::hash::splitmix64`), never the RNG and never saved, as the risks' jitter is. Zeus keeps a random byte per cell for the same job.
-  - The strata repeat every level and every piece has the same ledges, so stacked courses and neighbours along an edge join; only small chips vary, away from the ends, and the cut ends get no ink (`B.outline_border = False`).
-  - The material follows the top cell's terrain: grassy rock or bare rock (Q5); karst limestone for Đại Long's highlands later.
-  - Pieces stay inside their cell's column (no rock reaching out over the lower ground), so the draw order of §3 holds for them.
-- **Ramps.** One **solid wedge** per direction and surface: `ramp` in `n`, `e`, `s`, `w` × grass, dirt, dirt road and paved road (4 × 4). The wedge carries its flanks, so a ramp beside lower ground shows its triangular side and one beside another ramp or higher ground is covered by it, drawn later: no separate side pieces. A ramp on a raised cell stands on the cliff courses of its drop below.
-- **Rims.** A thin lip along each raised back edge that stands above the ground behind it (found by the spike: without it a terrace's far side vanishes, and a walker or building behind it looks sunk into the grass). `rim_left` and `rim_right`, drawn after the cell's top.
-- **The terrain sprites' own edge** (about 4 px of side under each terrain sprite's diamond) shows along a cliff's top as a lip, which the prototype's mock-up showed reads well; the `top` course's grass lip sits under it.
-- **What Zeus does differently:** its cliff art is whole shaped tiles picked from the 8-neighbour pattern, some joined into 2 × 2 footprints (§11). That looks better at a cliff's corners and ends than stacked courses, at the price of a pattern table and art per pattern. Start with the courses; if the screenshots show seams that matter at corners and ends, add corner and end pieces picked from the neighbours, one small table at a time (Q15).
-- **Prototype (2026-11-22):** `hbgen/recipes/heights.py` builds `cliff` (edge, course) and `ramp` (dir, kind). Fast renders of a course and two ramps, composited as the engine would draw them (`mock.py` in the session's scratchpad), stack and join along an edge and over two levels. Placeholder quality: the course boundaries show as seams, the ramp's grass is darker than the terrain's, and the pieces have no catalog entries yet (Stage 2).
+- **Cliff courses.** Only a cell's **two front edges** can show a face, since the back edges face away from the camera. For each, the drop is the cell's level less the front neighbour's ground along that edge (a ramp neighbour's surface at the edge's corners; past the map's edge, 0). The renderer stacks one **one-level course** per level of the drop, from the lower ground up.
+  - `cliff_left` (the south edge, lower left on screen) and `cliff_right` (the east edge, lower right): `mid_a` and `mid_b` under the top, and the top course capped by a lip of the cell's terrain, `top_a` or `top_b` (grass) or `top_dirt` (dirt and roads; `height_pieces::has_dirt_lip`). A look is picked by a hash of the cell and level (`height_pieces::cliff_course`, `common::hash::splitmix64`), never the RNG and never saved, as the risks' jitter is. Zeus keeps a random byte per cell for the same job.
+  - Each course is one open mesh (no end caps, so its ends get no ink), its ledges at the same heights in every piece, and its rock's noise sampled on two circles so it wraps every cell along the edge and every level up. Stacked courses and neighbours along an edge join; only a few cracks vary, away from the ends. Each reaches a hair past its cell's ends (`OVERLAP`), so where two meet the soft edge of one lies over solid pixels of the other instead of two soft edges showing a seam.
+  - Pieces stay inside their cell's column apart from that hair, so the draw order of §3 holds for them.
+  - Q5's second material (bare rock) is the dirt lip for now; karst limestone for Đại Long's highlands later.
+- **Rims** (the user's request, 2026-11-22): a light lip with an inked edge along **every** side of a raised cell's top where the ground on that side is lower, front or back (`cliff_rim`, variations `n`, `e`, `s`, `w`), drawn after the cell's top. Without them a terrace's top reads as the same grass as the ground below it, and its far side vanishes (the spike found the walker behind a plateau looked sunk into the grass).
+- **Ramps.** Half a ramp per piece: `ramp_grass`, `ramp_dirt`, `ramp_dirt_road` and `ramp_paved_road`, variations `<dir>_low` and `<dir>_high` (8 each). Each is a solid wedge whose flanks are rock, so a ramp beside lower ground shows its side and one beside another ramp or higher ground is covered by it, drawn later. Its top is the terrain's own sprite (grass, dirt, or the road's straight piece along the ramp: `1010` climbing north or south, `0101` east or west) mapped onto the slope by its diamond's corners, unlit and shaded by the slope's facing (`SLOPE_SHADE`), so flat it would render as the sprite does and the ramp matches the ground it joins (`height_pieces::RampSurface::of_terrain`). Its ends are open, so no ink where it meets the ground, its other half and the cell above. A ramp on a raised cell stands on the cliff courses of its drop below.
+- **The terrain sprites' own edge** (about 4 px of side under each terrain sprite's diamond) shows along a cliff's top under the rim. Its ends make faint notches at each cell's corner along the lip, as along the map's outer border; new terrain art would remove them.
+- **What Zeus does differently:** its cliff art is whole shaped tiles picked from the 8-neighbour pattern, some joined into 2 × 2 footprints (§11). That looks better at a cliff's corners and ends than stacked courses, at the price of a pattern table and art per pattern. Stage 2's mock-up showed the courses join well at outer and inner corners, so no corner or end pieces for now (Q15).
 
 ### 6. Pathfinding and units
 
 - **The graph** stores a copy of each cell's height and shape, updated wherever `update_search_graph!` runs and on height edits.
 - **`Graph::neighbors`** adds an edge test, worked out on the fly with no data per edge. A step from `a` to `b` is allowed if any of these holds:
   - both are flat at the same level;
-  - one is a ramp and the other is its uphill neighbour at `L + 1`, or its downhill neighbour at `L`;
-  - both are ramps facing the same way, one level apart, along that direction.
+  - they're a ramp's two halves, along its direction;
+  - one is a ramp's low half (at `L`) and the other its downhill neighbour, flat at `L`, or a ramp's high half and its uphill neighbour, flat at `L + 1`;
+  - in a chain, a ramp's high half (at `L`) and the next ramp's low half (at `L + 1`) above it, facing the same way.
 - **Every land walker follows it for free:**
   - road walkers and patrols;
   - the responders who leave the road (fire watchers, medics; `RESPONDER_NODE_KINDS`);
@@ -273,7 +275,7 @@ Each gets a new `TilePlacementErrReason`.
   - **raise** and **lower** brushes (1 × 1, 3 × 3, 5 × 5);
   - a **terrace** brush, which sets the level picked only on cells one level from it, as Zeus's brushes do (§11), so painting a plateau's edge doesn't disturb the cells around it;
   - a **smooth** brush, which brings neighbours within `max_cliff_levels` (Q13), as Zeus's smoothing does;
-  - setting a ramp by dragging in its uphill direction;
+  - ramp tools (one per direction) that lay a two-cell ramp from the cell clicked (its low half) to the next cell up its way (its high half), at the clicked cell's level, a wider brush laying them side by side;
   - an overlay showing levels, with ramps that don't connect to the right levels flagged in red, and cliffs taller than `max_cliff_levels`.
 - **Edits** go through a new `TilePlacement::set_elevation`, which:
   - updates the graph, the cliff cache, the projected-height lookup and the minimap;
@@ -282,7 +284,7 @@ Each gets a new `TilePlacementErrReason`.
 - **Preset maps** get an optional elevation array (`debug/preset_maps.rs`).
 - **Minimap:** the baker's noise elevation (`elevation_pass`) is replaced by the map's levels, smoothed, so hills shade from real heights, with darker cliff edges. The model's grid gains the level per cell. A flat map keeps the noise, so its look doesn't change.
 - **Automation:**
-  - `terrain.set_elevation cell=[x,y] level=2 [shape=ramp_n]` and `terrain.set_elevation from=[x,y] to=[x,y] level=N`;
+  - `terrain.set_elevation cell=[x,y] level=2 [shape=ramp_n_low]` and `terrain.set_elevation from=[x,y] to=[x,y] level=N`;
   - `terrain.elevation cell=[x,y]`;
   - `inspect.at` and `world.building_at` report the level;
   - automation's cell-to-screen conversion takes height into account, so `input.click cell=` lands on a raised cell.
@@ -435,15 +437,23 @@ Done when: the draw order is right in the screenshots, the frame time stays with
 ### Stage 2: The pieces, from Blender (small to medium; placeholder-art Phase 5)
 
 Before the rendering, so Stage 3 draws real sprites (batched with the buildings) and measures their cost. Starts from the prototype recipe (§5).
-- [ ] `heights.py`: cliff courses (`top`, `mid`) for the left and right edges, with variations; ramps as solid wedges, 4 directions × grass, dirt, dirt road and paved road; rims for the two back edges. One shared level constant (√(2/3) units, from `LEVEL_STEP_PX`).
-- [ ] Seams: one mesh per course (no box ends), strata that repeat per level, the ramp's grass matched to the terrain's.
-- [ ] Catalog entries (`catalog/heights.json`), rendered and synced into the objects tile set; the renderer's lookups by name.
-- [ ] Contact sheet, and a mock-up composed as the engine draws them (stacked courses, corners, a ramp) reviewed before Stage 3; corner and end pieces if Q15 asks for them.
+- [x] `heights.py`: cliff courses (`top`, `mid`) for the left and right edges, with variations; ramps as solid wedges, 4 directions × grass, dirt, dirt road and paved road, in two halves; rims for all four sides. One shared level constant (√(2/3) units, from `LEVEL_STEP_PX`).
+- [x] Seams: one mesh per course (no box ends), strata that repeat per level, the ramp's grass matched to the terrain's.
+- [x] Catalog entries (`catalog/heights.json`), rendered and synced into the objects tile set; the renderer's lookups by name.
+- [x] Contact sheet, and a mock-up composed as the engine draws them (stacked courses, corners, a ramp) reviewed before Stage 3; corner and end pieces if Q15 asks for them.
+
+**Notes (2026-11-22): done.**
+- **Ramps over two cells.** The first renders showed ramps climbing south or east with no top: one level in one cell (39°) is steeper than the camera (30°), so such a ramp faces away from the camera. Ramps now climb one level over two cells (§1), as two halves: `Shape::Ramp(Dir, Half)`, bit 6 of a cell's byte the high half. `ElevationProblem`'s ramp checks, the heights (`corner_height`, `surface_height`, `centre_height`: a half's middle is a quarter or three quarters of a level up) and the brushes followed: the Ramp tools lay a foot and a head (`brush_cells`, `brush_edits` now take the brush's centre and width), and the shape names are `ramp_<dir>_low` and `ramp_<dir>_high`. Save v15's format is unchanged: no save had a ramp.
+- **Rims on every side** (the user's request): a lip with an inked edge wherever a raised cell's ground drops, back edges too, so a terrace's whole edge reads apart from the ground below.
+- **The pieces:** `catalog/heights.json`, 46 sprites in the objects tile set's `overlays` category: `cliff_left` and `cliff_right` (`top_a`, `top_b`, `top_dirt`, `mid_a`, `mid_b`, 64 × 53), `cliff_rim` (`n`, `e`, `s`, `w`, 64 × 35) and four ramp surfaces in eight halves each (64 × 67). The ramps' tops sample the terrain sprites, which the build doesn't hash (re-render with `--force` after changing them). The checks warn of the rock's low saturation (grey stone), and of the courses and rims reaching past the frame's side corners (`OVERLAP`, clipped there by design).
+- **Lookups:** `tile::height_pieces` (`cliff_course`, `rim`, `ramp`, `RampSurface::of_terrain`, `has_dirt_lip`, `all_piece_names`); `terrain_placement`'s `test_height_pieces_exist` checks every piece the renderer can ask for is in the tile sets.
+- **Mock-up:** composited from the sprites in `assets/` as the engine will draw them (the session's `mock3.py`): a plateau with a two-level block, cliff courses stacked over two levels, rims on every dropping edge, and ramps climbing all four ways, the two towards the viewer seen at a shallow angle. Courses join along edges and at outer and inner corners, so no corner pieces (Q15).
+- **Verified:** the generator's unit tests and `sync_tileset.py --check`; `cargo test --workspace` (the elevation unit tests for halves, `terrain_placement`'s 18); the 29 scenarios in release (`elevation.jsonl` with a two-cell ramp); fmt and both clippies.
 
 ### Stage 3: Rendering (medium to large)
 
 - [ ] Lifts as things are drawn (§3), from the spike: terrain, objects, walkers at the ground's height where they stand, and the overlays drawn with a tile.
-- [ ] The two-pass draw order (§3), with its tie rules (terrain first, the ground under a building with the building, walkers by their nearest cell) and the hidden-ground gate; cliff courses, ramps and rims from Stage 2's sprites.
+- [ ] The two-pass draw order (§3), with its tie rules (terrain first, the ground under a building with the building, walkers by their nearest cell) and the hidden-ground gate; cliff courses, ramp halves and rims from Stage 2's sprites (`tile::height_pieces`).
 - [ ] Washes and previews on raised cells.
 - [ ] Culling padding, camera bounds, `teleport`.
 - [ ] Overlays: grid, search-graph debug view, hover highlight, previews, tile bounds.
@@ -530,7 +540,7 @@ Services' coverage, a farmstead's field reach, faith's coverage, wells' water, i
 
 **Q12. Are ramps stored or worked out from heights?**
 Zeus works its slopes out from the neighbours (§11).
-*Default: stored*, since a ramp is a chokepoint and a road's way up that the designer places. The editor's overlay flags ramps that don't connect, and could suggest ramps later.
+*Default: stored*, since a ramp is a chokepoint and a road's way up that the designer places. The editor's overlay flags ramps that don't connect, and could suggest ramps later. A ramp is two cells long (§1, decided in Stage 2).
 
 **Q13. How much can neighbours differ?**
 Zeus keeps them within 2 levels (§11). Stacked faces draw any drop.
@@ -540,4 +550,4 @@ Zeus keeps them within 2 levels (§11). Stacked faces draw any drop.
 **Decided by the spike (2026-11-22): no, not for height.** Positions stay flat and the renderer lifts each thing as it draws it (§2, §3), so no cached position can disagree with the heights. Dropping `iso_coords_f32` from saves would still shrink them a little, but that's a save-size change of its own, not this milestone's.
 
 **Q15. Stacked faces or Zeus-style pattern pieces?**
-*Default: stacked courses first* (§5). The spike's flat quads hid nothing at corners; Stage 2's mock-up of the real pieces decides whether corner and end pieces are needed.
+**Decided (Stage 2, 2026-11-22): stacked courses.** Stage 2's mock-up of the real pieces joins well at outer and inner corners; corner and end pieces can follow if play shows seams that matter.

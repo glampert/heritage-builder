@@ -1,0 +1,463 @@
+{
+  "realm": "shared",
+  "palette": "viet",
+  "density": 8,
+  "notes": "Terrain height (docs/plans/terrain-height.md, §5; placeholder-art Phase 5): the pieces the renderer draws for raised terrain, worked out from the heights, never placed as tiles. A level is 32 logical px, √(2/3) Blender units (hbgen/recipes/heights.py). Each is anchored as a 1x1 building on its cell, lifted to its level. A ramp's top samples the terrain sprites under assets/tiles/terrain/land (not hashed: re-render with --force after changing them).",
+  "entries": [
+    {
+      "tile": "cliff_left",
+      "category": "overlays",
+      "recipe": "cliff",
+      "params": {
+        "edge": "left"
+      },
+      "variations": [
+        {
+          "name": "top_a",
+          "seed": 1,
+          "params": {
+            "course": "top",
+            "lip": "grass"
+          }
+        },
+        {
+          "name": "top_b",
+          "seed": 2,
+          "params": {
+            "course": "top",
+            "lip": "grass"
+          }
+        },
+        {
+          "name": "top_dirt",
+          "seed": 3,
+          "params": {
+            "course": "top",
+            "lip": "dirt"
+          }
+        },
+        {
+          "name": "mid_a",
+          "seed": 4,
+          "params": {
+            "course": "mid"
+          }
+        },
+        {
+          "name": "mid_b",
+          "seed": 5,
+          "params": {
+            "course": "mid"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "One level of rock face on a raised cell's south (lower-left) edge, stacked a course a level from the lower ground up: mid courses, then a top course whose lip follows the cell's terrain (grass, or dirt for bare ground). The renderer picks a top or mid variation by a hash of the cell and level."
+    },
+    {
+      "tile": "cliff_right",
+      "category": "overlays",
+      "recipe": "cliff",
+      "params": {
+        "edge": "right"
+      },
+      "variations": [
+        {
+          "name": "top_a",
+          "seed": 1,
+          "params": {
+            "course": "top",
+            "lip": "grass"
+          }
+        },
+        {
+          "name": "top_b",
+          "seed": 2,
+          "params": {
+            "course": "top",
+            "lip": "grass"
+          }
+        },
+        {
+          "name": "top_dirt",
+          "seed": 3,
+          "params": {
+            "course": "top",
+            "lip": "dirt"
+          }
+        },
+        {
+          "name": "mid_a",
+          "seed": 4,
+          "params": {
+            "course": "mid"
+          }
+        },
+        {
+          "name": "mid_b",
+          "seed": 5,
+          "params": {
+            "course": "mid"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "One level of rock face on a raised cell's east (lower-right) edge, stacked a course a level from the lower ground up: mid courses, then a top course whose lip follows the cell's terrain (grass, or dirt for bare ground). The renderer picks a top or mid variation by a hash of the cell and level."
+    },
+    {
+      "tile": "cliff_rim",
+      "category": "overlays",
+      "recipe": "rim",
+      "variations": [
+        {
+          "name": "n",
+          "seed": 1,
+          "params": {
+            "side": "n"
+          }
+        },
+        {
+          "name": "e",
+          "seed": 2,
+          "params": {
+            "side": "e"
+          }
+        },
+        {
+          "name": "s",
+          "seed": 3,
+          "params": {
+            "side": "s"
+          }
+        },
+        {
+          "name": "w",
+          "seed": 4,
+          "params": {
+            "side": "w"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "The light, inked lip along one side of a raised cell's top (the engine's n, e, s, w), drawn after the top wherever the ground on that side is lower, so a terrace's whole edge reads apart from the ground below."
+    },
+    {
+      "tile": "ramp_grass",
+      "category": "overlays",
+      "recipe": "ramp",
+      "params": {
+        "kind": "grass"
+      },
+      "variations": [
+        {
+          "name": "n_low",
+          "seed": 1,
+          "params": {
+            "dir": "n",
+            "half": "low"
+          }
+        },
+        {
+          "name": "n_high",
+          "seed": 2,
+          "params": {
+            "dir": "n",
+            "half": "high"
+          }
+        },
+        {
+          "name": "e_low",
+          "seed": 3,
+          "params": {
+            "dir": "e",
+            "half": "low"
+          }
+        },
+        {
+          "name": "e_high",
+          "seed": 4,
+          "params": {
+            "dir": "e",
+            "half": "high"
+          }
+        },
+        {
+          "name": "s_low",
+          "seed": 5,
+          "params": {
+            "dir": "s",
+            "half": "low"
+          }
+        },
+        {
+          "name": "s_high",
+          "seed": 6,
+          "params": {
+            "dir": "s",
+            "half": "high"
+          }
+        },
+        {
+          "name": "w_low",
+          "seed": 7,
+          "params": {
+            "dir": "w",
+            "half": "low"
+          }
+        },
+        {
+          "name": "w_high",
+          "seed": 8,
+          "params": {
+            "dir": "w",
+            "half": "high"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Half a ramp (a ramp climbs one level over two cells: its low half from the ground to half a level up, its high half on to a level up), climbing towards its variation's side (the engine's n, e, s, w), drawn in place of the cell's terrain; its top is the grass terrain sprite."
+    },
+    {
+      "tile": "ramp_dirt",
+      "category": "overlays",
+      "recipe": "ramp",
+      "params": {
+        "kind": "dirt"
+      },
+      "variations": [
+        {
+          "name": "n_low",
+          "seed": 1,
+          "params": {
+            "dir": "n",
+            "half": "low"
+          }
+        },
+        {
+          "name": "n_high",
+          "seed": 2,
+          "params": {
+            "dir": "n",
+            "half": "high"
+          }
+        },
+        {
+          "name": "e_low",
+          "seed": 3,
+          "params": {
+            "dir": "e",
+            "half": "low"
+          }
+        },
+        {
+          "name": "e_high",
+          "seed": 4,
+          "params": {
+            "dir": "e",
+            "half": "high"
+          }
+        },
+        {
+          "name": "s_low",
+          "seed": 5,
+          "params": {
+            "dir": "s",
+            "half": "low"
+          }
+        },
+        {
+          "name": "s_high",
+          "seed": 6,
+          "params": {
+            "dir": "s",
+            "half": "high"
+          }
+        },
+        {
+          "name": "w_low",
+          "seed": 7,
+          "params": {
+            "dir": "w",
+            "half": "low"
+          }
+        },
+        {
+          "name": "w_high",
+          "seed": 8,
+          "params": {
+            "dir": "w",
+            "half": "high"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Half a ramp (a ramp climbs one level over two cells: its low half from the ground to half a level up, its high half on to a level up), climbing towards its variation's side (the engine's n, e, s, w), drawn in place of the cell's terrain; its top is the dirt terrain sprite."
+    },
+    {
+      "tile": "ramp_dirt_road",
+      "category": "overlays",
+      "recipe": "ramp",
+      "params": {
+        "kind": "dirt_road"
+      },
+      "variations": [
+        {
+          "name": "n_low",
+          "seed": 1,
+          "params": {
+            "dir": "n",
+            "half": "low"
+          }
+        },
+        {
+          "name": "n_high",
+          "seed": 2,
+          "params": {
+            "dir": "n",
+            "half": "high"
+          }
+        },
+        {
+          "name": "e_low",
+          "seed": 3,
+          "params": {
+            "dir": "e",
+            "half": "low"
+          }
+        },
+        {
+          "name": "e_high",
+          "seed": 4,
+          "params": {
+            "dir": "e",
+            "half": "high"
+          }
+        },
+        {
+          "name": "s_low",
+          "seed": 5,
+          "params": {
+            "dir": "s",
+            "half": "low"
+          }
+        },
+        {
+          "name": "s_high",
+          "seed": 6,
+          "params": {
+            "dir": "s",
+            "half": "high"
+          }
+        },
+        {
+          "name": "w_low",
+          "seed": 7,
+          "params": {
+            "dir": "w",
+            "half": "low"
+          }
+        },
+        {
+          "name": "w_high",
+          "seed": 8,
+          "params": {
+            "dir": "w",
+            "half": "high"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Half a ramp (a ramp climbs one level over two cells: its low half from the ground to half a level up, its high half on to a level up), climbing towards its variation's side (the engine's n, e, s, w), drawn in place of the cell's terrain; its top is the dirt road's straight piece along the ramp."
+    },
+    {
+      "tile": "ramp_paved_road",
+      "category": "overlays",
+      "recipe": "ramp",
+      "params": {
+        "kind": "paved_road"
+      },
+      "variations": [
+        {
+          "name": "n_low",
+          "seed": 1,
+          "params": {
+            "dir": "n",
+            "half": "low"
+          }
+        },
+        {
+          "name": "n_high",
+          "seed": 2,
+          "params": {
+            "dir": "n",
+            "half": "high"
+          }
+        },
+        {
+          "name": "e_low",
+          "seed": 3,
+          "params": {
+            "dir": "e",
+            "half": "low"
+          }
+        },
+        {
+          "name": "e_high",
+          "seed": 4,
+          "params": {
+            "dir": "e",
+            "half": "high"
+          }
+        },
+        {
+          "name": "s_low",
+          "seed": 5,
+          "params": {
+            "dir": "s",
+            "half": "low"
+          }
+        },
+        {
+          "name": "s_high",
+          "seed": 6,
+          "params": {
+            "dir": "s",
+            "half": "high"
+          }
+        },
+        {
+          "name": "w_low",
+          "seed": 7,
+          "params": {
+            "dir": "w",
+            "half": "low"
+          }
+        },
+        {
+          "name": "w_high",
+          "seed": 8,
+          "params": {
+            "dir": "w",
+            "half": "high"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Half a ramp (a ramp climbs one level over two cells: its low half from the ground to half a level up, its high half on to a level up), climbing towards its variation's side (the engine's n, e, s, w), drawn in place of the cell's terrain; its top is the paved road's straight piece along the ramp."
+    }
+  ]
+}
