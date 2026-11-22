@@ -80,6 +80,13 @@ pub struct FloodStats {
     pub survived: u32, // Of those, the floods that breached no dyke: the FloodsSurvived goal.
 }
 
+// What the city's trade adds to the stats (sim::Finance::tally, sim::CityTrade::tally).
+#[derive(Default)]
+pub struct TradeStats {
+    pub income: u32,       // The exports' gold this calendar year or last, whichever is higher.
+    pub requests_met: u32, // Since the game's start: the RequestsFulfilled goal.
+}
+
 pub struct HousingStats {
     pub total: u32,
     pub lowest_level: HouseLevel,
@@ -109,6 +116,7 @@ pub struct WorldStats {
     pub treasury: TreasuryStats,
     pub faith: FaithStats,
     pub floods: FloodStats,
+    pub trade: TradeStats,
 
     // Housing stats:
     pub houses: HousingStats,
@@ -125,6 +133,7 @@ impl Default for WorldStats {
             treasury: TreasuryStats::default(),
             faith: FaithStats::default(),
             floods: FloodStats::default(),
+            trade: TradeStats::default(),
             houses: HousingStats { total: 0, lowest_level: HouseLevel::max(), highest_level: HouseLevel::min() },
             resources: GlobalResourceCounts {
                 all: ResourceStock::accept_all(),

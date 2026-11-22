@@ -85,7 +85,8 @@ static STATE: UiStaticVar<BookState> =
     UiStaticVar::new(BookState { page: 0, heritage_tab: 2, festival: None, scale: None, built: None });
 
 // What the open book is built from: the window's size, the game's month, the tax level and wage,
-// and the festivals' plans, log and planner (heritage::festivals_key).
+// the festivals' plans, log and planner (heritage::festivals_key), and the requests under way and
+// logged (one sent from the Goods page).
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 struct BuildKey {
     window: (u32, u32),
@@ -93,6 +94,7 @@ struct BuildKey {
     tax_level: usize,
     wage: u32,
     festivals: u64,
+    requests: (usize, usize),
 }
 
 fn build_key(context: &GameUiContext) -> BuildKey {
@@ -104,12 +106,13 @@ fn build_key(context: &GameUiContext) -> BuildKey {
         tax_level: finance.tax_level().index(),
         wage: finance.wage(),
         festivals: heritage::festivals_key(context),
+        requests: (context.sim.trade().requests().len(), context.sim.trade().request_log().len()),
     }
 }
 
 // Whether the open book must be built again: a month passed, the window's size changed, the tax
-// level or wage, or the festivals (one planned or held, the planner's pick; the page shown and the
-// Heritage tab are kept).
+// level or wage, the festivals (one planned or held, the planner's pick) or the requests (one sent;
+// the page shown and the Heritage tab are kept).
 pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
     !in_home_menu() && STATE.as_ref().built != Some(build_key(context))
 }
@@ -609,6 +612,15 @@ impl<'a> Paint<'a> {
 
 // A canvas BODY wide (or `width` px of the panel), `height` px tall, painted by `paint` in the
 // page's colours and scale; recorded as `label` with `value`.
+// A card's frame: the book's soft fill and outline, `width` × `height` px, round widgets (Paint::card
+// is the painted one).
+pub(super) fn card_frame(page: &PageContext, contents: UiWidgetGroup, width: f32, height: f32) -> UiFrame {
+    let c = page.colors;
+    UiFrame::new(contents, Vec2::new(page.pt(width), page.pt(height)))
+        .with_fill(c.card, page.pt(6.0))
+        .with_outline(UiFrameOutline { color: c.card_outline, width: page.pt(1.5), inset: 0.0, dash: None })
+}
+
 pub(super) fn body_canvas<F>(
     page: &PageContext,
     width: f32,

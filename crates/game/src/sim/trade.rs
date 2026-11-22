@@ -12,9 +12,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    campaign::config::{MissionPartnerDef, MissionTradeDef},
+    campaign::config::{MissionPartnerDef, MissionRequestDef, MissionTradeDef},
     config::TradeRules,
     sim::resources::{RESOURCE_KIND_COUNT, ResourceKind, per_kind_map},
+    world::stats::WorldStats,
 };
 
 // ----------------------------------------------
@@ -136,16 +137,43 @@ const PRICE_OFFSET_EPSILON: f32 = 0.0005;
 // Court requests
 // ----------------------------------------------
 
-// A request under way (docs/plans/trade.md, §6): a good and an amount, from the court or a partner,
-// due by an ordinal month.
+// A request (docs/plans/trade.md, §6): a good and an amount, from the court or another city, due by
+// an ordinal month. Scheduled, under way, or in the log once met or failed.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct TradeRequest {
     pub id: String,   // In the mission's schedule.
-    pub from: String, // A city id: the capital for the court, or a partner.
+    pub from: String, // A city id: the player's capital for the court, or another city.
     pub good: ResourceKind,
     pub amount: u32,
-    pub opened: u32, // The ordinal month it opened in.
+    pub opened: u32, // The ordinal month it opened in (or opens in, while scheduled).
     pub due: u32,    // The ordinal month it fails at, unmet.
+    // Its effects on Legitimacy (M9) and on the asker's relations (game Phase 2) when met; the
+    // opposite when failed. Logged, not applied yet.
+    pub legitimacy: i32,
+    pub relation: i32,
+}
+
+impl TradeRequest {
+    // A request of the schedule, opening `month` months after `start` (an ordinal month).
+    pub fn scheduled(def: &MissionRequestDef, start: u32) -> Self {
+        let opened = start + def.month;
+        Self {
+            id: def.id.clone(),
+            from: def.from.clone(),
+            good: def.good,
+            amount: def.amount,
+            opened,
+            due: opened + def.within_months.max(1),
+            legitimacy: def.legitimacy,
+            relation: def.relation,
+        }
+    }
+
+    // Its months left in month `now`: 1 in its last month.
+    #[inline]
+    pub fn months_left(&self, now: u32) -> u32 {
+        self.due.saturating_sub(now)
+    }
 }
 
 // A request met or failed, for the goals and M9's Legitimacy.
@@ -166,6 +194,8 @@ pub struct CityTrade {
     // The world map file whose cities the partners are (CampaignDef::world_map_name).
     world_map: String,
     partners: Vec<TradePartner>,
+    // The schedule's requests not open yet, soonest first, and those under way.
+    scheduled: Vec<TradeRequest>,
     requests: Vec<TradeRequest>,
     request_log: Vec<RequestRecord>,
 }
@@ -179,7 +209,7 @@ impl CityTrade {
     // A mission's (or a custom game's) trade: the partners `trade` lists that `has_terms` says the
     // world map `world_map` has terms for (the others are left out, with their city ids returned),
     // those it opens at the start sending their first caravan or ship `first_arrival_months` after
-    // `now` (an ordinal month). The limits start off.
+    // `now` (an ordinal month), and its requests scheduled from `now`. The limits start off.
     pub fn start(
         &mut self,
         world_map: &str,
@@ -204,6 +234,8 @@ impl CityTrade {
             self.partners.push(partner);
         }
         self.enabled = trade.is_enabled() && !self.partners.is_empty();
+        self.scheduled = trade.requests.iter().map(|def| TradeRequest::scheduled(def, now)).collect();
+        self.scheduled.sort_by_key(|request| request.opened);
         left_out
     }
 
@@ -288,9 +320,20 @@ impl CityTrade {
         }
     }
 
+    // ----------------------
+    // Requests (docs/plans/trade.md, §6):
+    // ----------------------
+
+    // The requests under way, in the order they opened.
     #[inline]
     pub fn requests(&self) -> &[TradeRequest] {
         &self.requests
+    }
+
+    // The schedule's requests not open yet, soonest first.
+    #[inline]
+    pub fn scheduled(&self) -> &[TradeRequest] {
+        &self.scheduled
     }
 
     #[inline]
@@ -298,9 +341,75 @@ impl CityTrade {
         &self.request_log
     }
 
+    pub fn request(&self, id: &str) -> Option<&TradeRequest> {
+        self.requests.iter().find(|request| request.id == id)
+    }
+
+    // Whether a request of that id is scheduled, under way or logged.
+    pub fn knows_request(&self, id: &str) -> bool {
+        self.scheduled.iter().chain(&self.requests).any(|request| request.id == id)
+            || self.request_log.iter().any(|record| record.request.id == id)
+    }
+
     // How many requests were met.
     pub fn requests_met(&self) -> u32 {
         self.request_log.iter().filter(|record| record.met).count() as u32
+    }
+
+    // How many failed.
+    pub fn requests_failed(&self) -> u32 {
+        self.request_log.iter().filter(|record| !record.met).count() as u32
+    }
+
+    // A new month, `now`: the requests whose months ran out fail, then the scheduled ones due open.
+    // Returns those that failed and those that opened.
+    pub fn on_new_month(&mut self, now: u32) -> (Vec<RequestRecord>, Vec<TradeRequest>) {
+        let mut failed = Vec::new();
+        self.requests.retain(|request| {
+            let overdue = request.due <= now;
+            if overdue {
+                failed.push(RequestRecord { request: request.clone(), closed: now, met: false });
+            }
+            !overdue
+        });
+        self.request_log.extend(failed.iter().cloned());
+
+        let due = self.scheduled.iter().take_while(|request| request.opened <= now).count();
+        let opened: Vec<TradeRequest> = self.scheduled.drain(..due).collect();
+        self.requests.extend(opened.iter().cloned());
+        (failed, opened)
+    }
+
+    // Opens a request now (automation): a scheduled one by its id, moved to month `now`, or a new
+    // one. False for an id already under way or logged.
+    pub fn open_request(&mut self, mut request: TradeRequest, now: u32) -> bool {
+        if self.requests.iter().any(|open| open.id == request.id)
+            || self.request_log.iter().any(|record| record.request.id == request.id)
+        {
+            return false;
+        }
+        if let Some(index) = self.scheduled.iter().position(|scheduled| scheduled.id == request.id) {
+            request = self.scheduled.remove(index);
+        }
+        let months = request.due.saturating_sub(request.opened).max(1);
+        request.opened = now;
+        request.due = now + months;
+        self.requests.push(request);
+        true
+    }
+
+    // A request under way met in month `now` (its goods are the caller's to take): logged.
+    pub fn meet_request(&mut self, id: &str, now: u32) -> Option<RequestRecord> {
+        let index = self.requests.iter().position(|request| request.id == id)?;
+        let record = RequestRecord { request: self.requests.remove(index), closed: now, met: true };
+        self.request_log.push(record.clone());
+        Some(record)
+    }
+
+    // The world stats' request figures, recounted with them (World::update, refresh_stats).
+    #[inline]
+    pub fn tally(&self, stats: &mut WorldStats) {
+        stats.trade.requests_met = self.requests_met();
     }
 
     // After a load: drops the partners the world map no longer has terms for (`has_terms`),

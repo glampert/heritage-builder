@@ -308,6 +308,16 @@ pub(crate) fn goal_line(goal: &MissionGoal, stats: &WorldStats) -> (String, i64,
             i64::from(*min),
             i64::from(stats.floods.survived),
         ),
+        MissionGoal::TradeIncome { per_year } => (
+            ui::text::get(UiTextCategory::Menu, "debrief.goal.trade_income").to_string(),
+            i64::from(*per_year),
+            i64::from(stats.trade.income),
+        ),
+        MissionGoal::RequestsFulfilled { min } => (
+            ui::text::get(UiTextCategory::Menu, "debrief.goal.requests").to_string(),
+            i64::from(*min),
+            i64::from(stats.trade.requests_met),
+        ),
     }
 }
 

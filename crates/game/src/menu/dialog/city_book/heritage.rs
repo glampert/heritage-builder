@@ -15,7 +15,7 @@ use engine::{
 };
 use serde_json::json;
 
-use super::{BODY, CityPage, PageContext, Paint, STATE, body_canvas, number};
+use super::{BODY, CityPage, PageContext, Paint, STATE, body_canvas, card_frame, number};
 use crate::{
     config::GameConfigs,
     faith::{
@@ -473,14 +473,6 @@ fn festivals_contents(context: &mut GameUiContext, page: &PageContext, height: f
         .with_widget(year_strip(page, &tab))
         .with_widget(super::spacer(page.pt(GAP)))
         .with_widget(columns)
-}
-
-// A card's frame: the book's soft fill and outline, `width` × `height` px.
-fn card_frame(page: &PageContext, contents: UiWidgetGroup, width: f32, height: f32) -> UiFrame {
-    let c = page.colors;
-    UiFrame::new(contents, Vec2::new(page.pt(width), page.pt(height)))
-        .with_fill(c.card, page.pt(6.0))
-        .with_outline(UiFrameOutline { color: c.card_outline, width: page.pt(1.5), inset: 0.0, dash: None })
 }
 
 // The festival year: a strip of the twelve months, "now" over this one, a dot per festival (larger

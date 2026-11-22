@@ -502,7 +502,7 @@ impl GameSession {
 
     // Recounts the world stats from the current state (see World::refresh_stats).
     pub(crate) fn refresh_world_stats(&mut self) {
-        self.world.refresh_stats(self.sim.finance(), self.sim.faith(), self.sim.floods());
+        self.world.refresh_stats(self.sim.finance(), self.sim.faith(), self.sim.floods(), self.sim.trade());
     }
 
     // Runs `edit_fn` with a mutable SimContext over this session, for world edits made outside
@@ -990,7 +990,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 13;
+const CURRENT_SAVE_VERSION: u32 = 14;
 
 // What the menus show of a save without loading it (the home menu's Continue, the Load / Save
 // dialog): whether this game can load it (its save version is this game's) and its header (blank

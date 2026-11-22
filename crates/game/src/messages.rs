@@ -22,6 +22,7 @@ pub enum MessageKind {
     Season,       // The river: rising with the wet season, the water going down (docs/plans/seasons-floods.md).
     Harvest,      // The month's harvests reaped (a flood is a Warning).
     Trade,        // A caravan or ship traded (docs/plans/trade.md).
+    Request,      // A request opened or was met (a failed one is a Warning).
 }
 
 impl MessageKind {
@@ -35,6 +36,7 @@ impl MessageKind {
             Self::Season => "water",
             Self::Harvest => "food",
             Self::Trade => "trade",
+            Self::Request => "request",
         }
     }
 }

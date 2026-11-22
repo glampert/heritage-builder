@@ -56,7 +56,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | [seasons-floods.md](seasons-floods.md) | Done: the floods' data and state (save v11); farmsteads with rice fields the player lays around them, replacing the rice farm, sown and reaped in harvests; the flood (its damage, the crops it takes, silt, the water drawn on the map, its messages, faith's flood events and the Flood lens); dykes drawn like roads, their wear and the builders who keep them, breaches and the `FloodsSurvived` goal; fertility, sluice gates (a dry-season harvest, the silt without the water) and the Fertility lens; irrigation as connected water (canals from the river or a gate's outlet, water flowing from field to field; Phase 6, at the user's request). Its balance is M13's |
 | M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | Done: data, state and save v10; the patrons' shrines and temples, picked from the palette's variation submenu; favour, the Patrons tab and the Faith lens; blessings and misfortunes; festivals and the festival square (floods' events came with M7 Phase 2; Culture and Legitimacy wait for M9) |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
-| M10 | Trade v1 and court requests | Large | M1, M4, M5 | [trade.md](trade.md) | In progress: Phases 0 to 3 done (2026-11-21: the data, the state, save v12; land routes, the trade limits dialog, caravans; docks, trade ships and their dockers, save v13; 2026-11-22: prices that move with trade and drift back). No trade post: caravans trade at the storage yards and granaries (Q1); docks and trade ships brought forward from Phase 2; the `TradeIncome` and `RequestsFulfilled` goals brought forward from M9 (Q10) |
+| M10 | Trade v1 and court requests | Large | M1, M4, M5 | [trade.md](trade.md) | In progress: Phases 0 to 4 done (2026-11-21: the data, the state, save v12; land routes, the trade limits dialog, caravans; docks, trade ships and their dockers, save v13; 2026-11-22: prices that move with trade and drift back; court requests and the `TradeIncome` and `RequestsFulfilled` goals, save v14); Phase 5, the docs, next. No trade post: caravans trade at the storage yards and granaries (Q1); docks and trade ships brought forward from Phase 2; the `TradeIncome` and `RequestsFulfilled` goals brought forward from M9 (Q10) |
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
 | M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3, the comic viewer (I-A and I-B as data) with Phase 4; the other sequences wait for their missions |
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
@@ -310,7 +310,8 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 11 | The river's floods and the land's fertility (`sim.floods`); a farmstead's fields on every producer (`fields`); old saves' rice farms turned into livestock farms | M7 | Done |
 | 12 | The city's trade: its partners (the mission's entry for each), routes opened, limits, this year's amounts, price offsets and next arrivals; the court's requests and their log (`sim.trade`) | M10 | Done (Phase 0) |
 | 13 | A dock's berth and dockers on its service building (`dock`, null for every other service) | M10 | Done (Phase 2) |
-| 14 | Elevation map | T | Planned |
+| 14 | The mission's request schedule (`sim.trade.scheduled`) and each request's Legitimacy and relations effects | M10 | Done (Phase 4) |
+| 15 | Elevation map | T | Planned |
 | … | Ratings state | M9 | Planned |
 
 ## Conventions for every milestone

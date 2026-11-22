@@ -13,6 +13,7 @@ use crate::{
         Simulation,
         resources::{RESOURCE_KIND_COUNT, ResourceKind},
     },
+    trade::requests::{self, RequestRow},
     world::World,
 };
 
@@ -109,6 +110,7 @@ pub struct CityReport {
     pub balance: i64,
     pub net_this_year: i64,
     pub taxes_owed: u32,
+    pub requests: Vec<RequestRow>, // Under way, soonest due first (crate::trade::requests).
     pub warnings: Vec<Warning>,
 }
 
@@ -247,6 +249,7 @@ impl CityReport {
             balance: finance.balance(),
             net_this_year: finance.this_year().net(),
             taxes_owed: stats.treasury.tax_available,
+            requests: requests::rows(world, sim.trade(), super::history::current_month(sim)),
             warnings: Vec::new(),
         };
         report.warnings = warnings(world, sim, &report, hungry_houses, sick_houses);
@@ -295,8 +298,8 @@ fn next_level_needs(level: usize) -> Option<String> {
     Some(line)
 }
 
-// What the overview lists under Needs attention, most pressing first: fires, sickness, debt,
-// hungry houses, people out of work, buildings short of workers, full storage.
+// What the overview lists under Needs attention, most pressing first: fires, sickness, debt, the
+// requests under way, hungry houses, people out of work, buildings short of workers, full storage.
 fn warnings(world: &World, sim: &Simulation, report: &CityReport, hungry_houses: u32, sick_houses: u32) -> Vec<Warning> {
     let mut warnings = Vec::new();
     let count_text = |key: &str, count: u32| text::format_count(UiTextCategory::City, key, i64::from(count), &[]);
@@ -328,6 +331,17 @@ fn warnings(world: &World, sim: &Simulation, report: &CityReport, hungry_houses:
             text::get(UiTextCategory::City, "book.warning.debt_overdue").to_string()
         };
         warnings.push(Warning { icon: "coin", text, page: Some("finances") });
+    }
+    // "The court's pottery request: 18 of 30, 4 months left."
+    for request in &report.requests {
+        let key = if request.court { "book.warning.request_court" } else { "book.warning.request" };
+        let text = text::format_count(UiTextCategory::City, key, i64::from(request.months_left), &[
+            ("city", &request.from),
+            ("good", &request.good.display_name().to_lowercase()),
+            ("held", &request.held.min(request.amount).to_string()),
+            ("amount", &request.amount.to_string()),
+        ]);
+        warnings.push(Warning { icon: "request", text, page: Some("goods") });
     }
     if hungry_houses > 0 {
         warnings.push(Warning { icon: "food", text: count_text("book.warning.hungry", hungry_houses), page: Some("goods") });

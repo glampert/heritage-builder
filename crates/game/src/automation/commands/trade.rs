@@ -1,5 +1,5 @@
 // Trade commands: the partners a game trades with, their routes, terms and limits (sim::trade,
-// docs/plans/trade.md).
+// docs/plans/trade.md); and the requests (crate::trade::requests, §6).
 
 use engine::ui::text::{self, UiTextCategory};
 use serde::Deserialize;
@@ -12,9 +12,9 @@ use crate::{
     config::GameConfigs,
     sim::{
         resources::ResourceKind,
-        trade::{TradeLimit, TradePartner},
+        trade::{TradeLimit, TradePartner, TradeRequest},
     },
-    trade::{self, PartnerTerms, TradeSide},
+    trade::{self, PartnerTerms, TradeNotice, TradeSide, requests},
     unit::task::{UnitTaskShip, UnitTaskTrade},
     world_map::config::traded_good,
 };
@@ -30,8 +30,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                the price's offset, its price now (`price_now`, gold a unit as the city trades it: the offset, \
                relations and faith's easy trade) and its `trend`: up, down or steady) with the player's limit \
                for each (off, or {\"import\": N}: until the city \
-               holds N, or {\"export\": N}: what's above N). Then the court's requests under way, their log and \
-               how many were met.",
+               holds N, or {\"export\": N}: what's above N). Then the requests under way, those \
+               scheduled, their log and how many were met (requests.state says more).",
         params: &[],
         run: cmd_state,
     },
@@ -79,7 +79,200 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         params: &[ParamDef { name: "partner", kind: "string", required: true, help: "The partner's city id." }],
         run: cmd_arrive_now,
     },
+    CommandDef {
+        name: "requests.state",
+        help: "The requests (docs/plans/trade.md, §6): those under way, soonest due first (id, from, court: whether \
+               the court asks, title, good, amount, held: what the storage yards and granaries hold of it, \
+               months_left, can_send, opened, due: ordinal months), those scheduled (id, from, good, amount, opens), \
+               the log (id, from, good, amount, closed, met, legitimacy, relation), and how many were met and failed.",
+        params: &[],
+        run: cmd_requests_state,
+    },
+    CommandDef {
+        name: "requests.open",
+        help: "Opens a request now, with its message: a scheduled one by its id (its months to send it counted from \
+               now), or a new one of that id with good, amount and within_months, asked by `from` (a city id of the \
+               game's world map; the court, the player's capital, if not given). Fails for an id under way or \
+               logged. Reports requests.state.",
+        params: &[
+            ParamDef { name: "id", kind: "string", required: true, help: "The request's id." },
+            ParamDef { name: "good", kind: "string", required: false, help: "A new request's good (Pottery)." },
+            ParamDef { name: "amount", kind: "u32", required: false, help: "A new request's amount." },
+            ParamDef { name: "within_months", kind: "u32", required: false, help: "A new request's months to send it." },
+            ParamDef { name: "from", kind: "string", required: false, help: "A new request's asker: a city id." },
+        ],
+        run: cmd_requests_open,
+    },
+    CommandDef {
+        name: "requests.send",
+        help: "Sends a request under way, as the City book's Send now does: its goods leave the storage yards and \
+               granaries at once, and it's met, with its message. Fails while they hold less than it asks for. \
+               Reports requests.state.",
+        params: &[ParamDef { name: "id", kind: "string", required: true, help: "The request's id." }],
+        run: cmd_requests_send,
+    },
 ];
+
+fn cmd_requests_state(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {}
+
+    let _params: Params = parse_params(params)?;
+    context.require_map()?;
+    done(requests_json(context))
+}
+
+fn cmd_requests_open(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        id: String,
+        good: Option<String>,
+        amount: Option<u32>,
+        within_months: Option<u32>,
+        from: Option<String>,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let state = context.session.sim().trade();
+    let now = month_now(context);
+    let scheduled = state.scheduled().iter().find(|request| request.id == params.id).cloned();
+    let new_one = [params.good.is_some(), params.amount.is_some(), params.within_months.is_some(), params.from.is_some()];
+    let request = match scheduled {
+        Some(request) => {
+            if new_one.iter().any(|&given| given) {
+                return Err(CommandError::invalid_params(format!("'{}' is scheduled: open it by its id alone.", params.id)));
+            }
+            request
+        }
+        None => {
+            if state.knows_request(&params.id) {
+                return Err(CommandError::invalid_params(format!("The request '{}' is under way or logged.", params.id)));
+            }
+            let (Some(good), Some(amount), Some(within_months)) = (&params.good, params.amount, params.within_months) else {
+                return Err(CommandError::invalid_params(format!(
+                    "'{}' isn't scheduled: a new request needs good, amount and within_months.",
+                    params.id
+                )));
+            };
+            let good = traded_good(good)
+                .ok_or_else(|| CommandError::invalid_params(format!("'{good}' isn't a good a request can ask for.")))?;
+            if amount == 0 || within_months == 0 {
+                return Err(CommandError::invalid_params("amount and within_months must be 1 or more.".to_string()));
+            }
+            let from = match params.from.clone() {
+                Some(from) => from,
+                None => requests::court_city(state).ok_or_else(|| {
+                    CommandError::invalid_params("This game's world map has no capital of the player's: give from.")
+                })?,
+            };
+            let on_map = trade::world_map(state.world_map()).is_some_and(|map| map.city(&from).is_some());
+            if !on_map {
+                return Err(CommandError::invalid_params(format!("'{from}' is no city of this game's world map.")));
+            }
+            TradeRequest {
+                id: params.id.clone(),
+                from,
+                good,
+                amount,
+                opened: now,
+                due: now + within_months,
+                legitimacy: 0,
+                relation: 0,
+            }
+        }
+    };
+    let trade_state = context.session.sim_mut().trade_mut();
+    if !trade_state.open_request(request, now) {
+        return Err(CommandError::invalid_params(format!("The request '{}' couldn't open.", params.id)));
+    }
+    let opened = trade_state.request(&params.id).cloned().expect("just opened");
+    let court = requests::is_court(trade_state, &opened.from);
+    trade::notify(TradeNotice::Request { event: requests::RequestEvent::Opened, request: opened, court });
+    done(requests_json(context))
+}
+
+fn cmd_requests_send(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        id: String,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    let result = context.session.with_sim_context(delta_time_secs, |sim_context| requests::send(sim_context, &params.id));
+    result.map_err(|err| match err {
+        requests::SendError::NotUnderWay => {
+            CommandError::invalid_params(format!("No request '{}' is under way.", params.id))
+        }
+        requests::SendError::Short { held, amount } => CommandError::invalid_params(format!(
+            "The storage yards and granaries hold {held} of the {amount} '{}' asks for.",
+            params.id
+        )),
+    })?;
+    done(requests_json(context))
+}
+
+// The ordinal month the game is in.
+fn month_now(context: &CommandContext) -> u32 {
+    crate::city::history::current_month(context.session.sim())
+}
+
+fn request_json(request: &TradeRequest) -> Value {
+    json!({
+        "id": request.id,
+        "from": request.from,
+        "good": request.good.name(),
+        "amount": request.amount,
+        "opened": request.opened,
+        "due": request.due,
+        "legitimacy": request.legitimacy,
+        "relation": request.relation,
+    })
+}
+
+fn requests_json(context: &CommandContext) -> Value {
+    let sim = context.session.sim();
+    let state = sim.trade();
+    let rows = requests::rows(context.session.world(), state, month_now(context));
+    json!({
+        "requests": rows.iter().map(|row| {
+            let request = state.request(&row.id);
+            json!({
+                "id": row.id,
+                "from": request.map(|request| request.from.clone()),
+                "court": row.court,
+                "title": row.title,
+                "good": row.good.name(),
+                "amount": row.amount,
+                "held": row.held,
+                "months_left": row.months_left,
+                "can_send": row.can_send(),
+                "opened": request.map(|request| request.opened),
+                "due": request.map(|request| request.due),
+            })
+        }).collect::<Vec<_>>(),
+        "scheduled": state.scheduled().iter().map(|request| json!({
+            "id": request.id,
+            "from": request.from,
+            "good": request.good.name(),
+            "amount": request.amount,
+            "opens": request.opened,
+        })).collect::<Vec<_>>(),
+        "log": state.request_log().iter().map(|record| {
+            let mut entry = request_json(&record.request);
+            entry["closed"] = json!(record.closed);
+            entry["met"] = json!(record.met);
+            entry
+        }).collect::<Vec<_>>(),
+        "met": state.requests_met(),
+        "failed": state.requests_failed(),
+    })
+}
 
 fn cmd_open(context: &mut CommandContext, params: Value) -> CommandResult {
     #[derive(Deserialize)]
@@ -318,21 +511,14 @@ fn state_json(context: &CommandContext) -> Value {
         "enabled": state.is_enabled(),
         "world_map": state.world_map(),
         "partners": partners,
-        "requests": state.requests().iter().map(|request| json!({
-            "id": request.id,
-            "from": request.from,
-            "good": request.good.name(),
-            "amount": request.amount,
-            "opened": request.opened,
-            "due": request.due,
-        })).collect::<Vec<_>>(),
-        "request_log": state.request_log().iter().map(|record| json!({
-            "id": record.request.id,
-            "good": record.request.good.name(),
-            "amount": record.request.amount,
-            "closed": record.closed,
-            "met": record.met,
-        })).collect::<Vec<_>>(),
+        "requests": state.requests().iter().map(request_json).collect::<Vec<_>>(),
+        "scheduled": state.scheduled().iter().map(request_json).collect::<Vec<_>>(),
+        "request_log": state.request_log().iter().map(|record| {
+            let mut entry = request_json(&record.request);
+            entry["closed"] = json!(record.closed);
+            entry["met"] = json!(record.met);
+            entry
+        }).collect::<Vec<_>>(),
         "requests_met": state.requests_met(),
         "caravans": caravans_json(context),
         "ships": ships_json(context),

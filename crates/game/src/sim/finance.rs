@@ -350,9 +350,13 @@ impl Finance {
         self.balance = balance;
     }
 
+    // The world stats' treasury, and the trade income the TradeIncome goal reads: the exports' gold
+    // this year or last, whichever is higher.
     #[inline]
     pub fn tally(&self, stats: &mut WorldStats) {
         stats.treasury.gold_units_total += self.balance;
+        let exports = self.this_year.total(LedgerCategory::Exports).max(self.last_year.total(LedgerCategory::Exports));
+        stats.trade.income = exports.clamp(0, i64::from(u32::MAX)) as u32;
     }
 
     // ----------------------

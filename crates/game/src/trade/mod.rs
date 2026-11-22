@@ -5,6 +5,7 @@
 // (`trade_at_store`), and ships (Phase 2) at the docks (`ships`), sent each month by `on_new_month`.
 // Prices (Phase 3) and court requests (Phase 4) build on it.
 
+pub mod requests;
 pub mod ships;
 
 use common::{coords::Cell, mem::SingleThreadStatic};
@@ -262,7 +263,7 @@ pub fn map_partners(map: &WorldMapDef) -> MissionTradeDef {
             })
         })
         .collect();
-    MissionTradeDef { enabled: None, partners }
+    MissionTradeDef { enabled: None, partners, requests: Vec::new() }
 }
 
 // A custom game's trade: its world map (the realm's) and its block, the map's own `trade` (maps.json)
@@ -695,13 +696,16 @@ fn send_caravan(context: &SimContextMut, city: &str) -> Result<(), NotSent> {
 }
 
 // A new month (after the floods' and the farmsteads' months, before faith's rolls): a new year
-// starts the partners' amounts again; prices drift back toward their base; each open route whose
+// starts the partners' amounts again; requests fail or open (requests::on_new_month); prices drift
+// back toward their base; each open route whose
 // caravan or ship is due sends it, the next due `every_months` later, or next month when there's
 // nothing to trade yet or no dock to sail to.
 pub fn on_new_month(context: &SimContextMut, date: CalendarDate) {
     if date.month == 1 {
         context.trade_mut().new_year();
     }
+    // Requests come whether the game trades or not.
+    requests::on_new_month(context, date.ordinal_month());
     if !context.trade().is_enabled() {
         return;
     }
@@ -821,6 +825,12 @@ pub enum TradeNotice {
         earned: u32,
         turned_back: bool,
     },
+    // A request opened, was met or failed (requests); `court` when the court asked for it.
+    Request {
+        event: requests::RequestEvent,
+        request: crate::sim::trade::TradeRequest,
+        court: bool,
+    },
 }
 
 fn goods_of(counts: &[u32; RESOURCE_KIND_COUNT]) -> Vec<(ResourceKind, u32)> {
@@ -852,10 +862,11 @@ impl TradeNotice {
         }
     }
 
-    // The partner's city id.
+    // The partner's city id; a request's asker's.
     pub fn partner(&self) -> &str {
         match self {
             Self::Caravan { partner, .. } | Self::Gifts { partner, .. } | Self::Ship { partner, .. } => partner,
+            Self::Request { request, .. } => &request.from,
         }
     }
 }
@@ -929,11 +940,21 @@ pub fn notice_message(notice: &TradeNotice, partner_name: &str) -> (MessageKind,
             let args = [("partner", partner_name), ("goods", &goods_text(goods))];
             (MessageKind::Trade, UiSoundKey::Notification, text::format(UiTextCategory::Messages, key, &args))
         }
+        TradeNotice::Request { event, request, court } => {
+            let text = requests::notice_text(*event, request, *court, partner_name);
+            match event {
+                requests::RequestEvent::Failed => (MessageKind::Warning, UiSoundKey::Alert, text),
+                _ => (MessageKind::Request, UiSoundKey::Notification, text),
+            }
+        }
     }
 }
 
-// A partner's name as the player reads it, from its city id in this game's world map.
+// A partner's name as the player reads it, from its city id in this game's world map; another
+// city's (a request's asker) by its name on the map.
 pub fn partner_name(trade: &CityTrade, city: &str) -> String {
-    terms(trade, city)
-        .map_or_else(|| city.to_string(), |terms| text::get(UiTextCategory::Realm, &terms.name_key).to_string())
+    terms(trade, city).map_or_else(
+        || place_name(trade.world_map(), city),
+        |terms| text::get(UiTextCategory::Realm, &terms.name_key).to_string(),
+    )
 }

@@ -1,6 +1,6 @@
 # Trade and court requests
 
-**Status (2026-11-22): Phases 0 to 3 done (the data and state, save v12; land routes, the trade limits dialog and caravans; docks, trade ships and their dockers, save v13; prices); Phase 4, court requests and the goals, next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
+**Status (2026-11-22): Phases 0 to 4 done (the data and state, save v12; land routes, the trade limits dialog and caravans; docks, trade ships and their dockers, save v13; prices; court requests and the goals, save v14); Phase 5, the docs, next.** This plan is milestone M10 of the [roadmap](roadmap.md). It covers GDD 5.12 and the requests half of 5.14:
 - land, river and sea routes the player opens to partner cities, and the buy and sell limits they set per good and per partner;
 - caravans that walk in from the map's edge and trade at the storage yards and granaries themselves, store by store, as in Pharaoh: there's no trade post;
 - docks, and trade ships that sail in from the map's edge, moor at a dock and wait while its dockers carry their goods to the stores and the city's exports back to them;
@@ -272,11 +272,11 @@ The Finances page gains the three lines.
   - an `id`;
   - `from`: a city id, the capital for the court or a partner;
   - `good` and `amount`: goods only in M10; gold and labour come later;
-  - `month`: months after the mission's start;
+  - `month`: months after the mission's start (1 or more: it opens at a month's start);
   - `within_months`;
   - `legitimacy` and `relation` effects for M9 and Phase 2: logged, not applied.
 
-  The world files' static `request` stays the panel's display until a mission's schedule names that city.
+  The world files' static `request` stays the panel's display outside a game that trades on that map; a partner of the game shows its request under way in the game, or none.
 - **A request opens** at its month (`trade::on_new_month`). It brings:
   - a `Request` message ("The court asks for 30 pottery within 6 months.");
   - the Goods page's Requests card;
@@ -351,7 +351,7 @@ The Finances page gains the three lines.
 
 | Where | Change | Phase | Files |
 |---|---|---|---|
-| World map, side panel | Open the route (its cost; "Build a dock first" for a river or sea route without a dock) and Set trade limits enabled; the route line's next arrival; live prices with ▲ or ▼ once trade has moved them (the amounts left out: Phase 3's notes); "—" for display-only goods; Send a gift stays disabled with a new tooltip. | 1, 2, 3 | `menu/dialog/world_map/`, `world_map/provider.rs` |
+| World map, side panel | Open the route (its cost; "Build a dock first" for a river or sea route without a dock) and Set trade limits enabled; the route line's next arrival; live prices with ▲ or ▼ once trade has moved them (the amounts left out: Phase 3's notes); "—" for display-only goods; a game partner's request under way in the request box; Send a gift stays disabled with a new tooltip. | 1, 2, 3, 4 | `menu/dialog/world_map/`, `world_map/provider.rs` |
 | New dialog | `TradeLimits`: a row per good with an import or export step selector, the price and the amount left; the price's arrow once trade has moved it (Phase 3). No mockup: built in the Goods page's style. | 1, 3 | `menu/dialog/trade_limits.rs` (new) |
 | Inspector, unit | The caravan's and the ship's errand and cargo. | 1, 2 | `inspect/unit.rs` |
 | Inspector, storage | "Last traded with a caravan" on a yard's and a granary's panel: left out (Phase 1's notes). | 1 | `inspect/building.rs` |
@@ -527,10 +527,42 @@ The Finances page gains the three lines.
 
 ### Phase 4: Court requests and the goals (medium)
 
-- [ ] The mission's request schedule, opened monthly; met (Send now, `requests.send`) or failed; the log.
-- [ ] The Goods page's Requests card, the Overview's warning, `MessageKind::Request` messages.
-- [ ] `MissionGoal::RequestsFulfilled` and `TradeIncome`, with `WorldStats::trade`, and their lines in the debrief, the briefing and the goals panel.
-- [ ] `requests.state`, `requests.open`; tests; the scenario's requests.
+- [x] The mission's request schedule, opened monthly; met (Send now, `requests.send`) or failed; the log.
+- [x] The Goods page's Requests card, the Overview's warning, `MessageKind::Request` messages.
+- [x] `MissionGoal::RequestsFulfilled` and `TradeIncome`, with `WorldStats::trade`, and their lines in the debrief, the briefing and the goals panel.
+- [x] `requests.state`, `requests.open`; tests; the scenario's requests.
+
+**Notes (2026-11-22):**
+- **What was built:**
+  - **The schedule:** a mission's (or a custom map's) `trade` block gains `requests` (`MissionRequestDef`: `id`, `from` a city of the world map, `good`, `amount`, `month` after the start, `within_months`, and `legitimacy` and `relation` effects). `WorldMapDef::trade_problems` checks them: unique ids, a city of the map, a single good but gold, an amount and a time limit, a month of 1 or more. Requests come whether the game trades or not, so a mission may send the court's requests without partners.
+  - **The state (save v14):** `CityTrade::start` keeps the schedule (`scheduled`, `TradeRequest`s with the month each opens, soonest first). `TradeRequest` gained `legitimacy` and `relation`, logged with it for M9 and game Phase 2 and not applied. `v13_to_v14.py` adds an empty schedule; the sample saves are rebuilt.
+  - **Each month** (`trade::requests::on_new_month`, from `trade::on_new_month` before the partners' schedule): the requests whose months ran out fail and are logged, then the scheduled ones due open. A request opened in month m with 3 months is under way in m, m + 1 and m + 2, and fails at m + 3's start.
+  - **Who asks:** a request from the player's capital on the world map (`CityKind::Capital`, `player`) is the court's (`requests::is_court`, `court_city`); any other city's goes by its name (`place_name`).
+  - **Sending (Q8):** `requests::send` takes the amount from the storage yards and granaries at once (`CityStock::withdraw_from` with `TRADE_STORES`) once they hold it (`can_send`, `SendError::Short`), and logs the request met (`CityTrade::meet_request`). The Goods page's Send now queues it (`requests::request_send`), run at the start of the next frame (`Simulation::update`, as the festival planner's are).
+  - **Notices:** `TradeNotice::Request` (opened, met, failed) posts "The court asks for 30 pottery within 6 months.", "The court's request for 30 pottery is met." (`MessageKind::Request`, the `request` line icon, Notification) or "… went unmet." (a Warning with Alert); a city's request names the city.
+  - **The goals:** `MissionGoal::TradeIncome { per_year }` (the exports' gold this calendar year or last, whichever is higher, `Finance::tally`) and `RequestsFulfilled { min }` (the log's met requests, `CityTrade::tally`), through `WorldStats::trade` (`TradeStats`), which `World::update` and `refresh_stats` (now taking the trade state) recount. Their lines ("Trade income a year", "Requests fulfilled") come through `goal_line` in the debrief, the briefing and the HUD's goals panel; the developer Campaign window lists them.
+  - **The Goods page's Requests card:** the page is two columns now, the left canvas as before and on the right the raw materials over the card (`card_frame`, shared with the Heritage page). It has a row per request under way, soonest due first: the request's title ("Pottery for the court"), a bar of what the yards and granaries hold against the amount, "18 / 30" and the months left (in the bad colour in its last month). Each row has its own Send now, disabled with a tooltip while the stores hold less. As many rows as fit (three), then "And N more under way." The book rebuilds when a request opens, is met or fails (`BuildKey::requests`).
+  - **The Overview's warning:** a line per request under way, "The court's pottery request: 18 of 30, 4 months left.", linking to the Goods page (`CityReport::requests`, `requests::rows`).
+  - **The world map's request box:** for a partner of the game, its request under way that's due soonest (`requests::panel_request`), or none; the world file's static request shows only outside a game that trades on that map.
+  - **Automation:** `requests.state` (under way, with what's held and `can_send`; scheduled; the log; met and failed), `requests.open id=...` (a scheduled one now, or a new one with `good`, `amount`, `within_months` and `from`, the court by default) and `requests.send id=...`; `trade.state` gains `scheduled`; `messages.push` takes `request`.
+  - **Tests:** `tests/trade.rs` gains five: the checks, a schedule opening and failing its requests (their messages, the rows, the world map's box), sending one (short, met, the stock, the stats and the goal, the round trip), opening one now, and the trade income goal across a new year.
+  - **`trade.jsonl`** opens the court's pottery request, checks its message, the Overview's warning and the Goods page's card with Send now disabled, stocks the yard, sends it from the page, opens Vijara's request for more metal than the city has, checks the world map's box, lets its month run out and checks it failed, and checks both survive the save and load, with screenshots (`requests_short.png`, `requests.png`, `world_map_request.png`).
+- **Deviations:**
+  - **A month of 0 is refused:** a request opens at a month's start, and the mission's start isn't one, so the first can open a month in.
+  - **The world map's box shows the game's requests** for a game partner, and none while it has none, in place of the world file's static one (§6 kept the static one until a schedule named the city).
+  - **No mission sends requests yet:** M13 writes I-5's. The custom game's maps have none either; `requests.open` makes one.
+  - **The Requests card shows three** and counts the rest.
+- **UI changes:**
+  - the City book's Goods page: two columns, and the Requests card with Send now per request;
+  - the Overview's request warnings;
+  - the world map's request box for a game partner;
+  - the `Request` message kind;
+  - the goal lines for trade income and requests fulfilled (debrief, briefing, HUD goals panel).
+- **Verified:**
+  - `cargo test --workspace` (`tests/trade.rs` has 37) and both clippy runs;
+  - the save smoke test on the migrated saves (v14);
+  - all 29 scenarios on a release build (macOS);
+  - the Goods page's Requests card and the world map's request box, by screenshot.
 
 ### Phase 5: Documentation (small)
 

@@ -19,7 +19,7 @@ use crate::{
     debug::DebugUiMode,
     prop::{Prop, PropId, config::PropConfigs},
     save_context::*,
-    sim::{CityFaith, CityFloods, Finance, SimCmds, SimContext, SimContextMut},
+    sim::{CityFaith, CityFloods, CityTrade, Finance, SimCmds, SimContext, SimContextMut},
     tile::{
         Tile,
         TileGameObjectHandle,
@@ -118,6 +118,7 @@ impl World {
         context.finance().tally(&mut self.stats);
         context.faith().tally(&mut self.stats);
         context.floods().tally(&mut self.stats);
+        context.trade().tally(&mut self.stats);
 
         for unit in self.unit_spawn_pool.iter_mut() {
             unit.update(cmds, context);
@@ -141,12 +142,13 @@ impl World {
     // Recounts the stats from the current state without updating anything. update() recounts
     // them on every simulation step; this is for reads in between, such as right after a load,
     // when the treasury still reads zero until the first step.
-    pub fn refresh_stats(&mut self, finance: &Finance, faith: &CityFaith, floods: &CityFloods) {
+    pub fn refresh_stats(&mut self, finance: &Finance, faith: &CityFaith, floods: &CityFloods, trade: &CityTrade) {
         self.stats.reset();
 
         finance.tally(&mut self.stats);
         faith.tally(&mut self.stats);
         floods.tally(&mut self.stats);
+        trade.tally(&mut self.stats);
 
         for unit in self.unit_spawn_pool.iter() {
             unit.tally(&mut self.stats);

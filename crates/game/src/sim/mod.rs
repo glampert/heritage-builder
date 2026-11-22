@@ -297,6 +297,12 @@ impl Simulation {
             crate::faith::festivals::run_requests(&context);
         }
 
+        // Requests the City book's Goods page sent.
+        if crate::trade::requests::has_requests() {
+            let context = self.new_sim_context(0.0, tile_map, world);
+            crate::trade::requests::run_requests(&context);
+        }
+
         // What the World Debug window's Floods tab asked for.
         if crate::floods::has_requests() {
             let context = self.new_sim_context(0.0, tile_map, world);

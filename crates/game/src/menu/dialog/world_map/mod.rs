@@ -435,7 +435,8 @@ impl WorldMap {
         let scene = provider.as_ref().map(|provider| Rc::new(MapScene::new(provider)));
         let mut panel =
             provider.as_ref().and_then(|provider| state.selected.as_deref().and_then(|id| provider.city_panel(id)));
-        // A partner of this game: its route as the game's trade has it, open or closed.
+        // A partner of this game: its route as the game's trade has it, open or closed, its prices
+        // now and its request under way.
         if let Some(panel) = panel.as_mut()
             && is_game_partner(context, &panel.city_id)
         {
@@ -448,6 +449,9 @@ impl WorldMap {
                 panel.sells = sells;
                 panel.buys = buys;
             }
+            // Its request under way in this game, not the world file's.
+            let now = crate::city::history::current_month(context.sim);
+            panel.request = crate::trade::requests::panel_request(trade, &panel.city_id, now);
         }
         let selected_city =
             scene.as_ref().and_then(|scene| state.selected.as_deref().and_then(|id| scene.city(id).cloned()));

@@ -252,6 +252,12 @@ impl CampaignConfigs {
                     MissionGoal::FloodsSurvived { min } => {
                         ui::bullet_text(ui_sys, format_small!("Floods without a breach >= {min}"))
                     }
+                    MissionGoal::TradeIncome { per_year } => {
+                        ui::bullet_text(ui_sys, format_small!("Trade income >= {per_year} gold a year"))
+                    }
+                    MissionGoal::RequestsFulfilled { min } => {
+                        ui::bullet_text(ui_sys, format_small!("Requests fulfilled >= {min}"))
+                    }
                 }
             }
         }

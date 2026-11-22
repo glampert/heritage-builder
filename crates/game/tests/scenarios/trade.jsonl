@@ -6,7 +6,10 @@
 # cost more afterwards (trade.state, the world map's panel and the limits dialog); then a river laid to the
 # map's edge, a dock from the Trade grid, Vijara's sea route opened from the world map (needing the
 # dock first), and a ship that moors while its dockers unload its metal and load the city's rice (the
-# dock's and the ship's panels); the state survives a save and a load.
+# dock's and the ship's panels); the court asks for pottery (requests.open: a custom game has no
+# schedule), shown on the Goods page with Send now disabled until the yard holds it and in the
+# Overview's warnings, then sent from the page; Vijara asks for more metal than the city has, and its
+# request fails once its month runs out; the state survives a save and a load.
 # From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/trade.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
@@ -261,6 +264,66 @@
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Exports", "value": 234}}
 {"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "A ship from Vijara brought 16 metal and took 6 rice: −262 gold."}}
 
+# ---- Requests ----
+# The court asks for 10 pottery within 2 months. The Goods page's Requests card shows it, Send now
+# disabled while the yard holds none, and the Overview lists it under Needs attention.
+{"method": "requests.open", "params": {"id": "court_pottery", "good": "Pottery", "amount": 10, "within_months": 2}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/from", "value": "hoa_thanh"}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/court", "value": true}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/months_left", "value": 2}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/can_send", "value": false}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "request"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "The court asks for 10 pottery within 2 months."}}
+{"method": "dialog.open", "params": {"name": "CityManagement"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Overview"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/attention", "kind": "canvas"}, "path": "/widgets/0/value/0", "value": "The court's pottery request: 0 of 10, 2 months left."}}
+{"method": "dialog.close"}
+{"method": "dialog.open", "params": {"name": "ResourcesManagement"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Goods/Requests/requests", "kind": "canvas"}, "path": "/widgets/0/value/requests/0/title", "value": "Pottery for the court"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Goods/Requests/court_pottery/Send now", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/requests_short.png"}}
+{"method": "dialog.close"}
+# With the pottery in the yard, Send now sends it: the request is met, the card empty.
+{"method": "world.add_stock", "params": {"cell": [58, 109], "resources": {"Pottery": 10}}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/held", "value": 10}}
+{"method": "dialog.open", "params": {"name": "ResourcesManagement"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Goods/Requests/court_pottery/Send now", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/requests.png"}}
+{"method": "ui.click", "params": {"path": "CityManagement/Goods/Requests/court_pottery/Send now"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/met", "value": 1}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests", "value": []}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/log/0/met", "value": true}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "The court's request for 10 pottery is met."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Goods/Requests/requests", "kind": "canvas"}, "path": "/widgets/0/value/requests", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "dialog.close"}
+# Vijara asks for 500 metal within a month: the city can't send it, and the request fails once its
+# month runs out.
+{"method": "requests.open", "params": {"id": "vijara_metal", "from": "vijara", "good": "Metal", "amount": 500, "within_months": 1}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/court", "value": false}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/title", "value": "Metal for Vijara"}}
+{"method": "dialog.open", "params": {"name": "WorldMap"}}
+{"method": "world_map.set", "params": {"city": "vijara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/request/goods"}, "path": "/widgets/0/value", "value": "Metal × 500 · within 1 month"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/trade/world_map_request.png"}}
+{"method": "dialog.close"}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "requests.state", "path": "/failed", "op": "eq", "value": 1, "timeout_frames": 6000}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests", "value": []}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/log/1/id", "value": "vijara_metal"}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/log/1/met", "value": false}}
+
 # ---- A save and a load keep it ----
 {"method": "session.save", "params": {"name": "trade_scenario"}}
 # The thumbnail is written a few frames after the save: wait for it, so the deletion takes it too.
@@ -275,5 +338,7 @@
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/traded", "value": 20}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/open", "value": true}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/docks/0/variation", "value": "west_bank"}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/met", "value": 1}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/failed", "value": 1}}
 {"method": "session.delete_save", "params": {"name": "trade_scenario"}}
 {"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "trade_scenario"}, "path": "/has_thumbnail", "value": false}}

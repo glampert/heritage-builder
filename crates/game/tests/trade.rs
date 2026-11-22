@@ -1,7 +1,7 @@
 use common::{Size, coords::Cell};
 use game::{
     building::BuildingKindAndId,
-    campaign::config::{CampaignConfigs, MissionPartnerDef, MissionTradeDef},
+    campaign::config::{CampaignConfigs, MissionGoal, MissionPartnerDef, MissionRequestDef, MissionTradeDef},
     cheats,
     config::{GameConfigs, TradeRules},
     sim::{
@@ -10,7 +10,18 @@ use game::{
         resources::ResourceKind,
         trade::{CityTrade, TradeLimit},
     },
-    trade::{self, GoodTerms, NotSent, OpenRouteError, PartnerTerms, PriceTrend, TradeNotice, TradeSide, ships},
+    trade::{
+        self,
+        GoodTerms,
+        NotSent,
+        OpenRouteError,
+        PartnerTerms,
+        PriceTrend,
+        TradeNotice,
+        TradeSide,
+        requests::{self, RequestEvent, SendError},
+        ships,
+    },
     unit::{
         config::UnitConfigKey,
         task::{UnitTaskShip, UnitTaskShipState, UnitTaskTrade},
@@ -26,7 +37,7 @@ use test_utils::{TestEnvironment, find_building, find_building_mut, find_unit_by
 
 // ----------------------------------------------
 // Integration tests for trade (docs/plans/trade.md): the data and state (Phase 0), caravans (Phase 1),
-// docks and ships (Phase 2) and prices (Phase 3).
+// docks and ships (Phase 2), prices (Phase 3), and requests and the goals (Phase 4).
 // ----------------------------------------------
 
 fn main() {
@@ -66,6 +77,12 @@ fn main() {
         test_utils::test_fn!(test_trade_moves_prices_and_they_drift_back),
         test_utils::test_fn!(test_relations_scale_the_prices),
         test_utils::test_fn!(test_the_world_maps_panel_shows_the_prices_now),
+        // Requests and the goals (Phase 4):
+        test_utils::test_fn!(test_the_requests_are_checked),
+        test_utils::test_fn!(test_a_mission_schedules_its_requests),
+        test_utils::test_fn!(test_sending_meets_a_request),
+        test_utils::test_fn!(test_a_request_opens_now),
+        test_utils::test_fn!(test_the_trade_goals),
     ]);
 }
 
@@ -100,7 +117,7 @@ fn good(name: &str, price: u32, per_year: Option<u32>) -> TradeGoodDef {
 }
 
 fn block(partners: Vec<MissionPartnerDef>) -> MissionTradeDef {
-    MissionTradeDef { enabled: None, partners }
+    MissionTradeDef { enabled: None, partners, requests: Vec::new() }
 }
 
 fn terms_of(city: &str) -> PartnerTerms {
@@ -359,8 +376,9 @@ fn test_the_state_round_trips_a_save() {
     assert_eq!(clans.sold[ResourceKind::Wood.index()], 16);
     assert!(back.is_enabled());
 
-    // What the v11 -> v12 migration writes reads as a game without trade.
-    let migrated = r#"{"enabled": false, "world_map": "", "partners": [], "requests": [], "request_log": []}"#;
+    // What the v11 -> v12 and v13 -> v14 migrations write reads as a game without trade.
+    let migrated =
+        r#"{"enabled": false, "world_map": "", "partners": [], "scheduled": [], "requests": [], "request_log": []}"#;
     let empty: CityTrade = serde_json::from_str(migrated).unwrap();
     assert!(!empty.is_enabled() && empty.partners().is_empty());
     assert_eq!(serde_json::to_value(&empty).unwrap(), serde_json::to_value(CityTrade::new()).unwrap());
@@ -1196,4 +1214,203 @@ fn test_the_world_maps_panel_shows_the_prices_now() {
 
     // A city the game doesn't trade with has none: the panel keeps the world file's.
     assert!(trade::panel_offers(map.env.sim.trade(), "cho_deo", 1.0).is_none());
+}
+
+// ----------------------------------------------
+// Requests and the goals (Phase 4)
+// ----------------------------------------------
+
+fn request_def(id: &str, from: &str, good: ResourceKind, amount: u32, month: u32, within_months: u32) -> MissionRequestDef {
+    MissionRequestDef { id: id.into(), from: from.into(), good, amount, month, within_months, legitimacy: 0, relation: 0 }
+}
+
+// The trade map with the clans open and a schedule: the court's 20 pottery a month after the start
+// (month 26), within 3 months; Vijara's 10 rice the month after, within 1.
+fn requests_map() -> TradeMap {
+    let mut map = trade_map();
+    let mut court = request_def("court_pottery", "hoa_thanh", ResourceKind::Pottery, 20, 1, 3);
+    court.legitimacy = 8;
+    let block = MissionTradeDef {
+        enabled: None,
+        partners: vec![partner("clan_camps", true)],
+        requests: vec![request_def("vijara_rice", "vijara", ResourceKind::Rice, 10, 2, 1), court],
+    };
+    trade::start(map.env.sim.trade_mut(), "dragon_legacy", &block, 25, rules());
+    trade::take_notices();
+    map
+}
+
+// The month whose ordinal is `ordinal` starts.
+fn month_starts(map: &mut TradeMap, ordinal: u32) {
+    new_month(map, ordinal / 12, ordinal % 12 + 1);
+}
+
+fn request_notices(map: &TradeMap) -> Vec<(RequestEvent, String, String)> {
+    trade::take_notices()
+        .into_iter()
+        .filter_map(|notice| match &notice {
+            TradeNotice::Request { event, request, .. } => {
+                let name = trade::partner_name(map.env.sim.trade(), &request.from);
+                Some((*event, request.id.clone(), trade::notice_message(&notice, &name).2))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn test_the_requests_are_checked() {
+    let map = dragon_legacy();
+    let block = |requests| MissionTradeDef { enabled: None, partners: Vec::new(), requests };
+    assert!(map.trade_problems(&block(vec![request_def("a", "hoa_thanh", ResourceKind::Pottery, 30, 2, 6)])).is_empty());
+    let bad = block(vec![
+        request_def("a", "hoa_thanh", ResourceKind::Pottery, 30, 2, 6),
+        request_def("a", "nowhere", ResourceKind::Gold, 0, 0, 6),
+    ]);
+    let problems = map.trade_problems(&bad).join("\n");
+    for expected in ["names the request 'a' twice", "'nowhere', no city", "not gold", "amount and a time limit", "month 0"] {
+        assert!(problems.contains(expected), "{expected}: {problems}");
+    }
+}
+
+// A schedule's requests open at their months, and fail once their months run out unmet.
+fn test_a_mission_schedules_its_requests() {
+    let mut map = requests_map();
+    let trade_state = map.env.sim.trade();
+    assert!(trade_state.requests().is_empty());
+    let scheduled: Vec<(&str, u32, u32)> =
+        trade_state.scheduled().iter().map(|request| (request.id.as_str(), request.opened, request.due)).collect();
+    assert_eq!(scheduled, [("court_pottery", 26, 29), ("vijara_rice", 27, 28)], "soonest first");
+    assert!(requests::is_court(trade_state, "hoa_thanh") && !requests::is_court(trade_state, "vijara"));
+    assert_eq!(requests::court_city(trade_state).as_deref(), Some("hoa_thanh"));
+
+    month_starts(&mut map, 26);
+    assert_eq!(request_notices(&map), [(
+        RequestEvent::Opened,
+        "court_pottery".to_string(),
+        "The court asks for 20 pottery within 3 months.".to_string()
+    )]);
+    let pottery = map.env.sim.trade().request("court_pottery").unwrap();
+    assert_eq!((pottery.months_left(26), pottery.legitimacy), (3, 8));
+
+    month_starts(&mut map, 27);
+    assert_eq!(request_notices(&map), [(
+        RequestEvent::Opened,
+        "vijara_rice".to_string(),
+        "Vijara asks for 10 rice within 1 month.".to_string()
+    )]);
+    // The Goods page's rows and the Overview's lines: soonest due first, with what the city holds.
+    let granary = map.granary;
+    put(&mut map, granary, ResourceKind::Rice, 4);
+    let rows = requests::rows(&map.env.world, map.env.sim.trade(), 27);
+    let rows: Vec<(&str, &str, u32, u32, bool)> =
+        rows.iter().map(|row| (row.id.as_str(), row.title.as_str(), row.held, row.months_left, row.court)).collect();
+    assert_eq!(rows, [
+        ("vijara_rice", "Rice for Vijara", 4, 1, false),
+        ("court_pottery", "Pottery for the court", 0, 2, true)
+    ]);
+    // The world map's panel shows Vijara's request in this game.
+    let box_ = requests::panel_request(map.env.sim.trade(), "vijara", 27).unwrap();
+    assert_eq!((box_.goods.as_str(), box_.within.as_str()), ("Rice × 10", "within 1 month"));
+    assert!(requests::panel_request(map.env.sim.trade(), "clan_camps", 27).is_none());
+
+    // Vijara's month runs out: it fails, with a warning.
+    month_starts(&mut map, 28);
+    let notices = trade::take_notices();
+    assert_eq!(notices.len(), 1);
+    let (kind, _, text) = trade::notice_message(&notices[0], "Vijara");
+    assert_eq!((kind, text.as_str()), (game::messages::MessageKind::Warning, "Vijara's request for 10 rice went unmet."));
+    let trade_state = map.env.sim.trade();
+    assert_eq!((trade_state.requests().len(), trade_state.requests_met(), trade_state.requests_failed()), (1, 0, 1));
+    assert_eq!(trade_state.request_log()[0].closed, 28);
+    assert!(requests::panel_request(trade_state, "vijara", 28).is_none());
+
+    // So does the court's, three months after it opened.
+    month_starts(&mut map, 29);
+    assert_eq!(request_notices(&map)[0].2, "The court's request for 20 pottery went unmet.");
+    assert_eq!(map.env.sim.trade().requests_failed(), 2);
+}
+
+// Send now: once the yards and granaries hold the amount, it's taken from them at once.
+fn test_sending_meets_a_request() {
+    let mut map = requests_map();
+    month_starts(&mut map, 26);
+    trade::take_notices();
+    let send = |map: &mut TradeMap, id: &str| {
+        let context = map.env.new_sim_context(0.0);
+        requests::send(&context, id)
+    };
+
+    assert_eq!(send(&mut map, "court_pottery"), Err(SendError::Short { held: 0, amount: 20 }));
+    assert_eq!(send(&mut map, "vijara_rice"), Err(SendError::NotUnderWay), "not open yet");
+    let yard = map.yard;
+    put(&mut map, yard, ResourceKind::Pottery, 25);
+    {
+        let context = map.env.new_sim_context(0.0);
+        assert_eq!(requests::can_send(&context, "court_pottery"), Ok(()));
+    }
+    assert_eq!(send(&mut map, "court_pottery"), Ok(()));
+    assert_eq!(stock(&map, map.yard, ResourceKind::Pottery), 5);
+    assert_eq!(request_notices(&map)[0].2, "The court's request for 20 pottery is met.");
+    let trade_state = map.env.sim.trade();
+    assert!(trade_state.requests().is_empty());
+    assert_eq!((trade_state.requests_met(), trade_state.request_log()[0].met), (1, true));
+    assert_eq!(trade_state.request_log()[0].request.legitimacy, 8, "its effects are logged for M9");
+    assert_eq!(send(&mut map, "court_pottery"), Err(SendError::NotUnderWay), "met already");
+
+    // The world stats count it, for RequestsFulfilled.
+    map.env.world.refresh_stats(map.env.sim.finance(), map.env.sim.faith(), map.env.sim.floods(), map.env.sim.trade());
+    assert_eq!(map.env.world.stats().trade.requests_met, 1);
+    assert!(MissionGoal::RequestsFulfilled { min: 1 }.is_met(map.env.world.stats()));
+    assert!(!MissionGoal::RequestsFulfilled { min: 2 }.is_met(map.env.world.stats()));
+
+    // The state, with its schedule, the request under way and the log, survives a save.
+    month_starts(&mut map, 27);
+    let json = serde_json::to_string(map.env.sim.trade()).unwrap();
+    let back: CityTrade = serde_json::from_str(&json).unwrap();
+    assert_eq!(serde_json::to_string(&back).unwrap(), json);
+    assert_eq!((back.requests().len(), back.request_log().len(), back.scheduled().len()), (1, 1, 0));
+}
+
+// A request opened now (automation): a scheduled one keeps its months to send it, counted from now; a
+// known id can't open twice.
+fn test_a_request_opens_now() {
+    let mut map = requests_map();
+    let trade_state = map.env.sim.trade_mut();
+    let scheduled = trade_state.scheduled().iter().find(|request| request.id == "vijara_rice").cloned().unwrap();
+    assert!(trade_state.open_request(scheduled.clone(), 25));
+    let opened = trade_state.request("vijara_rice").unwrap();
+    assert_eq!((opened.opened, opened.due), (25, 26));
+    assert_eq!(trade_state.scheduled().len(), 1, "taken off the schedule");
+    assert!(!trade_state.open_request(scheduled, 25), "under way already");
+    assert!(trade_state.knows_request("court_pottery") && !trade_state.knows_request("nothing"));
+
+    // Its month runs out at 26, when the court's opens; the schedule doesn't open Vijara's again.
+    month_starts(&mut map, 26);
+    let trade_state = map.env.sim.trade();
+    let open: Vec<&str> = trade_state.requests().iter().map(|request| request.id.as_str()).collect();
+    assert_eq!(open, ["court_pottery"]);
+    assert_eq!(trade_state.request_log()[0].request.id, "vijara_rice");
+    month_starts(&mut map, 27);
+    assert_eq!(map.env.sim.trade().requests().len(), 1);
+}
+
+// TradeIncome counts the exports' gold this year or last, whichever is higher.
+fn test_the_trade_goals() {
+    let mut map = trade_map();
+    let refresh = |map: &mut TradeMap| {
+        map.env.world.refresh_stats(map.env.sim.finance(), map.env.sim.faith(), map.env.sim.floods(), map.env.sim.trade());
+        map.env.world.stats().trade.income
+    };
+    assert_eq!(refresh(&mut map), 0);
+    map.env.sim.finance_mut().earn(LedgerCategory::Exports, 640);
+    map.env.sim.finance_mut().spend(LedgerCategory::Imports, 300);
+    assert_eq!(refresh(&mut map), 640, "exports only, not net of imports");
+    assert!(MissionGoal::TradeIncome { per_year: 600 }.is_met(map.env.world.stats()));
+    assert!(!MissionGoal::TradeIncome { per_year: 1000 }.is_met(map.env.world.stats()));
+
+    // A new year: last year's still counts until this year's passes it.
+    map.env.sim.finance_mut().on_new_year();
+    assert_eq!(refresh(&mut map), 640);
+    map.env.sim.finance_mut().earn(LedgerCategory::Exports, 700);
+    assert_eq!(refresh(&mut map), 700);
 }

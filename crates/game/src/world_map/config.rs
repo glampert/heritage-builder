@@ -554,6 +554,24 @@ impl WorldMapDef {
                 problems.push(format!("trade partner '{name}' comes every 0 months; it needs 1 or more"));
             }
         }
+        for (index, request) in trade.requests.iter().enumerate() {
+            let id = &request.id;
+            if trade.requests[..index].iter().any(|other| other.id == *id) {
+                problems.push(format!("trade names the request '{id}' twice"));
+            }
+            if self.city(&request.from).is_none() {
+                problems.push(format!("request '{id}' comes from '{}', no city of the map", request.from));
+            }
+            if !request.good.is_single_resource() || request.good == ResourceKind::Gold {
+                problems.push(format!("request '{id}' asks for '{}'; it needs a single good, not gold", request.good));
+            }
+            if request.amount == 0 || request.within_months == 0 {
+                problems.push(format!("request '{id}' needs an amount and a time limit of 1 or more"));
+            }
+            if request.month == 0 {
+                problems.push(format!("request '{id}' opens in month 0; it needs 1 or more (months after the start)"));
+            }
+        }
         problems
     }
 

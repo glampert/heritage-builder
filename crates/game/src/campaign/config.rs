@@ -433,13 +433,34 @@ impl MissionFloodsDef {
 }
 
 // A mission's trade (docs/plans/trade.md, §1), or a custom map's (custom_game::config::MapDef): the
-// partners it trades with, cities of its campaign's world map (WorldMapDef::trade_problems checks
-// them). Trade is on when it lists partners, unless `enabled` says not.
+// partners it trades with, cities of its campaign's world map, and the requests it sends
+// (WorldMapDef::trade_problems checks them). Trade is on when it lists partners, unless `enabled`
+// says not; the requests come whether it trades or not.
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MissionTradeDef {
     pub enabled: Option<bool>,
     pub partners: Vec<MissionPartnerDef>,
+    pub requests: Vec<MissionRequestDef>,
+}
+
+// A request in a mission's schedule (docs/plans/trade.md, §6): `amount` of a good, asked by a city
+// of the world map (the player's capital for the court, or another city) `month` months after the
+// mission's start, to be sent within `within_months`. Its effects on Legitimacy (M9) and on the
+// asker's relations (game Phase 2) are logged with it, not applied yet.
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MissionRequestDef {
+    pub id: String,
+    pub from: String,
+    pub good: ResourceKind,
+    pub amount: u32,
+    pub month: u32,
+    pub within_months: u32,
+    #[serde(default)]
+    pub legitimacy: i32,
+    #[serde(default)]
+    pub relation: i32,
 }
 
 impl MissionTradeDef {
@@ -501,6 +522,12 @@ pub enum MissionGoal {
     // The river's floods since the mission's start that breached no dyke, not necessarily in a row
     // (docs/plans/seasons-floods.md, §4): I-4's "survive 3 flood seasons without a breach".
     FloodsSurvived { min: u32 },
+    // The gold the city's exports earned in a calendar year, this one or the last, whichever is
+    // higher (docs/plans/trade.md, §6): I-5's "trade income 1,000 a year".
+    TradeIncome { per_year: u32 },
+    // Requests met since the mission's start (docs/plans/trade.md, §6): I-5's "fulfil 3 court
+    // requests".
+    RequestsFulfilled { min: u32 },
 }
 
 impl MissionGoal {
@@ -514,6 +541,8 @@ impl MissionGoal {
             Self::Resource { kind, min } => stats.resources.all.count(*kind) >= *min,
             Self::FestivalsHeld { min } => stats.faith.festivals_held >= *min,
             Self::FloodsSurvived { min } => stats.floods.survived >= *min,
+            Self::TradeIncome { per_year } => stats.trade.income >= *per_year,
+            Self::RequestsFulfilled { min } => stats.trade.requests_met >= *min,
         }
     }
 }
