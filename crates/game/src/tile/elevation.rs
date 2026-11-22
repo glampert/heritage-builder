@@ -21,7 +21,9 @@
 
 use common::{
     Size,
-    coords::{Cell, CellF32},
+    Vec2,
+    constants::{BASE_TILE_HEIGHT_F32, BASE_TILE_SIZE_I32, HALF_BASE_TILE_HEIGHT_F32, HALF_BASE_TILE_WIDTH_F32},
+    coords::{self, Cell, CellF32, WorldToScreenTransform},
 };
 use serde::{Deserialize, Serialize};
 
@@ -407,6 +409,37 @@ impl ElevationMap {
         }
     }
 
+    // The ground's height at the two corners of `cell`'s `side` (north is +x, east -y, south -x,
+    // west +y).
+    pub fn side_heights(&self, cell: Cell, side: Dir) -> [f32; 2] {
+        side_corners(side).map(|(dx, dy)| self.corner_height(cell, dx, dy))
+    }
+
+    // Whether two cells side by side join: their ground meets at the same height at both corners of
+    // the edge they share. Flat cells at one level join; so do a ramp's two halves along its way, its
+    // foot and the ground at its level below it, its head and the ground a level up above it. A cliff
+    // doesn't, nor does a ramp's side. Walkers step, roads run and junctions join only where cells
+    // join (docs/plans/terrain-height.md, §6 and §7). False for cells that aren't side by side or
+    // outside the map.
+    pub fn joins(&self, a: Cell, b: Cell) -> bool {
+        let Some(side) = Dir::ALL.into_iter().find(|dir| dir.neighbour(a) == b) else {
+            return false;
+        };
+        if !self.is_cell_within_bounds(a) || !self.is_cell_within_bounds(b) {
+            return false;
+        }
+        let [a0, a1] = self.side_heights(a, side);
+        let [b0, b1] = self.side_heights(b, side.opposite());
+        // The corners pair up in the same order: side_corners lists them by the same axis.
+        (a0 - b0).abs() < 1e-4 && (a1 - b1).abs() < 1e-4
+    }
+
+    // Whether a cell's ground is flat (not a ramp) at `level`.
+    #[inline]
+    pub fn is_flat_at(&self, cell: Cell, level: u8) -> bool {
+        self.get(cell) == (level, Shape::Flat)
+    }
+
     // A cell's ground at its centre, in levels: a ramp's low half's a quarter level up, its high
     // half's three quarters.
     #[inline]
@@ -502,6 +535,111 @@ impl ElevationMap {
         }
         problems
     }
+}
+
+// The two corners of a cell's side, as offsets from its centre, in the same order for a side and its
+// opposite (by y for north and south, by x for east and west), so a cell's side and its neighbour's
+// facing side pair up.
+pub const fn side_corners(side: Dir) -> [(f32, f32); 2] {
+    match side {
+        Dir::N => [(0.5, -0.5), (0.5, 0.5)],
+        Dir::S => [(-0.5, -0.5), (-0.5, 0.5)],
+        Dir::E => [(-0.5, -0.5), (0.5, -0.5)],
+        Dir::W => [(-0.5, 0.5), (0.5, 0.5)],
+    }
+}
+
+// ----------------------------------------------
+// Screen geometry
+// ----------------------------------------------
+
+// A point in continuous cell space (a cell's centre at whole numbers) at a height in levels, on
+// screen: where the ground there is drawn.
+pub fn ground_point(x: f32, y: f32, height: f32, transform: WorldToScreenTransform) -> Vec2 {
+    let mut iso = coords::cell_to_iso_f32(CellF32(Vec2::new(x, y)));
+    iso.0.x += HALF_BASE_TILE_WIDTH_F32;
+    iso.0.y += HALF_BASE_TILE_HEIGHT_F32 - height * LEVEL_STEP_PX;
+    transform.apply_to_iso_point(iso)
+}
+
+// A cell's ground diamond on screen, [top, right, bottom, left], at its height (a ramp's sloped); the
+// flat diamond without heights.
+pub fn ground_diamond(map: Option<&ElevationMap>, cell: Cell, transform: WorldToScreenTransform) -> [Vec2; 4] {
+    let Some(map) = map.filter(|map| !map.is_flat()) else {
+        return coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+    };
+    let (x, y) = (cell.x as f32, cell.y as f32);
+    let corner = |dx: f32, dy: f32| ground_point(x + dx, y + dy, map.corner_height(cell, dx, dy), transform);
+    [corner(0.5, 0.5), corner(0.5, -0.5), corner(-0.5, -0.5), corner(-0.5, 0.5)]
+}
+
+// ----------------------------------------------
+// Picking
+// ----------------------------------------------
+
+// What the cursor is over (docs/plans/terrain-height.md, §4): a cell, and whether it's on that
+// cell's cliff face rather than its top.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct Pick {
+    pub cell: Cell,
+    pub face: bool,
+}
+
+impl ElevationMap {
+    // The cell drawn at a screen point: the front-most column that covers it. The candidates are the
+    // cells in front of the flat cell under the point, as far as the highest ground reaches (a cell
+    // at level h shows h cells further back along the screen's vertical); each is tested front to
+    // back, its top (a ramp's sloped) and then its column below, down to its own ground diamond.
+    // Columns further front are drawn later, so the first hit is the answer. None off the map.
+    pub fn pick(&self, screen_point: Vec2, transform: WorldToScreenTransform) -> Option<Pick> {
+        let flat = coords::screen_point_to_cell_f32(screen_point, transform);
+        let (fx, fy) = (flat.0.x.round() as i32, flat.0.y.round() as i32);
+        let reach = ((f32::from(self.max_height()) * LEVEL_STEP_PX) / BASE_TILE_HEIGHT_F32).ceil() as i32 + 1;
+
+        let mut best: Option<(i32, Pick)> = None;
+        for dy in -1..=reach {
+            for dx in -1..=reach {
+                let cell = Cell::new(fx - dx, fy - dy);
+                if !self.is_cell_within_bounds(cell) {
+                    continue;
+                }
+                let row = cell.x + cell.y; // Smaller is further front.
+                if best.is_some_and(|(best_row, _)| best_row <= row) {
+                    continue;
+                }
+                let top = ground_diamond(Some(self), cell, transform);
+                if coords::is_screen_point_inside_diamond(screen_point, &top) {
+                    best = Some((row, Pick { cell, face: false }));
+                    continue;
+                }
+                if self.is_raised(cell) {
+                    let ground = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+                    let column = [top[0], top[1], ground[1], ground[2], ground[3], top[3]];
+                    if is_inside_convex(screen_point, &column) {
+                        best = Some((row, Pick { cell, face: true }));
+                    }
+                }
+            }
+        }
+        best.map(|(_, pick)| pick)
+    }
+}
+
+fn is_inside_convex(point: Vec2, polygon: &[Vec2]) -> bool {
+    let mut sign = 0.0f32;
+    for i in 0..polygon.len() {
+        let (a, b) = (polygon[i], polygon[(i + 1) % polygon.len()]);
+        let cross = (b.x - a.x) * (point.y - a.y) - (b.y - a.y) * (point.x - a.x);
+        if cross.abs() < f32::EPSILON {
+            continue;
+        }
+        if sign == 0.0 {
+            sign = cross.signum();
+        } else if cross.signum() != sign {
+            return false;
+        }
+    }
+    true
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -961,6 +1099,48 @@ mod tests {
         // Flatten makes a ramp's half flat again.
         map.set_byte(centre, encode(1, ramp(Dir::E, Half::Low)));
         assert_eq!(brush_edits(&map, HeightTool::Flatten, centre, 1, None), vec![(centre, encode(1, Shape::Flat))]);
+    }
+
+    #[test]
+    fn test_joins() {
+        let mut map = map(8);
+        let c = Cell::new;
+        for y in 2..=4 {
+            for x in 3..=5 {
+                set(&mut map, (x, y), 1, Shape::Flat);
+            }
+        }
+        set(&mut map, (1, 3), 0, ramp(Dir::N, Half::Low));
+        set(&mut map, (2, 3), 0, ramp(Dir::N, Half::High));
+
+        // Flat ground at one level; a cliff doesn't join.
+        assert!(map.joins(c(3, 3), c(4, 3)) && map.joins(c(0, 0), c(1, 0)));
+        assert!(!map.joins(c(3, 1), c(3, 2)));
+        // Up the ramp: the ground below its foot, its two halves, its head and the plateau.
+        assert!(map.joins(c(0, 3), c(1, 3)));
+        assert!(map.joins(c(1, 3), c(2, 3)));
+        assert!(map.joins(c(2, 3), c(3, 3)));
+        assert!(map.joins(c(3, 3), c(2, 3)));
+        // Not across its sides, nor between cells that aren't side by side.
+        assert!(!map.joins(c(1, 3), c(1, 2)) && !map.joins(c(2, 3), c(2, 4)));
+        assert!(!map.joins(c(1, 3), c(2, 4)) && !map.joins(c(0, 0), c(9, 0)));
+    }
+
+    #[test]
+    fn test_pick() {
+        let transform = WorldToScreenTransform::new(1.0, Vec2::new(400.0, 600.0));
+        let mut map = map(8);
+        set(&mut map, (3, 3), 2, Shape::Flat);
+        let centre = |x: f32, y: f32, h: f32| ground_point(x, y, h, transform);
+
+        // The raised cell's top, two levels up, where the flat cell (5, 5) lies: the raised cell.
+        assert_eq!(map.pick(centre(3.0, 3.0, 2.0), transform), Some(Pick { cell: Cell::new(3, 3), face: false }));
+        // Its cliff face, where its own flat diamond lies.
+        assert_eq!(map.pick(centre(3.0, 3.0, 0.0), transform), Some(Pick { cell: Cell::new(3, 3), face: true }));
+        // A flat cell beside it.
+        assert_eq!(map.pick(centre(6.0, 1.0, 0.0), transform), Some(Pick { cell: Cell::new(6, 1), face: false }));
+        // Off the map.
+        assert_eq!(map.pick(centre(-3.0, -3.0, 0.0), transform), None);
     }
 
     #[test]

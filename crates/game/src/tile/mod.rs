@@ -2587,6 +2587,8 @@ impl TileMap {
         }
     }
 
+    // The cell drawn at a screen point: on raised ground the front-most column there
+    // (ElevationMap::pick), a cliff face counting as its top's cell.
     #[inline]
     pub fn find_exact_cell_for_point(
         &self,
@@ -2596,6 +2598,10 @@ impl TileMap {
     ) -> Cell {
         if self.layers.is_empty() {
             return Cell::invalid();
+        }
+
+        if !self.elevation.is_flat() {
+            return self.elevation.pick(screen_point, transform).map_or(Cell::invalid(), |pick| pick.cell);
         }
 
         self.layer(layer_kind).find_exact_cell_for_point(screen_point, transform)
@@ -2778,6 +2784,8 @@ impl TileMap {
 
         // Prevent placing objects/props over non-walkable terrain tiles (water/roads, etc).
         placement::internal::is_placement_on_terrain_valid(self.layers(), target_cell, tile_def_to_place)?;
+        // And where the ground's height doesn't take it (docs/plans/terrain-height.md, §7).
+        placement::internal::is_placement_on_heights_valid(self.layers(), &self.elevation, target_cell, tile_def_to_place)?;
 
         // Capture a Copy view of all layers before destructuring `self`. Disjoint
         // field borrows below let us hold `&mut layer` alongside `&mut minimap`
@@ -3049,7 +3057,8 @@ impl TileMap {
         }
 
         let map_size_in_cells = self.size_in_cells();
-        selection.update(self.layers_mut(), map_size_in_cells, cursor_screen_pos, transform, placement_op);
+        let layers = self.layers_mut();
+        selection.update(layers, &self.elevation, map_size_in_cells, cursor_screen_pos, transform, placement_op);
     }
 
     #[inline]
@@ -3089,7 +3098,7 @@ impl TileMap {
         // Find topmost layer tile under the target cell.
         for layer_kind in TileMapLayerKind::iter().rev() {
             let layer = self.layer(layer_kind);
-            let target_cell = layer.find_exact_cell_for_point(cursor_screen_pos, transform);
+            let target_cell = self.find_exact_cell_for_point(layer_kind, cursor_screen_pos, transform);
 
             let tile = layer.try_tile(target_cell);
             if tile.is_some() {

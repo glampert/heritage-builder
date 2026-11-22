@@ -11,7 +11,15 @@ use game::{
 };
 
 mod test_utils;
-use test_utils::{TestEnvironment, find_terrain_def, find_water_def, place_tile_as_player, spawn_building};
+use test_utils::{
+    TestEnvironment,
+    find_building_def,
+    find_terrain_def,
+    find_vegetation_def,
+    find_water_def,
+    place_tile_as_player,
+    spawn_building,
+};
 
 // ----------------------------------------------
 // Integration tests for terrain placement
@@ -45,6 +53,9 @@ fn main() {
         test_utils::test_fn!(test_heights_reach_the_minimap),
         test_utils::test_fn!(test_heights_reset_with_the_map),
         test_utils::test_fn!(test_height_pieces_exist),
+        test_utils::test_fn!(test_placement_follows_heights),
+        test_utils::test_fn!(test_road_segments_follow_heights),
+        test_utils::test_fn!(test_picking_follows_heights),
     ]);
 }
 
@@ -569,4 +580,117 @@ fn test_height_pieces_exist() {
     assert_eq!(RampSurface::of_terrain(find_terrain_def("grass")), RampSurface::Grass);
     assert!(height_pieces::has_dirt_lip(find_terrain_def("dirt")));
     assert!(!height_pieces::has_dirt_lip(find_terrain_def("grass")));
+}
+
+// A grass map with a plateau at level 1 over x 4..=7, y 4..=7, a ramp up its south side climbing
+// north (its foot at (2, 5), its head at (3, 5)) and a block at level 3 at (10, 10).
+fn terraced_map() -> TestEnvironment {
+    let mut env = TestEnvironment::with_terrain(MAP_SIZE, find_terrain_def("grass"));
+    set_heights(&mut env, &rect((4, 4), (7, 7)), 1, Shape::Flat, false);
+    set_heights(&mut env, &[Cell::new(2, 5)], 0, Shape::Ramp(Dir::N, Half::Low), false);
+    set_heights(&mut env, &[Cell::new(3, 5)], 0, Shape::Ramp(Dir::N, Half::High), false);
+    set_heights(&mut env, &[Cell::new(10, 10)], 3, Shape::Flat, false);
+    assert!(env.tile_map.elevation().problems().is_empty());
+    env
+}
+
+fn placement_error(env: &mut TestEnvironment, cell: Cell, def: &'static game::tile::sets::TileDef) -> Option<String> {
+    env.tile_map.try_place_tile(cell, def).err().map(|err| format!("{}", err.reason))
+}
+
+// docs/plans/terrain-height.md, §7: footprints flat at one level, nothing beside ground more than a
+// level above, water at level 0, lots and dykes on flat ground.
+fn test_placement_follows_heights() {
+    let mut env = terraced_map();
+    let well = find_building_def("small_well");
+    let theater = find_building_def("theater"); // 2 × 2.
+
+    // On the plateau, or on the ground: fine.
+    assert_eq!(placement_error(&mut env, Cell::new(5, 5), well), None);
+    assert_eq!(placement_error(&mut env, Cell::new(1, 1), well), None);
+    // Across the plateau's edge, or on a ramp: uneven ground.
+    assert_eq!(placement_error(&mut env, Cell::new(3, 3), theater).as_deref(), Some("UnevenGround"));
+    assert_eq!(placement_error(&mut env, Cell::new(2, 5), well).as_deref(), Some("UnevenGround"));
+    // Beside the level-3 block at its side (its right corner's neighbour on its row is (10, 10)).
+    assert_eq!(placement_error(&mut env, Cell::new(9, 11), well).as_deref(), Some("BesideHigherGround"));
+    // A tree on the plateau is fine; on a ramp it isn't.
+    assert_eq!(placement_error(&mut env, Cell::new(6, 6), find_vegetation_def("tree")), None);
+    assert_eq!(placement_error(&mut env, Cell::new(3, 5), find_vegetation_def("tree")).as_deref(), Some("UnevenGround"));
+
+    // Water on raised ground, a lot or a dyke on a ramp: refused; on the ground: fine.
+    assert_eq!(placement_error(&mut env, Cell::new(4, 7), find_water_def()).as_deref(), Some("RaisedGround"));
+    assert_eq!(placement_error(&mut env, Cell::new(2, 5), find_terrain_def("vacant_lot")).as_deref(), Some("UnevenGround"));
+    assert_eq!(placement_error(&mut env, Cell::new(3, 5), find_terrain_def("dyke")).as_deref(), Some("UnevenGround"));
+    assert_eq!(placement_error(&mut env, Cell::new(11, 1), find_water_def()), None);
+    // A road may lie on a ramp.
+    assert_eq!(placement_error(&mut env, Cell::new(2, 5), find_terrain_def("dirt_road")), None);
+
+    // A sluice gate needs its dyke on its own level: a dyke at the plateau's foot, (3, 4), serves a
+    // gate beside it on the ground, not one on the plateau above it.
+    place_tile_as_player(&mut env, Cell::new(3, 4), find_terrain_def("dyke"));
+    let gate = find_building_def("sluice_gate");
+    assert_eq!(placement_error(&mut env, Cell::new(4, 4), gate).as_deref(), Some("RequiresDyke"));
+    assert_eq!(placement_error(&mut env, Cell::new(3, 3), gate), None);
+}
+
+// A segment's steps must join by height: up a ramp along its way, never down a cliff. Junctions
+// join only where the ground meets.
+fn test_road_segments_follow_heights() {
+    use game::tile::road::{self, RoadKind};
+    let mut env = terraced_map();
+
+    // Along y = 5 from the ground, up the ramp and onto the plateau.
+    let up = road::build_segment(&env.tile_map, Cell::new(0, 5), Cell::new(6, 5), RoadKind::Dirt);
+    assert!(up.is_valid, "{:?}", up.path);
+    // Straight off the plateau's east edge (x = 5 from y = 6 down to 1): every way crosses the cliff.
+    let down = road::build_segment(&env.tile_map, Cell::new(5, 6), Cell::new(5, 1), RoadKind::Dirt);
+    assert!(!down.is_valid, "{:?}", down.path);
+    // Onto the ramp from its side: the ramp's flank.
+    let side = road::build_segment(&env.tile_map, Cell::new(3, 2), Cell::new(3, 5), RoadKind::Dirt);
+    assert!(!side.is_valid, "{:?}", side.path);
+    // A canal stays off raised ground.
+    let canal = road::build_segment(&env.tile_map, Cell::new(4, 9), Cell::new(4, 6), RoadKind::Canal);
+    assert!(!canal.is_valid);
+
+    // Junction masks' bits (tile::road): west 1, south 2, east 4, north 8.
+    const WEST: usize = 1;
+    const SOUTH: usize = 2;
+    TilePlacement::place_road_segment(&env.new_sim_context(0.0), &up, false).expect("the road up the ramp");
+    // Up the ramp every step joins: the plateau's first cell joins the ramp's head south of it.
+    assert_ne!(road::junction_mask(&env.tile_map, Cell::new(4, 5)) & SOUTH, 0);
+    assert_ne!(road::junction_mask(&env.tile_map, Cell::new(3, 5)) & SOUTH, 0);
+    // A road at the cliff's foot east of the plateau, (5, 3), beside a road on the plateau's edge
+    // above it, (5, 4): they don't join across the cliff, but (5, 3) joins its neighbour on the ground.
+    place_tile_as_player(&mut env, Cell::new(5, 4), find_terrain_def("dirt_road"));
+    place_tile_as_player(&mut env, Cell::new(5, 3), find_terrain_def("dirt_road"));
+    place_tile_as_player(&mut env, Cell::new(6, 3), find_terrain_def("dirt_road"));
+    let foot = road::junction_mask(&env.tile_map, Cell::new(5, 3));
+    assert_eq!(foot & WEST, 0, "the road at the cliff's foot joins the road above it: {foot:04b}");
+    assert_ne!(foot, 0, "the road at the cliff's foot joins nothing: {foot:04b}");
+    let edge = road::junction_mask(&env.tile_map, Cell::new(5, 4));
+    assert_eq!(edge & 4, 0, "the road on the plateau's edge joins the road below it: {edge:04b}");
+}
+
+// The cell under a point is the one drawn there: a raised top, a cliff face's top cell, or the
+// ground beside it (docs/plans/terrain-height.md, §4).
+fn test_picking_follows_heights() {
+    use common::{Vec2, coords::WorldToScreenTransform};
+    let mut env = terraced_map();
+    place_tile_as_player(&mut env, Cell::new(5, 5), find_building_def("small_well"));
+    let transform = WorldToScreenTransform::new(2.0, Vec2::new(800.0, 900.0));
+    let at = |x: i32, y: i32, height: f32| elevation::ground_point(x as f32, y as f32, height, transform);
+
+    let pick =
+        |env: &TestEnvironment, point| env.tile_map.find_exact_cell_for_point(TileMapLayerKind::Terrain, point, transform);
+    // The plateau's front corner, drawn a level up.
+    assert_eq!(pick(&env, at(4, 4, 1.0)), Cell::new(4, 4));
+    // The same cell's flat position is its cliff face: still the corner.
+    assert_eq!(pick(&env, at(4, 4, 0.0)), Cell::new(4, 4));
+    // The ground beside the plateau.
+    assert_eq!(pick(&env, at(9, 1, 0.0)), Cell::new(9, 1));
+    // The ramp's head, half and three quarters of a level up.
+    assert_eq!(pick(&env, at(3, 5, 0.75)), Cell::new(3, 5));
+    // The topmost tile at the well's raised cell is the well.
+    let tile = env.tile_map.topmost_tile_at_cursor(at(5, 5, 1.0), transform).expect("a tile");
+    assert_eq!(tile.name(), "small_well");
 }

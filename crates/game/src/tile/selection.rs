@@ -18,6 +18,7 @@ use super::{
     TileMap,
     TileMapLayerKind,
     TileMapLayerMutRefs,
+    elevation::{self, ElevationMap},
     placement::{self, TilePlacementOp},
     rendering::SELECTION_RECT_COLOR,
 };
@@ -120,6 +121,7 @@ impl TileSelection {
     pub fn update(
         &mut self,
         mut layers: TileMapLayerMutRefs,
+        elevation: &ElevationMap,
         map_size_in_cells: Size,
         cursor_screen_pos: Vec2,
         transform: WorldToScreenTransform,
@@ -143,19 +145,36 @@ impl TileSelection {
             // Clear previous highlighted tiles:
             self.clear(layers);
 
-            let range = bounds(&self.rect, map_size_in_cells, transform);
+            // Raised ground below the rect in flat terms can rise into it.
+            let raised_px = f32::from(elevation.max_height()) * elevation::LEVEL_STEP_PX * transform.scaling;
+            let mut search_rect = self.rect;
+            search_rect.max.y += raised_px;
+            let range = bounds(&search_rect, map_size_in_cells, transform);
 
             for cell in &range {
                 if let Some(base_tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                     let tile_iso_coords = base_tile.iso_coords();
-                    let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_coords, base_tile.logical_size(), transform);
+                    let lift = elevation.centre_height(cell) * elevation::LEVEL_STEP_PX * transform.scaling;
+                    let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_coords, base_tile.logical_size(), transform)
+                        .translated(Vec2::new(0.0, -lift));
 
                     if tile_screen_rect.intersects(&self.rect) {
                         let base_cell = base_tile.base_cell();
-                        self.toggle_selection(layers, base_cell, placement_op);
+                        self.toggle_selection(layers, elevation, base_cell, placement_op);
                     }
                 }
             }
+        } else if !elevation.is_flat() {
+            // Raised ground: the cell drawn under the cursor (docs/plans/terrain-height.md, §4).
+            let highlight_cell = elevation.pick(cursor_screen_pos, transform).map_or(Cell::invalid(), |pick| pick.cell);
+            let last_cell = self.last_cell();
+            if !self.cells.is_empty() && highlight_cell == last_cell {
+                return;
+            }
+            if layers.get(TileMapLayerKind::Terrain).try_tile(last_cell).is_some() {
+                self.clear(layers);
+            }
+            self.toggle_selection(layers, elevation, highlight_cell, placement_op);
         } else {
             // Clear previous highlighted tile for single selection:
             let last_cell = self.last_cell();
@@ -175,7 +194,7 @@ impl TileSelection {
             let highlight_cell =
                 layers.get(TileMapLayerKind::Terrain).find_exact_cell_for_point(cursor_screen_pos, transform);
 
-            self.toggle_selection(layers, highlight_cell, placement_op);
+            self.toggle_selection(layers, elevation, highlight_cell, placement_op);
         }
     }
 
@@ -212,7 +231,13 @@ impl TileSelection {
         debug_assert!(self.last_cell() == tile.base_cell());
     }
 
-    fn toggle_selection(&mut self, mut layers: TileMapLayerMutRefs, base_cell: Cell, placement_op: TilePlacementOp) {
+    fn toggle_selection(
+        &mut self,
+        mut layers: TileMapLayerMutRefs,
+        elevation: &ElevationMap,
+        base_cell: Cell,
+        placement_op: TilePlacementOp,
+    ) {
         if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(base_cell) {
             self.valid_placement = false;
             return;
@@ -230,7 +255,10 @@ impl TileSelection {
             TilePlacementOp::Place(tile_def) => {
                 let mut flags = TileFlags::Highlighted;
 
-                if placement::internal::is_placement_on_terrain_valid(layers.to_refs(), base_cell, tile_def).is_err() {
+                if placement::internal::is_placement_on_terrain_valid(layers.to_refs(), base_cell, tile_def).is_err()
+                    || placement::internal::is_placement_on_heights_valid(layers.to_refs(), elevation, base_cell, tile_def)
+                        .is_err()
+                {
                     flags = TileFlags::Invalidated;
                 } else {
                     for cell in &tile_def.cell_range(base_cell) {

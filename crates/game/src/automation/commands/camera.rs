@@ -1,6 +1,6 @@
 // Camera commands.
 
-use common::{Vec2, coords};
+use common::Vec2;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -106,9 +106,12 @@ fn camera_state(context: &CommandContext) -> Value {
     })
 }
 
-// Screen position of a cell's ground tile center, in window points.
+// Screen position of a cell's ground tile center, in window points: on raised ground, where its
+// ground is drawn.
 pub(crate) fn cell_to_screen(context: &CommandContext, cell: common::coords::Cell) -> Vec2 {
-    coords::iso_to_screen_point(coords::cell_to_iso(cell), context.session.camera().transform())
+    let transform = context.session.camera().transform();
+    let height = context.session.tile_map().elevation().centre_height(cell);
+    crate::tile::elevation::ground_point(cell.x as f32, cell.y as f32, height, transform)
 }
 
 fn cmd_cell_to_screen(context: &mut CommandContext, params: Value) -> CommandResult {

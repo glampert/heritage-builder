@@ -75,6 +75,10 @@ pub enum TilePlacementErrReason {
     RequiresProximity(PathNodeKind), // Required node proximity violated.
     RequiresDyke,                    // A sluice gate away from every dyke.
     Obstruction(&'static TileDef),   // Tile obstructing the placement.
+    // Terrain height (docs/plans/terrain-height.md, §7):
+    UnevenGround,       // A footprint on a ramp, or across levels.
+    BesideHigherGround, // A building beside ground more than a level higher at its side (Q4).
+    RaisedGround,       // Water, a canal, or a dock or wharf away from the ground at level 0.
 }
 
 // ----------------------------------------------
@@ -112,6 +116,97 @@ pub enum TilePlacementOp {
 
 pub mod internal {
     use super::*;
+    use crate::tile::elevation::{ElevationMap, Shape};
+
+    // Where the ground's height doesn't take a tile (docs/plans/terrain-height.md, §7): a building's,
+    // a field's, a prop's or a lot's footprint must be flat at one level; a building mustn't stand
+    // beside ground more than a level above it at its sides (Q4); water and canals stay flat at level
+    // 0 (Q3), and a dyke on flat ground. Roads may climb ramps (road::build_segment keeps them on
+    // ground that joins). A flat map takes anything.
+    pub fn is_placement_on_heights_valid(
+        layers: TileMapLayerRefs,
+        elevation: &ElevationMap,
+        target_cell: Cell,
+        tile_def_to_place: &'static TileDef,
+    ) -> Result<(), TilePlacementErr> {
+        if elevation.is_flat() || !target_cell.is_valid() {
+            return Ok(());
+        }
+        let cells = tile_def_to_place.cell_range(target_cell);
+
+        if tile_def_to_place.is(TileKind::Unit) {
+            return Ok(()); // Walkers stand anywhere, ramps included; ships keep to water.
+        }
+
+        if tile_def_to_place.is(TileKind::Terrain) {
+            let path_kind = tile_def_to_place.path_kind;
+            if path_kind.is_water() {
+                if cells.iter().any(|cell| elevation.is_raised(cell)) {
+                    return err!(Placement::RaisedGround, "Water stays at the ground's lowest level.");
+                }
+            } else if (tile_def_to_place.blocks_floods || path_kind.is_vacant_lot())
+                && cells.iter().any(|cell| elevation.shape(cell) != Shape::Flat)
+            {
+                return err!(Placement::UnevenGround, "'{}' needs flat ground.", tile_def_to_place.name);
+            }
+            return Ok(());
+        }
+
+        if water::is_port_or_wharf(tile_def_to_place) {
+            // On the water, which is at level 0.
+            if cells.iter().any(|cell| elevation.is_raised(cell)) {
+                return err!(
+                    Placement::RaisedGround,
+                    "'{}' stands on the water, at the ground's lowest level.",
+                    tile_def_to_place.name
+                );
+            }
+            return Ok(());
+        }
+
+        // Every footprint cell flat, at one level.
+        let level = elevation.level(target_cell);
+        if cells.iter().any(|cell| !elevation.is_flat_at(cell, level)) {
+            return err!(Placement::UnevenGround, "'{}' needs flat ground at one level.", tile_def_to_place.name);
+        }
+
+        if tile_def_to_place.is(TileKind::Building) {
+            // Not beside ground more than a level above it at its sides (Q4): the cells beside its
+            // footprint's left and right corners, on its row, sort with it.
+            let left = Cell::new(cells.start.x - 1, cells.end.y + 1);
+            let right = Cell::new(cells.end.x + 1, cells.start.y - 1);
+            for side in [left, right] {
+                if elevation.is_cell_within_bounds(side) && elevation.centre_height(side) > f32::from(level) + 1.0 {
+                    return err!(
+                        Placement::BesideHigherGround,
+                        "'{}' can't stand beside ground more than a level above it.",
+                        tile_def_to_place.name
+                    );
+                }
+            }
+
+            // A sluice gate's dyke on its own level.
+            if tile_def_to_place.requires_dyke {
+                let mut is_beside_dyke = false;
+                pathfind::for_each_surrounding_cell(cells, |cell| {
+                    is_beside_dyke = layers
+                        .get(TileMapLayerKind::Terrain)
+                        .try_tile(cell)
+                        .is_some_and(|tile| tile.tile_def().blocks_floods && elevation.is_flat_at(cell, level));
+                    !is_beside_dyke
+                });
+                if !is_beside_dyke {
+                    return err!(
+                        Placement::RequiresDyke,
+                        "'{}' must be placed beside a dyke on its own level.",
+                        tile_def_to_place.name
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
 
     pub fn is_placement_on_terrain_valid(
         layers: TileMapLayerRefs,

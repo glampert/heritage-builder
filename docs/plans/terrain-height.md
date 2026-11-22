@@ -1,6 +1,6 @@
 # Terrain height: analysis and plan
 
-**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stages 1 (the data, save v15), 2 (the pieces, from Blender) and 3 (rendering) done; Stage 4, picking and placement, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
+**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stages 1 (the data, save v15), 2 (the pieces, from Blender), 3 (rendering) and 4 (picking and placement) done; Stage 5, pathfinding, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
 
 - It was first written on 2026-11-05 against `d0696fe`, before M3 to M10.
 - It was refreshed on 2026-11-22 against `d6801146` (M10 done, save version 14):
@@ -471,9 +471,19 @@ Before the rendering, so Stage 3 draws real sprites (batched with the buildings)
 
 ### Stage 4: Picking and placement (medium)
 
-- [ ] Picking with height (§4) in every function listed there, and in automation's cell-to-screen conversion.
-- [ ] Placement rules (§7) with new error reasons; road ramps and junctions across cliffs; fields, dykes, canals.
-- [ ] Tests in `terrain_placement` for each rule.
+- [x] Picking with height (§4) in every function listed there, and in automation's cell-to-screen conversion.
+- [x] Placement rules (§7) with new error reasons; road ramps and junctions across cliffs; fields, dykes, canals.
+- [x] Tests in `terrain_placement` for each rule.
+
+**Notes (2026-11-22): done.**
+- **Picking** (`ElevationMap::pick`, from the spike): the candidates are the flat cell under the point and the cells in front of it as far as the map's highest ground reaches; the front-most whose top diamond (a ramp's sloped quad) or column holds the point wins, a face counting as its top's cell (`Pick::face`). `TileMap::find_exact_cell_for_point` and `topmost_tile_at_cursor` use it on a map with raised ground (a flat map picks as before), so the hover highlight, clicks, the tile inspector, the palette's brush outline (drawn at the ground's height) and the build tools follow the drawn ground. `is_screen_point_inside_base_cell` is left on the flat path only (the selection's single-cell test on a flat map).
+- **Range selection** follows heights too, unlike §4's plan: the drag tests each cell's tile rect lifted to its ground (the search rect grown by the map's highest ground), so a drag over a plateau marks the cells drawn under it. It was no more work than the flat test and matches what the player sees.
+- **Automation:** `camera.cell_to_screen` and the input gestures aim at a cell's ground where it's drawn (`elevation::ground_point` at its centre height), and `input.click`'s and `ui.drag`'s centring use `teleport_raised`.
+- **Placement** (`placement::internal::is_placement_on_heights_valid`, called by `TileMap::try_place_tile_in_layer` and the selection's preview; a flat map takes anything): a building's, field's, prop's or rubble's footprint flat at one level (`UnevenGround`); a building not beside ground more than a level above it at the cells by its footprint's left and right corners (`BesideHigherGround`, Q4); water and canals at level 0, and docks and wharves too (`RaisedGround`); a dyke and a vacant lot on flat ground; a sluice gate's dyke flat at the gate's level (`RequiresDyke`). Walkers and ships stand anywhere they did.
+- **Roads, canals, dykes** (`tile/road.rs`): a segment's every step must join the next (`ElevationMap::joins`: the shared edge's corner heights equal), so a road climbs a ramp along its way only and never steps down a cliff; a canal refuses raised cells and a dyke ramps. Junctions (`junction_mask`, `dyke_junction_mask`) join only neighbours whose ground joins, so a road beside a cliff's foot doesn't open towards the road on top. Stage 2's four ramp road surfaces draw them.
+- **Houses** grow (`house_upgrade::evaluate_target_rect`) only over flat ground at their own level.
+- **Deviations:** a click on a cliff face picks its top cell and placement treats it as the top, rather than refusing it as §4 planned: the top is what's highlighted, so the player sees where it goes. A building's road link on its own level (§7) waits for Stage 5, where the graph learns heights; a field on its farmstead's level waits for Stage 6 with the farmstead's reach (Q9).
+- **Verified:** `terrain_placement`'s new tests (`test_placement_follows_heights`: footprints on a plateau, across its edge and on a ramp, the Q4 sides, a tree, water, a lot and a dyke on a ramp, a road on one, a sluice gate's dyke on its level; `test_road_segments_follow_heights`: a road up a ramp, off a cliff and onto a ramp's flank, a canal onto raised ground, junctions up a ramp and across a cliff; `test_picking_follows_heights`: a raised corner, its face, the ground beside it, a ramp's head, a well on the plateau), `elevation.jsonl`'s clicks on raised ground (the tile inspector opens on the cell drawn there and on a well standing on the plateau), and screenshots of the build preview: valid on flat raised ground, invalid on a ramp and across two levels, and the hover highlight on the raised cell under the cursor.
 
 ### Stage 5: Pathfinding and units (small to medium)
 

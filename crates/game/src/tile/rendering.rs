@@ -680,7 +680,7 @@ impl TileMapRenderer {
                 let (x, y) = (cell.x as f32, cell.y as f32);
                 let at = |fx: f32, fy: f32| {
                     let height = map.surface_height(coords::CellF32(Vec2::new(x + fx, y + fy)));
-                    ground_point(x + fx, y + fy, height, transform)
+                    elevation::ground_point(x + fx, y + fy, height, transform)
                 };
                 let centre = at(0.0, 0.0);
                 let towards = at(dx as f32 * 0.4, dy as f32 * 0.4);
@@ -1016,35 +1016,10 @@ fn raised_terrain(tile_map: &TileMap) -> Option<&ElevationMap> {
     (!map.is_flat()).then_some(map)
 }
 
-// A point in continuous cell space (a cell's centre at whole numbers) at a height in levels, on
-// screen: where the ground there is drawn.
-fn ground_point(x: f32, y: f32, height: f32, transform: WorldToScreenTransform) -> Vec2 {
-    let mut iso = coords::cell_to_iso_f32(coords::CellF32(Vec2::new(x, y)));
-    iso.0.x += HALF_BASE_TILE_WIDTH_F32;
-    iso.0.y += HALF_BASE_TILE_HEIGHT_F32 - height * LEVEL_STEP_PX;
-    transform.apply_to_iso_point(iso)
-}
-
-// A cell's ground diamond on screen, [top, right, bottom, left], at its height (a ramp's sloped):
-// the grid's, the overlays' and the search graph view's.
+// A cell's ground diamond on screen at its height (tile::elevation::ground_diamond).
+#[inline]
 fn ground_diamond(raised: Option<&ElevationMap>, cell: coords::Cell, transform: WorldToScreenTransform) -> [Vec2; 4] {
-    let Some(map) = raised else {
-        return coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
-    };
-    let (x, y) = (cell.x as f32, cell.y as f32);
-    let corner = |dx: f32, dy: f32| ground_point(x + dx, y + dy, map.corner_height(cell, dx, dy), transform);
-    [corner(0.5, 0.5), corner(0.5, -0.5), corner(-0.5, -0.5), corner(-0.5, 0.5)]
-}
-
-// The two corners of a cell's side, as offsets from its centre: north is +x, east -y, south -x and
-// west +y (tile::elevation).
-fn side_corners(side: Dir) -> [(f32, f32); 2] {
-    match side {
-        Dir::N => [(0.5, -0.5), (0.5, 0.5)],
-        Dir::E => [(-0.5, -0.5), (0.5, -0.5)],
-        Dir::S => [(-0.5, -0.5), (-0.5, 0.5)],
-        Dir::W => [(-0.5, 0.5), (0.5, 0.5)],
-    }
+    elevation::ground_diamond(raised, cell, transform)
 }
 
 // The neighbour's ground along `cell`'s `side`, at the two corners they share: past the map's
@@ -1054,7 +1029,7 @@ fn ground_along(map: &ElevationMap, cell: coords::Cell, side: Dir) -> [f32; 2] {
     if !map.is_cell_within_bounds(neighbour) {
         return [0.0, 0.0];
     }
-    side_corners(side.opposite()).map(|(dx, dy)| map.corner_height(neighbour, dx, dy))
+    map.side_heights(neighbour, side.opposite())
 }
 
 // The lowest ground beside `side`, in whole levels: where a cliff on that side starts.

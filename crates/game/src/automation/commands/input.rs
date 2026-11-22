@@ -155,7 +155,8 @@ fn cell_target(context: &mut CommandContext, cell: Cell) -> Result<Target, Comma
     let mut camera_moved = false;
 
     if !in_middle(point) {
-        context.session.camera_mut().teleport(cell);
+        let height = context.session.tile_map().elevation().centre_height(cell);
+        context.session.camera_mut().teleport_raised(cell, height);
         point = cell_to_screen(context, cell);
         camera_moved = true;
     }
@@ -299,7 +300,8 @@ fn cmd_drag(context: &mut CommandContext, params: Value) -> CommandResult {
         context.require_cell_in_map(to_cell)?;
 
         let middle = Cell::new((from_cell.x + to_cell.x) / 2, (from_cell.y + to_cell.y) / 2);
-        context.session.camera_mut().teleport(middle);
+        let height = context.session.tile_map().elevation().centre_height(middle);
+        context.session.camera_mut().teleport_raised(middle, height);
 
         let from = cell_to_screen(context, from_cell);
         let to = cell_to_screen(context, to_cell);

@@ -2,15 +2,7 @@
 
 use std::collections::HashMap;
 
-use common::{
-    self,
-    Color,
-    Rect,
-    RectTexCoords,
-    Vec2,
-    constants::*,
-    coords::{self, WorldToScreenTransform},
-};
+use common::{self, Color, Rect, RectTexCoords, Vec2, constants::*, coords::WorldToScreenTransform};
 use engine::{
     app::input::{InputAction, MouseButton},
     file_sys::paths::PathRef,
@@ -343,8 +335,9 @@ impl TilePaletteDevMenu {
             let centre =
                 context.tile_map.find_exact_cell_for_point(TileMapLayerKind::Terrain, context.cursor_screen_pos, transform);
             if centre.is_valid() {
-                for cell in elevation::brush_cells(context.tile_map.elevation(), brush.tool, centre, brush.size) {
-                    let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+                let map = context.tile_map.elevation();
+                for cell in elevation::brush_cells(map, brush.tool, centre, brush.size) {
+                    let points = elevation::ground_diamond(Some(map), cell, transform);
                     for i in 0..points.len() {
                         let (from, to) = (points[i], points[(i + 1) % points.len()]);
                         debug_draw.line_with_thickness(from, to, HEIGHT_BRUSH_COLOR, 2.0);

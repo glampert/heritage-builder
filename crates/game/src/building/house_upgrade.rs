@@ -254,6 +254,13 @@ fn evaluate_target_rect(
         return None; // Can happen at the edge of the map.
     }
 
+    // A house grows over flat ground at its own level only (docs/plans/terrain-height.md, §7).
+    let elevation = context.sim_ctx.tile_map().elevation();
+    let level = elevation.level(current_cell_range.start);
+    if target_rect.iter_cells().any(|cell| !elevation.is_flat_at(cell, level)) {
+        return None;
+    }
+
     let current_size = current_cell_range.size();
     let mut visited = HouseIdsSet::new();
     let mut to_merge = HouseIdsSet::new();

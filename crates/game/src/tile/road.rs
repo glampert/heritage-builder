@@ -178,6 +178,15 @@ fn can_place_road(tile_map: &TileMap, cell: Cell, kind: RoadKind) -> bool {
         return false;
     }
 
+    // Heights (docs/plans/terrain-height.md, §7): a canal is water, flat at level 0; a dyke stands on
+    // flat ground; a road may run up a ramp (is_path_valid keeps it on ground that joins).
+    let elevation = tile_map.elevation();
+    match kind {
+        RoadKind::Canal if elevation.is_raised(cell) => return false,
+        RoadKind::Dyke if elevation.shape(cell).is_ramp() => return false,
+        _ => {}
+    }
+
     // A canal goes on open land with nothing on it (not a road, a dyke, a lot or a field), or
     // over a canal already there.
     if kind == RoadKind::Canal {
@@ -213,8 +222,12 @@ fn is_road(tile_map: &TileMap, cell: Cell) -> bool {
     false
 }
 
+// Every cell takes the road, and each step joins the next by height: no step down a cliff, and onto a
+// ramp only along its way (ElevationMap::joins).
 fn is_path_valid(tile_map: &TileMap, path: &[Cell], kind: RoadKind) -> bool {
+    let elevation = tile_map.elevation();
     path.iter().all(|cell| can_place_road(tile_map, *cell, kind))
+        && path.windows(2).all(|step| elevation.joins(step[0], step[1]))
 }
 
 fn horizontal_vertical_path(start: Cell, end: Cell) -> Vec<Cell> {
@@ -376,14 +389,16 @@ const EAST_BIT: usize = 1 << 2;
 const NORTH_BIT: usize = 1 << 3;
 
 pub fn junction_mask(tile_map: &TileMap, cell: Cell) -> usize {
-    mask_of(cell, |cell| is_road(tile_map, cell))
+    let elevation = tile_map.elevation();
+    mask_of(cell, |neighbour| is_road(tile_map, neighbour) && elevation.joins(cell, neighbour))
 }
 
 // A dyke's pieces join other dykes only: its embankment stands at full height where it joins, so
 // a flat road beside it would leave its cut end open. A road still joins a dyke, running up to the
 // foot of its bank.
 pub fn dyke_junction_mask(tile_map: &TileMap, cell: Cell) -> usize {
-    mask_of(cell, |cell| is_dyke_or_placing_one(tile_map, cell))
+    let elevation = tile_map.elevation();
+    mask_of(cell, |neighbour| is_dyke_or_placing_one(tile_map, neighbour) && elevation.joins(cell, neighbour))
 }
 
 // The junction mask of a road tile of `kind` at the cell.

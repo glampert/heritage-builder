@@ -1,7 +1,8 @@
-# Terrain height (docs/plans/terrain-height.md): Stage 1, the heights' data. Sets cells' levels and
-# a ramp, paints with a brush and undoes it, checks heights are refused under a building, reported
-# by inspect.at and world.building_at, kept by a save, and painted with the developer palette's
-# Height tools by a click, with the heights overlay showing. From the repository root:
+# Terrain height (docs/plans/terrain-height.md), Stages 1 to 4: the heights' data, drawing and
+# picking. Sets cells' levels and a ramp, paints with a brush and undoes it, checks heights are
+# refused under a building, reported by inspect.at and world.building_at and kept by a save, draws a
+# terrace, checks a click on raised ground picks the cell drawn there, and paints with the developer
+# palette's Height tools by a click, with the heights overlay showing. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/elevation.jsonl --default-configs --fresh-profile
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [24, 24]}}
@@ -67,10 +68,20 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "screenshot", "params": {"path": "out/elevation/terraces.png", "include_ui": false}}
 
-# The developer palette's Height tools: open the section, pick Raise, click a cell.
+# Picking follows heights (Stage 4): in the developer editor, a click on the raised plateau's middle
+# (level 2) opens the tile inspector on that cell, not the one behind it, and a click on the well
+# standing on the plateau opens it on the well.
 {"method": "menus.mode", "params": {"mode": "DevEditor"}}
 {"method": "camera.teleport", "params": {"cell": [10, 10]}}
 {"method": "camera.zoom", "params": {"zoom": 2}}
+{"method": "ui.tree", "params": {"fields": ["path"]}}
+{"method": "input.click", "params": {"cell": [10, 10]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Tile Inspector", "kind": "window"}, "path": "/widgets/0/value/cell", "value": [10, 10]}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
+{"method": "input.click", "params": {"cell": [8, 9]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Tile Inspector", "kind": "window"}, "path": "/widgets/0/value/tile", "value": "small_well"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
+# The developer palette's Height tools: open the section, pick Raise, click a cell.
 {"method": "ui.click", "params": {"path": "Tile Selection/Height"}}
 {"method": "ui.click", "params": {"path": "Tile Selection/Height/Raise"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Tile Selection/Height/Raise"}, "path": "/widgets/0/value", "value": true}}
