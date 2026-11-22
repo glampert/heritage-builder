@@ -25,6 +25,7 @@ use super::{
     TileKind,
     TileMap,
     TileMapLayerKind,
+    elevation::{self, ElevationProblem, Shape},
     road,
     sets::{OBJECTS_OVERLAYS_CATEGORY, TileDef, TileSets, TileTexInfo},
     water,
@@ -46,6 +47,19 @@ pub const SELECTION_RECT_COLOR: Color = Color::new(0.7, 0.2, 0.2, 1.0); // red-i
 pub const DEFAULT_GRID_COLOR: Color = Color::white();
 pub const HIGHLIGHT_GRID_COLOR: Color = Color::green();
 pub const INVALID_GRID_COLOR: Color = Color::red();
+
+// The heights overlay: a translucent tint per level, from 1 up (7 levels).
+const ELEVATION_LEVEL_COLORS: [Color; elevation::MAX_LEVEL as usize] = [
+    Color::new(0.55, 0.85, 0.35, 0.35),
+    Color::new(0.95, 0.90, 0.30, 0.40),
+    Color::new(0.98, 0.65, 0.25, 0.45),
+    Color::new(0.95, 0.40, 0.25, 0.50),
+    Color::new(0.85, 0.25, 0.45, 0.50),
+    Color::new(0.60, 0.30, 0.80, 0.50),
+    Color::new(0.35, 0.40, 0.90, 0.55),
+];
+const RAMP_ARROW_COLOR: Color = Color::new(1.0, 1.0, 1.0, 0.9);
+const TALL_CLIFF_COLOR: Color = Color::new(1.0, 0.2, 0.9, 1.0);
 
 pub const MIN_GRID_LINE_THICKNESS: f32 = 0.5;
 pub const MAX_GRID_LINE_THICKNESS: f32 = 20.0;
@@ -88,6 +102,10 @@ bitflags! {
         const DrawVegetationTileDebug = 1 << 13;
         const DrawBlockersTileDebug   = 1 << 14;
         const DrawSearchGraphDebug    = 1 << 15;
+
+        // The terrain's heights as an overlay (docs/plans/terrain-height.md, §8): each raised
+        // cell tinted by its level, an arrow up each ramp, problems outlined.
+        const DrawElevation           = 1 << 16;
     }
 }
 
@@ -184,6 +202,10 @@ impl TileMapRenderer {
                 visible_range,
                 TileMapLayerKind::Terrain,
             );
+        }
+
+        if flags.contains(TileMapRenderFlags::DrawElevation) {
+            Self::draw_elevation_overlay(render_sys, tile_map, transform, visible_range);
         }
 
         self.draw_objects_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
@@ -451,6 +473,68 @@ impl TileMapRenderer {
 
                     render_sys.draw_polyline_with_thickness(&points, color, line_thickness, true);
                 }
+            }
+        }
+    }
+
+    // The heights overlay: a tint per level on each raised cell, an arrow up each ramp, and an
+    // outline on each cell with a problem (red: a broken ramp or a bad byte; magenta: a cliff taller
+    // than elevation::MAX_CLIFF_LEVELS). Drawn on the flat diamonds until raised terrain is drawn.
+    fn draw_elevation_overlay(
+        render_sys: &mut RenderSystem,
+        tile_map: &TileMap,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+    ) {
+        let viewport = render_sys.viewport();
+        let map = tile_map.elevation();
+        let line_thickness = 2.0 * transform.scaling;
+
+        for cell in &visible_range {
+            let byte = map.byte(cell);
+            let problem = if byte == 0 { None } else { map.problem_at(cell) };
+            if byte == 0 && problem.is_none() {
+                continue;
+            }
+            let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+            if Self::is_fully_offscreen(&viewport, &points) {
+                continue;
+            }
+
+            let (level, shape) = map.get(cell);
+            if level > 0 {
+                let color = ELEVATION_LEVEL_COLORS[usize::from(level - 1).min(ELEVATION_LEVEL_COLORS.len() - 1)];
+                render_sys.draw_colored_indexed_triangles(&points, &[0, 1, 2, 2, 3, 0], color);
+            }
+
+            if let Shape::Ramp(dir) = shape {
+                // From the middle of the downhill edge to the middle of the uphill one.
+                let (dx, dy) = dir.offset();
+                let centre = coords::iso_to_screen_point_f32(
+                    coords::cell_to_iso_f32(coords::CellF32(Vec2::new(cell.x as f32, cell.y as f32))),
+                    transform,
+                );
+                let towards = coords::iso_to_screen_point_f32(
+                    coords::cell_to_iso_f32(coords::CellF32(Vec2::new(
+                        cell.x as f32 + dx as f32 * 0.4,
+                        cell.y as f32 + dy as f32 * 0.4,
+                    ))),
+                    transform,
+                );
+                let tail = centre - (towards - centre);
+                render_sys.draw_line_with_thickness(tail, towards, RAMP_ARROW_COLOR, line_thickness);
+                let back = (centre - towards) * 0.45;
+                let side = Vec2::new(-back.y, back.x) * 0.6;
+                render_sys.draw_line_with_thickness(towards, towards + back + side, RAMP_ARROW_COLOR, line_thickness);
+                render_sys.draw_line_with_thickness(towards, towards + back - side, RAMP_ARROW_COLOR, line_thickness);
+            }
+
+            if let Some(problem) = problem {
+                let color = match problem {
+                    ElevationProblem::TallCliff { .. } => TALL_CLIFF_COLOR,
+                    _ => INVALID_GRID_COLOR,
+                };
+                render_sys.draw_polyline_with_thickness(&points, color, line_thickness * 1.5, true);
             }
         }
     }

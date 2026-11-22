@@ -1,6 +1,6 @@
 # Terrain height: analysis and plan
 
-**Status (2026-11-22): Refreshed plan. Not started.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
+**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stage 1 (the data, save v15) done; Stage 2, the pieces in Blender, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
 
 - It was first written on 2026-11-05 against `d0696fe`, before M3 to M10.
 - It was refreshed on 2026-11-22 against `d6801146` (M10 done, save version 14):
@@ -8,12 +8,13 @@
   - the systems added since, which all work on the grid (§10);
   - what Zeus does, from the user's reverse-engineering notes (§11);
   - the open decisions that follow from them (Q9 to Q15, and Q1 reopened).
+- The spike (Stage 0, 2026-11-22, branch `spike/terrain-height`, never merged) changed the design in places: the draw order's two extra rules and the rims (§3), picking without a lookup grid (§4), positions kept flat and lifted as they're drawn (§2), and the art as Blender pieces made before the rendering (§5, Stage 2). Its notes are under Stage 0.
 - References name functions rather than lines, which move. Re-check them before relying on them.
 
 ## How to resume this work
 
-- Settle the [open decisions](#open-decisions) marked **reopened** or **new** with the user first. The others each have a default: proceed with the default unless the user has decided otherwise.
-- Then start with **Stage 0 (the spike)**. It decides whether the approach holds up before anything is committed to the save format. It runs on a throwaway branch off `claude` that is never merged.
+- The [open decisions](#open-decisions) each have a decision or a default: proceed with the default unless the user has decided otherwise.
+- Stage 0 (the spike) is done. Work through the stages in order: the data (1), the pieces' art (2), rendering (3), picking and placement (4), pathfinding (5) and the gameplay hooks (6).
 - Tick the checkboxes and add dated notes under each stage as tasks land.
 - Follow [AGENTS.md](../../AGENTS.md):
   - keep both targets compiling;
@@ -133,10 +134,10 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
   - We store them, because a ramp is a gameplay decision (a chokepoint, a road's way up) that the designer places.
   - The editor can still suggest them.
 - **Cliffs aren't stored.** A cliff exists wherever two flat cells side by side have different levels, or a ramp's side edge meets a different level. They're worked out from the heights when needed, as in Zeus.
-- **Height of one level:** `LEVEL_STEP_PX`, one constant (Q1, reopened). The plan's default was 16 px; §11 argues for 32 px, one cell straight up the screen, as Zeus does. The rest of this design is written for 32 px and notes where 16 px differs.
-  - At **32 px**, a cell at level `h` appears exactly where the flat cell `(x + h, y + h)` would. Picking becomes a shift by whole cells (§4), and a raised top covers exactly one flat diamond behind it.
-  - At **16 px**, a raised cell's diamond lands on the corner shared by four flat diamonds. It still sorts correctly, but picking needs the inside-diamond test at every level.
-  - In the Blender camera, 1 world unit of height projects to 64/√2 × sin 60° ≈ 39.2 px. One level is 32 / 39.2 ≈ **0.816 Blender units** (0.408 at 16 px), which the generator reads from one shared constant.
+- **Height of one level:** `LEVEL_STEP_PX` = **32 logical px**, one tile height (Q1, decided 2026-11-22), as Zeus's levels are (§11).
+  - A cell at level `h` appears exactly where the flat cell `(x + h, y + h)` would: a raised top covers one flat diamond behind it.
+  - It stays one constant, so it can change after playtesting. The spike drew 16 px too: the same cost and the same draw order, but its plateaus read as low terraces where 32 px reads as cliffs.
+  - In the Blender camera, 1 world unit of height projects to 64/√2 × cos 30° ≈ 39.2 px, so one level is 32 / 39.2 = **√(2/3) ≈ 0.8165 Blender units**. The generator's pieces read it from one constant (§5).
 - **Water** stays at level 0 (Q3). A plateau beside water drops to the water through a cliff face; the shore logic keeps treating any land as land.
 - **Neighbour differences:** Zeus keeps neighbours within 2 levels of each other (§11). We allow any drop, since stacked faces draw any height, but the editor's smooth brush keeps differences within `max_cliff_levels` (Q13).
 
@@ -149,26 +150,19 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
 
   It's saved as runs, as the floods' fertility is (`CityFloods`). An all-flat map is one run; a 128 × 128 map with hills is a few KB of JSON.
 - It sits alongside the layers rather than in each `Tile`, so `Tile`'s layout and size stay the same and edits are one-byte writes.
-- **Runtime only** (`serde(skip)`, rebuilt in `post_load` and on height edits):
-  - a cliff cache, holding the drop on each cell's two front edges and which cells' ground is hidden (§3);
-  - the projected-height lookup for picking (§4).
-- **Iso positions:** they already sit on tiles and are recomputed on load from the cell and its height. The saved `iso_coords_f32` can't be trusted once a cell's height has changed.
-  - Since v15 bumps the format anyway, make the cached positions `serde(skip)` and recompute them in `post_load` for every tile (Q14).
-  - Zeus saves its derived image IDs, and its maps then carry art chosen for another camera view (§11). Saving only what's authoritative avoids that kind of mismatch.
-  - Dropping them also shrinks every save by a good share of its terrain bytes.
+- **Nothing derived is saved.** Cliffs, rims and ramps' pieces are worked out from the heights as they're drawn (§5), and the spike found that cheap enough without a cache. Zeus saves its derived image IDs, and its maps then carry art chosen for another camera view (§11); saving only the heights avoids that kind of mismatch.
+- **Iso positions stay flat** (Q14, decided by the spike): a tile's cached `iso_coords_f32` and a walker's blended position keep ignoring height, and the renderer lifts each thing by its height as it draws it (§3). So no cached position can disagree with the heights, and nothing about them changes in saves.
 - **Validation on load:** a ramp whose uphill neighbour isn't one level up, or a level above 7, is logged on a `terrain` channel and drawn flagged in the editor's overlay. The map still loads. Zeus keeps a "Found A Bad Elevation" message for the same job.
-- **Saves:** bump to v15. The migration script:
-  - adds an all-flat `elevation` to every save, so every existing map stays flat;
-  - drops the cached positions if Q14 says so.
+- **Saves:** bump to v15. The migration script adds an all-flat `elevation` to every save's tile map, so every existing map stays flat.
 
   Regenerate `saves/sample_saves.zip` and run `--smoke-test-saves`.
 
 ### 3. Projection and draw order
 
-**Projection:**
-- `cell_to_iso_h(cell, h) = cell_to_iso(cell) + (0, -h × LEVEL_STEP_PX)`. Ramps use `h + 0.5` at their centre.
-- Every cached position uses the cell's height: `TerrainTile::new`, `calc_object_iso_coords` and `calc_unit_iso_coords` (`tile/mod.rs`), and the dyke's and rubble's `iso_offset` on top.
-- Units blend height as well as (x, y) while moving between cells, so walking up a ramp looks continuous.
+**Projection:** a thing is drawn `lift × LEVEL_STEP_PX` higher than its flat position (§2: cached positions stay flat).
+- Terrain and objects: their base cell's level; a ramp's middle is `h + 0.5`.
+- A walker: the ground's height where it stands, read from its blended position (a ramp's surface rises across it), so walking up a ramp looks continuous. The spike's `unit_position` reads the position back from the tile's iso coords.
+- Overlays drawn with a tile (fire, sickness, scaffolds, renovation, the festival dress, the flood and dry-canal washes, road previews) take its lift.
 
 **Draw order:** the painter's algorithm stays, with no depth buffer. It's split in two passes, as Zeus does (§11):
 
@@ -176,7 +170,9 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
 2. **Pass 2, sorted:** objects as today, **plus every raised terrain cell (h > 0, or a ramp)**, sorted by the existing screen-Y key.
    - A raised cell's key is the screen Y of its base diamond.
    - Ties put terrain first, so a building on a plateau draws after the ground under it.
-   - A raised cell draws its **cliff faces first** (§5), then its top-face sprite, raised, then its washes (flooded, dry canal) and previews.
+   - **The ground under a building sorts with the building** (found by the spike): a raised footprint cell takes its building's key, so its top doesn't draw over the building's base. A footprint's front cells are in front of the building's own key, so without this their tops covered the building's lower part.
+   - **A walker sorts by the cell it's nearest** while terrain is raised (found by the spike), not the cell it started its step from: otherwise the raised ground it steps onto, drawn after it, covers its feet.
+   - A raised cell draws its **cliff faces first** (§5), then its top-face sprite, raised, then its washes (flooded, dry canal) and previews, then a **rim** along each back edge that stands above the ground behind it (§5).
 
 **Hidden ground:** pass 1 skips a level-0 cell whose diamond a raised neighbour in front covers whole, and pass 2 skips cliff faces that nothing can see. Zeus does the same from each cell's back and front heights (§11). It's an optimisation, not needed for correctness.
 - At 32 px, the cell `(x+1, y+1)` behind a raised `(x, y)` is covered exactly.
@@ -189,20 +185,20 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
 
 **Known artifact:** sprites spread over several bands (large buildings, tall cliffs beside a building's side) can be sorted wrongly where a building stands right beside a higher cell at the same depth. This is the classic isometric sorting limit, which the reference games share. A placement rule removes the worst cases: a building can't stand beside a cell more than one level higher on its left or right side (Q4).
 
-**Cost:**
-- Pass 2 grows by the number of raised cells on screen, a few thousand at most. The sort already exists.
-- Mixing the terrain and object atlases in one sorted list breaks some sprite batches, so expect a few hundred more draw calls on mountain maps. The spike measures this.
-- If it's too slow, the cliff, ramp and raised top sprites go into the objects atlas (a raised cell's top reusing a copy of its terrain sprite), so pass 2 stays on one texture set.
+**Cost** (the spike's numbers are under Stage 0):
+- Pass 2 grows by the number of raised cells on screen, a few thousand at most. The sort already exists and stays well under a millisecond.
+- Mixing the terrain and object atlases in one sorted list breaks sprite batches: on a dense hilly map, about 1,000 more texture switches, half a millisecond of OpenGL submit time.
+- So the pieces (§5) live in the **objects atlas**, beside the buildings, and Stage 3 measures whether the raised tops should join them there too (a copy of each terrain sprite in the objects atlas).
 
 ### 4. Culling, camera and picking
 
 - **Culling:** `calc_visible_cells_range` pads the bottom of the screen rectangle by `max_level × LEVEL_STEP_PX`, because a raised cell that sits below the screen in flat terms can rise into view. `update_anims` uses the same range.
 - **Camera:** `calc_map_bounds` and the camera constraints extend the top edge by `max_level × LEVEL_STEP_PX`. `teleport`, `teleport_iso` and automation's cell-to-screen conversion use the height.
-- **Picking:** a **projected-height lookup**, as in Zeus (§11), built with the cliff cache.
-  1. For each flat screen cell `s`, it holds the highest level of any cell drawn over it: a cell `(x, y)` at level `h` is drawn over `(x + h, y + h)` at 32 px. Scan cells front to back and keep the maximum, as Zeus does.
-  2. To pick: take the flat cell `s` under the point and read its lookup `h`. The answer is `s − (h, h)` if that cell's level is `h`; otherwise go down one level and try again. A miss is rare: it happens only near a cliff's edge.
-  3. At 16 px the shift is half a cell, so step 2 becomes the plan's earlier scan: for `h` from `max_level` down to 0, test the raised diamond of the flat cell under `p` moved down by `h × 16`.
-  4. A point on a cliff face maps to the cliff's top cell and is marked "face". The cell is shown, but nothing can be placed there.
+- **Picking** (as the spike built it, `elevation::pick`): the front-most column that covers the point.
+  1. Take the flat cell under the point. The candidates are the cells in front of it, as far as the highest level reaches (a cell at level `h` shows `h` cells further back along the screen's vertical).
+  2. For each, nearest the front first: the point is on its top if it's inside its raised top diamond (a ramp's sloped quad), on its face if it's inside the column below that top, down to its own ground diamond.
+  3. The first hit is the answer: columns further front are drawn later. A point on a cliff face maps to the cliff's top cell and is marked "face". The cell is shown, but nothing can be placed there.
+  - It tests a few dozen candidates at most, only when the cursor moves, so Zeus's projected-height lookup grid (§11) isn't needed: one less grid to keep in step with the heights.
 - **Functions that change:** `find_exact_cell_for_point`, `topmost_tile_at_cursor`, `is_screen_point_inside_base_cell` and `cell_to_screen_diamond_points`. So do automation's map-cell gestures, which aim at a cell's screen point.
 - **Range selection:** the area-drag tool (fields, the clear tool) keeps working in flat cells under the dragged rectangle. Over a cliff it selects cells on both levels; placement then refuses those that don't fit (§7).
 - **Overlays** draw raised diamonds:
@@ -214,18 +210,18 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
 
 ### 5. Cliff and ramp art
 
-- Only a cell's **two front edges** can show a cliff face, because the back edges face away from the camera.
-- For each front edge, `drop = h(cell) − h(front neighbour)`, or the cell's own level at the map's edge. If the drop is above 0, the renderer draws `drop` copies of a **one-level face sprite** for that edge, stacked from the top down.
-  - This needs only 2 sprites per material (left and right), plus a few variations to break up repetition.
-  - The material follows the top cell's terrain: grassy rock or bare rock (Q5).
-  - A variation is picked by a hash of the cell (`common::hash::splitmix64`), never the RNG and never saved, as the risks' jitter is. Zeus keeps a random byte per cell for the same job.
-- **A ramp** is one sloped sprite per direction and terrain kind: grass, dirt, dirt road and paved road, giving 4 directions × 4 kinds. A ramp's side edges also show a triangular cliff piece where they meet lower ground: one sprite per side.
-- These are runtime decorations computed from the heights, **not** tiles in the map, so they add nothing to saves and need no variation bookkeeping.
-- **What Zeus does differently:** its cliff art is whole shaped tiles picked from the 8-neighbour pattern, some joined into 2 × 2 footprints, with each tile drawn as a ground base and a separate raised top (§11).
-  - That looks better at a cliff's corners and ends than stacked edge pieces.
-  - It costs a pattern table and art per pattern.
-  - Start with stacked faces. If the spike's screenshots show seams at corners, add corner and end pieces picked from the neighbours, Zeus's way, one small table at a time (Q15).
-- All the pieces come from the Blender pipeline (`cliff_face`, `ramp`), with one level's height read from the shared constant.
+The pieces are sprites the renderer draws from the heights, **not** tiles in the map: they add nothing to saves and need no variation bookkeeping. They come from the Blender pipeline (`crates/tools/blender-tile-generator`, recipes in `hbgen/recipes/heights.py`; placeholder-art Phase 5), in the objects tile set's `overlays` category (or a category of their own the palettes skip), so they share the objects atlas with the buildings (§3, Cost).
+
+- **Cliff faces.** Only a cell's **two front edges** can show one, since the back edges face away from the camera. For each, `drop = h(cell) − h(front neighbour)` (a ramp neighbour counts its surface's height at the edge's corners; past the map's edge, 0). The renderer stacks one **one-level course** per level of the drop, from the lower ground up, each anchored as a 1 × 1 building at its level.
+  - `cliff_left` (the south edge, lower left on screen) and `cliff_right` (the east edge, lower right), each in a `top` course (with the grass lip) and a `mid` course, and two or three variations of each to break up repetition. A variation is picked by a hash of the cell and level (`common::hash::splitmix64`), never the RNG and never saved, as the risks' jitter is. Zeus keeps a random byte per cell for the same job.
+  - The strata repeat every level and every piece has the same ledges, so stacked courses and neighbours along an edge join; only small chips vary, away from the ends, and the cut ends get no ink (`B.outline_border = False`).
+  - The material follows the top cell's terrain: grassy rock or bare rock (Q5); karst limestone for Đại Long's highlands later.
+  - Pieces stay inside their cell's column (no rock reaching out over the lower ground), so the draw order of §3 holds for them.
+- **Ramps.** One **solid wedge** per direction and surface: `ramp` in `n`, `e`, `s`, `w` × grass, dirt, dirt road and paved road (4 × 4). The wedge carries its flanks, so a ramp beside lower ground shows its triangular side and one beside another ramp or higher ground is covered by it, drawn later: no separate side pieces. A ramp on a raised cell stands on the cliff courses of its drop below.
+- **Rims.** A thin lip along each raised back edge that stands above the ground behind it (found by the spike: without it a terrace's far side vanishes, and a walker or building behind it looks sunk into the grass). `rim_left` and `rim_right`, drawn after the cell's top.
+- **The terrain sprites' own edge** (about 4 px of side under each terrain sprite's diamond) shows along a cliff's top as a lip, which the prototype's mock-up showed reads well; the `top` course's grass lip sits under it.
+- **What Zeus does differently:** its cliff art is whole shaped tiles picked from the 8-neighbour pattern, some joined into 2 × 2 footprints (§11). That looks better at a cliff's corners and ends than stacked courses, at the price of a pattern table and art per pattern. Start with the courses; if the screenshots show seams that matter at corners and ends, add corner and end pieces picked from the neighbours, one small table at a time (Q15).
+- **Prototype (2026-11-22):** `hbgen/recipes/heights.py` builds `cliff` (edge, course) and `ramp` (dir, kind). Fast renders of a course and two ramps, composited as the engine would draw them (`mock.py` in the session's scratchpad), stack and join along an edge and over two levels. Placeholder quality: the course boundaries show as seams, the ramp's grass is darker than the terrain's, and the pieces have no catalog entries yet (Stage 2).
 
 ### 6. Pathfinding and units
 
@@ -245,7 +241,7 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
 - **Ships** search water only (`find_water_path`), and water is level 0, so they're unchanged.
 - **With 8-way movement** ([unit-movement.md](unit-movement.md)), a diagonal step also needs both side cells to be flat and on the same level as the two cells it joins. Ramps are only climbed straight. Doing T before U lets U write this rule once.
 - **Costs:** `Heuristic::movement_cost` adds a small cost for ramps (Q7). `UnitNavigation::update`'s check on the next node also checks the edge, so a unit whose path crosses a new cliff stops and repaths.
-- **Drawing:** units draw at their blended height. Their sort key stays the starting cell's, which is correct on ramps because a ramp's band is the lower cell's.
+- **Drawing:** units draw at the ground's height where they stand, and sort by the cell they're nearest (§3).
 
 ### 7. Placement rules
 
@@ -353,7 +349,7 @@ The user reverse-engineered how Zeus (with Poseidon) stores and draws elevation.
 **3. A projected-height lookup grid for picking.**
 - Zeus keeps a second byte per cell: for each cell, the highest height projected onto it along the view's diagonal. It's built front to back, keeping maxima, with runs extended where heights rise.
 - Picking reads the lookup under the cursor and shifts back by it, instead of testing every level.
-- **For us:** we adopt it (§4).
+- **For us:** not needed. The spike's picking tests the few dozen columns in front of the point directly, and it's exact (§4).
 
 **4. Two passes.**
 - Zeus draws ground bases, then objects and the cliffs' raised tops. Which bases to draw is gated by each cell's back and front neighbours' heights, so covered ground is skipped.
@@ -394,47 +390,76 @@ The notes don't say which Zeus shapes walkers can cross (whether every one-level
 ### Stage 0: Spike (medium): go or no-go
 
 On a throwaway branch off `claude`, with programmer art (flat-coloured cliff quads), and `LEVEL_STEP_PX` switchable between 16 and 32:
-- [ ] An `ElevationMap` that isn't saved; fill a test preset with a plateau, a two-level hill and a ramp.
-- [ ] Projection with height; the two-pass draw order; cliff faces as coloured quads.
-- [ ] Picking with height, through the projected-height lookup.
-- [ ] Measure the frame time and draw calls on a 128 × 128 map with about 30% raised cells, at the widest zoom, on macOS OpenGL, Wgpu and the web build.
-- [ ] Screenshots of a building on a plateau, a building behind a cliff, a unit on a ramp and a tall building beside a two-level cliff, at 16 and 32 px, reviewed with the user.
+- [x] An `ElevationMap` that isn't saved; fill a test preset with a plateau, a two-level hill and a ramp.
+- [x] Projection with height; the two-pass draw order; cliff faces as coloured quads.
+- [x] Picking with height (by testing the columns in front of the point; no lookup grid).
+- [x] Measure the frame time and draw calls on a 128 × 128 map with about 30% raised cells, at the widest zoom, on macOS OpenGL, Wgpu and the web build.
+- [x] Screenshots of a building on a plateau, a building behind a cliff, a unit on a ramp and a tall building beside a two-level cliff, at 16 and 32 px, reviewed with the user.
 
 Done when: the draw order is right in the screenshots, the frame time stays within budget (Q8), and the user picks a level height and agrees the look works.
 
+**Notes (2026-11-22): a go, at 32 px.** The spike is commit `078d4abb` on `spike/terrain-height` (never merged): `tile/elevation.rs` (the run's height map, the programmer art, picking), the raised pass in `tile/rendering.rs`, the culling padding in `camera.rs`, height-aware picking in `TileMapLayer::find_exact_cell_for_point`, and `terrain.*` commands (`showcase`, `hills`, `set`, `step`, `rims`, `faces`, `walk`, `pick`) for scripted scenes.
+- **Draw order:** right in every scene: a storage yard on a plateau's front corner, a temple behind a cliff, a granary and a 4 × 4 palace pressed against cliffs in front, a university beside a two-level block, trees on the rim, walkers behind, on and up a ramp, and a 128 × 128 map with hills and about 2,400 objects in view. It needed two rules the plan lacked: the ground under a building sorts with the building, and walkers sort by the cell they're nearest (§3).
+- **Readability:** back edges vanish, so a walker or building behind a plateau looks sunk into the grass, correct but unexplained. A light rim along raised back edges fixes it (§5). Noise heights make jagged one-cell steps; maps want broad plateaus, so the editor's terrace and smooth brushes matter.
+- **Picking:** exact for tops, faces, the cell in front of a cliff and the cell a raised top hides, by testing the columns in front of the point (§4). No lookup grid.
+- **Cost** at the widest zoom (0.5), 1600 × 900, 30% of the cells raised up to level 3 (release builds, the user's Mac):
+
+  | Scene | Flat | Hills | Notes |
+  |---|---|---|---|
+  | Sample map, ~200 objects in view, OpenGL, whole frame | 8.6 ms | 9.2 ms (+7%) | |
+  | Dense, ~2,400 objects, OpenGL, CPU per frame without the vsync wait | 6.2 ms | 7.5 ms (+22%) | Texture switches 840 → 2,380; without the placeholder faces 1,800 |
+  | Dense, Wgpu, map drawing + submit | 1.4 ms | 1.8 ms | |
+  | Dense, web (Chromium, WebGPU), map drawing | 0.7 ms | 0.9 ms | |
+
+  Every backend held 60 fps. The OpenGL rise is over Q8's 10%, but about half of it is the placeholder faces (untextured quads that break sprite batches) and most of the rest the mix of terrain and object sprites: the pieces go in the objects atlas (§5), and Stage 3 measures again. 16 and 32 px cost the same.
+- **Level height:** both sort and pick correctly; 16 px reads as low terraces, 32 px as cliffs. The user picked 32 (Q1).
+
 ### Stage 1: Data, saves, editor and minimap (medium)
 
-- [ ] `ElevationMap` on `TileMap`, saved as runs; the runtime cliff cache and projected-height lookup; positions recomputed in `post_load`; load-time validation.
-- [ ] Save version 15 and its migration (all flat, and the cached positions dropped if Q14 says so); regenerate the sample saves; `--smoke-test-saves`.
-- [ ] `TilePlacement::set_elevation`, undo, the developer palette's Height section (raise, lower, terrace, smooth, ramps) and the validity overlay.
-- [ ] The minimap from real heights; preset map support.
-- [ ] Automation: `terrain.set_elevation`, `terrain.elevation`, and the level in `inspect.at` and `world.building_at`.
+- [x] `ElevationMap` on `TileMap` (level and shape per cell), saved as runs; load-time validation.
+- [x] Save version 15 and its migration (all flat); regenerate the sample saves; `--smoke-test-saves`.
+- [x] `TilePlacement::set_elevation`, undo, the developer palette's Height section (raise, lower, terrace, smooth, ramps) and the validity overlay (levels tinted, bad ramps and tall cliffs flagged), which shows the heights until Stage 3 draws them.
+- [x] The minimap from real heights; preset map support.
+- [x] Automation: `terrain.set_elevation`, `terrain.elevation`, and the level in `inspect.at` and `world.building_at`.
 
-### Stage 2: Rendering (medium to large)
+**Notes (2026-11-22): done.**
+- **Data:** `tile::elevation` ([tile/elevation.rs](../../crates/game/src/tile/elevation.rs)): `Dir`, `Shape`, `encode`/`decode` (the byte of §2), `ElevationMap` (its counts by top height kept at run time, `recount` on load), the heights (`corner_height`, `surface_height`, `centre_height`) Stage 3 needs, `problem_at` and `problems`, and the brushes as pure functions (`HeightTool`, `brush_cells`, `brush_edits`). `TileMap` saves it as runs through `crate::byte_runs`, moved out of `sim::floods` so fertility and heights share it. A reset map is flat; a load whose heights don't match the map's size loads flat with an error, and broken ramps or bad bytes are logged on the `terrain` channel (tall cliffs are allowed, only flagged in the overlay).
+- **Edits:** `TileMap::set_elevation` keeps the minimap in step; `TilePlacement::set_elevation` refuses buildings, fields and blockers (Q6) and anything but flat 0 on water and canals (Q3), and records one undo step (`EditAction::Elevation`, a record of each cell's byte before and after). A brush stroke gathers its edits (`TilePlacement::paint_height`) until `menu::end_height_stroke`. Raise and Lower work to one level above or below where the stroke starts, so dragging doesn't stack; Terrace sets its level only on cells one level from it, as Zeus's brushes do; Smooth works through the brush's cells in order, each seeing the ones already changed, as Zeus's pass does; there's also Flatten (a ramp back to flat).
+- **Editor:** the developer palette's Height section (`Tile Selection/Height/...`, a selectable button per tool, the brush's width, the Terrace level); a tool picked shows the heights overlay (`TileMapRenderFlags::DrawElevation`, also `Debug/Draw elevation`) and the brush's cells outlined under the cursor. The overlay is drawn on the flat diamonds until Stage 3 lifts them.
+- **Minimap:** the bake's `Grid` takes each cell's centre height (`heights`, empty while the map is flat, so flat maps bake byte for byte as before); it raises the noise's value by `level_value` a level and adds the heights' slope to the shading by `level_slope`, so a cliff shades as a lit or shaded band. `minimap_bake`'s new test checks a patched bake with heights equals a full one and that a plateau's edges shade.
+- **Presets:** an optional `elevation` array of bytes; none of the presets uses one yet.
+- **Automation:** `terrain.elevation`, `terrain.set_elevation`, `terrain.brush`; `inspect.at`'s and `world.building_at`'s `level`.
+- **Saves:** v15 (`v14_to_v15.py`, an all-flat `elevation` on each save's tile map); the local saves and `sample_saves.zip` migrated, `--smoke-test-saves` loads all 13.
+- **Verified:** `cargo test --workspace` (the elevation unit tests, six new `terrain_placement` tests, the bake's), the 29 scenarios in release with the new `elevation.jsonl` (added to CI), determinism twice and the two record-and-replay runs, fmt and both clippies.
 
-- [ ] Projection with height in every cached position; units blend height.
-- [ ] The two-pass draw order (§3), with its tie rules and the hidden-ground gate; cliff faces from sprites, with placeholder sprites until Stage 5.
-- [ ] Ramps: sloped top faces and side triangles.
+### Stage 2: The pieces, from Blender (small to medium; placeholder-art Phase 5)
+
+Before the rendering, so Stage 3 draws real sprites (batched with the buildings) and measures their cost. Starts from the prototype recipe (§5).
+- [ ] `heights.py`: cliff courses (`top`, `mid`) for the left and right edges, with variations; ramps as solid wedges, 4 directions × grass, dirt, dirt road and paved road; rims for the two back edges. One shared level constant (√(2/3) units, from `LEVEL_STEP_PX`).
+- [ ] Seams: one mesh per course (no box ends), strata that repeat per level, the ramp's grass matched to the terrain's.
+- [ ] Catalog entries (`catalog/heights.json`), rendered and synced into the objects tile set; the renderer's lookups by name.
+- [ ] Contact sheet, and a mock-up composed as the engine draws them (stacked courses, corners, a ramp) reviewed before Stage 3; corner and end pieces if Q15 asks for them.
+
+### Stage 3: Rendering (medium to large)
+
+- [ ] Lifts as things are drawn (§3), from the spike: terrain, objects, walkers at the ground's height where they stand, and the overlays drawn with a tile.
+- [ ] The two-pass draw order (§3), with its tie rules (terrain first, the ground under a building with the building, walkers by their nearest cell) and the hidden-ground gate; cliff courses, ramps and rims from Stage 2's sprites.
 - [ ] Washes and previews on raised cells.
 - [ ] Culling padding, camera bounds, `teleport`.
 - [ ] Overlays: grid, search-graph debug view, hover highlight, previews, tile bounds.
+- [ ] Measure the dense scene again (Stage 0's script) and decide whether raised tops join the objects atlas.
 
-### Stage 3: Picking and placement (medium)
+### Stage 4: Picking and placement (medium)
 
 - [ ] Picking with height (§4) in every function listed there, and in automation's cell-to-screen conversion.
 - [ ] Placement rules (§7) with new error reasons; road ramps and junctions across cliffs; fields, dykes, canals.
 - [ ] Tests in `terrain_placement` for each rule.
 
-### Stage 4: Pathfinding and units (small to medium)
+### Stage 5: Pathfinding and units (small to medium)
 
 - [ ] Height in the graph, the edge test in `neighbors`, the ramp cost; repath when a cliff blocks the way.
 - [ ] Tests in `search_graph`: a cliff blocks, a ramp allows, a ramp chain climbs several levels, a responder takes the ramp.
 - [ ] The `elevation.jsonl` scenario, added to CI.
-
-### Stage 5: Art (small to medium; see placeholder-art Phase 5)
-
-- [ ] Cliff faces (left and right, two materials, variations), ramps (4 directions × grass, dirt and two road kinds) and ramp side pieces from the Blender pipeline; corner pieces if Q15 asks for them.
-- [ ] Contact sheet and in-game review.
 
 ### Stage 6: Gameplay hooks (small)
 
@@ -456,19 +481,18 @@ Done when: the draw order is right in the screenshots, the frame time stays with
 | Risk | Mitigation |
 |---|---|
 | Sorting artifacts around large buildings next to cliffs | The placement rule in §3; the spike screenshots; accept the rare remaining cases, as the reference games do |
-| Mixing terrain and object atlases in pass 2 costs batching | Measured in the spike. If it's too slow, put cliff, ramp and raised top sprites into the objects atlas |
+| Mixing terrain and object atlases in pass 2 costs batching | Measured in the spike (Stage 0's notes): the pieces go in the objects atlas; Stage 3 measures whether raised tops follow |
 | Picking or placement bugs where heights change | Each rule has a unit test, and the scenario runs in CI |
 | Grid-based systems giving odd results across cliffs (§10) | The table in §10 names each one; the scenario covers the flood and the fields |
 | Stacked faces look blocky at cliff corners | Corner and end pieces, Zeus's way (Q15) |
-| A level height of 16 or 32 px looks wrong | It's a constant, picked in the spike from screenshots before any art is made (Q1) |
+| 32 px a level looks wrong in play | It's one constant (Q1); the pieces read it too, so changing it is a re-render |
 
 ## Open decisions
 
-**Q1. How tall is one level, in logical px? (Reopened 2026-11-22)**
-- Decided on 2026-11-05: 16, on the grounds that it kept draw order and picking exact.
-- The refresh found that draw order is exact at any height (§3). At 16 px, a raised cell lands on the corner of four flat diamonds; at **32 px**, one tile height, it lands exactly on one, which makes picking a whole-cell shift and the hidden-ground test exact. Zeus uses one tile height (§11).
-- 32 px makes taller, more dramatic cliffs, and doubles the camera and culling padding.
-- *New default: 32, picked in the spike from screenshots of both.*
+**Q1. How tall is one level, in logical px?**
+**Decided (2026-11-22): 32**, one tile height, as Zeus's levels are (§11), from the spike's screenshots of both.
+- 16 was decided on 2026-11-05, on the grounds that it kept draw order and picking exact. The refresh found that draw order is exact at any height, and the spike drew both at the same cost: 16 px reads as low terraces, 32 px as cliffs.
+- At 32 px a raised cell lands exactly on one flat diamond, and the camera and culling padding is twice 16 px's.
 
 **Q2. What's the highest level?**
 *Default: 7* (3 bits). Missions will probably use 0–3. At 32 px, 3 levels is 96 px, three tile heights.
@@ -489,32 +513,31 @@ Done when: the draw order is right in the screenshots, the frame time stays with
 *Default: yes, a small cost* (1.5× a flat step), so paths prefer flat routes when they're about as short.
 
 **Q8. What frame-time budget does the spike have to meet on a mountain map?**
-*Default: no worse than 10% over the same map flat,* on the user's Mac at the widest zoom, on OpenGL and Wgpu.
+*Default: no worse than 10% over the same map flat,* on the user's Mac at the widest zoom, on OpenGL and Wgpu. The spike met it on the sample map (+7%) and held 60 fps everywhere, but a dense hilly map cost OpenGL 22% more CPU, half of it the placeholder faces (Stage 0's notes); Stage 3 measures again with the real pieces.
 
-**Q9. Do reaches measured along the grid stop at cliffs? (New)**
+**Q9. Do reaches measured along the grid stop at cliffs?**
 Services' coverage, a farmstead's field reach, faith's coverage, wells' water, irrigation's spread and risks' spread are measured in grid steps today (§9, §10).
 *Default:* a farmstead's reach and irrigation stop at cliffs (a field belongs to the land its farmers walk, and water doesn't run uphill). The rest ignore height until playtesting says otherwise.
 
-**Q10. What can stand on raised ground? (New)**
+**Q10. What can stand on raised ground?**
 *Default:*
 - buildings, houses, roads, fields, rubble, trees and rocks on any flat level;
 - dykes on any flat level, joined only on one level, with no dyke ramps;
 - canals, docks, wharves and water at level 0 only.
 
-**Q11. How high do floods reach? (New)**
+**Q11. How high do floods reach?**
 *Default:* only level-0 land floods (`flood_level` 0), set per mission. A severe flood rising a level is left to M13's balance.
 
-**Q12. Are ramps stored or worked out from heights? (New)**
+**Q12. Are ramps stored or worked out from heights?**
 Zeus works its slopes out from the neighbours (§11).
 *Default: stored*, since a ramp is a chokepoint and a road's way up that the designer places. The editor's overlay flags ramps that don't connect, and could suggest ramps later.
 
-**Q13. How much can neighbours differ? (New)**
+**Q13. How much can neighbours differ?**
 Zeus keeps them within 2 levels (§11). Stacked faces draw any drop.
 *Default:* any drop is allowed; the smooth brush and the overlay use `max_cliff_levels` = 2.
 
-**Q14. Stop saving the cached tile positions? (New)**
-Since v15 bumps the format anyway, `iso_coords_f32` can become `serde(skip)` and be recomputed in `post_load`. That shrinks saves, and no derived data can then disagree with the heights.
-*Default: yes*, if the smoke test and the determinism checksums hold. `session.checksum` hashes the session as a save stores it, so the checksums change once, with the format.
+**Q14. Stop saving the cached tile positions?**
+**Decided by the spike (2026-11-22): no, not for height.** Positions stay flat and the renderer lifts each thing as it draws it (§2, §3), so no cached position can disagree with the heights. Dropping `iso_coords_f32` from saves would still shrink them a little, but that's a save-size change of its own, not this milestone's.
 
-**Q15. Stacked faces or Zeus-style pattern pieces? (New)**
-*Default: stacked faces first.* Corner and end pieces picked from the neighbours come only if the spike's screenshots show seams that matter.
+**Q15. Stacked faces or Zeus-style pattern pieces?**
+*Default: stacked courses first* (§5). The spike's flat quads hid nothing at corners; Stage 2's mock-up of the real pieces decides whether corner and end pieces are needed.

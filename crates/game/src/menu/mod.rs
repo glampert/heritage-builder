@@ -32,6 +32,7 @@ use crate::{
         TileFlags,
         TileKind,
         TileMapLayerKind,
+        elevation::{self, HeightTool},
         placement::{TilePlacementErrReason, TilePlacementOp},
         rendering::TileMapRenderFlags,
         road::{self, RoadKind, RoadSegment},
@@ -40,7 +41,7 @@ use crate::{
         water,
     },
     ui_context::GameUiContext,
-    undo_redo::{self, EditAction, EditedLayer},
+    undo_redo::{self, EditAction, EditedLayer, ElevationEdit},
     world::object::{Spawner, SpawnerResult},
 };
 
@@ -217,6 +218,7 @@ pub trait GameMenusSystem: Any + Save + Load {
             let construction_mode = self.placement().construction_mode();
             let result = match TilePlacement::try_place_or_clear_tile(selection, construction_mode, context) {
                 PlaceOrClearResult::ClearedTile(_tile_def) => PlacementResult::ClearedTile,
+                PlaceOrClearResult::Elevated => PlacementResult::PlacedTile,
                 PlaceOrClearResult::PlacedTile(tile_def) => {
                     if tile_def.is(TileKind::Building | TileKind::Unit) {
                         PlacementResult::PlacedBuildingOrUnit
@@ -434,6 +436,7 @@ pub trait GameMenusSystem: Any + Save + Load {
 pub enum PlaceOrClearResult {
     PlacedTile(&'static TileDef),
     ClearedTile(&'static TileDef),
+    Elevated, // A height brush changed some cells (TilePalette's Height tools).
     Failed {
         placement_attempt_tile_def: Option<&'static TileDef>, // Tile we've failed to place. None for a tile clear op.
         obstructing_tile_def: Option<&'static TileDef>,       // Tile that prevented placement, if any.
@@ -450,6 +453,30 @@ impl PlaceOrClearResult {
     #[inline]
     pub fn failed(&self) -> bool {
         matches!(self, Self::Failed { .. })
+    }
+}
+
+// What TilePlacement::set_elevation changed and refused.
+#[derive(Default)]
+pub struct ElevationPlacement {
+    pub changed: Vec<Cell>,
+    pub refused: Vec<(Cell, ElevationRefusal)>,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum ElevationRefusal {
+    OutsideMap,
+    Building, // A building, field or blocker stands there: clear it first (Q6).
+    Water,    // Water and canals stay flat at level 0 (Q3).
+}
+
+impl ElevationRefusal {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::OutsideMap => "outside_map",
+            Self::Building => "building",
+            Self::Water => "water",
+        }
     }
 }
 
@@ -607,6 +634,82 @@ impl TilePlacement {
         road::mark_tiles(context.tile_map, &self.current_road_segment, true, is_valid_road_placement);
     }
 
+    // Sets cells' heights (each a byte as tile::elevation::encode writes it), as the developer
+    // editor's height tools do (docs/plans/terrain-height.md, §8): refused where a building, a field
+    // or a building's blocker stands (clear it first, Q6), and on water and canals for anything but
+    // flat at level 0 (Q3). Keeps the minimap in step; with `undo_redo`, the cells it changed are
+    // one undo step.
+    pub fn set_elevation(context: &SimContextMut, bytes: &[(Cell, u8)], undo_redo: bool) -> ElevationPlacement {
+        let mut result = ElevationPlacement::default();
+        let mut edits = Vec::new();
+
+        for &(cell, byte) in bytes {
+            let tile_map = context.tile_map();
+            if !tile_map.is_cell_within_bounds(cell) {
+                result.refused.push((cell, ElevationRefusal::OutsideMap));
+                continue;
+            }
+            let before = tile_map.elevation().byte(cell);
+            if before == byte {
+                continue;
+            }
+            if tile_map.has_tile(cell, TileKind::Building | TileKind::Field | TileKind::Blocker) {
+                result.refused.push((cell, ElevationRefusal::Building));
+                continue;
+            }
+            if byte != 0
+                && tile_map
+                    .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+                    .is_some_and(|terrain| terrain.path_kind().intersects(crate::pathfind::NodeKind::Water))
+            {
+                result.refused.push((cell, ElevationRefusal::Water));
+                continue;
+            }
+            if context.tile_map_mut().set_elevation_byte(cell, byte) {
+                result.changed.push(cell);
+                edits.push(ElevationEdit { cell, before, after: byte });
+            }
+        }
+
+        if undo_redo {
+            undo_redo::record_elevation(edits);
+        }
+        result
+    }
+
+    // One stroke of a height brush under the cursor (the developer palette's Height tools): the
+    // brush's cells around `centre`, with the stroke's level picked where it started. Its edits
+    // gather into the stroke, one undo step once it ends (end_height_stroke).
+    pub fn paint_height(context: &SimContextMut, brush: HeightBrush, centre: Cell) -> bool {
+        let elevation_map = context.tile_map().elevation();
+        let same_stroke = HEIGHT_STROKE.as_ref().as_ref().is_some_and(|stroke| stroke.tool == brush.tool);
+        if !same_stroke {
+            end_height_stroke();
+            let level = brush.tool.stroke_level(elevation_map, centre);
+            *HEIGHT_STROKE.as_mut() = Some(HeightStroke { tool: brush.tool, level, edits: Vec::new() });
+        }
+        let stroke = HEIGHT_STROKE.as_mut().as_mut().expect("a stroke was just started");
+
+        let cells = elevation::brush_cells(elevation_map, centre, brush.size);
+        let bytes = elevation::brush_edits(elevation_map, brush.tool, &cells, stroke.level);
+        if bytes.is_empty() {
+            return false;
+        }
+        let before: Vec<(Cell, u8)> = bytes.iter().map(|&(cell, _)| (cell, elevation_map.byte(cell))).collect();
+        let placed = Self::set_elevation(context, &bytes, false);
+        for cell in &placed.changed {
+            let after = context.tile_map().elevation().byte(*cell);
+            match stroke.edits.iter_mut().find(|edit| edit.cell == *cell) {
+                Some(edit) => edit.after = after,
+                None => {
+                    let before = before.iter().find(|(edited, _)| edited == cell).map_or(0, |(_, byte)| *byte);
+                    stroke.edits.push(ElevationEdit { cell: *cell, before, after });
+                }
+            }
+        }
+        !placed.changed.is_empty()
+    }
+
     fn placement_operation(&self, selection: TilePaletteSelection, context: &mut GameUiContext) -> TilePlacementOp {
         if let Some(tile_def) = selection.as_tile_def() {
             // Land under the flood takes nothing new until the water goes.
@@ -660,6 +763,16 @@ impl TilePlacement {
                     true,
                     construction_mode,
                 );
+            }
+        } else if let TilePaletteSelection::Height(brush) = selection {
+            // A height brush: paint the cells around the one under the cursor.
+            let target_cell = context.tile_map.find_exact_cell_for_point(
+                TileMapLayerKind::Terrain,
+                context.cursor_screen_pos,
+                context.camera.transform(),
+            );
+            if target_cell.is_valid() && Self::paint_height(&context.new_sim_context(), brush, target_cell) {
+                return PlaceOrClearResult::Elevated;
             }
         } else if selection.is_clear() {
             // Clear/remove tile:
@@ -917,11 +1030,37 @@ impl Default for TilePlacement {
 // TilePaletteSelection
 // ----------------------------------------------
 
+// A height brush of the developer palette (docs/plans/terrain-height.md, §8): a tool and its
+// width in cells (1, 3, 5).
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct HeightBrush {
+    pub tool: HeightTool,
+    pub size: i32,
+}
+
+// A height brush's stroke under way: what it changed, one undo step once the button is released.
+struct HeightStroke {
+    tool: HeightTool,
+    level: Option<u8>, // HeightTool::stroke_level, from where the stroke started.
+    edits: Vec<ElevationEdit>,
+}
+
+static HEIGHT_STROKE: common::mem::SingleThreadStatic<Option<HeightStroke>> = common::mem::SingleThreadStatic::new(None);
+
+// Ends the height brush's stroke, if one is under way: its edits become one undo step.
+pub fn end_height_stroke() {
+    if let Some(stroke) = HEIGHT_STROKE.as_mut().take() {
+        let edits: Vec<ElevationEdit> = stroke.edits.into_iter().filter(|edit| edit.before != edit.after).collect();
+        undo_redo::record_elevation(edits);
+    }
+}
+
 #[derive(Copy, Clone, Default)]
 pub enum TilePaletteSelection {
     #[default]
     None,
     Clear,
+    Height(HeightBrush), // A height tool (the developer palette's).
     // A tile, and the variation picked for it, if the player picks its variations (a shrine's
     // patron): placement builds that one.
     Tile(TileDefHandle, Option<usize>),
@@ -938,6 +1077,13 @@ impl TilePaletteSelection {
 
     pub fn is_clear(&self) -> bool {
         matches!(self, Self::Clear)
+    }
+
+    pub fn height_brush(&self) -> Option<HeightBrush> {
+        match self {
+            Self::Height(brush) => Some(*brush),
+            _ => None,
+        }
     }
 
     pub fn is_tile(&self) -> bool {

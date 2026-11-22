@@ -1556,6 +1556,16 @@ pub fn button(ui_sys: &UiSystem, label: &str) -> bool {
     })
 }
 
+// A button drawn selected or not (a tool picked from a group); records itself as a button whose
+// value is whether it's selected.
+pub fn selectable_button(ui_sys: &UiSystem, label: &str, selected: bool) -> bool {
+    ui_sys.with_ui(|ui| {
+        let response = ui.selectable_label(selected, label_text(label));
+        record(ui_sys, ui, &response, "button", label, None, true, Some(Value::Bool(selected)));
+        response.clicked()
+    })
+}
+
 pub fn small_button(ui_sys: &UiSystem, label: &str) -> bool {
     ui_sys.with_ui(|ui| {
         let response = ui.small_button(label_text(label));

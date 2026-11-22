@@ -60,7 +60,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
 | M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3, the comic viewer (I-A and I-B as data) with Phase 4; the other sequences wait for their missions |
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
-| T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Next (2026-11-22: plan refreshed, with lessons from Zeus; to be done before M9, M11 and M13) |
+| T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | In progress (2026-11-22: the spike a go, at 32 px a level; Stage 1 done: the data, the editor's tools and save v15; Stage 2, the pieces in Blender, next; before M9, M11 and M13) |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
 | MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6, the Faith lens with M8, the Flood lens with M7 Phase 2, the Fertility lens with M7 Phase 4) |
 | UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–8 done (skins, main menus, world map, intermission and briefing, story comics, HUD, City book, old assets, the inspector's panels) |
@@ -73,7 +73,7 @@ Suggested order:
 - **Terrain height:** the T spike runs after M3, and Stages 1–4 come before M13 builds mission 5's map.
 - **Minimap:** MM can run any time; its Risk, Faith, Flood and Fertility lenses come with M6, M8 and M7.
 - **Realm UI:** UI's Phase 0 (skins, widgets, art pipeline) should land before M4, M9, M10, M11 and M12 build their screens, so they build them in the new style. Its later phases ship with today's data and leave hooks those milestones fill.
-- **Eight-direction movement:** U runs after M3 and, ideally, before T's pathfinding stage (Stage 4), since both change the same step check. Its art waits on the Blender walker experiment (M2, placeholder-art Phase 6), with a fallback to existing directions until then.
+- **Eight-direction movement:** U runs after M3 and, ideally, before T's pathfinding stage (Stage 5), since both change the same step check. Its art waits on the Blender walker experiment (M2, placeholder-art Phase 6), with a fallback to existing directions until then.
 
 ### M1: Game time and calendar (small)
 
@@ -223,8 +223,8 @@ GDD 5.12 and 5.14:
 ### T: Terrain height (medium to large)
 
 See [terrain-height.md](terrain-height.md):
-- Stage 0, a go/no-go spike after M3;
-- then data, rendering, picking, pathfinding and art.
+- Stage 0, a go/no-go spike: done 2026-11-22, a go, at 32 px a level;
+- then the data and saves (v15), the cliff and ramp pieces from Blender, rendering, picking and placement, pathfinding, and the floods' and farms' hooks.
 
 ### U: Eight-direction movement for off-road walkers (medium)
 
@@ -312,7 +312,7 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 12 | The city's trade: its partners (the mission's entry for each), routes opened, limits, this year's amounts, price offsets and next arrivals; the court's requests and their log (`sim.trade`) | M10 | Done (Phase 0) |
 | 13 | A dock's berth and dockers on its service building (`dock`, null for every other service) | M10 | Done (Phase 2) |
 | 14 | The mission's request schedule (`sim.trade.scheduled`) and each request's Legitimacy and relations effects | M10 | Done (Phase 4) |
-| 15 | Elevation map | T | Planned |
+| 15 | Each cell's level and shape (`tile_map.elevation`, saved as runs) | T | Done (Stage 1) |
 | … | Ratings state | M9 | Planned |
 
 ## Conventions for every milestone

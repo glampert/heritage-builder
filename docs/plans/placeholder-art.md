@@ -300,11 +300,13 @@ Notes (2026-11-06), the scaffold and renovation overlays:
 
 Done when: the new terrain types tile cleanly with the existing ones in the game.
 
-### Phase 5: Height pieces (small to medium; scheduled with terrain-height Stage 5)
+### Phase 5: Height pieces (small to medium; scheduled as terrain-height Stage 2)
 
-- [ ] `cliff_face(edge, levels=1)` for the left and right edges, per terrain kind or neutral rock.
-- [ ] `ramp(dir, kind)` for grass, dirt and road, in 4 directions.
-- [ ] The level height comes from the engine's constant (see [terrain-height.md](terrain-height.md)); both read it from one shared JSON value.
+The pieces the renderer draws for raised terrain ([terrain-height.md](terrain-height.md) §5): one level is 32 logical px, √(2/3) ≈ 0.8165 Blender units. A prototype recipe, `hbgen/recipes/heights.py` (`cliff`, `ramp`), rendered fast on 2026-11-22: its courses stack and join.
+- [ ] `cliff(edge, course)`: one-level courses for the left (south) and right (east) edges, `top` with the grass lip and `mid`, with variations, per terrain kind (grassy or bare rock; karst later).
+- [ ] `ramp(dir, kind)`: solid wedges carrying their flanks, for grass, dirt, dirt road and paved road, in 4 directions.
+- [ ] `rim(edge)`: the lip along a raised back edge.
+- [ ] The level height comes from the engine's constant; both read it from one shared value.
 
 ### Phase 6: Walker experiment (medium)
 

@@ -79,8 +79,10 @@ Blender modules (they import `bpy`; use them only inside Blender):
   holds the studies, `workshop.py` the game's workshops, `overlays.py` the
   construction scaffolds and renovation overlays, `services.py` the fire watch
   and the builders' guild, `risks.py` the rubble pieces and the fire overlay,
-  `trade.py` the dock and the trade ship (the first unit), `test.py` the
-  template.
+  `trade.py` the dock and the trade ship (the first unit), `heights.py` the
+  terrain-height pieces (a prototype: one-level cliff courses and ramp wedges,
+  one level being √(2/3) units, 32 logical px; no catalog entries yet), `test.py`
+  the template.
 - `hbgen/generate.py`: `generate()` (legacy camera) and `generate_engine()`.
 - `hb_tile_gen.py`: the one-tile command line, and the `exec` entry point.
 - `build.py`: the batch driver (§11), run by `tilegen.sh`.

@@ -64,7 +64,14 @@ fn cmd_at(context: &mut CommandContext, params: Value) -> CommandResult {
     });
     let report =
         report.ok_or_else(|| CommandError::not_found(format!("Nothing to inspect at [{}, {}].", cell.x, cell.y)))?;
-    done(serde_json::to_value(&report).unwrap_or(Value::Null))
+    let mut value = serde_json::to_value(&report).unwrap_or(Value::Null);
+    // The ground's height at the cell (docs/plans/terrain-height.md).
+    if let Some(object) = value.as_object_mut() {
+        let (level, shape) = context.session.tile_map().elevation().get(cell);
+        object.insert("level".into(), serde_json::json!(level));
+        object.insert("shape".into(), serde_json::json!(shape.name()));
+    }
+    done(value)
 }
 
 fn cmd_orders(context: &mut CommandContext, params: Value) -> CommandResult {

@@ -30,6 +30,7 @@ use crate::{
     save_context::*,
 };
 
+pub mod elevation;
 pub mod minimap;
 pub mod placement;
 pub mod rendering;
@@ -2188,6 +2189,10 @@ pub struct TileMap {
     size_in_cells: Size,
     layers: ArrayVec<Box<TileMapLayer>, TILE_MAP_LAYER_COUNT>,
 
+    // Each cell's level and shape (docs/plans/terrain-height.md), saved as runs since v15. Edit it
+    // through set_elevation, which keeps the minimap in step.
+    elevation: elevation::ElevationMap,
+
     // Not serialized. Prevents placing/clearing tiles while locked.
     #[serde(skip)]
     locked: bool,
@@ -2266,6 +2271,7 @@ impl TileMap {
         let mut tile_map = Self {
             size_in_cells,
             layers: ArrayVec::new(),
+            elevation: elevation::ElevationMap::default(),
             locked: false,
             playable_area: TileMapPlayableArea::with_inner_rect_margin(size_in_cells),
             minimap: Minimap::new(size_in_cells),
@@ -2299,6 +2305,9 @@ impl TileMap {
             self.playable_area = TileMapPlayableArea::with_inner_rect_margin(map_size);
             self.size_in_cells = map_size;
         }
+
+        // A reset map is flat.
+        self.elevation.reset(self.size_in_cells);
 
         for layer_kind in TileMapLayerKind::iter() {
             // Find which layer this tile belong to if we're not just setting everything to empty.
@@ -2414,6 +2423,33 @@ impl TileMap {
     #[inline]
     pub fn playable_area_cell_range(&self) -> CellRange {
         self.playable_area.cell_range(self.size_in_cells)
+    }
+
+    // ----------------------
+    // Terrain height:
+    // ----------------------
+
+    // Each cell's level and shape (tile::elevation).
+    #[inline]
+    pub fn elevation(&self) -> &elevation::ElevationMap {
+        &self.elevation
+    }
+
+    // Sets a cell's level and shape and keeps the minimap in step. Returns whether it changed. The
+    // player's and editor's tools go through TilePlacement::set_elevation, which checks what stands
+    // there and records undo.
+    pub fn set_elevation(&mut self, cell: Cell, level: u8, shape: elevation::Shape) -> bool {
+        self.set_elevation_byte(cell, elevation::encode(level, shape))
+    }
+
+    // set_elevation(), with the byte as ElevationMap stores it (undo's records).
+    pub fn set_elevation_byte(&mut self, cell: Cell, byte: u8) -> bool {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+        if !self.elevation.set_byte(cell, byte) {
+            return false;
+        }
+        self.minimap.on_height_changed(cell, self.elevation.centre_height(cell));
+        true
     }
 
     #[inline]
@@ -3134,6 +3170,29 @@ impl Load for TileMap {
 
         for layer in &mut self.layers {
             layer.post_load();
+        }
+
+        // The heights: a map whose stored cells don't match its size is broken; it loads flat.
+        if self.elevation.size() != self.size_in_cells || !self.elevation.is_consistent() {
+            log::error!(
+                log::channel!("terrain"),
+                "The saved heights ({}) don't match the map ({}): the map loads flat.",
+                self.elevation.size(),
+                self.size_in_cells
+            );
+            self.elevation.reset(self.size_in_cells);
+        }
+        self.elevation.recount();
+        let problems = self.elevation.problems();
+        if !problems.is_empty() {
+            for (cell, problem) in problems.iter().take(10) {
+                log::warning!(log::channel!("terrain"), "Height at {cell}: {problem}.");
+            }
+            log::warning!(
+                log::channel!("terrain"),
+                "{} cells' heights have problems (the editor's overlay flags them).",
+                problems.len()
+            );
         }
 
         self.minimap.post_load(context);

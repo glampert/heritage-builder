@@ -399,7 +399,9 @@ fn cmd_clear(context: &mut CommandContext, params: Value) -> CommandResult {
             done(json!({ "tile": tile_def.name, "cell": cell_json(base_cell) }))
         }
         Some((PlaceOrClearResult::Failed { message, .. }, _)) => Err(CommandError::failed(message)),
-        Some((PlaceOrClearResult::PlacedTile(_), _)) => unreachable!("Clearing doesn't place tiles."),
+        Some((PlaceOrClearResult::PlacedTile(_) | PlaceOrClearResult::Elevated, _)) => {
+            unreachable!("Clearing doesn't place tiles or change heights.")
+        }
     }
 }
 
@@ -712,6 +714,8 @@ fn cmd_building_at(context: &mut CommandContext, params: Value) -> CommandResult
     reply["workers"] = building.workers().map_or(Value::Null, workers_json);
     reply["stock"] = stock_items_json(building.stock().iter().filter(|item| item.count != 0));
     reply["risks"] = super::risks::building_risks_json(building);
+    // The ground's level under its base cell (docs/plans/terrain-height.md).
+    reply["level"] = json!(session.tile_map().elevation().level(building.base_cell()));
     // A shrine's or a temple's patron (docs/plans/faith.md, §2a); null for other buildings.
     reply["patron"] = crate::faith::dedicated_patron_in(session.sim().realm(), session.tile_map(), building)
         .map_or(Value::Null, |patron| json!(patron.id));

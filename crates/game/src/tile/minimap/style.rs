@@ -96,6 +96,8 @@ pub struct MinimapStyle {
     pub hill_shade: [f32; 2],
     pub hill_strength: f32,
     pub elevation_cells: f32,
+    pub level_value: f32, // The terrain's heights: how much a level raises the ground's colour...
+    pub level_slope: f32, // ...and how much a level's rise adds to the hill shading.
     pub forest_texture: f32,
     pub land_texture: f32,
     pub vacant_lot_alpha: f32,
@@ -294,6 +296,8 @@ impl Default for MinimapStyle {
             hill_shade: [0.75, 1.2],
             hill_strength: 2.2,
             elevation_cells: 14.0,
+            level_value: 0.12,
+            level_slope: 0.3,
             forest_texture: 0.2,
             land_texture: 0.04,
             vacant_lot_alpha: 0.7,
@@ -484,6 +488,8 @@ impl MinimapStyle {
             hill_shade: self.hill_shade,
             hill_strength: self.hill_strength,
             elevation_cells: self.elevation_cells,
+            level_value: self.level_value,
+            level_slope: self.level_slope,
             forest_texture: self.forest_texture,
             land_texture: self.land_texture,
         }

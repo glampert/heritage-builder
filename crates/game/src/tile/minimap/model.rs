@@ -110,8 +110,10 @@ pub struct MinimapGrid {
     terrain: Vec<Terrain>,
     cover: Vec<Cover>,
     roads: Vec<MinimapRoad>,
-    dirty: CellRect,    // Cells the bake must redo: union of terrain and cover edits since the last bake.
-    roads_version: u64, // Goes up on every road edit, for the shape cache.
+    heights: Vec<f32>,   // The ground's height at each cell's centre, in levels (tile::elevation).
+    raised_cells: usize, // Cells whose height isn't 0: the bake reads the heights only while there are any.
+    dirty: CellRect,     // Cells the bake must redo: union of terrain and cover edits since the last bake.
+    roads_version: u64,  // Goes up on every road edit, for the shape cache.
 }
 
 impl MinimapGrid {
@@ -122,6 +124,8 @@ impl MinimapGrid {
         self.terrain = vec![terrain; count];
         self.cover = vec![Cover::None; count];
         self.roads = vec![road; count];
+        self.heights = vec![0.0; count];
+        self.raised_cells = 0;
         self.dirty = CellRect::map(size.width, size.height);
         self.roads_version += 1;
     }
@@ -190,6 +194,25 @@ impl MinimapGrid {
         }
     }
 
+    // A cell's ground height, in levels: TileMap's height edits and the rebuild after a load.
+    pub fn set_height(&mut self, cell: Cell, height: f32) {
+        if !self.is_cell_within_bounds(cell) {
+            return;
+        }
+        let index = self.index(cell);
+        let old = self.heights[index];
+        if old != height {
+            self.raised_cells = self.raised_cells + usize::from(height != 0.0) - usize::from(old != 0.0);
+            self.heights[index] = height;
+            self.mark_dirty(cell);
+        }
+    }
+
+    #[inline]
+    pub fn height(&self, cell: Cell) -> f32 {
+        if self.is_cell_within_bounds(cell) { self.heights[self.index(cell)] } else { 0.0 }
+    }
+
     fn mark_dirty(&mut self, cell: Cell) {
         self.dirty = self.dirty.union(&CellRect::cell(cell.x, cell.y));
     }
@@ -209,11 +232,16 @@ impl MinimapGrid {
 
     // The grid as the bake reads it.
     pub fn bake_grid(&self) -> Grid<'_> {
-        Grid { width: self.size.width, height: self.size.height, terrain: &self.terrain, cover: &self.cover }
+        // A flat map bakes from the noise alone, as before heights existed.
+        let heights: &[f32] = if self.raised_cells == 0 { &[] } else { &self.heights };
+        Grid { width: self.size.width, height: self.size.height, terrain: &self.terrain, cover: &self.cover, heights }
     }
 
     pub fn memory_usage_estimate(&self) -> usize {
-        self.terrain.capacity() * size_of::<Terrain>() + self.cover.capacity() * size_of::<Cover>() + self.roads.capacity()
+        self.terrain.capacity() * size_of::<Terrain>()
+            + self.cover.capacity() * size_of::<Cover>()
+            + self.roads.capacity()
+            + self.heights.capacity() * size_of::<f32>()
     }
 }
 

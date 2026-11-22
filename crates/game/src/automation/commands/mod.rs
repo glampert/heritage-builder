@@ -31,6 +31,7 @@ mod session;
 mod sim;
 mod story;
 mod strings;
+mod terrain;
 mod time;
 mod trade;
 mod ui;
@@ -62,6 +63,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     world_map::COMMANDS,
     intermission::COMMANDS,
     story::COMMANDS,
+    terrain::COMMANDS,
     strings::COMMANDS,
     config::COMMANDS,
     observe::COMMANDS,

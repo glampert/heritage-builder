@@ -1,8 +1,16 @@
 use common::{Size, coords::Cell};
-use game::tile::{TileKind, TileMapLayerKind};
+use game::{
+    menu::{ElevationRefusal, HeightBrush, TilePlacement, end_height_stroke},
+    tile::{
+        TileKind,
+        TileMapLayerKind,
+        elevation::{self, Dir, HeightTool, Shape},
+    },
+    undo_redo,
+};
 
 mod test_utils;
-use test_utils::{TestEnvironment, find_terrain_def, find_water_def, place_tile_as_player};
+use test_utils::{TestEnvironment, find_terrain_def, find_water_def, place_tile_as_player, spawn_building};
 
 // ----------------------------------------------
 // Integration tests for terrain placement
@@ -28,6 +36,13 @@ fn main() {
         test_utils::test_fn!(test_placement_order_does_not_matter),
         test_utils::test_fn!(test_water_placed_back_restores_shores),
         test_utils::test_fn!(test_map_edge_counts_as_water),
+        // Terrain height (docs/plans/terrain-height.md, Stage 1):
+        test_utils::test_fn!(test_heights_start_flat),
+        test_utils::test_fn!(test_heights_set_undo_and_redo),
+        test_utils::test_fn!(test_heights_refused_under_buildings_and_on_water),
+        test_utils::test_fn!(test_height_brush_stroke_is_one_undo_step),
+        test_utils::test_fn!(test_heights_reach_the_minimap),
+        test_utils::test_fn!(test_heights_reset_with_the_map),
     ]);
 }
 
@@ -358,4 +373,151 @@ fn test_map_edge_counts_as_water() {
         (north_edge, "0010"), // Land to the south only, no shore towards the map edge.
         (east_edge, "0001"),  // Land to the west only.
     ]);
+}
+
+// ----------------------------------------------
+// Terrain height
+// ----------------------------------------------
+
+fn grass_map() -> TestEnvironment {
+    TestEnvironment::with_terrain(MAP_SIZE, find_terrain_def("grass"))
+}
+
+fn rect(from: (i32, i32), to: (i32, i32)) -> Vec<Cell> {
+    let mut cells = Vec::new();
+    for y in from.1..=to.1 {
+        for x in from.0..=to.0 {
+            cells.push(Cell::new(x, y));
+        }
+    }
+    cells
+}
+
+fn set_heights(
+    env: &mut TestEnvironment,
+    cells: &[Cell],
+    level: u8,
+    shape: Shape,
+    undo: bool,
+) -> game::menu::ElevationPlacement {
+    let byte = elevation::encode(level, shape);
+    let bytes: Vec<(Cell, u8)> = cells.iter().map(|cell| (*cell, byte)).collect();
+    TilePlacement::set_elevation(&env.new_sim_context(0.0), &bytes, undo)
+}
+
+fn level_at(env: &TestEnvironment, x: i32, y: i32) -> u8 {
+    env.tile_map.elevation().level(Cell::new(x, y))
+}
+
+fn test_heights_start_flat() {
+    let env = grass_map();
+    let map = env.tile_map.elevation();
+    assert!(map.is_flat());
+    assert_eq!(map.size(), MAP_SIZE);
+    assert_eq!(map.max_height(), 0);
+    assert!(map.problems().is_empty());
+}
+
+fn test_heights_set_undo_and_redo() {
+    undo_redo::clear();
+    let mut env = grass_map();
+    let plateau = rect((3, 3), (5, 5));
+    let placed = set_heights(&mut env, &plateau, 2, Shape::Flat, true);
+    assert_eq!(placed.changed.len(), 9);
+    assert!(placed.refused.is_empty());
+    assert_eq!(env.tile_map.elevation().raised_count(), 9);
+    assert_eq!(env.tile_map.elevation().max_height(), 2);
+
+    // A ramp up its south-west side: from the ground at 0 to... level 2 is two levels up, so it's
+    // a problem until a step at 1 joins them.
+    set_heights(&mut env, &[Cell::new(2, 4)], 0, Shape::Ramp(Dir::N), true);
+    assert_eq!(
+        env.tile_map.elevation().problem_at(Cell::new(2, 4)),
+        Some(elevation::ElevationProblem::RampUphill { dir: Dir::N })
+    );
+
+    // Undo takes the ramp back, then the plateau; redo puts the plateau back.
+    undo_redo::undo(&env.new_sim_context(0.0));
+    assert_eq!(env.tile_map.elevation().shape(Cell::new(2, 4)), Shape::Flat);
+    assert_eq!(level_at(&env, 4, 4), 2);
+    undo_redo::undo(&env.new_sim_context(0.0));
+    assert!(env.tile_map.elevation().is_flat());
+    undo_redo::redo(&env.new_sim_context(0.0));
+    assert_eq!(level_at(&env, 4, 4), 2);
+    assert_eq!(env.tile_map.elevation().raised_count(), 9);
+}
+
+fn test_heights_refused_under_buildings_and_on_water() {
+    let mut env = grass_map();
+    spawn_building(&mut env, Cell::new(6, 6), "small_well");
+    place_tile_as_player(&mut env, Cell::new(9, 9), find_water_def());
+
+    let placed = set_heights(&mut env, &[Cell::new(6, 6), Cell::new(9, 9), Cell::new(1, 1)], 1, Shape::Flat, false);
+    assert_eq!(placed.changed, vec![Cell::new(1, 1)]);
+    assert_eq!(placed.refused, vec![
+        (Cell::new(6, 6), ElevationRefusal::Building),
+        (Cell::new(9, 9), ElevationRefusal::Water)
+    ]);
+
+    // Water may be set flat at 0 (it is already: nothing changes).
+    let placed = set_heights(&mut env, &[Cell::new(9, 9)], 0, Shape::Flat, false);
+    assert!(placed.refused.is_empty());
+
+    // Outside the map.
+    let placed = set_heights(&mut env, &[Cell::new(40, 40)], 1, Shape::Flat, false);
+    assert_eq!(placed.refused, vec![(Cell::new(40, 40), ElevationRefusal::OutsideMap)]);
+}
+
+fn test_height_brush_stroke_is_one_undo_step() {
+    undo_redo::clear();
+    let mut env = grass_map();
+    let brush = HeightBrush { tool: HeightTool::Raise, size: 3 };
+
+    // A stroke dragged over two places: one level up from where it started, everywhere it went.
+    assert!(TilePlacement::paint_height(&env.new_sim_context(0.0), brush, Cell::new(4, 4)));
+    assert!(TilePlacement::paint_height(&env.new_sim_context(0.0), brush, Cell::new(6, 4)));
+    // Painting the same cells again changes nothing.
+    assert!(!TilePlacement::paint_height(&env.new_sim_context(0.0), brush, Cell::new(6, 4)));
+    end_height_stroke();
+    assert_eq!(env.tile_map.elevation().raised_count(), 15);
+    assert_eq!(env.tile_map.elevation().max_height(), 1);
+
+    // One undo takes the whole stroke back.
+    undo_redo::undo(&env.new_sim_context(0.0));
+    assert!(env.tile_map.elevation().is_flat());
+    assert!(!undo_redo::can_undo());
+
+    // A second stroke starting on raised ground goes one level higher.
+    undo_redo::redo(&env.new_sim_context(0.0));
+    assert!(TilePlacement::paint_height(
+        &env.new_sim_context(0.0),
+        HeightBrush { tool: HeightTool::Raise, size: 1 },
+        Cell::new(4, 4)
+    ));
+    end_height_stroke();
+    assert_eq!(level_at(&env, 4, 4), 2);
+}
+
+fn test_heights_reach_the_minimap() {
+    let mut env = grass_map();
+    set_heights(&mut env, &[Cell::new(5, 5)], 3, Shape::Flat, false);
+    set_heights(&mut env, &[Cell::new(6, 5)], 1, Shape::Ramp(Dir::E), false);
+    let grid = env.tile_map.minimap().grid();
+    assert_eq!(grid.height(Cell::new(5, 5)), 3.0);
+    assert_eq!(grid.height(Cell::new(6, 5)), 1.5);
+    assert_eq!(grid.height(Cell::new(1, 1)), 0.0);
+    assert!(!grid.bake_grid().heights.is_empty());
+
+    // Back to flat: the bake reads the noise alone again.
+    set_heights(&mut env, &[Cell::new(5, 5), Cell::new(6, 5)], 0, Shape::Flat, false);
+    assert!(env.tile_map.minimap().grid().bake_grid().heights.is_empty());
+}
+
+fn test_heights_reset_with_the_map() {
+    let mut env = grass_map();
+    set_heights(&mut env, &rect((2, 2), (4, 4)), 1, Shape::Flat, false);
+    env.tile_map.reset(Some(find_terrain_def("grass")), Some(Size::new(20, 16)));
+    let map = env.tile_map.elevation();
+    assert!(map.is_flat());
+    assert_eq!(map.size(), Size::new(20, 16));
 }

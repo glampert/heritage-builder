@@ -2,7 +2,15 @@
 
 use std::collections::HashMap;
 
-use common::{self, Color, Rect, RectTexCoords, Vec2, constants::*, coords::WorldToScreenTransform};
+use common::{
+    self,
+    Color,
+    Rect,
+    RectTexCoords,
+    Vec2,
+    constants::*,
+    coords::{self, WorldToScreenTransform},
+};
 use engine::{
     app::input::{InputAction, MouseButton},
     file_sys::paths::PathRef,
@@ -13,9 +21,11 @@ use smallvec::SmallVec;
 
 use crate::{
     building::{BuildingArchetypeKind, config::BuildingConfigs},
-    menu::{TilePalette, TilePaletteSelection},
+    menu::{self, HeightBrush, TilePalette, TilePaletteSelection},
     tile::{
         TileKind,
+        TileMapLayerKind,
+        elevation::{self, Dir, HeightTool},
         rendering::INVALID_TILE_COLOR,
         sets::{TileCategory, TileDef, TileDefHandle, TileSet, TileSets},
     },
@@ -37,7 +47,27 @@ pub struct TilePaletteDevMenu {
     realm: crate::realm::Realm, // The game's, as of the last draw: the variations it offers.
     variations: Option<VariationPopup>, // The tile whose variations are open beside the palette.
     palette_left: f32,          // The palette window's left edge, as of the last draw.
+    height_brush_size: usize,   // The Height section's brush, as an index into HEIGHT_BRUSH_SIZES.
+    terrace_level: i32,         // The Height section's Terrace level.
 }
+
+// The Height section's tools, in the order their buttons show (docs/plans/terrain-height.md, §8).
+const HEIGHT_TOOLS: [HeightTool; 9] = [
+    HeightTool::Raise,
+    HeightTool::Lower,
+    HeightTool::Terrace(1),
+    HeightTool::Smooth,
+    HeightTool::Flatten,
+    HeightTool::Ramp(Dir::N),
+    HeightTool::Ramp(Dir::E),
+    HeightTool::Ramp(Dir::S),
+    HeightTool::Ramp(Dir::W),
+];
+const HEIGHT_BRUSH_SIZES: [i32; 3] = [1, 3, 5];
+const HEIGHT_BRUSH_LABELS: [&str; 3] = ["1 × 1", "3 × 3", "5 × 5"];
+
+// The brush's outline under the cursor.
+const HEIGHT_BRUSH_COLOR: Color = Color::new(1.0, 0.85, 0.3, 1.0);
 
 // A tile whose variations the player picks (a shrine's or a temple's patron), its variations
 // offered in the game's realm open in a popup window beside the palette, as the in-game build
@@ -57,6 +87,8 @@ impl TilePalette for TilePaletteDevMenu {
                 self.left_mouse_button_pressed = true;
             } else if action == InputAction::Release {
                 self.left_mouse_button_pressed = false;
+                // A height brush's stroke is one undo step.
+                menu::end_height_stroke();
             }
             UiInputEvent::Handled
         } else {
@@ -171,6 +203,8 @@ impl TilePaletteDevMenu {
                 }
             }
 
+            self.draw_height_tools(ui_sys);
+
             let sections = [
                 ("Terrain", TileKind::Terrain),
                 ("", TileKind::Building | TileKind::Field),
@@ -191,6 +225,64 @@ impl TilePaletteDevMenu {
         }
         self.draw_variations(ui_sys);
         self.draw_selected_tile(context, debug_draw, show_selection_bounds);
+    }
+
+    // The Height section (docs/plans/terrain-height.md, §8): a button per tool, the brush's width and
+    // the Terrace tool's level. A tool picked is the palette's selection, painted with the left button
+    // (TilePlacement::paint_height), one undo step a stroke. While one is picked the map shows its
+    // levels (TileMapRenderFlags::DrawElevation).
+    fn draw_height_tools(&mut self, ui_sys: &UiSystem) {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Height", false) else {
+            return;
+        };
+        let picked = self.current_selection.height_brush().map(|brush| brush.tool);
+        let mut new_tool = None;
+
+        for row in HEIGHT_TOOLS.chunks(3) {
+            ui::horizontal(ui_sys, |ui_sys| {
+                for tool in row {
+                    let selected = picked.is_some_and(|picked| {
+                        std::mem::discriminant(&picked) == std::mem::discriminant(tool) && Self::same_ramp(picked, *tool)
+                    });
+                    if ui::selectable_button(ui_sys, tool.name(), selected) {
+                        new_tool = Some(*tool);
+                    }
+                }
+            });
+        }
+
+        let mut size_changed = ui::combo(ui_sys, "Brush", &mut self.height_brush_size, &HEIGHT_BRUSH_LABELS);
+        size_changed |= ui::slider(
+            ui_sys,
+            "Terrace level",
+            0,
+            i32::from(elevation::MAX_LEVEL),
+            ui::UiNumberFormat::Default,
+            &mut self.terrace_level,
+        );
+
+        let tool = new_tool.or(if size_changed { picked } else { None });
+        if let Some(tool) = tool {
+            let tool = match tool {
+                HeightTool::Terrace(_) => {
+                    HeightTool::Terrace(self.terrace_level.clamp(0, i32::from(elevation::MAX_LEVEL)) as u8)
+                }
+                other => other,
+            };
+            if new_tool.is_some() {
+                self.reset_selection_internal();
+            }
+            let size = HEIGHT_BRUSH_SIZES[self.height_brush_size.min(HEIGHT_BRUSH_SIZES.len() - 1)];
+            self.current_selection = TilePaletteSelection::Height(HeightBrush { tool, size });
+        }
+    }
+
+    // Whether two tools are the same ramp direction (or not ramps at all).
+    fn same_ramp(a: HeightTool, b: HeightTool) -> bool {
+        match (a, b) {
+            (HeightTool::Ramp(a), HeightTool::Ramp(b)) => a == b,
+            _ => true,
+        }
     }
 
     // The open tile's variations offered in the game's realm, a button each, in a popup window
@@ -242,6 +334,23 @@ impl TilePaletteDevMenu {
 
     fn draw_selected_tile(&self, context: &mut GameUiContext, debug_draw: &mut DebugDraw, show_selection_bounds: bool) {
         if !self.has_selection() {
+            return;
+        }
+
+        // A height brush: its cells' outlines around the cell under the cursor.
+        if let Some(brush) = self.current_selection().height_brush() {
+            let transform = context.camera.transform();
+            let centre =
+                context.tile_map.find_exact_cell_for_point(TileMapLayerKind::Terrain, context.cursor_screen_pos, transform);
+            if centre.is_valid() {
+                for cell in elevation::brush_cells(context.tile_map.elevation(), centre, brush.size) {
+                    let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+                    for i in 0..points.len() {
+                        let (from, to) = (points[i], points[(i + 1) % points.len()]);
+                        debug_draw.line_with_thickness(from, to, HEIGHT_BRUSH_COLOR, 2.0);
+                    }
+                }
+            }
             return;
         }
 
@@ -465,6 +574,9 @@ impl TilePaletteDevMenu {
         if self.current_selection.is_clear() {
             return serde_json::Value::from("Clear");
         }
+        if let Some(brush) = self.current_selection.height_brush() {
+            return serde_json::Value::from(format!("Height: {}", brush.tool.name()));
+        }
         match self.current_selection.as_tile_def() {
             Some(tile_def) => {
                 serde_json::Value::from(common::fixed_string::snake_case_to_title::<64>(&tile_def.name).as_str())
@@ -474,6 +586,7 @@ impl TilePaletteDevMenu {
     }
 
     fn reset_selection_internal(&mut self) {
+        menu::end_height_stroke();
         self.left_mouse_button_pressed = false;
         self.current_selection = TilePaletteSelection::None;
         self.selected_index.clear();

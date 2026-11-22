@@ -129,6 +129,15 @@ enum Command {
 struct Record {
     action: EditAction,
     saved_states: Vec<SavedState>,
+    elevation: Vec<ElevationEdit>, // EditAction::Elevation's cells.
+}
+
+// A cell's height before and after an edit, as ElevationMap stores it (tile::elevation).
+#[derive(Copy, Clone, Debug)]
+pub struct ElevationEdit {
+    pub cell: Cell,
+    pub before: u8,
+    pub after: u8,
 }
 
 impl Record {
@@ -144,12 +153,25 @@ impl Record {
             Command::Undo => match self.action {
                 EditAction::PlacedTiles => self.clear_tiles(context, true),
                 EditAction::ClearingTiles => self.place_tiles(context, false),
+                EditAction::Elevation => self.set_elevation(context, |edit| edit.before),
             },
             Command::Redo => match self.action {
                 EditAction::PlacedTiles => self.place_tiles(context, true),
                 EditAction::ClearingTiles => self.clear_tiles(context, false),
+                EditAction::Elevation => self.set_elevation(context, |edit| edit.after),
             },
         }
+    }
+
+    // Puts each edited cell's height back to `byte`'s pick of its record (refused, as any height
+    // edit is, where a building now stands).
+    fn set_elevation(&self, context: &SimContextMut, byte: impl Fn(&ElevationEdit) -> u8) {
+        let bytes: Vec<(Cell, u8)> = self.elevation.iter().map(|edit| (edit.cell, byte(edit))).collect();
+        TilePlacement::set_elevation(context, &bytes, false);
+    }
+
+    fn len(&self) -> usize {
+        self.saved_states.len() + self.elevation.len()
     }
 
     fn place_tiles(&self, context: &SimContextMut, subtract_tile_cost: bool) {
@@ -288,7 +310,13 @@ impl UndoRedoSingleton {
         }
 
         if !saved_states.is_empty() {
-            self.push_undo_record(Record { action, saved_states });
+            self.push_undo_record(Record { action, saved_states, elevation: Vec::new() });
+        }
+    }
+
+    fn record_elevation(&mut self, edits: Vec<ElevationEdit>) {
+        if !edits.is_empty() {
+            self.push_undo_record(Record { action: EditAction::Elevation, saved_states: Vec::new(), elevation: edits });
         }
     }
 
@@ -308,7 +336,7 @@ impl UndoRedoSingleton {
 
     fn undo(&mut self, context: &SimContextMut) {
         if let Some(record) = self.undo_stack.pop_back() {
-            log::info!(log::channel!("undo_redo"), "Undo: {:?} ({} items)", record.action, record.saved_states.len());
+            log::info!(log::channel!("undo_redo"), "Undo: {:?} ({} items)", record.action, record.len());
             record.apply_action(Command::Undo, context);
             self.push_redo_record(record);
         }
@@ -316,7 +344,7 @@ impl UndoRedoSingleton {
 
     fn redo(&mut self, context: &SimContextMut) {
         if let Some(record) = self.redo_stack.pop_back() {
-            log::info!(log::channel!("undo_redo"), "Redo: {:?} ({} items)", record.action, record.saved_states.len());
+            log::info!(log::channel!("undo_redo"), "Redo: {:?} ({} items)", record.action, record.len());
             record.apply_action(Command::Redo, context);
             self.push_undo_record(record);
         }
@@ -334,6 +362,7 @@ common::singleton_late_init! { UNDO_REDO_SINGLETON, UndoRedoSingleton }
 pub enum EditAction {
     PlacedTiles,
     ClearingTiles,
+    Elevation, // Cells' heights changed (TilePlacement::set_elevation).
 }
 
 bitflags! {
@@ -358,6 +387,11 @@ where
     C: CellKey,
 {
     UndoRedoSingleton::get_mut().record(action, affected_cells, layers, tile_map, world);
+}
+
+// One undo step for a height edit: each cell's byte before and after (a brush stroke's cells).
+pub fn record_elevation(edits: Vec<ElevationEdit>) {
+    UndoRedoSingleton::get_mut().record_elevation(edits);
 }
 
 pub fn undo(context: &SimContextMut) {

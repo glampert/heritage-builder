@@ -1,0 +1,64 @@
+# Terrain height (docs/plans/terrain-height.md): Stage 1, the heights' data. Sets cells' levels and
+# a ramp, paints with a brush and undoes it, checks heights are refused under a building, reported
+# by inspect.at and world.building_at, kept by a save, and painted with the developer palette's
+# Height tools by a click, with the heights overlay showing. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/elevation.jsonl --default-configs --fresh-profile
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [24, 24]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/flat", "value": true}}
+
+# A plateau at level 1, and a ramp up its south side, climbing north.
+{"method": "terrain.set_elevation", "params": {"from": [8, 8], "to": [12, 12], "level": 1}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/raised_cells", "value": 25}}
+{"method": "terrain.set_elevation", "params": {"cell": [7, 10], "level": 0, "shape": "ramp_n"}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/problem_count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/shape", "value": "ramp_n"}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/height", "value": 0.5}}
+# Turned the wrong way, it's a problem.
+{"method": "terrain.set_elevation", "params": {"cell": [7, 10], "level": 0, "shape": "ramp_s"}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/problems/0/problem", "value": "ramp_uphill"}}
+{"method": "undo", "params": {}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/problem_count", "value": 0}}
+
+# A raise brush on the plateau: one level up from where it starts, one undo step.
+{"method": "terrain.brush", "params": {"tool": "raise", "cell": [10, 10], "size": 3}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/max_height", "value": 2}}
+{"method": "undo", "params": {}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/max_height", "value": 1}}
+{"method": "redo", "params": {}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [11, 11]}, "path": "/level", "value": 2}}
+
+# Refused under a building; reported where buildings and inspected cells stand.
+{"method": "world.place", "params": {"tile": "small_well", "cell": [16, 16]}}
+{"method": "terrain.set_elevation", "params": {"cell": [16, 16], "level": 1}}
+{"method": "assert.eq", "params": {"query": "terrain.set_elevation", "args": {"cell": [16, 16], "level": 1}, "path": "/refused/0/reason", "value": "building"}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [8, 9]}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 9]}, "path": "/level", "value": 1}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [10, 10]}, "path": "/level", "value": 2}}
+
+# A save keeps them.
+{"method": "session.save", "params": {"name": "scenario_elevation"}}
+{"method": "session.new_map", "params": {"size": [24, 24]}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/flat", "value": true}}
+{"method": "session.load_save", "params": {"name": "scenario_elevation"}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/max_height", "value": 2}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "path": "/raised_cells", "value": 26}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [7, 10]}, "path": "/shape", "value": "ramp_n"}}
+{"method": "session.delete_save", "params": {"name": "scenario_elevation"}}
+
+# The developer palette's Height tools: open the section, pick Raise, click a cell.
+{"method": "menus.mode", "params": {"mode": "DevEditor"}}
+{"method": "camera.teleport", "params": {"cell": [10, 10]}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+{"method": "ui.click", "params": {"path": "Tile Selection/Height"}}
+{"method": "ui.click", "params": {"path": "Tile Selection/Height/Raise"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Tile Selection/Height/Raise"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Tile Selection", "kind": "tile_palette"}, "path": "/widgets/0/value", "value": "Height: Raise"}}
+{"method": "input.click", "params": {"cell": [15, 9]}}
+{"method": "assert.eq", "params": {"query": "terrain.elevation", "args": {"cell": [15, 9]}, "path": "/level", "value": 1}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/elevation/overlay.png", "include_ui": false}}
+{"method": "input.key", "params": {"key": "Escape"}}

@@ -514,6 +514,25 @@ impl Minimap {
             self.place_tile(object.base_cell(), object.tile_def());
             self.on_tile_flags_changed(object.base_cell(), object.flags());
         });
+
+        // The terrain's heights (tile::elevation), where the map has any.
+        let elevation = tile_map.elevation();
+        if !elevation.is_flat() {
+            let size = elevation.size();
+            for y in 0..size.height {
+                for x in 0..size.width {
+                    let cell = Cell::new(x, y);
+                    if elevation.is_raised(cell) {
+                        self.grid.set_height(cell, elevation.centre_height(cell));
+                    }
+                }
+            }
+        }
+    }
+
+    // A cell's ground height changed (TileMap::set_elevation): its pixels are baked again.
+    pub fn on_height_changed(&mut self, cell: Cell, height: f32) {
+        self.grid.set_height(cell, height);
     }
 
     #[inline]

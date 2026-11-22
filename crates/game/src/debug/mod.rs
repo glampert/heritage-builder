@@ -93,7 +93,13 @@ impl GameMenusSystem for DevEditorMenus {
     }
 
     fn selected_render_flags(&self) -> TileMapRenderFlags {
-        DevEditorMenusSingleton::get().debug_settings_menu.selected_render_flags()
+        let singleton = DevEditorMenusSingleton::get();
+        let mut flags = singleton.debug_settings_menu.selected_render_flags();
+        // A height tool picked shows the heights.
+        if singleton.tile_palette_menu.current_selection().height_brush().is_some() {
+            flags.insert(TileMapRenderFlags::DrawElevation);
+        }
+        flags
     }
 
     // The editor stays on the developer UI's theme, but follows the UI realm's skin, so the Skin

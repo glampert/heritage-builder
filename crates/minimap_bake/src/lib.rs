@@ -1,7 +1,7 @@
 // The minimap's painted base (docs/plans/minimap.md, "The bake"): per-cell terrain in, RGBA8
 // pixels out, at `px_per_cell` pixels per cell. Soft shores with a foam line, water shaded by its
 // distance from land, blurred forest and rock masses, and gentle hill shading from a seeded noise
-// field standing in for elevation.
+// field, with the terrain's heights on top where the map has any (docs/plans/terrain-height.md).
 //
 // It's a pure function of the grid and the style. Every pixel depends only on the cells within
 // `margin_cells` of its own, and is computed the same way whatever region is baked, so baking a
@@ -40,6 +40,9 @@ pub struct Grid<'a> {
     pub height: i32,
     pub terrain: &'a [Terrain],
     pub cover: &'a [Cover],
+    // The ground's height at each cell's centre, in levels (a ramp's half a level up), or empty for
+    // a flat map: the noise alone shades it.
+    pub heights: &'a [f32],
 }
 
 impl Grid<'_> {
@@ -51,6 +54,12 @@ impl Grid<'_> {
     #[inline]
     fn clamped(&self, x: i32, y: i32) -> usize {
         self.index(x.clamp(0, self.width - 1), y.clamp(0, self.height - 1))
+    }
+
+    // A cell's height, clamped to the map's edge; 0 without heights.
+    #[inline]
+    fn height_at(&self, x: i32, y: i32) -> f32 {
+        if self.heights.is_empty() { 0.0 } else { self.heights[self.clamped(x, y)] }
     }
 
     #[inline]
@@ -91,6 +100,8 @@ pub struct BakeStyle {
     pub hill_shade: [f32; 2], // Clamp range of the shading factor.
     pub hill_strength: f32,   // Shading per unit of elevation slope.
     pub elevation_cells: f32, // Size of the elevation noise's features, in cells.
+    pub level_value: f32,     // How much a level of terrain height raises the elevation (land_low to land_high).
+    pub level_slope: f32,     // How much a level's rise per cell adds to the slope the shading reads.
     pub forest_texture: f32,  // How much the foliage noise varies forests (0..1).
     pub land_texture: f32,    // How much it varies open land (0..1).
 }
@@ -119,6 +130,8 @@ impl Default for BakeStyle {
             hill_shade: [0.75, 1.2],
             hill_strength: 2.2,
             elevation_cells: 14.0,
+            level_value: 0.12,
+            level_slope: 0.3,
             forest_texture: 0.2,
             land_texture: 0.04,
         }
@@ -263,6 +276,7 @@ pub fn bake_region(grid: &Grid, style: &BakeStyle, cells: CellRect, px: u32, scr
     assert!(grid.width > 0 && grid.height > 0);
     assert_eq!(grid.terrain.len(), (grid.width * grid.height) as usize);
     assert_eq!(grid.cover.len(), grid.terrain.len());
+    assert!(grid.heights.is_empty() || grid.heights.len() == grid.terrain.len());
     assert!(px > 0);
 
     let tex_width = grid.width as usize * px as usize;
@@ -279,7 +293,7 @@ pub fn bake_region(grid: &Grid, style: &BakeStyle, cells: CellRect, px: u32, scr
     prepare_foliage(px, seed, scratch);
     horizontal_pass(grid, region, px, scratch);
     depth_pass(grid, style, region, scratch);
-    elevation_pass(style, region, seed, scratch);
+    elevation_pass(grid, style, region, seed, scratch);
 
     let p = px as i32;
     let depth_window = depth_window(grid, style, region);
@@ -612,15 +626,23 @@ fn depth_pass(grid: &Grid, style: &BakeStyle, region: CellRect, scratch: &mut Sc
 // ----------------------------------------------
 
 // Samples the elevation noise at the cell corners the region's pixels interpolate between.
-fn elevation_pass(style: &BakeStyle, region: CellRect, seed: u32, scratch: &mut Scratch) {
+// The terrain's heights, where the map has any, raise the noise's value by `level_value` a level
+// and add their slope (a central difference between the neighbouring cells) by `level_slope`, so a
+// cliff shades as a steep band. A sample reads the cells next to it, well within `margin_cells`.
+fn elevation_pass(grid: &Grid, style: &BakeStyle, region: CellRect, seed: u32, scratch: &mut Scratch) {
     let width = region.width() + 2;
     let height = region.height() + 2;
     scratch.elevation.clear();
     scratch.elevation.reserve((width * height) as usize);
     for y in 0..height {
         for x in 0..width {
-            let (value, gradient) =
-                elevation((region.x0 - 1 + x) as f32, (region.y0 - 1 + y) as f32, style.elevation_cells, seed);
+            let (cx, cy) = (region.x0 - 1 + x, region.y0 - 1 + y);
+            let (mut value, mut gradient) = elevation(cx as f32, cy as f32, style.elevation_cells, seed);
+            if !grid.heights.is_empty() {
+                value += grid.height_at(cx, cy) * style.level_value;
+                gradient[0] += (grid.height_at(cx + 1, cy) - grid.height_at(cx - 1, cy)) * 0.5 * style.level_slope;
+                gradient[1] += (grid.height_at(cx, cy + 1) - grid.height_at(cx, cy - 1)) * 0.5 * style.level_slope;
+            }
             scratch.elevation.push([value, gradient[0], gradient[1]]);
         }
     }
@@ -786,16 +808,23 @@ mod tests {
         height: i32,
         terrain: Vec<Terrain>,
         cover: Vec<Cover>,
+        heights: Vec<f32>,
     }
 
     impl TestMap {
         fn new(width: i32, height: i32, terrain: Terrain) -> Self {
             let count = (width * height) as usize;
-            Self { width, height, terrain: vec![terrain; count], cover: vec![Cover::None; count] }
+            Self { width, height, terrain: vec![terrain; count], cover: vec![Cover::None; count], heights: Vec::new() }
         }
 
         fn grid(&self) -> Grid<'_> {
-            Grid { width: self.width, height: self.height, terrain: &self.terrain, cover: &self.cover }
+            Grid {
+                width: self.width,
+                height: self.height,
+                terrain: &self.terrain,
+                cover: &self.cover,
+                heights: &self.heights,
+            }
         }
 
         fn set(&mut self, x: i32, y: i32, terrain: Terrain) {
@@ -909,6 +938,36 @@ mod tests {
         assert!(patched == full, "a patched bake differs from a full bake");
     }
 
+    // With heights, a patched bake still equals a full one, and a plateau's sunlit and shaded edges
+    // differ from the flat ground.
+    #[test]
+    fn heights_shade_and_patch() {
+        let (width, height, px) = (32, 32, 4);
+        let mut map = TestMap::new(width, height, Terrain::Land);
+        map.heights = vec![0.0; (width * height) as usize];
+        let style = BakeStyle::default();
+        let mut scratch = Scratch::default();
+        let mut patched = vec![0; (width * height) as usize * (px * px) as usize * 4];
+        bake_all(&map.grid(), &style, px, &mut scratch, &mut patched);
+        let flat = patched.clone();
+
+        let margin = margin_cells(&style);
+        for y in 10..20 {
+            for x in 10..20 {
+                map.heights[(x + y * width) as usize] = 2.0;
+                bake_region(&map.grid(), &style, CellRect::cell(x, y).grown(margin), px, &mut scratch, &mut patched);
+            }
+        }
+        assert!(patched == map.bake(px), "a patched bake with heights differs from a full bake");
+
+        let tex_width = (width * px as i32) as usize;
+        let at =
+            |out: &[u8], x: i32, y: i32| luma(pixel(out, tex_width, (x * px as i32) as usize, (y * px as i32) as usize));
+        // The light comes from +y: the edge facing it is lit, the one facing away shaded.
+        assert!(at(&patched, 15, 19) > at(&flat, 15, 19), "the lit edge should be lighter than flat ground");
+        assert!(at(&patched, 15, 10) < at(&flat, 15, 10), "the shaded edge should be darker than flat ground");
+    }
+
     #[test]
     fn px_per_cell_fits_the_texture() {
         assert_eq!(px_per_cell(128, 128, 1024), 8);
@@ -939,7 +998,7 @@ mod timing {
                     cover[i] = Cover::Vegetation;
                 }
             }
-            let grid = Grid { width: side, height: side, terrain: &terrain, cover: &cover };
+            let grid = Grid { width: side, height: side, terrain: &terrain, cover: &cover, heights: &[] };
             let px = px_per_cell(side, side, max_side);
             let mut out = vec![0; count * (px * px) as usize * 4];
             let mut scratch = Scratch::default();

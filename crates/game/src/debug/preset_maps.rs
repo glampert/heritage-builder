@@ -104,6 +104,9 @@ struct PresetTiles {
     prop_tiles: &'static [i32],
     // Cells flagged with `TileFlags::SettlersSpawnPoint` after terrain placement.
     settler_spawn_points: &'static [Cell],
+    // Each cell's height, a byte as tile::elevation::encode writes it, same shape as
+    // `terrain_tiles`. Empty: a flat map.
+    elevation: &'static [u8],
     enable_cheats_fn: Option<fn(&mut Cheats)>,
 }
 
@@ -160,6 +163,7 @@ const PRESET_TILES_0: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -180,6 +184,7 @@ const PRESET_TILES_1: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -200,6 +205,7 @@ const PRESET_TILES_2: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -222,6 +228,7 @@ const PRESET_TILES_3: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -242,6 +249,7 @@ const PRESET_TILES_4: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -264,6 +272,7 @@ const PRESET_TILES_5: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -285,6 +294,7 @@ const PRESET_TILES_6: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -314,6 +324,7 @@ const PRESET_TILES_7: PresetTiles = PresetTiles {
         X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -346,6 +357,7 @@ const PRESET_TILES_8: PresetTiles = PresetTiles {
         X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
     ],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -369,6 +381,7 @@ const PRESET_TILES_9: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[Cell::new(4, 0)],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -390,6 +403,7 @@ const PRESET_TILES_10: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[Cell::new(4, 0)],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -411,6 +425,7 @@ const PRESET_TILES_11: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[Cell::new(4, 0)],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -439,6 +454,7 @@ const PRESET_TILES_12: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -469,6 +485,7 @@ const PRESET_TILES_13: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -494,6 +511,7 @@ const PRESET_TILES_14: PresetTiles = PresetTiles {
     ],
     prop_tiles: &[],
     settler_spawn_points: &[],
+    elevation: &[],
     enable_cheats_fn: Some(|cheats| cheats.ignore_worker_requirements = true),
 };
 
@@ -556,6 +574,7 @@ fn build_tile_map(preset: &'static PresetTiles, world: &mut World) -> TileMap {
     debug_assert!(preset.terrain_tiles.len() == tile_count);
     debug_assert!(preset.building_tiles.len() == tile_count);
     debug_assert!(preset.prop_tiles.is_empty() || preset.prop_tiles.len() == tile_count);
+    debug_assert!(preset.elevation.is_empty() || preset.elevation.len() == tile_count);
 
     let configs = GameConfigs::get();
     let mut tile_map = TileMap::new(map_size_in_cells, None);
@@ -637,6 +656,12 @@ fn build_tile_map(preset: &'static PresetTiles, world: &mut World) -> TileMap {
     // up `PathNodeKind::SettlersSpawnPoint` from the flag during the recalc.
     for &spawn_point in preset.settler_spawn_points {
         tile_map.set_tile_flags(spawn_point, tile::TileKind::Terrain, TileFlags::SettlersSpawnPoint, true);
+    }
+
+    // Heights (docs/plans/terrain-height.md), if the preset has any.
+    for (index, &byte) in preset.elevation.iter().enumerate() {
+        let cell = Cell::new(index as i32 % map_size_in_cells.width, index as i32 / map_size_in_cells.width);
+        tile_map.set_elevation_byte(cell, byte);
     }
 
     super::utils::refresh_cached_tile_visuals(&mut tile_map);

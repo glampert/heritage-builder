@@ -131,7 +131,7 @@ impl PreviewGrid {
         let px = minimap_bake::px_per_cell(width, height, MAX_BAKE_SIDE.min(style.max_texture_side.max(64)));
         let bake_width = width as usize * px as usize;
         let mut bake = vec![0u8; bake_width * height as usize * px as usize * 4];
-        let grid = Grid { width, height, terrain: &self.terrain, cover: &self.cover };
+        let grid = Grid { width, height, terrain: &self.terrain, cover: &self.cover, heights: &[] };
         minimap_bake::bake_all(&grid, &bake_style, px, &mut Scratch::default(), &mut bake);
 
         let road = to_rgba(palette.road.rgb255());

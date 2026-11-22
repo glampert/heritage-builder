@@ -34,6 +34,8 @@ pub struct DebugSettingsDevMenu {
     draw_grid: bool,
     #[debug_ui(skip)]
     draw_grid_ignore_depth: bool,
+    #[debug_ui(skip)]
+    draw_elevation: bool,
 
     #[debug_ui(skip)]
     preset_tile_map_number: usize,
@@ -167,6 +169,9 @@ impl DebugSettingsDevMenu {
         }
         if self.draw_grid_ignore_depth {
             flags.insert(TileMapRenderFlags::DrawGridIgnoreDepth);
+        }
+        if self.draw_elevation {
+            flags.insert(TileMapRenderFlags::DrawElevation);
         }
         if self.show_tile_bounds {
             flags.insert(TileMapRenderFlags::DrawDebugBounds);
@@ -388,6 +393,7 @@ impl DebugSettingsDevMenu {
 
         ui::checkbox(ui_sys, "Draw grid", &mut self.draw_grid);
         ui::checkbox(ui_sys, "Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
+        ui::checkbox(ui_sys, "Draw elevation", &mut self.draw_elevation);
 
         ui::separator(ui_sys);
 
