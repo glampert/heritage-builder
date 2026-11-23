@@ -16,6 +16,8 @@
 # A river two cells wide along x 20 and 21 (the cells past the playable area are refused).
 {"method": "world.place_area", "params": {"tile": "water", "from": [20, 0], "to": [21, 39]}}
 {"method": "floods.set", "params": {"enabled": true}}
+# The map is flat and the water rises over level-0 land only (terrain-height.md, Q11).
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/flood_level", "value": 0}}
 {"method": "assert.eq", "params": {"query": "floods.state", "path": "/enabled", "value": true}}
 {"method": "assert.exists", "params": {"query": "floods.state", "path": "/sources/0"}}
 {"method": "assert.gt", "params": {"query": "floods.state", "path": "/ordinary_reach", "value": 100}}

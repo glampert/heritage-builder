@@ -1,9 +1,10 @@
-# Terrain height (docs/plans/terrain-height.md), Stages 1 to 5: the heights' data, drawing, picking
-# and paths. Sets cells' levels and a ramp, paints with a brush and undoes it, checks heights are
-# refused under a building, reported by inspect.at and world.building_at and kept by a save, draws a
-# terrace, sends a walker round by its ramp, checks a click on raised ground picks the cell drawn
-# there, and paints with the developer palette's Height tools by a click, with the heights overlay
-# showing. From the repository root:
+# Terrain height (docs/plans/terrain-height.md), Stages 1 to 6: the heights' data, drawing, picking,
+# paths and floods. Sets cells' levels and a ramp, paints with a brush and undoes it, checks heights
+# are refused under a building, reported by inspect.at and world.building_at and kept by a save,
+# draws a terrace, sends a walker round by its ramp, checks a click on raised ground picks the cell
+# drawn there, paints with the developer palette's Height tools by a click, with the heights overlay
+# showing, and floods the terrace's foot but not its top, then its top at a flood level of 1. From
+# the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/elevation.jsonl --default-configs --fresh-profile
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [24, 24]}}
@@ -102,3 +103,23 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "screenshot", "params": {"path": "out/elevation/overlay.png", "include_ui": false}}
 {"method": "input.key", "params": {"key": "Escape"}}
+
+# Floods follow heights (Stage 6): a river along the map's east corner floods the ground at the
+# terrace's foot but not its top, a level up; a flood rising a level covers the terrace too.
+{"method": "world.place_area", "params": {"tile": "water", "from": [18, 0], "to": [23, 23]}}
+{"method": "floods.set", "params": {"enabled": true}}
+{"method": "assert.eq", "params": {"query": "floods.state", "path": "/flood_level", "value": 0}}
+{"method": "floods.flood_now", "params": {"reach": 3}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [17, 15]}, "path": "/fertility/at/under_water", "value": true}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [16, 13]}, "path": "/fertility/at/under_water", "value": true}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [16, 15]}, "path": "/fertility/at/under_water", "value": false}}
+{"method": "floods.recede", "params": {}}
+{"method": "floods.set", "params": {"flood_level": 1}}
+{"method": "floods.flood_now", "params": {"reach": 3}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [16, 15]}, "path": "/fertility/at/under_water", "value": true}}
+{"method": "assert.eq", "params": {"query": "floods.state", "args": {"cell": [13, 15]}, "path": "/fertility/at/under_water", "value": false}}
+{"method": "camera.zoom", "params": {"zoom": 1.5}}
+{"method": "camera.teleport", "params": {"cell": [15, 14]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/elevation/flood.png", "include_ui": false}}

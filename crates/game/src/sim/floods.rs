@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     campaign::config::MissionFloodsDef,
     config::FloodRules,
-    tile::{TileKind, TileMap, TileMapLayerKind, water},
+    tile::{TileKind, TileMap, TileMapLayerKind, elevation, water},
     world::stats::WorldStats,
 };
 
@@ -39,6 +39,9 @@ pub struct FloodProfile {
     pub river: String,
     // The land's starting fertility within the usual reach and beyond it.
     pub fertility: [u8; 2],
+    // The highest ground the water rises over, in levels (docs/plans/terrain-height.md, §9, Q11): a
+    // cell floods only while its ground's lowest corner is at or below it. 0: only level-0 land.
+    pub flood_level: u8,
 }
 
 impl FloodProfile {
@@ -50,6 +53,7 @@ impl FloodProfile {
             sources: Vec::new(),
             river: String::new(),
             fertility: [to_fertility(rules.fertility_in_reach), to_fertility(rules.fertility_beyond)],
+            flood_level: rules.flood_level.min(elevation::MAX_LEVEL),
         }
     }
 
@@ -68,6 +72,9 @@ impl FloodProfile {
         }
         if let Some([within, beyond]) = mission.fertility {
             self.fertility = [to_fertility(within), to_fertility(beyond)];
+        }
+        if let Some(level) = mission.flood_level {
+            self.flood_level = level.min(elevation::MAX_LEVEL);
         }
         self
     }
@@ -233,7 +240,8 @@ impl CityFloods {
         let size = tile_map.size_in_cells();
         let [within, beyond] = self.profile.fertility;
         let mut grid = FertilityGrid::new(size.width, size.height, beyond);
-        for cell in reach_fill(tile_map, &self.profile.sources, self.profile.reach[1], |_| false) {
+        let (sources, reach, level) = (&self.profile.sources, self.profile.reach[1], self.profile.flood_level);
+        for cell in reach_fill(tile_map, sources, reach, level, |_| false) {
             grid.set(cell, within);
         }
         self.fertility = grid;
@@ -250,6 +258,7 @@ impl CityFloods {
             months: Some(self.profile.months),
             river: (!self.profile.river.is_empty()).then(|| self.profile.river.clone()),
             fertility: Some([self.profile.fertility[0] as u32, self.profile.fertility[1] as u32]),
+            flood_level: Some(self.profile.flood_level),
             ..Default::default()
         };
         let log = std::mem::take(&mut self.log);
@@ -316,6 +325,12 @@ impl CityFloods {
     #[inline]
     pub fn set_next_severity(&mut self, severity: f32) {
         self.next_severity = severity.max(0.0);
+    }
+
+    // The highest ground the next floods rise over (automation; a mission sets it at its start).
+    #[inline]
+    pub fn set_flood_level(&mut self, level: u8) {
+        self.profile.flood_level = level.min(elevation::MAX_LEVEL);
     }
 
     #[inline]
@@ -473,7 +488,8 @@ impl CityFloods {
         if !self.enabled {
             return Vec::new();
         }
-        reach_distances(tile_map, &self.profile.sources, self.profile.reach[1], |cell| is_dyke(tile_map, cell))
+        let (sources, reach, level) = (&self.profile.sources, self.profile.reach[1], self.profile.flood_level);
+        reach_distances(tile_map, sources, reach, level, |cell| is_dyke(tile_map, cell))
     }
 }
 
@@ -492,10 +508,19 @@ fn is_land(tile_map: &TileMap, cell: Cell) -> bool {
 }
 
 // What the flood passes over: land, and a canal not joined to the water it comes from (a gate's
-// canals behind a dyke are no moat; crate::farms::irrigation).
+// canals behind a dyke are no moat; crate::farms::irrigation), as long as its ground is low enough.
 #[inline]
-fn is_passable(tile_map: &TileMap, cell: Cell) -> bool {
-    is_land(tile_map, cell) || water::is_canal(tile_map, cell)
+fn is_passable(tile_map: &TileMap, cell: Cell, level: u8) -> bool {
+    (is_land(tile_map, cell) || water::is_canal(tile_map, cell)) && is_below_flood_level(tile_map, cell, level)
+}
+
+// Whether the water rising to `level` covers a cell: its ground's lowest corner is at or below it
+// (flat ground at the level or under it, and a ramp's foot at it; docs/plans/terrain-height.md, §9).
+// Higher ground stays dry: it isn't a dyke the water stands against, and nothing breaches it.
+#[inline]
+pub fn is_below_flood_level(tile_map: &TileMap, cell: Cell, level: u8) -> bool {
+    let (cell_level, shape) = tile_map.elevation().get(cell);
+    f32::from(cell_level) + shape.base_rise() <= f32::from(level)
 }
 
 #[inline]
@@ -550,15 +575,21 @@ pub fn water_bodies(tile_map: &TileMap, min_cells: usize) -> Vec<Cell> {
 }
 
 // The land a flood reaches: from the shores of the water bodies the seeds are in, out to `reach`
-// cells over land, four neighbours at a time, never into a cell `blocks` says stops the water
-// (a dyke). In the order the water reaches them.
-pub fn reach_fill(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: impl Fn(Cell) -> bool) -> Vec<Cell> {
-    reach_distances(tile_map, seeds, reach, blocks).into_iter().map(|(cell, _)| cell).collect()
+// cells over land at or below `level` (FloodProfile::flood_level), four neighbours at a time, never
+// into a cell `blocks` says stops the water (a dyke). In the order the water reaches them.
+pub fn reach_fill(tile_map: &TileMap, seeds: &[Cell], reach: u32, level: u8, blocks: impl Fn(Cell) -> bool) -> Vec<Cell> {
+    reach_distances(tile_map, seeds, reach, level, blocks).into_iter().map(|(cell, _)| cell).collect()
 }
 
 // reach_fill, with each cell's distance from the water along the grid (1 on the shore).
-pub fn reach_distances(tile_map: &TileMap, seeds: &[Cell], reach: u32, blocks: impl Fn(Cell) -> bool) -> Vec<(Cell, u32)> {
-    reach_meeting(tile_map, seeds, reach, blocks).0
+pub fn reach_distances(
+    tile_map: &TileMap,
+    seeds: &[Cell],
+    reach: u32,
+    level: u8,
+    blocks: impl Fn(Cell) -> bool,
+) -> Vec<(Cell, u32)> {
+    reach_meeting(tile_map, seeds, reach, level, blocks).0
 }
 
 // reach_distances, and the cells that block it the fill met within its reach (each once, in the
@@ -567,6 +598,7 @@ pub fn reach_meeting(
     tile_map: &TileMap,
     seeds: &[Cell],
     reach: u32,
+    level: u8,
     blocks: impl Fn(Cell) -> bool,
 ) -> (Vec<(Cell, u32)>, Vec<Cell>) {
     let size = tile_map.size_in_cells();
@@ -594,7 +626,7 @@ pub fn reach_meeting(
             if is_water(tile_map, next) {
                 water[index(next)] = true;
                 queue.push_back(next);
-            } else if reach > 0 && is_passable(tile_map, next) {
+            } else if reach > 0 && is_passable(tile_map, next, level) {
                 reached[index(next)] = true;
                 if blocks(next) {
                     met.push(next);
@@ -616,7 +648,7 @@ pub fn reach_meeting(
             if !in_bounds(next) || reached[index(next)] || water[index(next)] {
                 continue;
             }
-            if is_passable(tile_map, next) {
+            if is_passable(tile_map, next, level) {
                 reached[index(next)] = true;
                 if blocks(next) {
                     met.push(next);

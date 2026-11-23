@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-22): Phase 1 in progress: M1, M3, M4, M5, M6, M7, M8 and M10 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-23): Phase 1 in progress: M1, M3, M4, M5, M6, M7, M8, M10 and T done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -60,7 +60,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
 | M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3, the comic viewer (I-A and I-B as data) with Phase 4; the other sequences wait for their missions |
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
-| T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | In progress (2026-11-22: the spike a go, at 32 px a level; Stage 1 done: the data, the editor's tools and save v15; Stage 2 done: the cliff, rim and ramp pieces from Blender, ramps two cells long; Stage 3 done: raised ground drawn; Stage 4 done: picking and placement follow heights; Stage 5 done: paths follow heights, ramps cost more; Stage 6, the gameplay hooks, next; before M9, M11 and M13) |
+| T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Done (2026-11-23: the spike a go, at 32 px a level; Stage 1: the data, the editor's tools and save v15; Stage 2: the cliff, rim and ramp pieces from Blender, ramps two cells long; Stage 3: raised ground drawn; Stage 4: picking and placement follow heights; Stage 5: paths follow heights, ramps cost more; Stage 6: floods, irrigation and a farmstead's reach follow heights, save v16; the defence hooks wait for Phase 2) |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
 | MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6, the Faith lens with M8, the Flood lens with M7 Phase 2, the Fertility lens with M7 Phase 4) |
 | UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–8 done (skins, main menus, world map, intermission and briefing, story comics, HUD, City book, old assets, the inspector's panels) |
@@ -224,7 +224,7 @@ GDD 5.12 and 5.14:
 
 See [terrain-height.md](terrain-height.md):
 - Stage 0, a go/no-go spike: done 2026-11-22, a go, at 32 px a level;
-- then the data and saves (v15), the cliff and ramp pieces from Blender, rendering, picking and placement, pathfinding, and the floods' and farms' hooks.
+- then the data and saves (v15), the cliff and ramp pieces from Blender, rendering, picking and placement, pathfinding, and the floods' and farms' hooks (save v16): done 2026-11-23, but for the defence hooks, which wait for Phase 2.
 
 ### U: Eight-direction movement for off-road walkers (medium)
 
@@ -313,6 +313,7 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 13 | A dock's berth and dockers on its service building (`dock`, null for every other service) | M10 | Done (Phase 2) |
 | 14 | The mission's request schedule (`sim.trade.scheduled`) and each request's Legitimacy and relations effects | M10 | Done (Phase 4) |
 | 15 | Each cell's level and shape (`tile_map.elevation`, saved as runs) | T | Done (Stage 1) |
+| 16 | The flood's level, the highest ground it rises over (`sim.floods.profile.flood_level`) | T | Done (Stage 6) |
 | … | Ratings state | M9 | Planned |
 
 ## Conventions for every milestone

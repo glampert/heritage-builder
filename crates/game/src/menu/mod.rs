@@ -113,7 +113,9 @@ fn mark_area_out_of_reach(context: &mut GameUiContext, tile_def: &'static TileDe
     }
     let cells: Vec<Cell> = context.tile_selection.cells().iter().copied().collect();
     for cell in cells {
-        if farms::farmstead_for_field(context.world, tile_def, cell).is_none() || context.sim.floods().is_flooded(cell) {
+        if farms::farmstead_for_field(context.world, context.tile_map, tile_def, cell).is_none()
+            || context.sim.floods().is_flooded(cell)
+        {
             context.tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Highlighted, false);
             context.tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Invalidated, true);
         }
@@ -637,8 +639,9 @@ impl TilePlacement {
     // Sets cells' heights (each a byte as tile::elevation::encode writes it), as the developer
     // editor's height tools do (docs/plans/terrain-height.md, §8): refused where a building, a field
     // or a building's blocker stands (clear it first, Q6), and on water and canals for anything but
-    // flat at level 0 (Q3). Keeps the minimap in step; with `undo_redo`, the cells it changed are
-    // one undo step.
+    // flat at level 0 (Q3). Keeps the minimap and the search graph in step, and has the canals and
+    // the farmsteads' fields looked at again; with `undo_redo`, the cells it changed are one undo
+    // step.
     pub fn set_elevation(context: &SimContextMut, bytes: &[(Cell, u8)], undo_redo: bool) -> ElevationPlacement {
         let mut result = ElevationPlacement::default();
         let mut edits = Vec::new();
@@ -669,6 +672,12 @@ impl TilePlacement {
                 result.changed.push(cell);
                 edits.push(ElevationEdit { cell, before, after: byte });
             }
+        }
+
+        // Water and the farmsteads' reach follow heights (docs/plans/terrain-height.md, §9).
+        if !result.changed.is_empty() {
+            farms::irrigation::network_changed();
+            farms::claim_fields(context);
         }
 
         if undo_redo {
@@ -829,7 +838,9 @@ impl TilePlacement {
         }
 
         // A field is laid only in a farmstead's reach (crate::farms).
-        if farms::is_field_def(tile_def) && farms::farmstead_for_field(context.world(), tile_def, target_cell).is_none() {
+        if farms::is_field_def(tile_def)
+            && farms::farmstead_for_field(context.world(), context.tile_map(), tile_def, target_cell).is_none()
+        {
             return PlaceOrClearResult::Failed {
                 placement_attempt_tile_def: Some(tile_def),
                 obstructing_tile_def: None,

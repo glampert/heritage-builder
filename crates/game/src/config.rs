@@ -446,6 +446,10 @@ pub struct FloodRules {
     // names its sources.
     pub min_source_cells: u32,
 
+    // The highest ground the water rises over, in levels (docs/plans/terrain-height.md, §9, Q11):
+    // higher ground stays dry. A mission's `flood_level` overrides it.
+    pub flood_level: u8,
+
     // The land's fertility, 0 to 100, at the start: within the flood's usual reach and beyond it.
     // Where it isn't kept (floods off), every cell reads `neutral_fertility`.
     pub fertility_in_reach: u32,
@@ -477,6 +481,7 @@ impl Default for FloodRules {
             reach_max: 6,
             months: 2,
             min_source_cells: 30,
+            flood_level: 0,
             fertility_in_reach: 70,
             fertility_beyond: 40,
             neutral_fertility: 50,

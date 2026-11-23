@@ -18,7 +18,7 @@
 
 pub mod irrigation;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use common::{
     coords::{Cell, CellRange},
@@ -197,16 +197,65 @@ fn has_field(tile_map: &TileMap, cell: Cell, crop: &CropConfig) -> bool {
         .is_some_and(|tile| tile.is(TileKind::Field) && tile.tile_def().name == crop.field_tile)
 }
 
+// A farmstead's reach on raised ground (docs/plans/terrain-height.md, §7, Q9): its level, and the
+// cells within its reach joined to its footprint over ground that joins (ElevationMap::joins), the
+// way its farmers would walk out, so a cliff cuts the reach off. A field belongs to the land they
+// work: on the farmstead's level, in those cells. None on a flat map, where the reach is the square
+// around the footprint.
+struct ReachOnHeights {
+    level: u8,
+    cells: HashSet<Cell>,
+}
+
+fn reach_on_heights(tile_map: &TileMap, farmstead: &Farmstead) -> Option<ReachOnHeights> {
+    let elevation = tile_map.elevation();
+    if elevation.is_flat() {
+        return None;
+    }
+    let reach = farmstead.crop.field_reach;
+    let mut cells: HashSet<Cell> = farmstead.cells.iter().collect();
+    let mut queue: VecDeque<Cell> = farmstead.cells.iter().collect();
+    while let Some(cell) = queue.pop_front() {
+        for next in [
+            Cell::new(cell.x + 1, cell.y),
+            Cell::new(cell.x - 1, cell.y),
+            Cell::new(cell.x, cell.y + 1),
+            Cell::new(cell.x, cell.y - 1),
+        ] {
+            if gap(farmstead.cells, next) <= reach && !cells.contains(&next) && elevation.joins(cell, next) {
+                cells.insert(next);
+                queue.push_back(next);
+            }
+        }
+    }
+    Some(ReachOnHeights { level: elevation.level(farmstead.cells.start), cells })
+}
+
+// Whether a field at `cell` lies in a farmstead's reach: within `field_reach` cells of its footprint
+// along the grid and, on raised ground, on its level and joined to it (`heights`, reach_on_heights).
+fn in_reach(tile_map: &TileMap, farmstead: &Farmstead, heights: Option<&ReachOnHeights>, cell: Cell) -> bool {
+    let gap = gap(farmstead.cells, cell);
+    if gap <= 0 || gap > farmstead.crop.field_reach {
+        return false;
+    }
+    heights.is_none_or(|heights| tile_map.elevation().is_flat_at(cell, heights.level) && heights.cells.contains(&cell))
+}
+
 // The farmstead nearest to a cell whose fields of `field_def` it would own, within its reach; the
 // first of equals in the world's order.
-pub fn farmstead_for_field(world: &World, field_def: &TileDef, cell: Cell) -> Option<BuildingKindAndId> {
+pub fn farmstead_for_field(world: &World, tile_map: &TileMap, field_def: &TileDef, cell: Cell) -> Option<BuildingKindAndId> {
     farmsteads(world)
         .into_iter()
         .filter(|farmstead| farmstead.crop.field_tile == field_def.name)
-        .map(|farmstead| (gap(farmstead.cells, cell), farmstead))
-        .filter(|(gap, farmstead)| *gap > 0 && *gap <= farmstead.crop.field_reach)
-        .min_by_key(|(gap, _)| *gap)
-        .map(|(_, farmstead)| farmstead.id)
+        .filter(|farmstead| {
+            // The square first: the fill over the heights only for the farmsteads it holds.
+            let gap = gap(farmstead.cells, cell);
+            gap > 0
+                && gap <= farmstead.crop.field_reach
+                && in_reach(tile_map, farmstead, reach_on_heights(tile_map, farmstead).as_ref(), cell)
+        })
+        .min_by_key(|farmstead| gap(farmstead.cells, cell))
+        .map(|farmstead| farmstead.id)
 }
 
 // The farmstead that owns the field at a cell, if one does.
@@ -222,24 +271,30 @@ pub fn owner_of_field(world: &World, cell: Cell) -> Option<BuildingKindAndId> {
     owner
 }
 
-// Every farmstead drops the fields that are gone and claims the fields in its reach that have no
-// farmstead, each field going to the nearest; then keeps its fields nearest first. Runs when the
-// player lays fields or a farmstead, clears one, and at the start of each month.
+// Every farmstead drops the fields that are gone or out of its reach and claims the fields in its
+// reach that have no farmstead, each field going to the nearest; then keeps its fields nearest
+// first. Runs when the player lays fields or a farmstead, clears one, the heights change, and at the
+// start of each month.
 pub fn claim_fields(context: &SimContextMut) {
     let farmsteads = farmsteads(context.world());
     if farmsteads.is_empty() {
         return;
     }
     let tile_map = context.tile_map();
+    let heights: Vec<Option<ReachOnHeights>> =
+        farmsteads.iter().map(|farmstead| reach_on_heights(tile_map, farmstead)).collect();
 
-    // Drop the fields that are gone.
+    // Drop the fields that are gone, or out of reach (a cliff raised between them, in the editor).
     let mut owned: HashMap<Cell, usize> = HashMap::new();
     for (index, farmstead) in farmsteads.iter().enumerate() {
         let Some(building) = context.find_building_mut(farmstead.id.kind, farmstead.id.id) else {
             continue;
         };
         let fields = building.as_producer_mut().fields_mut();
-        fields.retain(|plot| has_field(tile_map, plot.cell, farmstead.crop));
+        fields.retain(|plot| {
+            has_field(tile_map, plot.cell, farmstead.crop)
+                && in_reach(tile_map, farmstead, heights[index].as_ref(), plot.cell)
+        });
         for plot in fields.iter() {
             owned.entry(plot.cell).or_insert(index);
         }
@@ -261,9 +316,10 @@ pub fn claim_fields(context: &SimContextMut) {
                 let nearest = farmsteads
                     .iter()
                     .enumerate()
-                    .filter(|(_, other)| has_field(tile_map, cell, other.crop))
+                    .filter(|(index, other)| {
+                        has_field(tile_map, cell, other.crop) && in_reach(tile_map, other, heights[*index].as_ref(), cell)
+                    })
                     .map(|(index, other)| (gap(other.cells, cell), index, other))
-                    .filter(|(gap, _, other)| *gap > 0 && *gap <= other.crop.field_reach)
                     .min_by_key(|(gap, index, _)| (*gap, *index));
                 if let Some((_, index, _)) = nearest {
                     claims[index].push(cell);

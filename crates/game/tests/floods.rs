@@ -27,6 +27,7 @@ use game::{
     tile::{
         TileFlags,
         TileMapLayerKind,
+        elevation::{Dir, Half, Shape},
         minimap::{
             MinimapLens,
             lens::{self, LensContext, LensData},
@@ -111,6 +112,11 @@ fn main() {
         test_utils::test_fn!(test_an_open_canal_carries_the_flood),
         test_utils::test_fn!(test_the_flood_passes_over_a_canal_it_doesnt_come_from),
         test_utils::test_fn!(test_a_canal_never_makes_water_flood),
+        // Terrain height (docs/plans/terrain-height.md, Stage 6):
+        test_utils::test_fn!(test_floods_stay_below_their_level),
+        test_utils::test_fn!(test_water_doesnt_climb_to_a_plateau),
+        test_utils::test_fn!(test_a_sluice_gate_on_high_ground_draws_no_water),
+        test_utils::test_fn!(test_a_farmsteads_reach_stops_at_a_cliff),
     ]);
 }
 
@@ -286,7 +292,7 @@ fn test_a_mission_names_its_sources() {
 fn test_the_reach_fill() {
     let env = river_map();
     let seeds = [river(&env)];
-    let reached = floods::reach_fill(&env.tile_map, &seeds, 2, |_| false);
+    let reached = floods::reach_fill(&env.tile_map, &seeds, 2, 0, |_| false);
     for cell in [Cell::new(18, 20), Cell::new(19, 20), Cell::new(22, 20), Cell::new(23, 20)] {
         assert!(reached.contains(&cell), "{cell}");
     }
@@ -294,14 +300,14 @@ fn test_the_reach_fill() {
         assert!(!reached.contains(&cell), "{cell}: past 2, or water");
     }
     assert!(reached[0].x == 19 || reached[0].x == 22, "nearest first: {}", reached[0]);
-    assert!(floods::reach_fill(&env.tile_map, &seeds, 0, |_| false).is_empty());
-    assert!(floods::reach_fill(&env.tile_map, &[Cell::new(5, 20)], 3, |_| false).is_empty(), "a land seed");
+    assert!(floods::reach_fill(&env.tile_map, &seeds, 0, 0, |_| false).is_empty());
+    assert!(floods::reach_fill(&env.tile_map, &[Cell::new(5, 20)], 3, 0, |_| false).is_empty(), "a land seed");
 }
 
 fn test_the_reach_fill_stops_where_it_is_blocked() {
     let env = river_map();
     // A wall along x = 18: the west bank floods one cell, the east bank three.
-    let reached = floods::reach_fill(&env.tile_map, &[river(&env)], 3, |cell| cell.x == 18);
+    let reached = floods::reach_fill(&env.tile_map, &[river(&env)], 3, 0, |cell| cell.x == 18);
     assert!(reached.contains(&Cell::new(19, 20)));
     assert!(!reached.contains(&Cell::new(18, 20)) && !reached.contains(&Cell::new(17, 20)));
     assert!(reached.contains(&Cell::new(24, 20)));
@@ -386,7 +392,7 @@ fn test_the_flood_comes_at_its_month() {
     month_start(&mut env, 7);
     let city_floods = env.sim.floods();
     let flood = city_floods.flood().expect("the flood in month 7");
-    let expected = floods::reach_fill(&env.tile_map, &city_floods.profile().sources, 3, |_| false);
+    let expected = floods::reach_fill(&env.tile_map, &city_floods.profile().sources, 3, 0, |_| false);
     assert_eq!(flood.cells.len(), expected.len());
     assert_eq!(flood.months_left, 2);
     assert_eq!(flood.severity, 1.0);
@@ -1253,4 +1259,125 @@ fn test_a_canal_never_makes_water_flood() {
     // Joined to the river, a canal is part of it, not a body of its own.
     canal(&mut env, Cell::new(17, 26), Cell::new(19, 26));
     assert_eq!(floods::water_bodies(&env.tile_map, 5).len(), 1);
+}
+
+// ----------------------------------------------
+// Terrain height (docs/plans/terrain-height.md, §9)
+// ----------------------------------------------
+
+// Sets cells' heights straight on the map (before what stands there is placed).
+fn raise(env: &mut TestEnvironment, from: (i32, i32), to: (i32, i32), level: u8) {
+    for y in from.1..=to.1 {
+        for x in from.0..=to.0 {
+            env.tile_map.set_elevation(Cell::new(x, y), level, Shape::Flat);
+        }
+    }
+}
+
+// The river's west bank a level up from x = 18 westward, with a ramp up from the shore along row
+// 20: its foot at (19, 20), its head at (18, 20). Floods reaching 3 cells, up to `flood_level`.
+fn terraced_bank(flood_level: u8) -> TestEnvironment {
+    let mut env = river_map();
+    raise(&mut env, (0, 0), (18, 39), 1);
+    env.tile_map.set_elevation(Cell::new(19, 20), 0, Shape::Ramp(Dir::S, Half::Low));
+    env.tile_map.set_elevation(Cell::new(18, 20), 0, Shape::Ramp(Dir::S, Half::High));
+    assert!(env.tile_map.elevation().problems().is_empty(), "{:?}", env.tile_map.elevation().problems());
+    let mission =
+        MissionFloodsDef { enabled: Some(true), reach: Some([3, 3]), flood_level: Some(flood_level), ..Default::default() };
+    let tile_map = &env.tile_map;
+    env.sim.floods_mut().start(true, &mission, rules(), tile_map);
+    river::take_notices();
+    env
+}
+
+// Q11: the water rises over the land at or below the flood level only (0: level-0 land). A ramp's
+// foot floods; its head, and the land above it, stay dry, starting with the fertility beyond the
+// reach and taking no silt. At level 1 the bank floods too. A level above the highest is a problem in a mission.
+fn test_floods_stay_below_their_level() {
+    let mut env = terraced_bank(0);
+    assert_eq!(env.sim.floods().profile().flood_level, 0);
+    assert_eq!(env.sim.floods().fertility_at(Cell::new(19, 10)), 70, "the shore within the usual reach");
+    assert_eq!(env.sim.floods().fertility_at(Cell::new(17, 10)), 40, "the bank beyond it");
+    assert!(river::flood_now(&env.new_sim_context(0.0), None));
+    let city_floods = env.sim.floods();
+    for cell in [Cell::new(19, 10), Cell::new(19, 20), Cell::new(22, 20), Cell::new(24, 20)] {
+        assert!(city_floods.is_flooded(cell), "{cell} is low ground in reach");
+    }
+    for cell in [Cell::new(18, 10), Cell::new(17, 10), Cell::new(18, 20), Cell::new(17, 20)] {
+        assert!(!city_floods.is_flooded(cell), "{cell} is above the water");
+    }
+    assert_eq!(city_floods.fertility_at(Cell::new(19, 10)), 100, "silt on the shore");
+    assert_eq!(city_floods.fertility_at(Cell::new(17, 10)), 40, "none on the bank");
+    let reach = city_floods.ordinary_reach(&env.tile_map);
+    assert!(reach.iter().all(|&(cell, _)| env.tile_map.elevation().level(cell) == 0), "the Flood lens's reach");
+
+    let mut env = terraced_bank(1);
+    assert!(river::flood_now(&env.new_sim_context(0.0), None));
+    let city_floods = env.sim.floods();
+    for cell in [Cell::new(18, 10), Cell::new(17, 10), Cell::new(18, 20)] {
+        assert!(city_floods.is_flooded(cell), "{cell} is under a flood rising a level");
+    }
+    assert!(!city_floods.is_flooded(Cell::new(16, 10)), "3 cells from the shore");
+
+    let wet = [5, 6, 7, 8, 9, 10];
+    let too_high = MissionFloodsDef { flood_level: Some(8), ..Default::default() };
+    assert_eq!(too_high.problems(&wet).len(), 1, "{:?}", too_high.problems(&wet));
+}
+
+// Water passes only between canals and fields whose ground joins: a field a level above the river,
+// or above a watered field, stays dry (Q9).
+fn test_water_doesnt_climb_to_a_plateau() {
+    let mut env = river_map();
+    raise(&mut env, (17, 22), (19, 31), 1);
+    for cell in [Cell::new(19, 21), Cell::new(19, 22), Cell::new(18, 22)] {
+        env.tile_map.try_place_tile(cell, field_def()).unwrap_or_else(|err| panic!("a field at {cell}: {}", err.message));
+    }
+    assert_eq!(water_at(&mut env, Cell::new(19, 21)), Some(farms::WaterSource::River), "beside the river, on its level");
+    assert_eq!(water_at(&mut env, Cell::new(19, 22)), None, "beside the river and a wet field, a level up");
+    assert_eq!(water_at(&mut env, Cell::new(18, 22)), None, "joined to a dry one");
+}
+
+// A gate a level up draws nothing from the river below its dyke, and lets nothing out over a cliff.
+fn test_a_sluice_gate_on_high_ground_draws_no_water() {
+    let mut env = river_map();
+    raise(&mut env, (14, 22), (19, 31), 1);
+    let segment = road::build_segment(&env.tile_map, Cell::new(19, 24), Cell::new(19, 28), RoadKind::Dyke);
+    assert!(segment.is_valid, "a dyke along the plateau's edge");
+    TilePlacement::place_road_segment(&env.new_sim_context(0.0), &segment, false).expect("the dyke");
+    assert!(place(&mut env, Cell::new(18, 26), gate_def()).is_ok(), "the gate behind it, on its level");
+    let supply = |env: &mut TestEnvironment| {
+        let context = env.new_sim_context(0.0);
+        let irrigation = farms::Irrigation::read(context.world(), context.tile_map());
+        let supply = irrigation.gate_at(Cell::new(18, 26)).expect("the gate's supply").clone();
+        (supply.intake, supply.outlets.clone())
+    };
+    assert_eq!(supply(&mut env), (false, vec![Cell::new(17, 26)]), "the river is a level below, across its dyke");
+
+    // Ground a level higher still behind it: no outlet.
+    let context = env.new_sim_context(0.0);
+    TilePlacement::set_elevation(&context, &[(Cell::new(17, 26), game::tile::elevation::encode(2, Shape::Flat))], false);
+    assert_eq!(supply(&mut env), (false, vec![]));
+}
+
+// A farmstead's reach covers the land its farmers walk to: on its level, not over a cliff (Q9).
+fn test_a_farmsteads_reach_stops_at_a_cliff() {
+    let mut env = river_map();
+    // A ridge a level up across the map at x = 14, and a lone raised cell at (12, 23).
+    raise(&mut env, (14, 0), (14, 39), 1);
+    raise(&mut env, (12, 23), (12, 23), 1);
+    let farmstead = farmstead(&mut env, Cell::new(10, 20));
+    let footprint = test_utils::find_building(&env, farmstead).cell_range();
+
+    assert!(place(&mut env, Cell::new(13, 20), field_def()).is_ok(), "in reach on its level");
+    assert!(!place(&mut env, Cell::new(15, 20), field_def()).is_ok(), "in the square, but over the ridge");
+    assert!(!place(&mut env, Cell::new(12, 23), field_def()).is_ok(), "a level up");
+    assert!(footprint.end.x < 13, "the field lies past the footprint, at {}", footprint.end);
+    assert!(farms::owner_of_field(&env.world, Cell::new(13, 20)) == Some(farmstead));
+
+    // A cliff raised between them cuts the field off: its farmstead drops it.
+    let edits: Vec<(Cell, u8)> =
+        (0..40).map(|y| (Cell::new(12, y), game::tile::elevation::encode(1, Shape::Flat))).collect();
+    let result = TilePlacement::set_elevation(&env.new_sim_context(0.0), &edits, false);
+    assert!(result.changed.contains(&Cell::new(12, 20)));
+    assert!(farms::owner_of_field(&env.world, Cell::new(13, 20)).is_none(), "dropped");
 }

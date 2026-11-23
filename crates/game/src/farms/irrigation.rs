@@ -8,6 +8,11 @@
 // past the dyke on the side the gate faces (its tile's variation). Its outlet is the cell past its
 // footprint on the other side.
 //
+// On raised ground (docs/plans/terrain-height.md, §9, Q9) water passes only between cells whose
+// ground joins (ElevationMap::joins): a field on a plateau above the river or a canal stays dry, and
+// a gate draws its water and lets it out on its own level. Canals and water are at level 0 (Stage
+// 4's placement), so water lifted onto high ground waits for a later feature (a water wheel).
+//
 // A wet field is sown in the dry season too (farms::on_new_month), and the fields a gate's outlet
 // reaches take the flood's silt through it (farms::sluiced_fields). Nothing here is saved: it's
 // read from the map when it's needed, and the canals no water reaches are flagged dry for the
@@ -85,7 +90,9 @@ impl Irrigation {
         seeds.sort_by_key(|cell| (cell.y, cell.x));
         let river: Vec<Cell> = seeds
             .into_iter()
-            .filter(|&cell| neighbours(cell).into_iter().any(|next| water::is_open_water(tile_map, next)))
+            .filter(|&cell| {
+                neighbours(cell).into_iter().any(|next| water::is_open_water(tile_map, next) && joins(tile_map, cell, next))
+            })
             .collect();
         spread(tile_map, &river, WaterSource::River, &mut wet);
 
@@ -179,6 +186,13 @@ fn neighbours(cell: Cell) -> [Cell; 4] {
     ]
 }
 
+// Whether water passes between two cells side by side: their ground joins (always on a flat map).
+#[inline]
+fn joins(tile_map: &TileMap, a: Cell, b: Cell) -> bool {
+    let elevation = tile_map.elevation();
+    elevation.is_flat() || elevation.joins(a, b)
+}
+
 // Water from `starts` (those that carry it) into the canals and fields joined to them that aren't
 // wet yet, marked with `source`.
 fn spread(tile_map: &TileMap, starts: &[Cell], source: WaterSource, wet: &mut HashMap<Cell, WaterSource>) {
@@ -191,7 +205,7 @@ fn spread(tile_map: &TileMap, starts: &[Cell], source: WaterSource, wet: &mut Ha
     }
     while let Some(cell) = queue.pop_front() {
         for next in neighbours(cell) {
-            if !wet.contains_key(&next) && carries_water(tile_map, next) {
+            if !wet.contains_key(&next) && carries_water(tile_map, next) && joins(tile_map, cell, next) {
                 wet.insert(next, source);
                 queue.push_back(next);
             }
@@ -227,12 +241,20 @@ fn supply_of(tile_map: &TileMap, gate: SluiceGate, wet: &HashMap<Cell, WaterSour
     let side = side_of(tile_map, &gate);
     let (intake, outlets) = match side {
         Some(side) => {
+            // Water is at level 0, so a gate on higher ground draws none.
+            let level = tile_map.elevation().level(gate.cells.start);
             let is_water = |cell: Cell| {
-                water::is_open_water(tile_map, cell)
-                    || (water::is_canal(tile_map, cell) && wet.get(&cell) == Some(&WaterSource::River))
+                level == 0
+                    && (water::is_open_water(tile_map, cell)
+                        || (water::is_canal(tile_map, cell) && wet.get(&cell) == Some(&WaterSource::River)))
             };
             let intake = cells_past(gate.cells, side).into_iter().any(|cell| water_across(tile_map, cell, side, is_water));
-            (intake, cells_past(gate.cells, (-side.0, -side.1)))
+            // Its outlets on its own level: none below or above a cliff from it.
+            let outlets = cells_past(gate.cells, (-side.0, -side.1))
+                .into_iter()
+                .filter(|&outlet| joins(tile_map, Cell::new(outlet.x + side.0, outlet.y + side.1), outlet))
+                .collect();
+            (intake, outlets)
         }
         None => (false, Vec::new()),
     };

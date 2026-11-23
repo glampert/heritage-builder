@@ -36,13 +36,19 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Turn floods on or off for this game (on: the water that floods and the land's fertility are laid \
                out afresh, as at a start), set a cell's fertility (0 to 100, while floods are on) or a dyke \
                cell's wear (0 to 100: a dyke the flood reaches breaches with chance (wear / 100)² × severity), or \
-               the next flood's severity. Reports floods.state.",
+               the next flood's severity or the highest level it rises over. Reports floods.state.",
         params: &[
             ParamDef { name: "enabled", kind: "bool", required: false, help: "Whether the river floods." },
             ParamDef { name: "cell", kind: "cell", required: false, help: "The cell whose fertility to set." },
             ParamDef { name: "fertility", kind: "number", required: false, help: "0 to 100. Needs cell." },
             ParamDef { name: "wear", kind: "number", required: false, help: "0 to 100, a dyke's. Needs cell." },
             ParamDef { name: "severity", kind: "number", required: false, help: "The next flood's severity, 0 or more." },
+            ParamDef {
+                name: "flood_level",
+                kind: "number",
+                required: false,
+                help: "The highest ground the water rises over, in levels (0: only level-0 land floods).",
+            },
         ],
         run: cmd_set,
     },
@@ -85,6 +91,7 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
         fertility: Option<f32>,
         wear: Option<f32>,
         severity: Option<f32>,
+        flood_level: Option<u8>,
     }
 
     let params: Params = parse_params(params)?;
@@ -115,6 +122,14 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     {
         return Err(CommandError::invalid_params(format!("severity must be 0 or more, got {severity}.")));
     }
+    if let Some(level) = params.flood_level
+        && level > crate::tile::elevation::MAX_LEVEL
+    {
+        return Err(CommandError::invalid_params(format!(
+            "flood_level must be from 0 to {}, got {level}.",
+            crate::tile::elevation::MAX_LEVEL
+        )));
+    }
     if let Some(CellParam(cell)) = params.cell
         && !context.session.tile_map().is_cell_within_playable_area(cell)
     {
@@ -138,6 +153,9 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
         }
         if let Some(severity) = params.severity {
             floods.set_next_severity(severity);
+        }
+        if let Some(level) = params.flood_level {
+            floods.set_flood_level(level);
         }
     });
     if !wear_kept {
@@ -214,6 +232,7 @@ fn state_json(context: &CommandContext, cell: Option<common::coords::Cell>) -> V
         "months": profile.months,
         "sources": profile.sources.iter().map(|&cell| cell_json(cell)).collect::<Vec<_>>(),
         "river": profile.river,
+        "flood_level": profile.flood_level,
         "ordinary_reach": floods.ordinary_reach(context.session.tile_map()).len(),
         "flood": floods.flood().map(|flood| json!({
             "cells": flood.cells.len(),

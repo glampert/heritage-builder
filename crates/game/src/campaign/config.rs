@@ -404,6 +404,9 @@ pub struct MissionFloodsDef {
     pub river: Option<String>,
     // The land's starting fertility within the flood's usual reach and beyond it.
     pub fertility: Option<[u32; 2]>,
+    // The highest ground the water rises over, in levels (docs/plans/terrain-height.md, §9, Q11).
+    // None: FloodRules::flood_level (0, only level-0 land floods).
+    pub flood_level: Option<u8>,
 }
 
 impl MissionFloodsDef {
@@ -422,6 +425,14 @@ impl MissionFloodsDef {
         }
         if self.months == Some(0) {
             problems.push("floods.months must be at least 1".into());
+        }
+        if let Some(level) = self.flood_level
+            && level > crate::tile::elevation::MAX_LEVEL
+        {
+            problems.push(format!(
+                "floods.flood_level {level} is above the highest level, {}",
+                crate::tile::elevation::MAX_LEVEL
+            ));
         }
         if let Some([within, beyond]) = self.fertility
             && (within > 100 || beyond > 100)

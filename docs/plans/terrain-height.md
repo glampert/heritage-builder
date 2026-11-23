@@ -1,6 +1,6 @@
 # Terrain height: analysis and plan
 
-**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stages 1 (the data, save v15), 2 (the pieces, from Blender), 3 (rendering), 4 (picking and placement) and 5 (pathfinding) done; Stage 6, the gameplay hooks, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
+**Status (2026-11-23): done. Stage 0 (the spike): a go, at 32 px a level. Stages 1 (the data, save v15), 2 (the pieces, from Blender), 3 (rendering), 4 (picking and placement), 5 (pathfinding) and 6 (the floods' and farms' hooks, save v16) done; the defence hooks wait for Phase 2's defence.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
 
 - It was first written on 2026-11-05 against `d0696fe`, before M3 to M10.
 - It was refreshed on 2026-11-22 against `d6801146` (M10 done, save version 14):
@@ -501,9 +501,17 @@ Before the rendering, so Stage 3 draws real sprites (batched with the buildings)
 
 ### Stage 6: Gameplay hooks (small)
 
-- [ ] Floods respect height (§9): the fill blocks cells above the flood level; `flood_level` in the mission's floods block; `floods.jsonl` and `elevation.jsonl` check it.
-- [ ] Irrigation and a farmstead's reach stop at cliffs (Q9).
-- [ ] Tower range bonus and attackers funnelled through ramps (Phase 2 defence).
+- [x] Floods respect height (§9): the fill blocks cells above the flood level; `flood_level` in the mission's floods block; `floods.jsonl` and `elevation.jsonl` check it.
+- [x] Irrigation and a farmstead's reach stop at cliffs (Q9).
+- [ ] Tower range bonus and attackers funnelled through ramps (Phase 2 defence). Waits for Phase 2: the game has no towers or attackers yet. Attackers that path through `Graph` will take the ramps for free (Stage 5).
+
+**Notes (2026-11-23): done, but for the defence hooks.**
+- **Floods:** `FloodProfile::flood_level` (save v16, `v15_to_v16.py` adds 0) is the highest ground the water rises over, from the mission's `floods.flood_level` (checked: at most `MAX_LEVEL`) over `FloodRules::flood_level` (0, Q11). The fill (`reach_meeting`, and `reach_fill` and `reach_distances` over it, which now take the level) passes only over cells whose ground's lowest corner is at or below it (`floods::is_below_flood_level`: flat ground at the level or under it, and a ramp's foot at it), so higher ground stays dry without being a dyke to breach. The year's flood, the breaches, the Flood lens's reach and the starting fertility follow, so high ground starts beyond the reach and takes no silt. Cliffs between low cells don't stop the water: below the flood level everything connected floods. `floods.state` reports `flood_level` and `floods.set flood_level=N` sets it.
+- **Irrigation** (`farms::irrigation`): water passes only between canals and fields whose ground joins, so a field a level above the river or a wet field stays dry; a sluice gate draws water only on level 0 (water's level) and lets it out only where its outlet joins its footprint.
+- **A farmstead's reach** (`farms::in_reach`): still the square of `field_reach` round its footprint, and on raised ground a field must also be on its level and joined to it over ground that joins within that square (`reach_on_heights`, the way its farmers would walk out), so a cliff cuts the reach off. `farmstead_for_field` takes the tile map now. `claim_fields` drops a field a cliff has cut off.
+- **Height edits:** `TilePlacement::set_elevation` (the editor, automation, undo and redo) has the canals flagged again (`irrigation::network_changed`) and the fields claimed again after a change.
+- **Deviation:** the defence hooks (towers' range, attackers through ramps) aren't done: Phase 2 has no defence yet. Services' and faith's coverage and wells' water still ignore heights (Q9's default).
+- **Verified:** `floods`' new tests (`test_floods_stay_below_their_level`: a bank a level up and a ramp's foot and head at flood level 0, then 1, the fertility and silt, the Flood lens's reach, the mission check; `test_water_doesnt_climb_to_a_plateau`; `test_a_sluice_gate_on_high_ground_draws_no_water`: its intake and an outlet over a cliff; `test_a_farmsteads_reach_stops_at_a_cliff`: a field in reach on its level, over a ridge, a level up, and one dropped when a cliff is raised), `elevation.jsonl`'s river flooding the terrace's foot but not its top, then its top at flood level 1 (screenshot `out/elevation/flood.png`), `floods.jsonl`'s level 0, the migrated saves through `--smoke-test-saves`, the workspace's tests and the 29 scenarios.
 
 ## Scheduling
 

@@ -222,9 +222,10 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
     // on through them.
     context.floods_mut().sync_dykes(context.tile_map());
     let sources = context.floods().profile().sources.clone();
-    let breached = breach_dykes(context, &sources, reach, severity);
+    let level = context.floods().profile().flood_level;
+    let breached = breach_dykes(context, &sources, reach, level, severity);
     let tile_map = context.tile_map();
-    let (reached, met) = reach_meeting(tile_map, &sources, reach, |cell| is_dyke(tile_map, cell));
+    let (reached, met) = reach_meeting(tile_map, &sources, reach, level, |cell| is_dyke(tile_map, cell));
     let cells: Vec<Cell> = reached.into_iter().map(|(cell, _)| cell).collect();
 
     let size = context.tile_map().size_in_cells();
@@ -321,13 +322,13 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
 // 100)² × the flood's severity, from the simulation's RNG (a sound dyke draws nothing). Water
 // through a breach may reach more dykes, rolled in turn. Each breach turns its cell to dirt under a
 // pile of rubble (the flood goes on through it); the cells breached.
-fn breach_dykes(context: &SimContextMut, sources: &[Cell], reach: u32, severity: f32) -> Vec<Cell> {
+fn breach_dykes(context: &SimContextMut, sources: &[Cell], reach: u32, level: u8, severity: f32) -> Vec<Cell> {
     let mut rolled: Vec<Cell> = Vec::new();
     let mut breached: Vec<Cell> = Vec::new();
     loop {
         let tile_map = context.tile_map();
         let (_, mut met) =
-            reach_meeting(tile_map, sources, reach, |cell| is_dyke(tile_map, cell) && !breached.contains(&cell));
+            reach_meeting(tile_map, sources, reach, level, |cell| is_dyke(tile_map, cell) && !breached.contains(&cell));
         met.retain(|cell| !rolled.contains(cell));
         if met.is_empty() {
             break;
