@@ -1,6 +1,6 @@
 # Terrain height: analysis and plan
 
-**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stages 1 (the data, save v15), 2 (the pieces, from Blender), 3 (rendering) and 4 (picking and placement) done; Stage 5, pathfinding, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
+**Status (2026-11-22): Stage 0 (the spike) done: a go, at 32 px a level. Stages 1 (the data, save v15), 2 (the pieces, from Blender), 3 (rendering), 4 (picking and placement) and 5 (pathfinding) done; Stage 6, the gameplay hooks, next.** This plan adds terrain elevation (hills, plateaus, cliffs and ramps) for highland maps such as Đại Long's northern mountains and valleys. It compares the options, recommends one, and breaks it down into stages. It is milestone T of the [roadmap](roadmap.md), to be done before M13 builds the mission maps.
 
 - It was first written on 2026-11-05 against `d0696fe`, before M3 to M10.
 - It was refreshed on 2026-11-22 against `d6801146` (M10 done, save version 14):
@@ -487,9 +487,17 @@ Before the rendering, so Stage 3 draws real sprites (batched with the buildings)
 
 ### Stage 5: Pathfinding and units (small to medium)
 
-- [ ] Height in the graph, the edge test in `neighbors`, the ramp cost; repath when a cliff blocks the way.
-- [ ] Tests in `search_graph`: a cliff blocks, a ramp allows, a ramp chain climbs several levels, a responder takes the ramp.
-- [ ] The `elevation.jsonl` scenario, added to CI.
+- [x] Height in the graph, the edge test in `neighbors`, the ramp cost; repath when a cliff blocks the way.
+- [x] Tests in `search_graph`: a cliff blocks, a ramp allows, a ramp chain climbs several levels, a responder takes the ramp.
+- [x] The `elevation.jsonl` scenario, added to CI.
+
+**Notes (2026-11-23): done.**
+- **The graph** (`pathfind::Graph`) keeps a copy of the tile map's `ElevationMap`: taken when it's built (`rebuild_from_tile_map`: a new map, a load, `reset_search_graph`) and kept in step by `TileMap::set_elevation_byte`, the one path every height edit takes. §6's four cases are one test, `ElevationMap::joins` (the shared edge's corner heights equal, Stage 4's), with a fast path for two flat cells. `Graph::neighbors` returns only neighbours that join, so every search (A*, the waypoints of random patrols, building searches, `find_path_next_to`) and every land walker follows it; `Graph::steps(from, to)` is the same test for one step. A flat map skips it.
+- **Visits and links:** a building search's filter finds the building through `neighbors` too, so a walker standing on a building's access cell below or above a cliff from it doesn't reach it, and a patrol at a road link visits only the buildings that join it. A responder's target must join the cell he stops on (`find_path_next_to`). A building's road link (`find_nearest_road_link`) is a road beside it whose ground joins the footprint's cell next to it: on its level, or a ramp's head or foot leading to it (Stage 4's deviation).
+- **Costs (Q7):** on a map with raised ground a flat step costs 2 and a step onto, along or off a ramp 3, the A* estimate twice the distance and a patrol's directional bias doubled to match; a flat map's steps still cost 1, so its searches, the bias's rounding included, are exactly as before. Walkers also take 1.5 times as long over a ramp step (`Graph::step_time_scale`, in `UnitNavigation::update`). Ships search water only (level 0) and never step on a ramp, so they're unchanged.
+- **Repath:** `UnitNavigation::update` reports `PathBlocked` when the next step no longer joins (a height edit raised a cliff across the way), as it does when something is built there; the unit stops and its task paths again.
+- **Deviation:** the plan lists the responder test under `search_graph`; it's in `risks` (`test_a_fire_watcher_takes_the_ramp_to_a_fire`), which has the fire watch's helpers. `elevation.jsonl` was already in CI's scenarios job (since Stage 1).
+- **Verified:** `search_graph`'s new tests (`test_a_cliff_blocks_and_a_ramp_lets_walkers_by`: no way up or down a cliff, up and down by the ramp, never onto its sides, the graph rebuilt and following a height edit; `test_a_ramp_chain_climbs_levels`: two ramps end to end up two levels, a landing without the second leaves a cliff; `test_ramps_cost_more_than_flat_ground`: the costs and time scales, and a path round a hump rather than over it; `test_road_links_stay_on_their_level`; `test_buildings_are_reached_on_their_level`: a well on the plateau's edge isn't found from the access cell below its cliff, then is by the ramp; `test_a_walker_stops_where_a_cliff_rises`), `risks`' fire watcher who walks round to a plateau's ramp, puts out the fire from the plateau and walks home down it, every step joining, and `elevation.jsonl`'s walker who goes down the terrace's ramp and round to its cliff's foot (13 cells where straight down would be 7) and gets there. The whole workspace's tests and the 29 scenarios pass, and every search on a flat map is unchanged.
 
 ### Stage 6: Gameplay hooks (small)
 

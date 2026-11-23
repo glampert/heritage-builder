@@ -27,6 +27,7 @@ use game::{
         TileFlags,
         TileKind,
         TileMapLayerKind,
+        elevation::{Dir, Half, Shape},
         minimap::{
             MinimapLens,
             lens::{self, LensContext, LensData},
@@ -97,6 +98,7 @@ fn main() {
         test_utils::test_fn!(test_a_fire_out_of_reach_gets_no_walker),
         test_utils::test_fn!(test_a_fire_watcher_goes_on_to_the_next_fire),
         test_utils::test_fn!(test_a_fire_watcher_walks_off_the_road_to_a_fire),
+        test_utils::test_fn!(test_a_fire_watcher_takes_the_ramp_to_a_fire),
         // Disease:
         test_utils::test_fn!(test_disease_builds_up_with_a_houses_needs),
         test_utils::test_fn!(test_the_outbreak_chance),
@@ -1104,6 +1106,66 @@ fn test_a_fire_watcher_walks_off_the_road_to_a_fire() {
 
         test_utils::tick_until(&mut env, 200, TICK_SECS, |env| !test_utils::unit_exists(env, walker));
         assert!(!fire_response_is_out(&mut env, fire_watch), "he found his way home");
+    });
+}
+
+// A fire on a plateau: the fire watcher walks round to its ramp and up it, never up the cliff
+// (docs/plans/terrain-height.md, §6), and puts the fire out.
+fn test_a_fire_watcher_takes_the_ramp_to_a_fire() {
+    with_risks(|| {
+        let mut env =
+            TestEnvironment::with_terrain(TestEnvironment::DEFAULT_MAP_SIZE, test_utils::find_terrain_def("grass"));
+        road(&mut env);
+        // A plateau a level up beyond the road, its ramp up from the road at (20, 10) to (20, 13).
+        for y in 13..32 {
+            for x in 14..32 {
+                env.tile_map.set_elevation(Cell::new(x, y), 1, Shape::Flat);
+            }
+        }
+        env.tile_map.set_elevation(Cell::new(20, 11), 0, Shape::Ramp(Dir::W, Half::Low));
+        env.tile_map.set_elevation(Cell::new(20, 12), 0, Shape::Ramp(Dir::W, Half::High));
+        assert!(env.tile_map.elevation().problems().is_empty());
+
+        let fire_watch = test_utils::spawn_building(&mut env, Cell::new(5, 11), "fire_watch");
+        set_debug_bool(&mut env, fire_watch, "freeze_patrol", true);
+        let house = test_utils::spawn_building(&mut env, Cell::new(17, 15), "house0");
+
+        top_out(&mut env, house, RiskKind::Fire);
+        test_utils::tick(&mut env, TICK_SECS);
+        assert!(fire_response_is_out(&mut env, fire_watch), "the fire watch sends someone");
+        let walker = test_utils::find_unit_by_config(&env, UnitConfigKey::FireWatcher).expect("the fire watcher");
+
+        let mut cells = vec![test_utils::find_unit(&env, walker).cell()];
+        test_utils::tick_until(&mut env, (burn_secs() / TICK_SECS) as usize, TICK_SECS, |env| {
+            let cell = test_utils::find_unit(env, walker).cell();
+            if cells.last() != Some(&cell) {
+                cells.push(cell);
+            }
+            !is_burning(env, house)
+        });
+        assert!(exists(&env, house), "the fire is out before the house burns down");
+        assert!(cells.contains(&Cell::new(20, 12)), "by the ramp: {cells:?}");
+        for step in cells.windows(2) {
+            assert!(env.tile_map.elevation().joins(step[0], step[1]), "{} to {} crosses a cliff", step[0], step[1]);
+        }
+        let last = *cells.last().unwrap();
+        assert_eq!(env.tile_map.elevation().level(last), 1, "he put it out from the plateau, at {last}");
+
+        // And home again, down the ramp.
+        let fire_out_at = cells.len();
+        test_utils::tick_until(&mut env, 200, TICK_SECS, |env| {
+            if let Some(unit) = env.world.find_unit(walker)
+                && cells.last() != Some(&unit.cell())
+            {
+                cells.push(unit.cell());
+            }
+            !test_utils::unit_exists(env, walker)
+        });
+        assert!(cells[fire_out_at..].contains(&Cell::new(20, 11)), "down the ramp: {cells:?}");
+        for step in cells.windows(2) {
+            assert!(env.tile_map.elevation().joins(step[0], step[1]), "{} to {} crosses a cliff", step[0], step[1]);
+        }
+        assert!(!fire_response_is_out(&mut env, fire_watch), "back home");
     });
 }
 

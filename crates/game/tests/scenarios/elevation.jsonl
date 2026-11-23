@@ -1,8 +1,9 @@
-# Terrain height (docs/plans/terrain-height.md), Stages 1 to 4: the heights' data, drawing and
-# picking. Sets cells' levels and a ramp, paints with a brush and undoes it, checks heights are
+# Terrain height (docs/plans/terrain-height.md), Stages 1 to 5: the heights' data, drawing, picking
+# and paths. Sets cells' levels and a ramp, paints with a brush and undoes it, checks heights are
 # refused under a building, reported by inspect.at and world.building_at and kept by a save, draws a
-# terrace, checks a click on raised ground picks the cell drawn there, and paints with the developer
-# palette's Height tools by a click, with the heights overlay showing. From the repository root:
+# terrace, sends a walker round by its ramp, checks a click on raised ground picks the cell drawn
+# there, and paints with the developer palette's Height tools by a click, with the heights overlay
+# showing. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/elevation.jsonl --default-configs --fresh-profile
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [24, 24]}}
@@ -67,6 +68,15 @@
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "screenshot", "params": {"path": "out/elevation/terraces.png", "include_ui": false}}
+
+# Paths follow heights (Stage 5): the walker on the ramp's head goes on over the terrace, on its
+# level; to the ground at the foot of the terrace's cliff he goes back down the ramp and round, 13
+# cells where straight down the cliff would be 7, and gets there.
+{"method": "assert.eq", "params": {"query": "world.walk", "args": {"id": "unit:0:1", "to": [16, 17]}, "path": "/path_cells", "value": 7}}
+{"method": "assert.eq", "params": {"query": "world.walk", "args": {"id": "unit:0:1", "to": [17, 14]}, "path": "/path_cells", "value": 13}}
+{"method": "assert.eq", "params": {"query": "world.inspect", "args": {"id": "unit:0:1"}, "path": "/state/navigation/path/1/cell", "value": {"x": 11, "y": 15}}}
+{"method": "time.fast_forward", "params": {"sim_secs": 20}}
+{"method": "assert.eq", "params": {"query": "world.list", "args": {"type": "unit"}, "path": "/items/0/cell", "value": [17, 14]}}
 
 # Picking follows heights (Stage 4): in the developer editor, a click on the raised plateau's middle
 # (level 2) opens the tile inspector on that cell, not the one behind it, and a click on the well

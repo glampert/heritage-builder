@@ -328,8 +328,8 @@ impl ElevationMap {
     }
 
     // Sets a cell's stored byte. Returns whether it changed. Use TileMap::set_elevation, which keeps
-    // the minimap in step.
-    pub(super) fn set_byte(&mut self, cell: Cell, byte: u8) -> bool {
+    // the minimap and the search graph's copy in step.
+    pub(crate) fn set_byte(&mut self, cell: Cell, byte: u8) -> bool {
         let Some(index) = self.index(cell) else {
             return false;
         };
@@ -427,6 +427,11 @@ impl ElevationMap {
         };
         if !self.is_cell_within_bounds(a) || !self.is_cell_within_bounds(b) {
             return false;
+        }
+        // Most cells are flat: they join at one level (the search graph asks for every step).
+        let ((level_a, shape_a), (level_b, shape_b)) = (self.get(a), self.get(b));
+        if shape_a == Shape::Flat && shape_b == Shape::Flat {
+            return level_a == level_b;
         }
         let [a0, a1] = self.side_heights(a, side);
         let [b0, b1] = self.side_heights(b, side.opposite());

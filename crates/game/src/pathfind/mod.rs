@@ -18,7 +18,7 @@ use priority_queue::PriorityQueue;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use crate::tile::{TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerRefs};
+use crate::tile::{TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerRefs, elevation::ElevationMap};
 
 #[cfg(test)]
 mod tests;
@@ -310,18 +310,36 @@ pub enum GraphUpdateAction {
 // ----------------------------------------------
 
 // Our search graph is just a 2D grid of Nodes (Cells).
+//
+// It keeps a copy of the tile map's heights (docs/plans/terrain-height.md, §6), so a walker steps
+// only between cells whose ground joins (ElevationMap::joins): up a ramp along its way, never over a
+// cliff or a ramp's side. Every search goes through `neighbors`, so every land walker follows it. On
+// a flat map every step is allowed and costs 1, as before heights.
 #[derive(Default)]
 pub struct Graph {
     grid: Grid<NodeKind>,               // WxH nodes grid.
     vacant_lots: usize,                 // VacantLot count.
     settlers_spawn_point: Option<Node>, // Cached SettlersSpawnPoint for fast query.
+    elevation: ElevationMap,            // The tile map's heights, kept in step by TileMap::set_elevation_byte.
 }
+
+// What a step costs a search (Q7): on a map with raised ground a flat step costs FLAT_STEP_COST and
+// a step onto, along or off a ramp RAMP_STEP_COST, half as much again, so paths prefer flat ways
+// about as short; walkers also take that much longer over it (`step_time_scale`). A flat map's steps
+// cost 1, so its searches are exactly as they were.
+const FLAT_STEP_COST: NodeCost = 2;
+const RAMP_STEP_COST: NodeCost = 3;
 
 impl Graph {
     pub fn with_empty_grid(grid_size: Size) -> Self {
         debug_assert!(grid_size.is_valid());
         let node_count = (grid_size.width * grid_size.height) as usize;
-        Self { grid: Grid::new(grid_size, vec![NodeKind::empty(); node_count]), vacant_lots: 0, settlers_spawn_point: None }
+        Self {
+            grid: Grid::new(grid_size, vec![NodeKind::empty(); node_count]),
+            vacant_lots: 0,
+            settlers_spawn_point: None,
+            elevation: ElevationMap::default(),
+        }
     }
 
     pub fn with_node_kind(grid_size: Size, node_kind: NodeKind) -> Self {
@@ -334,6 +352,7 @@ impl Graph {
             grid: Grid::new(grid_size, vec![node_kind; node_count]),
             vacant_lots: if node_kind.intersects(NodeKind::VacantLot) { node_count } else { 0 },
             settlers_spawn_point: None,
+            elevation: ElevationMap::default(),
         }
     }
 
@@ -357,7 +376,7 @@ impl Graph {
             }
         }
 
-        Self { grid: Grid::new(grid_size, nodes), vacant_lots, settlers_spawn_point }
+        Self { grid: Grid::new(grid_size, nodes), vacant_lots, settlers_spawn_point, elevation: ElevationMap::default() }
     }
 
     pub fn from_tile_map(tile_map: &TileMap) -> Self {
@@ -379,6 +398,8 @@ impl Graph {
     pub fn rebuild_from_tile_map(&mut self, tile_map: &TileMap) {
         // We assume size hasn't changed.
         debug_assert_eq!(self.grid_size(), tile_map.size_in_cells());
+
+        self.elevation = tile_map.elevation().clone();
 
         let layers = tile_map.layers();
 
@@ -522,17 +543,81 @@ impl Graph {
         self.grid.size
     }
 
+    // The neighbours of `node` of the wanted kinds that a walker can step to from it.
     #[inline]
     pub fn neighbors(&self, node: Node, wanted_node_kinds: NodeKind) -> ArrayVec<Node, 4> {
+        let flat = self.elevation.is_flat();
         let mut nodes = ArrayVec::new();
         for neighbor in node.neighbors() {
             if let Some(node_kind) = self.node_kind(neighbor)
                 && node_kind.intersects(wanted_node_kinds)
+                && (flat || self.elevation.joins(node.cell, neighbor.cell))
             {
                 nodes.push(neighbor);
             }
         }
         nodes
+    }
+
+    // ----------------------
+    // Heights:
+    // ----------------------
+
+    #[inline]
+    pub fn elevation(&self) -> &ElevationMap {
+        &self.elevation
+    }
+
+    // Replaces the heights (tests; the tile map's graph copies its own when it's built).
+    pub fn set_elevation(&mut self, elevation: ElevationMap) {
+        debug_assert!(elevation.size() == self.grid_size(), "Heights for another map size!");
+        self.elevation = elevation;
+    }
+
+    // Follows an edit of a cell's height: TileMap::set_elevation_byte calls it.
+    #[inline]
+    pub fn set_elevation_byte(&mut self, cell: Cell, byte: u8) {
+        self.elevation.set_byte(cell, byte);
+    }
+
+    // Whether a walker can step between two cells side by side: their ground joins (always on a
+    // flat map). Says nothing about what stands there.
+    #[inline]
+    pub fn steps(&self, from: Node, to: Node) -> bool {
+        self.elevation.is_flat() || self.elevation.joins(from.cell, to.cell)
+    }
+
+    // A step's cost per cell of distance: what the heuristic multiplies its estimate by.
+    #[inline]
+    pub fn cost_scale(&self) -> NodeCost {
+        if self.elevation.is_flat() { 1 } else { FLAT_STEP_COST }
+    }
+
+    // What stepping from one cell to the one beside it costs (see RAMP_STEP_COST).
+    #[inline]
+    pub fn step_cost(&self, from: Node, to: Node) -> NodeCost {
+        if self.elevation.is_flat() {
+            1
+        } else if self.is_ramp_step(from, to) {
+            RAMP_STEP_COST
+        } else {
+            FLAT_STEP_COST
+        }
+    }
+
+    // How much longer than a flat step a walker takes over this one: 1.5 onto, along or off a ramp.
+    #[inline]
+    pub fn step_time_scale(&self, from: Node, to: Node) -> f32 {
+        if !self.elevation.is_flat() && self.is_ramp_step(from, to) {
+            RAMP_STEP_COST as f32 / FLAT_STEP_COST as f32
+        } else {
+            1.0
+        }
+    }
+
+    #[inline]
+    fn is_ramp_step(&self, from: Node, to: Node) -> bool {
+        self.elevation.shape(from.cell).is_ramp() || self.elevation.shape(to.cell).is_ramp()
     }
 
     #[inline]
@@ -553,6 +638,7 @@ impl Graph {
     #[inline]
     pub fn memory_usage_estimate(&self) -> usize {
         self.grid.nodes.len() * std::mem::size_of::<NodeKind>()
+            + (self.elevation.size().width * self.elevation.size().height) as usize
     }
 
     // ----------------------
@@ -654,7 +740,8 @@ pub trait Heuristic {
     fn movement_cost(&self, graph: &Graph, from: Node, to: Node) -> NodeCost;
 }
 
-// Uniform movement cost (movement_cost() always = 1).
+// Uniform movement cost on a flat map (movement_cost() always = 1); on a map with raised ground a
+// step's cost is the graph's (Graph::step_cost: a ramp costs more), the estimate scaled to match.
 #[derive(Default)]
 pub struct AStarUniformCostHeuristic;
 
@@ -667,16 +754,15 @@ impl AStarUniformCostHeuristic {
 
 impl Heuristic for AStarUniformCostHeuristic {
     #[inline]
-    fn estimate_cost_to_goal(&self, _graph: &Graph, node: Node, goal: Node) -> NodeCost {
-        // Estimating 0 here would turn A* into Dijkstra's.
-        node.manhattan_distance(goal)
+    fn estimate_cost_to_goal(&self, graph: &Graph, node: Node, goal: Node) -> NodeCost {
+        // Estimating 0 here would turn A* into Dijkstra's. The cheapest step is cost_scale, so this
+        // never overestimates.
+        node.manhattan_distance(goal) * graph.cost_scale()
     }
 
     #[inline]
-    fn movement_cost(&self, _graph: &Graph, _from: Node, _to: Node) -> NodeCost {
-        // Uniform movement cost.
-        // Could be a dynamic cost based on terrain kind in the future.
-        1
+    fn movement_cost(&self, graph: &Graph, from: Node, to: Node) -> NodeCost {
+        graph.step_cost(from, to)
     }
 }
 
@@ -1042,7 +1128,7 @@ impl Search {
                 if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
                     // Apply optional directional bias. With no bias this is Dijkstra's
                     // search using only node cost (no heuristic / explicit goal).
-                    let bias_amount = bias.cost_for(start, neighbor);
+                    let bias_amount = bias.cost_for(start, neighbor) * graph.cost_scale() as f32;
                     let priority = ((new_cost as f32) + bias_amount).round() as i32;
                     self.frontier.push(neighbor, Reverse(priority));
                 }
@@ -1181,8 +1267,10 @@ impl Search {
                 continue;
             }
 
-            let next_to_target =
-                current.neighbors().into_iter().any(|neighbor| graph.node_kind(neighbor).is_some() && is_target(neighbor));
+            // Next to it means its ground joins the target's: not below or above a cliff from it.
+            let next_to_target = current.neighbors().into_iter().any(|neighbor| {
+                graph.node_kind(neighbor).is_some() && graph.steps(current, neighbor) && is_target(neighbor)
+            });
 
             if next_to_target {
                 return self.reconstruct_path(start, current);
@@ -1320,7 +1408,7 @@ impl Search {
                 if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
                     // Apply optional directional bias. With no bias this is Dijkstra's
                     // search using only node cost (no heuristic / explicit goal).
-                    let bias_amount = bias.cost_for(start, neighbor);
+                    let bias_amount = bias.cost_for(start, neighbor) * graph.cost_scale() as f32;
                     let priority = ((new_cost as f32) + bias_amount).round() as i32;
                     self.frontier.push(neighbor, Reverse(priority));
                 }
@@ -1478,10 +1566,18 @@ impl Search {
 // Search Utilities
 // ----------------------------------------------
 
+// A road cell beside the footprint whose ground joins the footprint's cell next to it: on its level,
+// or the foot or head of a ramp up to it, not below or above a cliff from it.
 pub fn find_nearest_road_link(graph: &Graph, start_cells: CellRange) -> Option<Cell> {
     let mut found = None;
     for_each_surrounding_cell(start_cells, |cell| {
-        if graph.node_kind(Node::new(cell)).is_some_and(|k| k.intersects(NodeKind::Road)) {
+        let inside = Cell::new(
+            cell.x.clamp(start_cells.start.x, start_cells.end.x),
+            cell.y.clamp(start_cells.start.y, start_cells.end.y),
+        );
+        if graph.node_kind(Node::new(cell)).is_some_and(|k| k.intersects(NodeKind::Road))
+            && graph.steps(Node::new(cell), Node::new(inside))
+        {
             found = Some(cell);
             return false; // Stop iteration.
         }

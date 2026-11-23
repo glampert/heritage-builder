@@ -2436,7 +2436,7 @@ impl TileMap {
         &self.elevation
     }
 
-    // Sets a cell's level and shape and keeps the minimap in step. Returns whether it changed. The
+    // Sets a cell's level and shape and keeps the minimap and the search graph in step. Returns whether it changed. The
     // player's and editor's tools go through TilePlacement::set_elevation, which checks what stands
     // there and records undo.
     pub fn set_elevation(&mut self, cell: Cell, level: u8, shape: elevation::Shape) -> bool {
@@ -2449,6 +2449,7 @@ impl TileMap {
         if !self.elevation.set_byte(cell, byte) {
             return false;
         }
+        self.graph.set_elevation_byte(cell, byte);
         self.minimap.on_height_changed(cell, self.elevation.centre_height(cell));
         true
     }

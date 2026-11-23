@@ -293,11 +293,13 @@ impl UnitNavigation {
         let from = self.path[self.path_index];
         let to = self.path[self.path_index + 1];
 
-        if graph.node_kind(to).is_none_or(|kind| !kind.intersects(self.traversable_node_kinds)) {
+        // Blocked by what stands there now, or by a height edit that left a cliff across the way.
+        if graph.node_kind(to).is_none_or(|kind| !kind.intersects(self.traversable_node_kinds)) || !graph.steps(from, to) {
             return UnitNavResult::PathBlocked;
         }
 
-        self.progress += delta_time_secs / self.segment_duration;
+        // A ramp takes longer to walk (Graph::step_time_scale; 1 on flat ground).
+        self.progress += delta_time_secs / (self.segment_duration * graph.step_time_scale(from, to));
 
         if self.progress >= 1.0 {
             self.path_index += 1;
