@@ -1,0 +1,10 @@
+[mcp_servers.heritage-builder]
+command = "cargo"
+args = [
+    "run",
+    "-q",
+    "-p",
+    "hb-ctl",
+    "--",
+    "mcp",
+]
