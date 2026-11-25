@@ -29,7 +29,7 @@ use crate::{
     realm::{self, Realm},
     save_context::*,
     save_header::{self, SaveFileContents, SaveHeader},
-    sim::{RandomGenerator, SimContextMut, Simulation},
+    sim::{RandomGenerator, SimContextMut, Simulation, ratings::FailureSwitches},
     system::GameSystems,
     tile::{
         TileFlags,
@@ -505,6 +505,21 @@ impl GameSession {
         self.world.refresh_stats(self.sim.finance(), self.sim.faith(), self.sim.floods(), self.sim.trade());
     }
 
+    // The world stats recounted and the four ratings read from the city now, as a month's start
+    // does (crate::ratings).
+    pub(crate) fn rate_city(&mut self) {
+        self.refresh_world_stats();
+        self.with_sim_context(0.0, crate::ratings::recompute);
+    }
+
+    // A city not rated yet (a new map, a save from before ratings) rated now, so the HUD doesn't
+    // wait for the next month; a save's ratings stand until then.
+    fn rate_city_if_unrated(&mut self) {
+        if !self.sim.ratings().is_rated() {
+            self.rate_city();
+        }
+    }
+
     // Runs `edit_fn` with a mutable SimContext over this session, for world edits made outside
     // the simulation update (automation commands, for instance).
     pub(crate) fn with_sim_context<R>(&mut self, delta_time_secs: Seconds, edit_fn: impl FnOnce(&SimContextMut) -> R) -> R {
@@ -643,6 +658,7 @@ impl GameSession {
 
         // Otherwise the HUD reads zero gold until the first simulation step.
         session.refresh_world_stats();
+        session.rate_city_if_unrated();
 
         new_generation();
         session
@@ -691,6 +707,10 @@ impl GameSession {
             let rules = &GameConfigs::get().sim.trade;
             crate::trade::start(self.sim.trade_mut(), &world_map, &trade.unwrap_or_default(), now, rules);
         }
+        // A new city, rated from its start. A campaign mission can be lost; any other game can't.
+        let fails_on = if campaign::active_mission().is_some() { FailureSwitches::ON } else { FailureSwitches::OFF };
+        self.sim.ratings_mut().start(fails_on);
+        self.rate_city();
     }
 
     // The calendar's ordinal month now (year × 12 + month - 1).
@@ -724,7 +744,9 @@ impl GameSession {
         // TODO(realm-ui): the difficulty, once M4 and M9 read it; raids (game Phase 2) once they
         // exist. Stored with the game until then (CustomGameRecord).
         custom_game::set_active(Some(ActiveCustomGame::from_settings(settings)));
-        self.refresh_world_stats();
+        // A new city, rated from its start; a custom game can't be lost.
+        self.sim.ratings_mut().start(FailureSwitches::OFF);
+        self.rate_city();
     }
 
     fn create_with_preset_map(engine: &mut Engine, configs: &'static GameConfigs, preset_number: usize) -> Self {
@@ -990,7 +1012,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 16;
+const CURRENT_SAVE_VERSION: u32 = 17;
 
 // What the menus show of a save without loading it (the home menu's Continue, the Load / Save
 // dialog): whether this game can load it (its save version is this game's) and its header (blank
@@ -1194,6 +1216,7 @@ impl GameSession {
 
         // World stats aren't saved; count them now instead of at the first simulation step.
         self.refresh_world_stats();
+        self.rate_city_if_unrated();
 
         new_generation();
         Ok(())

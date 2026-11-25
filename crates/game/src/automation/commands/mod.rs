@@ -26,6 +26,7 @@ mod meta;
 mod minimap;
 mod observe;
 mod profile;
+mod ratings;
 mod risks;
 mod session;
 mod sim;
@@ -52,6 +53,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     farms::COMMANDS,
     floods::COMMANDS,
     trade::COMMANDS,
+    ratings::COMMANDS,
     camera::COMMANDS,
     minimap::COMMANDS,
     city::COMMANDS,

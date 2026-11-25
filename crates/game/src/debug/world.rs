@@ -15,7 +15,8 @@ use crate::{
         events as faith_events,
     },
     floods,
-    sim::{CityFaith, CityFloods, CityTrade, Finance, risks::CityRisks, trade::TradeLimit},
+    ratings::{self, RatingKind},
+    sim::{CityFaith, CityFloods, CityRatings, CityTrade, Finance, risks::CityRisks, trade::TradeLimit},
     trade,
     world::{World, stats::WorldStats},
 };
@@ -34,14 +35,17 @@ pub(crate) struct CityDebugState<'a> {
     pub faith: &'a mut CityFaith,
     pub floods: &'a mut CityFloods,
     pub trade: &'a mut CityTrade,
+    pub ratings: &'a mut CityRatings,
     pub now: u32,
 }
 
 impl World {
     pub(crate) fn draw_debug_ui(&mut self, city: CityDebugState, camera: &mut Camera, ui_sys: &UiSystem) {
-        let CityDebugState { finance, risks, faith, floods: city_floods, trade: city_trade, now } = city;
-        const TABS: [&str; 7] =
-            ["Population/Workers/Housing", "Tax/Treasury", "Resources", "Risks", "Faith", "Floods", "Trade"];
+        let CityDebugState { finance, risks, faith, floods: city_floods, trade: city_trade, ratings: city_ratings, now } =
+            city;
+        let realm = faith.realm();
+        const TABS: [&str; 8] =
+            ["Population/Workers/Housing", "Tax/Treasury", "Resources", "Risks", "Faith", "Floods", "Trade", "Ratings"];
         let Some(tab) = ui::tab_bar(ui_sys, "World Stats Tab Bar", &TABS) else {
             return;
         };
@@ -54,6 +58,8 @@ impl World {
             draw_floods_debug_ui(city_floods, camera, ui_sys);
         } else if tab.index == 6 {
             draw_trade_debug_ui(city_trade, now, ui_sys);
+        } else if tab.index == 7 {
+            draw_ratings_debug_ui(city_ratings, realm, ui_sys);
         } else {
             self.stats_mut().draw_debug_ui(tab.index, finance, ui_sys);
         }
@@ -295,6 +301,39 @@ fn draw_trade_debug_ui(city_trade: &mut CityTrade, now: u32, ui_sys: &UiSystem) 
             city_trade.request_log().len()
         ),
     );
+}
+
+// The Ratings tab: each rating's value and its drivers, Recompute (run at the start of the next frame,
+// ratings::request_recompute), which failures can end the game, the Legitimacy clock, the failure
+// and the distinctions out of reach.
+fn draw_ratings_debug_ui(city_ratings: &CityRatings, realm: crate::realm::Realm, ui_sys: &UiSystem) {
+    match city_ratings.rated_month() {
+        Some(month) => ui::text(ui_sys, format_small!("Rated in year {} month {}", month / 12, month % 12 + 1)),
+        None => ui::text(ui_sys, "Not rated yet."),
+    }
+    if ui::button(ui_sys, "Recompute") {
+        ratings::request_recompute();
+    }
+    for kind in <RatingKind as strum::IntoEnumIterator>::iter() {
+        let rating = city_ratings.get(kind);
+        ui::separator(ui_sys);
+        ui::text(ui_sys, format_small!("{}: {}", ratings::rating_name(realm, kind), rating.value));
+        for driver in &rating.drivers {
+            ui::text(ui_sys, format_small!("    {}: {:+}", ratings::driver_name(realm, &driver.id), driver.value));
+        }
+    }
+    ui::separator(ui_sys);
+    let fails_on = city_ratings.fails_on();
+    ui::text(ui_sys, format_small!("Can fail: debt {}, legitimacy {}", fails_on.debt, fails_on.legitimacy));
+    ui::text(ui_sys, format_small!("Legitimacy low for {} month-ends", city_ratings.legitimacy_low_months()));
+    match city_ratings.failure() {
+        Some(reason) => ui::text(ui_sys, format_small!("Lost: {reason}")),
+        None => ui::text(ui_sys, "Not lost."),
+    }
+    if !city_ratings.spoiled().is_empty() {
+        let spoiled: Vec<&str> = city_ratings.spoiled().iter().map(String::as_str).collect();
+        ui::text(ui_sys, format_small!("Distinctions out of reach: {}", spoiled.join(", ")));
+    }
 }
 
 // The Floods tab: the switch, a flood now and the water going (each run at the start of the next

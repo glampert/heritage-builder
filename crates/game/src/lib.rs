@@ -25,6 +25,7 @@ pub mod messages;
 pub mod pathfind;
 pub mod profile;
 pub mod prop;
+pub mod ratings;
 pub mod realm;
 pub mod save_context;
 pub mod save_header;

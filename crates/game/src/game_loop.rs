@@ -560,6 +560,9 @@ impl GameLoop {
         crate::faith::FaithConfigs::load(); // After the campaigns: a patron's `appears` names a mission.
         log::info!(log::channel!("game"), "FaithConfigs loaded.");
 
+        crate::ratings::RatingConfigs::load();
+        log::info!(log::channel!("game"), "RatingConfigs loaded.");
+
         let tex_cache = engine.texture_cache_mut();
         TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets, false);
         log::info!(log::channel!("game"), "TileSets loaded.");

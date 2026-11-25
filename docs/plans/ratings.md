@@ -1,6 +1,6 @@
 # Ratings, goals and failure
 
-**Status (2026-11-25): the open decisions confirmed; Phase 0 under way.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17); Phase 1 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
 - GDD 5.17: the four ratings, Prosperity, Culture, Security and Legitimacy, each with its own name for Legitimacy in each realm (the Mandate, Divine Favour, Merit);
 - GDD 7's goals that are still missing, its failure conditions and its optional distinctions;
 - the Legitimacy half of the court requests (GDD 5.14), which M10 left logged and not applied.
@@ -375,13 +375,44 @@ It was researched against `853baf3d` on `claude`. File and line references point
 
 ### Phase 0: The ratings, their data and the save format (medium to large)
 
-- [ ] `assets/configs/game/ratings/<realm>.json` for the three realms, `RatingConfigs` loaded and checked, and the driver name keys.
-- [ ] `ratings::Driver` with the kinds in §1, each a function of the city; `RatingRules` in `GameConfigs::sim`.
-- [ ] `sim::ratings::CityRatings` in `Simulation`, its accessors on the contexts, and `recompute` monthly and at a session's or game's start.
-- [ ] `CityRisks`' disasters log, filled by the destruction path.
-- [ ] Save v17, `v16_to_v17.py` (empty ratings and log), migrated sample saves, `--smoke-test-saves`; the roadmap's log.
-- [ ] `ratings.state`, `ratings.recompute`, `ratings.set`; World Debug's Ratings tab.
-- [ ] `tests/ratings.rs`: drivers, fading, the clamp, each realm's file, the round trip.
+- [x] `assets/configs/game/ratings/<realm>.json` for the three realms, `RatingConfigs` loaded and checked, and the driver name keys.
+- [x] `ratings::Driver` with the kinds in §1, each a function of the city; `RatingRules` in `GameConfigs::sim`.
+- [x] `sim::ratings::CityRatings` in `Simulation`, its accessors on the contexts, and `recompute` monthly and at a session's or game's start.
+- [x] `CityRisks`' disasters log, filled by the destruction path.
+- [x] Save v17, `v16_to_v17.py` (empty ratings and log), migrated sample saves, `--smoke-test-saves`; the roadmap's log.
+- [x] `ratings.state`, `ratings.recompute`, `ratings.set`; World Debug's Ratings tab.
+- [x] `tests/ratings.rs`: drivers, fading, the clamp, each realm's file, the round trip.
+
+**Notes (2026-11-25):**
+- **What was built:**
+  - `sim::ratings` (`CityRatings`, `Rating`, `DriverValue`, `RatingKind`, `FailureReason`, `FailureSwitches`) in `Simulation`, with `ratings()` and `ratings_mut()` on the simulation and both contexts.
+  - `crate::ratings`:
+    - `config`: `RatingConfigs`, `RealmRatingsDef`, `DriverDef`, `DriverKind`, its checks, `driver_name` and `rating_name`;
+    - the drivers: `recompute`, `rate`, `CityFacts`, `fade`, and `on_new_month`, last in the month's order;
+    - `request_recompute` for World Debug.
+  - `RatingRules` in `GameConfigs::sim.ratings`.
+  - The three realm files, `assets/configs/game/ratings/<realm>.json`. Each rating's caps add up to 100.
+  - The driver names: `rating.driver.<id>` (Hud), and Kambara's and Tampadesa's own (Realm: "Dance halls", "Pwè theatre", "Temple offerings", "Alms given", "Guard posts").
+  - `CityRisks::disasters` (`DisasterMonth`, `record_disaster`; `add_disease_deaths` takes the month), filled by `destruction::destroy_building` and the deaths from sickness. `GameCalendar::ordinal_month`.
+  - The session rates the city when a mission or custom game starts (`GameSession::rate_city`, after `CityRatings::start`), and when a new map is made or a save loads while it's unrated (`rate_city_if_unrated`). A save's ratings otherwise stand until the next month.
+  - Save v17 and `v16_to_v17.py`, with the local saves and `sample_saves.zip` migrated.
+  - `ratings.state`, `ratings.recompute` and `ratings.set`, and World Debug's Ratings tab.
+  - `tests/ratings.rs`, 17 tests; `tests/risks.rs`'s round trip checks the new layout.
+- **Deviations:**
+  - **Every M9 save change is in v17.** The failure switches, the Legitimacy clock, the failure and the spoiled distinctions came now, though Phases 3 and 4 use them, so those phases need no bump of their own.
+  - **The failure is kept on `CityRatings::failure`, not `ActiveMission::failed`,** so a custom game can be lost too (Phase 5). A campaign mission starts with both failures on (`FailureSwitches::ON`) until Phase 3's `failure` block. Every other game starts with them off, and nothing checks them yet.
+  - **Coverage is counted along the grid, not with `has_access_to_service`.** `ServiceCoverage` and `FaithCoverage` count the residents of the houses within a working building's effect radius, as faith's coverage does (`CityFacts::residents_reached`), so no path search runs per house; it ignores heights, as Q9 has it. The share is weighted by residents, not by houses.
+  - **Drivers a game doesn't offer are left out of the breakdown,** where zeros would be misleading: trade income where the game doesn't trade, requests where it has none, floods where the river doesn't flood, favour without patrons. The festivals' penalty shows as its own id, `no_festival`.
+  - **Parameterless drivers are empty struct variants** (`{"kind": "favour"}` reads as `Favour {}`). Serde ignores unknown fields on an internally tagged unit variant, so a typo would have passed silently.
+  - **The treasury counts at least one resident,** so an empty city with gold rates its treasury in full.
+  - **The realm files are whole, not merged over Đại Long's** (as faith's are).
+- **UI changes:** World Debug's Ratings tab (developer UI). Nothing retail changes before Phase 1.
+- **Verified:**
+  - `cargo test --workspace`;
+  - both clippy runs;
+  - `--smoke-test-saves` on the migrated saves, each rated as it loads;
+  - `ratings.state`, `ratings.set` and `ratings.recompute` in script mode on preset 2;
+  - all 29 scenarios on a release build (macOS).
 
 ### Phase 1: The ratings on screen (medium)
 

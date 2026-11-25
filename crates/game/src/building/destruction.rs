@@ -10,11 +10,12 @@ use common::{Color, mem::SingleThreadStatic};
 use engine::log;
 use strum::Display;
 
-use super::{BuildingKindAndId, risks};
+use super::{BuildingKind, BuildingKindAndId, risks};
 use crate::{
     sim::{
         SimContextMut,
         resources::{RESOURCE_KIND_COUNT, StockItem},
+        risks::Disaster,
     },
     tile::{
         minimap::{MINIMAP_ICON_DEFAULT_LIFETIME, MinimapIcon},
@@ -49,6 +50,7 @@ pub fn destroy_building(context: &SimContextMut, kind_and_id: BuildingKindAndId,
     }
 
     let name = building.notice_name();
+    let is_house = building.is(BuildingKind::House);
     let footprint = building.cell_range();
     let base_cell = building.base_cell();
     let lost: ArrayVec<StockItem, RESOURCE_KIND_COUNT> =
@@ -56,6 +58,13 @@ pub fn destroy_building(context: &SimContextMut, kind_and_id: BuildingKindAndId,
 
     Spawner::new(context).despawn_building(building);
     let rubble_cells = rubble::place_pile(context, footprint);
+
+    let disaster = match cause {
+        Destruction::BurntDown => Disaster::BurntDown { house: is_house },
+        Destruction::Collapsed => Disaster::Collapsed { house: is_house },
+    };
+    let month = context.calendar().ordinal_month();
+    context.risks_mut().record_disaster(disaster, month);
 
     // The stats are recounted on every step; recount them now so the HUD, world.stats and the
     // construction checks don't count the building's people and goods until then.

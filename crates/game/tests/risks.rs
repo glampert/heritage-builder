@@ -1231,11 +1231,16 @@ fn test_risks_round_trip_through_a_save() {
     assert_eq!(loaded.burning().map(|burning| burning.secs_left), Some(12.5));
     assert_eq!(loaded.get(RiskKind::Fire), MAX_RISK);
 
-    let city: CityRisks = serde_json::from_str(r#"{ "enabled": false, "disease": false, "disease_deaths": 3 }"#).unwrap();
+    let city: CityRisks =
+        serde_json::from_str(r#"{ "enabled": false, "disease": false, "disease_deaths": 3, "disasters": [] }"#).unwrap();
     assert!(!city.is_enabled());
     assert!(!city.is_disease_enabled());
     assert_eq!(city.disease_deaths(), 3);
     assert!(serde_json::from_str::<CityRisks>(r#"{ "enabled": false }"#).is_err(), "a v7 city's risks need migrating");
+    assert!(
+        serde_json::from_str::<CityRisks>(r#"{ "enabled": false, "disease": false, "disease_deaths": 3 }"#).is_err(),
+        "a v16 city's risks need migrating (the disasters log, v17)"
+    );
 }
 
 // ----------------------------------------------

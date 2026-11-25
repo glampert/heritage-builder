@@ -1,0 +1,28 @@
+{
+  "prosperity": [
+    {"id": "housing", "driver": {"kind": "housing_levels"}, "max": 40},
+    {"id": "treasury", "driver": {"kind": "treasury", "per_resident": 10}, "max": 15, "min": -15},
+    {"id": "employment", "driver": {"kind": "employment", "free_share": 0.05}, "max": 20},
+    {"id": "wages", "driver": {"kind": "wages"}, "max": 10, "min": -10},
+    {"id": "trade_income", "driver": {"kind": "trade_income", "per_resident": 1}, "max": 15}
+  ],
+  "culture": [
+    {"id": "temples", "driver": {"kind": "faith_coverage"}, "max": 35},
+    {"id": "theatre", "driver": {"kind": "service_coverage", "service": "Theater"}, "max": 25},
+    {"id": "schools", "driver": {"kind": "service_coverage", "service": "University"}, "max": 15},
+    {"id": "festivals", "driver": {"kind": "festival_culture", "none_penalty": 2}, "max": 25, "min": -2}
+  ],
+  "security": [
+    {"id": "police", "driver": {"kind": "service_coverage", "service": "PoliceStation"}, "max": 35},
+    {"id": "safety", "driver": {"kind": "risk_safety"}, "max": 30},
+    {"id": "calm_streets", "driver": {"kind": "calm_streets", "high_taxes": 5}, "max": 35, "min": -10},
+    {"id": "disasters", "driver": {"kind": "disasters", "per_building": 4, "per_house": 6, "per_death": 1}, "max": 0, "min": -30}
+  ],
+  "legitimacy": [
+    {"id": "requests", "driver": {"kind": "requests"}, "max": 30, "min": -30},
+    {"id": "fair_taxes", "driver": {"kind": "fair_taxes", "by_level": [16, 14, 10, -5, -15]}, "max": 16, "min": -15},
+    {"id": "floods", "driver": {"kind": "floods", "held": 8, "per_breach": 6, "per_building_damaged": 0.5}, "max": 24, "min": -20},
+    {"id": "festivals", "driver": {"kind": "festival_legitimacy"}, "max": 10},
+    {"id": "favour", "driver": {"kind": "favour"}, "max": 20}
+  ]
+}

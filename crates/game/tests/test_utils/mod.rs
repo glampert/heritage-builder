@@ -11,6 +11,7 @@ use game::{
     faith::FaithConfigs,
     menu::{PlaceOrClearResult, TilePlacement},
     prop::{PropId, config::PropConfigs},
+    ratings::RatingConfigs,
     sim::{
         SimCmds,
         SimContextMut,
@@ -58,6 +59,7 @@ fn setup(test_suite_name: &str) {
     PropConfigs::load();
     BuildingConfigs::load();
     FaithConfigs::load(); // Every realm's patrons (sim::faith).
+    RatingConfigs::load(); // Every realm's ratings (crate::ratings).
 
     // Register the runner/harvester/patrol completion callbacks so that producer
     // dispatch -> task -> on-completion routing works end-to-end in tests.

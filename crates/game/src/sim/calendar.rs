@@ -214,6 +214,11 @@ impl GameCalendar {
     }
 
     #[inline]
+    // The ordinal month now (year x 12 + month - 1), as CalendarDate::ordinal_month counts it.
+    pub fn ordinal_month(&self) -> u32 {
+        self.start_date().ordinal_month() + self.months_elapsed
+    }
+
     pub fn months_elapsed(&self) -> u32 {
         self.months_elapsed
     }

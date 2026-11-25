@@ -39,10 +39,12 @@ pub use finance::Finance;
 
 pub mod faith;
 pub mod floods;
+pub mod ratings;
 pub mod risks;
 pub mod trade;
 pub use faith::CityFaith;
 pub use floods::CityFloods;
+pub use ratings::CityRatings;
 pub use risks::CityRisks;
 pub use trade::CityTrade;
 
@@ -85,6 +87,7 @@ pub struct Simulation {
     faith: CityFaith,
     floods: CityFloods,
     trade: CityTrade,
+    ratings: CityRatings,
 
     // Path finding:
     #[serde(skip)]
@@ -114,6 +117,7 @@ impl Simulation {
             faith: CityFaith::new(&configs.sim.faith),
             floods: CityFloods::new(&configs.sim.floods),
             trade: CityTrade::new(),
+            ratings: CityRatings::new(),
             search: Search::with_grid_size(map_size_in_cells),
             speed: configs.sim.default_speed.clamp(Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED),
             is_paused: false,
@@ -149,6 +153,7 @@ impl Simulation {
             faith: &mut self.faith,
             floods: &mut self.floods,
             trade: &mut self.trade,
+            ratings: &mut self.ratings,
             cmds: &mut self.cmds,
         }
     }
@@ -243,6 +248,16 @@ impl Simulation {
     }
 
     #[inline]
+    pub fn ratings(&self) -> &CityRatings {
+        &self.ratings
+    }
+
+    #[inline]
+    pub fn ratings_mut(&mut self) -> &mut CityRatings {
+        &mut self.ratings
+    }
+
+    #[inline]
     pub fn task_manager(&self) -> &UnitTaskManager {
         &self.task_manager
     }
@@ -309,6 +324,13 @@ impl Simulation {
             crate::floods::run_requests(&context);
         }
 
+        // A recompute the World Debug window's Ratings tab asked for.
+        if crate::ratings::take_recompute_request() {
+            world.refresh_stats(&self.finance, &self.faith, &self.floods, &self.trade);
+            let context = self.new_sim_context(0.0, tile_map, world);
+            crate::ratings::recompute(&context);
+        }
+
         // Canals no water reaches drawn dry, once the canals and fields, a gate or the session
         // changed; paused or not, so the player sees it while building.
         {
@@ -341,7 +363,7 @@ impl Simulation {
             // scaled by the patrons' effects under way); then the river: the water going, the
             // wet season and the year's flood; then the farmsteads' fields, sown and reaped; then
             // the caravans due; then the patrons' favour, the month's festival, and the blessings and misfortunes, which
-            // may set buildings on fire or collapse them.
+            // may set buildings on fire or collapse them; last, the ratings, read from all of it.
             let upkeep_scale = self.faith.upkeep_scale();
             self.finance.on_calendar_events(&step.calendar_events, world, tile_map, upkeep_scale);
             let new_months: SmallVec<[calendar::CalendarDate; 2]> = step
@@ -359,6 +381,7 @@ impl Simulation {
                     crate::farms::on_new_month(&context, date);
                     crate::trade::on_new_month(&context, date);
                     crate::faith::events::on_new_month(&context, &GameConfigs::get().sim.faith, date);
+                    crate::ratings::on_new_month(&context, date);
                 }
             }
         }
@@ -537,6 +560,7 @@ impl Simulation {
             faith: &mut self.faith,
             floods: &mut self.floods,
             trade: &mut self.trade,
+            ratings: &mut self.ratings,
             now,
         };
         context.world.draw_debug_ui(city, context.camera, context.ui_sys);

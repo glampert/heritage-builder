@@ -1,0 +1,119 @@
+// Ratings commands: the four ratings and what drives them, recomputed or set by hand, and the
+// failure clocks (sim::ratings, crate::ratings, docs/plans/ratings.md).
+
+use std::str::FromStr;
+
+use serde::Deserialize;
+use serde_json::{Map, Value, json};
+use strum::IntoEnumIterator;
+
+use crate::{
+    automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
+    ratings::{self, MAX_RATING, RatingKind},
+};
+
+pub(super) const COMMANDS: &[CommandDef] = &[
+    CommandDef {
+        name: "ratings.state",
+        help: "The four ratings: each one's value, name in the game's realm and drivers (id, name, value, in the \
+               order its breakdown lists them, and by id in `driver_values`); the month they were read in; which \
+               failures can end the game, the Legitimacy clock, the failure, and the distinctions out of reach.",
+        params: &[],
+        run: cmd_state,
+    },
+    CommandDef {
+        name: "ratings.recompute",
+        help: "Read the four ratings from the city now, as a month's start does, then report ratings.state.",
+        params: &[],
+        run: cmd_recompute,
+    },
+    CommandDef {
+        name: "ratings.set",
+        help: "Set a rating's value by hand, its drivers left as they were, until the next recompute (a month's \
+               start or ratings.recompute); then report ratings.state.",
+        params: &[
+            ParamDef {
+                name: "rating",
+                kind: "string",
+                required: true,
+                help: "prosperity, culture, security or legitimacy.",
+            },
+            ParamDef { name: "value", kind: "int", required: true, help: "0 to 100." },
+        ],
+        run: cmd_set,
+    },
+];
+
+fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
+    context.require_map()?;
+    done(state_json(context))
+}
+
+fn cmd_recompute(context: &mut CommandContext, _params: Value) -> CommandResult {
+    context.require_map()?;
+    context.session.rate_city();
+    done(state_json(context))
+}
+
+fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        rating: String,
+        value: u32,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let kind = parse_rating(&params.rating)?;
+    if params.value > MAX_RATING {
+        return Err(CommandError::invalid_params(format!("A rating is from 0 to {MAX_RATING}, got {}.", params.value)));
+    }
+    context.session.sim_mut().ratings_mut().set_value(kind, params.value);
+    done(state_json(context))
+}
+
+pub(super) fn parse_rating(name: &str) -> Result<RatingKind, CommandError> {
+    RatingKind::from_str(name).map_err(|_| {
+        let names: Vec<String> = RatingKind::iter().map(|kind| kind.to_string()).collect();
+        CommandError::invalid_params(format!("Unknown rating '{name}': use one of {}.", names.join(", ")))
+    })
+}
+
+fn state_json(context: &CommandContext) -> Value {
+    let sim = context.session.sim();
+    let realm = sim.realm();
+    let state = sim.ratings();
+
+    let mut ratings_json = Map::new();
+    for kind in RatingKind::iter() {
+        let rating = state.get(kind);
+        let drivers: Vec<Value> = rating
+            .drivers
+            .iter()
+            .map(|driver| json!({ "id": driver.id, "name": ratings::driver_name(realm, &driver.id), "value": driver.value }))
+            .collect();
+        let driver_values: Map<String, Value> =
+            rating.drivers.iter().map(|driver| (driver.id.clone(), json!(driver.value))).collect();
+        ratings_json.insert(
+            kind.to_string(),
+            json!({
+                "value": rating.value,
+                "name": ratings::rating_name(realm, kind),
+                "drivers": drivers,
+                "driver_values": driver_values,
+            }),
+        );
+    }
+
+    let fails_on = state.fails_on();
+    json!({
+        "realm": realm.to_string(),
+        "rated_month": state.rated_month(),
+        "ratings": ratings_json,
+        "fails_on": { "debt": fails_on.debt, "legitimacy": fails_on.legitimacy },
+        "legitimacy_low_months": state.legitimacy_low_months(),
+        "failure": state.failure().map(|reason| reason.to_string()),
+        "spoiled": state.spoiled().iter().collect::<Vec<_>>(),
+    })
+}

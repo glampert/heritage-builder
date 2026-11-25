@@ -202,6 +202,10 @@ pub struct SimConfigs {
     #[debug_ui(nested)]
     pub trade: TradeRules,
 
+    // The four ratings, the failure clocks and the court's requests (docs/plans/ratings.md).
+    #[debug_ui(nested)]
+    pub ratings: RatingRules,
+
     // Workers/Population:
     pub workers_search_radius: i32,
     pub workers_update_frequency_secs: Seconds,
@@ -233,6 +237,7 @@ impl Default for SimConfigs {
             faith: FaithRules::default(),
             floods: FloodRules::default(),
             trade: TradeRules::default(),
+            ratings: RatingRules::default(),
             // Workers/Population:
             workers_search_radius: 20,
             workers_update_frequency_secs: 20.0,
@@ -542,6 +547,50 @@ impl Default for TradeRules {
             price_cap: 0.4,
             price_drift: 0.25,
             relation_step: 0.03,
+        }
+    }
+}
+
+// How the ratings count what they remember, when a city fails, and what a court request is worth
+// (docs/plans/ratings.md). Which drivers feed which rating, and their caps, are data
+// (ratings::config). To be balanced in M13.
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RatingRules {
+    // An event (a festival held, a building burnt down, a flood) counts in full in its month,
+    // then less each month until it's gone after this many months (decision Q2).
+    pub fade_months: u32,
+
+    // A request met or failed is remembered this long instead.
+    pub request_fade_months: u32,
+
+    // A court request's Legitimacy when its mission doesn't say (decision Q4).
+    pub request_legitimacy: i32,
+
+    // A request failed takes away its Legitimacy times this.
+    pub request_failed_scale: f32,
+
+    // A failed court request is asked again this many months later, for this times the amount.
+    pub ask_again_months: u32,
+    pub ask_again_scale: f32,
+
+    // The court recalls the governor once Legitimacy has been below `recall_below` at this many
+    // month-ends in a row (GDD 7).
+    pub recall_below: u32,
+    pub recall_months: u32,
+}
+
+impl Default for RatingRules {
+    fn default() -> Self {
+        Self {
+            fade_months: 12,
+            request_fade_months: 24,
+            request_legitimacy: 6,
+            request_failed_scale: 1.5,
+            ask_again_months: 3,
+            ask_again_scale: 1.25,
+            recall_below: 10,
+            recall_months: 12,
         }
     }
 }
