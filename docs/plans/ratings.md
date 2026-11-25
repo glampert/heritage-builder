@@ -1,6 +1,6 @@
 # Ratings, goals and failure
 
-**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17) and Phase 1 (the ratings on screen); Phase 2 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17), Phase 1 (the ratings on screen) and Phase 2 (goals and requests, save v18); Phase 3 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
 - GDD 5.17: the four ratings, Prosperity, Culture, Security and Legitimacy, each with its own name for Legitimacy in each realm (the Mandate, Divine Favour, Merit);
 - GDD 7's goals that are still missing, its failure conditions and its optional distinctions;
 - the Legitimacy half of the court requests (GDD 5.14), which M10 left logged and not applied.
@@ -443,11 +443,66 @@ It was researched against `853baf3d` on `claude`. File and line references point
 
 ### Phase 2: Goals and requests (medium)
 
-- [ ] `MissionGoal::Rating` and `HousesAtLevel`; `HousingStats::at_level`; `WorldStats::ratings`; their lines everywhere `goal_line` is used, and the debug window's.
-- [ ] `Resource` counted in storage, labelled so.
-- [ ] `MissionRequirements::time_limit_months` and its goals-panel line.
-- [ ] Requests' Legitimacy applied (`Option` in the config, the rules' default); the court asking again after a failed court request.
-- [ ] `goals.state`; tests in `tests/campaign.rs` and `tests/ratings.rs`; `ratings.jsonl` meets a `Rating` goal in a test mission.
+- [x] `MissionGoal::Rating` and `HousesAtLevel`; `HousingStats::at_level`; `WorldStats::ratings`; their lines everywhere `goal_line` is used, and the debug window's.
+- [x] `Resource` counted in storage, labelled so.
+- [x] `MissionRequirements::time_limit_months` and its goals-panel line.
+- [x] Requests' Legitimacy applied (`Option` in the config, the rules' default); the court asking again after a failed court request.
+- [x] `goals.state`; tests in `tests/campaign.rs` and `tests/ratings.rs`; `ratings.jsonl` meets a `Rating` goal in a test mission.
+
+**Notes (2026-11-25):**
+- **What was built:**
+  - **The goals.** `MissionGoal::Rating { rating, min }` and `HousesAtLevel { level, count }` (the level from 1, at it or above). `MissionGoal::target` and `achieved`, which `is_met` and the goal lines share.
+  - **`MissionRequirements`:**
+    - `time_limit_months`, with `months_left` (the calendar's months since the mission's start);
+    - `rating_goal`, the highest goal for a rating;
+    - `problems`, which `CampaignConfigs::validate` reports: a rating goal above 100, a level outside 1 to 5, a time limit of 0, a time limit without goals.
+
+    It now refuses unknown fields.
+  - **The world stats:**
+    - `HousingStats::at_level` and `at_or_above`;
+    - `RatingStats`, filled by `CityRatings::tally`;
+    - `GlobalResourceCounts::in_storage`, which `Resource` now counts (the storage yards and granaries).
+
+    `World::refresh_stats` takes a `StatsSources` (`Simulation::stats_sources`, `SimContext::stats_sources`), the simulation's state the stats count, in place of four arguments.
+  - **What the screens show:**
+    - `ratings::mission_goal` reads the mission's rating goals (`campaign::active_requirements`), so the HUD's rings, the City book's cards and the Overview tick them.
+    - `dialog::goal_line` takes the realm: a rating's line is its name in the realm's words ("The Mandate"), and a houses goal's "Houses at level 2 or above".
+    - The briefing lists a time limit under the goals ("Time limit", "2 years").
+    - The goals panel has a row for it, `Goals/time_left` (value `months_left`, `limit`): a clock, the months left and a bar, in the skin's warning colour in its last 3 months.
+    - The developer campaign window lists the new goals and the limit.
+  - **Requests' Legitimacy:** `MissionRequestDef::legitimacy` is optional. A court request without one takes `RatingRules::request_legitimacy` (6), resolved as `trade::start` schedules it. `requests.open` takes `legitimacy` too.
+  - **The court asks again** (`requests::ask_again`, from the month's request handling):
+    - A failed court request schedules `TradeRequest::asked_again`: the same good from the same asker, 1.25 times the amount rounded up, 3 months later, with as many months to send it.
+    - Its id is `<first id>_again_<N>`, and `again` counts the times asked. A mission's request ids can't hold `_again_` (`trade_problems`).
+    - It's a request like any other: failing it is asked again too, for more again.
+    - Its messages: "The court's request for 20 pottery went unmet. It will ask again, for more." and "The court asks again, for more: 25 pottery within 2 months." The Goods page titles it "Pottery for the court, asked again".
+  - **Save v18:** `TradeRequest::again`, with `v17_to_v18.py`; the local saves and `sample_saves.zip` migrated.
+  - **Automation:** `goals.state` (each goal's `def`, line, target, achieved and met; `all_met`, `completed`, the time limit, `failure`); `ratings.state`'s `goal`; `requests.state`'s `legitimacy` and `again`.
+  - **The hidden test campaign `test_goals`:** one mission on preset 2 asking Culture 60, the Mandate 20 and a house at level 1 within 24 months.
+  - **Tests:**
+    - `tests/campaign.rs`: the rating and houses goals, `Resource` in storage, the time limit and the goals' problems.
+    - `tests/ratings.rs`: the stats' ratings and houses from a real city, and a request asked again failing again.
+    - `tests/trade.rs`: the court asking again through the month, the Legitimacy defaults, and the reserved id.
+  - **Scenarios:**
+    - `ratings.jsonl` plays `test_goals`: the briefing's goal lines, `goals.state`, the rings' ticks, the goals panel and its time limit (a month on, a month less), the City book's cards, then `ratings.set` meeting the goals and the debrief.
+    - `trade.jsonl`: the court's default Legitimacy, a court request for bricks failing and asked again for 500, the Mandate's `requests` driver below 0, and the request asked again kept through a save.
+- **Deviations:**
+  - **Save v18.** A request asked again had to say so, which changes `TradeRequest`; Phase 0's "every M9 save change in v17" didn't foresee it.
+  - **Only the court's requests take the default Legitimacy.** Another city's take none unless their mission gives one: they move relations (game Phase 2), not the court's favour. §3 said every request.
+  - **A request asked again keeps the failed one's Legitimacy.** Only its amount grows.
+  - **The time limit runs out without consequence until Phase 3,** which fails the mission. Its months left show from now.
+- **UI changes:**
+  - the goal lines in the briefing, the debrief, the HUD's goals panel and the Overview (the rating's realm name, the houses' line);
+  - the briefing's time limit row;
+  - the goals panel's time left row;
+  - the rings' and cards' goal ticks, now that missions set them;
+  - the Goods page's title for a request asked again.
+- **Verified:**
+  - `cargo test --workspace`;
+  - both clippy runs;
+  - `--smoke-test-saves` on the migrated saves;
+  - every scenario on a release build (macOS), `determinism.jsonl` twice;
+  - the screenshots: the briefing's goals, the goals panel's time row, the City book's goal ticks and the debrief.
 
 ### Phase 3: Failure (medium)
 

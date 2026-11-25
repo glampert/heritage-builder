@@ -781,7 +781,7 @@ fn festival_city(env: &mut TestEnvironment, rice: u32, wine: u32, gold: i64) -> 
         assert_eq!(test_utils::find_building_mut(env, yard).receive_resources(ResourceKind::Wine, wine), wine);
     }
     env.sim.finance_mut().set_balance_unrecorded(gold);
-    env.world.refresh_stats(env.sim.finance(), env.sim.faith(), env.sim.floods(), env.sim.trade());
+    env.world.refresh_stats(env.sim.stats_sources());
     square
 }
 
@@ -894,7 +894,7 @@ fn test_a_festival_is_held_at_the_start_of_its_month() {
     assert!(notice.text.contains("Floodwater offering"), "{}", notice.text);
 
     // The goal counts it once the stats are counted again.
-    env.world.refresh_stats(env.sim.finance(), env.sim.faith(), env.sim.floods(), env.sim.trade());
+    env.world.refresh_stats(env.sim.stats_sources());
     assert!(game::campaign::config::MissionGoal::FestivalsHeld { min: 1 }.is_met(env.world.stats()));
 
     new_month(&mut env, 9);

@@ -57,6 +57,7 @@ struct BarStats {
     treasury: i64,
     food: u32,
     goals: Vec<GoalRow>,
+    time_left: Option<TimeLeft>,
     ratings: Option<Vec<RatingView>>, // None while the city isn't rated.
 }
 
@@ -69,23 +70,34 @@ pub struct GoalRow {
 }
 
 // The goals of the mission being played, read against the world's stats (the debrief's lines).
-fn goal_rows(context: &GameUiContext) -> Vec<GoalRow> {
-    let Some(active) = campaign::active_mission() else {
-        return Vec::new();
-    };
-    let Some(mission) = CampaignConfigs::get().mission(active.campaign_id, active.mission_index) else {
+fn goal_rows(context: &GameUiContext, realm: Realm) -> Vec<GoalRow> {
+    let Some(requirements) = campaign::active_requirements() else {
         return Vec::new();
     };
     let stats = context.world.stats();
-    mission
-        .requirements
+    requirements
         .goals
         .iter()
         .map(|goal| {
-            let (text, target, achieved) = goal_line(goal, stats);
+            let (text, target, achieved) = goal_line(goal, stats, realm);
             GoalRow { text, target, achieved, met: goal.is_met(stats) }
         })
         .collect()
+}
+
+// A mission's time limit as the goals panel shows it.
+#[derive(Clone, Copy, PartialEq)]
+pub struct TimeLeft {
+    pub months_left: u32,
+    pub limit: u32,
+}
+
+// The mission's time limit, if it has one, and its months left.
+fn time_left(context: &GameUiContext) -> Option<TimeLeft> {
+    let requirements = campaign::active_requirements()?;
+    let limit = requirements.time_limit_months?;
+    let months_left = requirements.months_left(context.sim.calendar().months_elapsed())?;
+    Some(TimeLeft { months_left, limit })
 }
 
 // The food the city holds in its granaries and markets.
@@ -120,7 +132,8 @@ impl BarStats {
             population: context.world.stats().population.total,
             treasury: context.sim.finance().balance(),
             food: food_stored(context),
-            goals: goal_rows(context),
+            goals: goal_rows(context, realm),
+            time_left: time_left(context),
             ratings: ratings::views(context.sim.ratings(), realm),
         }
     }
@@ -266,6 +279,8 @@ impl BarButton {
 struct BuiltFor {
     window: Vec2,
     has_goals: bool,
+    goal_count: usize,
+    has_time_limit: bool,
     in_mission: bool,
 }
 
@@ -395,6 +410,8 @@ impl TopBar {
         BuiltFor {
             window: ui::screen_size(context.ui_sys),
             has_goals: !stats.goals.is_empty(),
+            goal_count: stats.goals.len(),
+            has_time_limit: stats.time_left.is_some(),
             in_mission: campaign::active_mission().is_some(),
         }
     }
@@ -693,12 +710,19 @@ fn rating_initial(name: &str) -> String {
 const GOALS_WIDTH: f32 = 357.5; // The retail minimap's width, until its first layout gives it.
 const GOAL_ROW: f32 = 54.0;
 const GOALS_HEADER: f32 = 36.0;
+const TIME_WARNING_MONTHS: u32 = 3; // The time left drawn in the warning colour from here.
 
 // The mission's goals, dropped down under the goals button (`Goals`): a row per goal with its
-// progress, on the skin's `hud_panel` panel, the notch pointing up at the button.
+// progress, on the skin's `hud_panel` panel, the notch pointing up at the button; under them, a
+// mission with a time limit has its months left (`Goals/time_left`, value `months_left`, `limit`).
 struct GoalsPanel {
     menu: UiMenuRcMut,
     canvas: UiMenuWidgetIndex,
+    time_canvas: Option<UiMenuWidgetIndex>,
+}
+
+fn time_left_value(stats: &BarStats) -> Option<serde_json::Value> {
+    stats.time_left.map(|time| json!({ "months_left": time.months_left, "limit": time.limit }))
 }
 
 fn goals_value(stats: &BarStats) -> serde_json::Value {
@@ -719,12 +743,15 @@ impl GoalsPanel {
             SkinPanel::Sprite { .. } => [16.0; 4],
         };
         let count = stats.borrow().goals.len().max(1);
+        let has_time_limit = stats.borrow().time_left.is_some();
         // As wide as the minimap.
         let minimap_width = context.tile_map.minimap().layout().window.width();
         let width = if minimap_width > 1.0 { minimap_width } else { GOALS_WIDTH };
         let inner = Vec2::new(width - insets[0] - insets[2], GOALS_HEADER + count as f32 * GOAL_ROW);
+        let time_size = Vec2::new(inner.x, GOAL_ROW);
         // A few points spare, so the window never scrolls its canvas.
-        let size = Vec2::new(inner.x + insets[0] + insets[2], inner.y + insets[1] + insets[3] + 8.0);
+        let time_height = if has_time_limit { time_size.y } else { 0.0 };
+        let size = Vec2::new(inner.x + insets[0] + insets[2], inner.y + time_height + insets[1] + insets[3] + 8.0);
         // Under the minimap's left edge, the notch under the button.
         let position = Vec2::new(layout::MARGIN, button.y + 18.0);
 
@@ -789,6 +816,41 @@ impl GoalsPanel {
         })
         .with_label("goals", Some(value));
 
+        // The time limit's row: a clock, "Time left", the months left and a bar of the time left,
+        // in the warning colour in its last months.
+        let time_canvas = has_time_limit.then(|| {
+            let shared = stats.clone();
+            let warning = skin::hud_color("warning", "accent");
+            let label = ui::text::get(UiTextCategory::Hud, "goals.time_left").to_string();
+            UiCanvas::new(time_size, move |_, painter, rect| {
+                let stats = shared.borrow();
+                let Some(time) = stats.time_left else {
+                    return;
+                };
+                let color = if time.months_left <= TIME_WARNING_MONTHS { warning } else { accent };
+                let y = rect.min.y + 20.0;
+                let mark = Vec2::new(rect.min.x + 11.0, y - 6.0);
+                painter.circle_stroke(mark, 11.0, 2.0, color);
+                painter.polyline(&[mark + Vec2::new(0.0, -6.0), mark, mark + Vec2::new(5.0, 2.0)], 2.0, color, false);
+                painter.label(Vec2::new(rect.min.x + 34.0, y), UiTextAnchor::Start, &label, &look(18.0, text, false));
+                let left =
+                    ui::text::format_count(UiTextCategory::Hud, "goals.months_left", i64::from(time.months_left), &[]);
+                painter.label(Vec2::new(rect.max.x, y), UiTextAnchor::End, &left, &look(16.0, sub, false));
+                let bar =
+                    Rect::from_pos_and_size(Vec2::new(rect.min.x + 34.0, y + 12.0), Vec2::new(rect.width() - 34.0, 8.0));
+                painter.rect_filled(bar, track, 4.0);
+                let share = (time.months_left as f32 / time.limit.max(1) as f32).clamp(0.0, 1.0);
+                if share > 0.0 {
+                    painter.rect_filled(
+                        Rect::from_pos_and_size(bar.min, Vec2::new((bar.width() * share).max(8.0), bar.height())),
+                        color,
+                        4.0,
+                    );
+                }
+            })
+            .with_label("time_left", time_left_value(&stats.borrow()))
+        });
+
         let menu = UiMenu::new("Goals")
             .with_flags(UiMenuFlags::IsOpen)
             .with_position(position)
@@ -796,12 +858,18 @@ impl GoalsPanel {
             .with_widget_spacing(Vec2::zero());
         let mut menu = panel.apply_to_menu(menu);
         let canvas = menu.add_widget(canvas);
-        Self { menu: menu.into_rc(), canvas }
+        let time_canvas = time_canvas.map(|time_canvas| menu.add_widget(time_canvas));
+        Self { menu: menu.into_rc(), canvas, time_canvas }
     }
 
     fn set_value(&mut self, stats: &BarStats) {
         if let Some(canvas) = self.menu.widget_as_mut::<UiCanvas>(self.canvas) {
             canvas.set_value(Some(goals_value(stats)));
+        }
+        if let Some(index) = self.time_canvas
+            && let Some(canvas) = self.menu.widget_as_mut::<UiCanvas>(index)
+        {
+            canvas.set_value(time_left_value(stats));
         }
     }
 

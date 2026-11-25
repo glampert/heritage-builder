@@ -571,6 +571,12 @@ impl WorldMapDef {
             if request.month == 0 {
                 problems.push(format!("request '{id}' opens in month 0; it needs 1 or more (months after the start)"));
             }
+            if id.contains(crate::sim::trade::AGAIN_INFIX) {
+                problems.push(format!(
+                    "request '{id}': '{}' is kept for the court asking again",
+                    crate::sim::trade::AGAIN_INFIX
+                ));
+            }
         }
         problems
     }

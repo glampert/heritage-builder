@@ -19,7 +19,7 @@ use crate::{
     debug::DebugUiMode,
     prop::{Prop, PropId, config::PropConfigs},
     save_context::*,
-    sim::{CityFaith, CityFloods, CityTrade, Finance, SimCmds, SimContext, SimContextMut},
+    sim::{CityFaith, CityFloods, CityRatings, CityTrade, Finance, SimCmds, SimContext, SimContextMut},
     tile::{
         Tile,
         TileGameObjectHandle,
@@ -44,6 +44,27 @@ pub mod stats;
 // ----------------------------------------------
 // World
 // ----------------------------------------------
+
+// What the world stats count besides the world's own objects: the simulation's state (the
+// treasury, the festivals held, the floods survived, the requests met, the ratings).
+#[derive(Copy, Clone)]
+pub struct StatsSources<'a> {
+    pub finance: &'a Finance,
+    pub faith: &'a CityFaith,
+    pub floods: &'a CityFloods,
+    pub trade: &'a CityTrade,
+    pub ratings: &'a CityRatings,
+}
+
+impl StatsSources<'_> {
+    fn tally(&self, stats: &mut WorldStats) {
+        self.finance.tally(stats);
+        self.faith.tally(stats);
+        self.floods.tally(stats);
+        self.trade.tally(stats);
+        self.ratings.tally(stats);
+    }
+}
 
 // Holds the world state and provides queries.
 #[derive(Serialize, Deserialize)]
@@ -115,10 +136,7 @@ impl World {
     pub fn update(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         self.stats.reset();
 
-        context.finance().tally(&mut self.stats);
-        context.faith().tally(&mut self.stats);
-        context.floods().tally(&mut self.stats);
-        context.trade().tally(&mut self.stats);
+        context.stats_sources().tally(&mut self.stats);
 
         for unit in self.unit_spawn_pool.iter_mut() {
             unit.update(cmds, context);
@@ -142,13 +160,10 @@ impl World {
     // Recounts the stats from the current state without updating anything. update() recounts
     // them on every simulation step; this is for reads in between, such as right after a load,
     // when the treasury still reads zero until the first step.
-    pub fn refresh_stats(&mut self, finance: &Finance, faith: &CityFaith, floods: &CityFloods, trade: &CityTrade) {
+    pub fn refresh_stats(&mut self, sources: StatsSources) {
         self.stats.reset();
 
-        finance.tally(&mut self.stats);
-        faith.tally(&mut self.stats);
-        floods.tally(&mut self.stats);
-        trade.tally(&mut self.stats);
+        sources.tally(&mut self.stats);
 
         for unit in self.unit_spawn_pool.iter() {
             unit.tally(&mut self.stats);

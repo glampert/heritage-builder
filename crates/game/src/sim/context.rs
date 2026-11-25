@@ -271,6 +271,18 @@ impl<'game> SimContext<'game> {
         &self.ratings
     }
 
+    // What the world stats count of the simulation's state (World::refresh_stats).
+    #[inline]
+    pub fn stats_sources(&self) -> crate::world::StatsSources<'_> {
+        crate::world::StatsSources {
+            finance: self.finance(),
+            faith: self.faith(),
+            floods: self.floods(),
+            trade: self.trade(),
+            ratings: self.ratings(),
+        }
+    }
+
     // The game's realm: its campaign's, its custom game's, else Đại Long's (kept with its faith).
     #[inline]
     pub fn realm(&self) -> crate::realm::Realm {

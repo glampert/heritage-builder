@@ -9,6 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
+use crate::world::stats::WorldStats;
+
 // ----------------------------------------------
 // RatingKind
 // ----------------------------------------------
@@ -218,5 +220,12 @@ impl CityRatings {
     // Whether it was newly spoiled.
     pub fn spoil(&mut self, distinction: &str) -> bool {
         self.spoiled.insert(distinction.to_string())
+    }
+
+    // The world stats' ratings, recounted with them (World::update, refresh_stats), for the goals.
+    pub fn tally(&self, stats: &mut WorldStats) {
+        for kind in RatingKind::iter() {
+            stats.ratings.values[kind as usize] = self.value(kind);
+        }
     }
 }

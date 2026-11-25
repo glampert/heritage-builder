@@ -141,21 +141,26 @@ const PRICE_OFFSET_EPSILON: f32 = 0.0005;
 // an ordinal month. Scheduled, under way, or in the log once met or failed.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct TradeRequest {
-    pub id: String,   // In the mission's schedule.
+    pub id: String,   // In the mission's schedule; `<first id>_again_<N>` once asked again.
     pub from: String, // A city id: the player's capital for the court, or another city.
     pub good: ResourceKind,
     pub amount: u32,
     pub opened: u32, // The ordinal month it opened in (or opens in, while scheduled).
     pub due: u32,    // The ordinal month it fails at, unmet.
-    // Its effects on Legitimacy (M9) and on the asker's relations (game Phase 2) when met; the
-    // opposite when failed. Logged, not applied yet.
+    // Its Legitimacy when met (docs/plans/ratings.md, §3: the ratings' `requests` driver reads the
+    // log), lost RatingRules::request_failed_scale times over when failed; and its effect on the
+    // asker's relations, logged for game Phase 2.
     pub legitimacy: i32,
     pub relation: i32,
+    // How many times the court has asked again for it, a failed request asked again for more: 0
+    // for a request of the schedule.
+    pub again: u32,
 }
 
 impl TradeRequest {
-    // A request of the schedule, opening `month` months after `start` (an ordinal month).
-    pub fn scheduled(def: &MissionRequestDef, start: u32) -> Self {
+    // A request of the schedule, opening `month` months after `start` (an ordinal month), with
+    // `legitimacy` when its definition gives none.
+    pub fn scheduled(def: &MissionRequestDef, start: u32, legitimacy: i32) -> Self {
         let opened = start + def.month;
         Self {
             id: def.id.clone(),
@@ -164,8 +169,9 @@ impl TradeRequest {
             amount: def.amount,
             opened,
             due: opened + def.within_months.max(1),
-            legitimacy: def.legitimacy,
+            legitimacy: def.legitimacy.unwrap_or(legitimacy),
             relation: def.relation,
+            again: 0,
         }
     }
 
@@ -174,7 +180,41 @@ impl TradeRequest {
     pub fn months_left(&self, now: u32) -> u32 {
         self.due.saturating_sub(now)
     }
+
+    // The months it gives to send it.
+    #[inline]
+    pub fn within_months(&self) -> u32 {
+        self.due.saturating_sub(self.opened).max(1)
+    }
+
+    // The id of the request it was first, before the court asked again.
+    pub fn first_id(&self) -> &str {
+        if self.again == 0 {
+            return &self.id;
+        }
+        self.id.strip_suffix(&format!("{AGAIN_INFIX}{}", self.again)).unwrap_or(&self.id)
+    }
+
+    // The request the court asks once this one has failed (docs/plans/ratings.md, §3): the same
+    // good from the same asker, `scale` times the amount (rounded up), opening `months` after `now`
+    // with as many months to send it, and its Legitimacy and relations.
+    pub fn asked_again(&self, now: u32, months: u32, scale: f32) -> Self {
+        let again = self.again + 1;
+        let opened = now + months.max(1);
+        Self {
+            id: format!("{}{AGAIN_INFIX}{again}", self.first_id()),
+            amount: ((self.amount as f32 * scale).ceil() as u32).max(self.amount),
+            opened,
+            due: opened + self.within_months(),
+            again,
+            ..self.clone()
+        }
+    }
 }
+
+// What a request asked again adds to its first id, before its count: `court_pottery_again_1`. A
+// mission's requests can't use it (WorldMapDef::trade_problems).
+pub const AGAIN_INFIX: &str = "_again_";
 
 // A request met or failed, for the goals and M9's Legitimacy.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -209,12 +249,14 @@ impl CityTrade {
     // A mission's (or a custom game's) trade: the partners `trade` lists that `has_terms` says the
     // world map `world_map` has terms for (the others are left out, with their city ids returned),
     // those it opens at the start sending their first caravan or ship `first_arrival_months` after
-    // `now` (an ordinal month), and its requests scheduled from `now`. The limits start off.
+    // `now` (an ordinal month), and its requests scheduled from `now`, each with `legitimacy`'s when
+    // it gives none. The limits start off.
     pub fn start(
         &mut self,
         world_map: &str,
         trade: &MissionTradeDef,
         has_terms: impl Fn(&MissionPartnerDef) -> bool,
+        legitimacy: impl Fn(&MissionRequestDef) -> i32,
         now: u32,
         rules: &TradeRules,
     ) -> Vec<String> {
@@ -234,7 +276,7 @@ impl CityTrade {
             self.partners.push(partner);
         }
         self.enabled = trade.is_enabled() && !self.partners.is_empty();
-        self.scheduled = trade.requests.iter().map(|def| TradeRequest::scheduled(def, now)).collect();
+        self.scheduled = trade.requests.iter().map(|def| TradeRequest::scheduled(def, now, legitimacy(def))).collect();
         self.scheduled.sort_by_key(|request| request.opened);
         left_out
     }
@@ -395,6 +437,17 @@ impl CityTrade {
         request.opened = now;
         request.due = now + months;
         self.requests.push(request);
+        true
+    }
+
+    // A request put on the schedule (the court asking again), in its month's place. False for an id
+    // already scheduled, under way or logged.
+    pub fn schedule(&mut self, request: TradeRequest) -> bool {
+        if self.knows_request(&request.id) {
+            return false;
+        }
+        let index = self.scheduled.partition_point(|scheduled| scheduled.opened <= request.opened);
+        self.scheduled.insert(index, request);
         true
     }
 

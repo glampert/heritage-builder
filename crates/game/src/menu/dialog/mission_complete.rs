@@ -220,7 +220,8 @@ impl Debrief {
         let kicker =
             ui::text::format(UiTextCategory::Menu, "debrief.mission_complete", &[("number", &number)]).to_uppercase();
         let name = campaign.mission_display_name(active.mission_index).map(str::to_string);
-        let year = realm::date_text(realm::ui_realm_for(false).realm, context.sim.calendar());
+        let ui_realm = realm::ui_realm_for(false).realm;
+        let year = realm::date_text(ui_realm, context.sim.calendar());
         let city = mission.city_display_name();
         let place = Some(match city {
             Some(city) => ui::text::format(UiTextCategory::Menu, "debrief.city_year", &[("city", city), ("year", &year)]),
@@ -234,7 +235,7 @@ impl Debrief {
             .goals
             .iter()
             .map(|goal| {
-                let (text, target, achieved) = goal_line(goal, stats);
+                let (text, target, achieved) = goal_line(goal, stats, ui_realm);
                 (text, digits(target), digits(achieved), goal.is_met(stats))
             })
             .collect();
@@ -274,50 +275,40 @@ impl Debrief {
     }
 }
 
-// A goal as the player reads it ("Population"), its target and what the city has of it now: the
-// debrief's and the briefing's goals.
-pub(crate) fn goal_line(goal: &MissionGoal, stats: &WorldStats) -> (String, i64, i64) {
-    match goal {
-        MissionGoal::Population { min } => (
-            ui::text::get(UiTextCategory::Menu, "debrief.goal.population").to_string(),
-            i64::from(*min),
-            i64::from(stats.population.total),
-        ),
-        MissionGoal::Employment { min_employed } => (
-            ui::text::get(UiTextCategory::Menu, "debrief.goal.employment").to_string(),
-            i64::from(*min_employed),
-            i64::from(stats.population.employed),
-        ),
-        MissionGoal::Treasury { min_gold } => (
-            ui::text::get(UiTextCategory::Menu, "debrief.goal.treasury").to_string(),
-            i64::from(*min_gold),
-            stats.treasury.gold_units_total,
-        ),
-        MissionGoal::Resource { kind, min } => (
-            ui::text::format(UiTextCategory::Menu, "debrief.goal.resource", &[("good", &kind.display_name())]),
-            i64::from(*min),
-            i64::from(stats.resources.all.count(*kind)),
-        ),
-        MissionGoal::FestivalsHeld { min } => (
-            ui::text::get(UiTextCategory::Menu, "debrief.goal.festivals").to_string(),
-            i64::from(*min),
-            i64::from(stats.faith.festivals_held),
-        ),
-        MissionGoal::FloodsSurvived { min } => (
-            ui::text::get(UiTextCategory::Menu, "debrief.goal.floods_survived").to_string(),
-            i64::from(*min),
-            i64::from(stats.floods.survived),
-        ),
-        MissionGoal::TradeIncome { per_year } => (
-            ui::text::get(UiTextCategory::Menu, "debrief.goal.trade_income").to_string(),
-            i64::from(*per_year),
-            i64::from(stats.trade.income),
-        ),
-        MissionGoal::RequestsFulfilled { min } => (
-            ui::text::get(UiTextCategory::Menu, "debrief.goal.requests").to_string(),
-            i64::from(*min),
-            i64::from(stats.trade.requests_met),
-        ),
+// A goal as the player reads it ("Population", "The Mandate" in `realm`'s words), its target and what
+// the city has of it now: the debrief's, the briefing's, the HUD's goals panel's and the Overview's.
+pub(crate) fn goal_line(goal: &MissionGoal, stats: &WorldStats, realm: realm::Realm) -> (String, i64, i64) {
+    let get = |key: &str| ui::text::get(UiTextCategory::Menu, key).to_string();
+    let text = match goal {
+        MissionGoal::Population { .. } => get("debrief.goal.population"),
+        MissionGoal::Employment { .. } => get("debrief.goal.employment"),
+        MissionGoal::Treasury { .. } => get("debrief.goal.treasury"),
+        MissionGoal::Resource { kind, .. } => {
+            ui::text::format(UiTextCategory::Menu, "debrief.goal.resource", &[("good", &kind.display_name())])
+        }
+        MissionGoal::FestivalsHeld { .. } => get("debrief.goal.festivals"),
+        MissionGoal::FloodsSurvived { .. } => get("debrief.goal.floods_survived"),
+        MissionGoal::TradeIncome { .. } => get("debrief.goal.trade_income"),
+        MissionGoal::RequestsFulfilled { .. } => get("debrief.goal.requests"),
+        MissionGoal::Rating { rating, .. } => crate::ratings::rating_name(realm, *rating),
+        MissionGoal::HousesAtLevel { level, .. } => {
+            ui::text::format(UiTextCategory::Menu, "debrief.goal.houses_at_level", &[("level", &level.to_string())])
+        }
+    };
+    (text, goal.target(), goal.achieved(stats))
+}
+
+// The time limit's line as the briefing lists it under the goals: "Time limit", "3 years".
+pub(crate) fn time_limit_line(months: u32) -> (String, String) {
+    (ui::text::get(UiTextCategory::Menu, "briefing.time_limit").to_string(), months_text(months))
+}
+
+// "18 months", or whole years as "3 years".
+pub(crate) fn months_text(months: u32) -> String {
+    if months >= 12 && months.is_multiple_of(12) {
+        ui::text::format_count(UiTextCategory::Menu, "briefing.years", i64::from(months / 12), &[])
+    } else {
+        ui::text::format_count(UiTextCategory::Menu, "briefing.months", i64::from(months), &[])
     }
 }
 

@@ -83,8 +83,10 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "requests.state",
         help: "The requests (docs/plans/trade.md, §6): those under way, soonest due first (id, from, court: whether \
                the court asks, title, good, amount, held: what the storage yards and granaries hold of it, \
-               months_left, can_send, opened, due: ordinal months), those scheduled (id, from, good, amount, opens), \
-               the log (id, from, good, amount, closed, met, legitimacy, relation), and how many were met and failed.",
+               months_left, can_send, opened, due: ordinal months, legitimacy, again: how many times the court has \
+               asked again for it), those scheduled (id, from, good, amount, opens, legitimacy, again: a failed court \
+               request asked again, for more), the log (id, from, good, amount, closed, met, legitimacy, relation, \
+               again), and how many were met and failed.",
         params: &[],
         run: cmd_requests_state,
     },
@@ -100,6 +102,13 @@ pub(super) const COMMANDS: &[CommandDef] = &[
             ParamDef { name: "amount", kind: "u32", required: false, help: "A new request's amount." },
             ParamDef { name: "within_months", kind: "u32", required: false, help: "A new request's months to send it." },
             ParamDef { name: "from", kind: "string", required: false, help: "A new request's asker: a city id." },
+            ParamDef {
+                name: "legitimacy",
+                kind: "int",
+                required: false,
+                help: "A new request's Legitimacy when met (lost 1.5 times over when failed); the court's default is \
+                       RatingRules::request_legitimacy, another city's 0.",
+            },
         ],
         run: cmd_requests_open,
     },
@@ -132,6 +141,7 @@ fn cmd_requests_open(context: &mut CommandContext, params: Value) -> CommandResu
         amount: Option<u32>,
         within_months: Option<u32>,
         from: Option<String>,
+        legitimacy: Option<i32>,
     }
 
     let params: Params = parse_params(params)?;
@@ -139,7 +149,13 @@ fn cmd_requests_open(context: &mut CommandContext, params: Value) -> CommandResu
     let state = context.session.sim().trade();
     let now = month_now(context);
     let scheduled = state.scheduled().iter().find(|request| request.id == params.id).cloned();
-    let new_one = [params.good.is_some(), params.amount.is_some(), params.within_months.is_some(), params.from.is_some()];
+    let new_one = [
+        params.good.is_some(),
+        params.amount.is_some(),
+        params.within_months.is_some(),
+        params.from.is_some(),
+        params.legitimacy.is_some(),
+    ];
     let request = match scheduled {
         Some(request) => {
             if new_one.iter().any(|&given| given) {
@@ -172,6 +188,9 @@ fn cmd_requests_open(context: &mut CommandContext, params: Value) -> CommandResu
             if !on_map {
                 return Err(CommandError::invalid_params(format!("'{from}' is no city of this game's world map.")));
             }
+            let court_legitimacy = crate::config::GameConfigs::get().sim.ratings.request_legitimacy;
+            let legitimacy =
+                params.legitimacy.unwrap_or(if requests::is_court(state, &from) { court_legitimacy } else { 0 });
             TradeRequest {
                 id: params.id.clone(),
                 from,
@@ -179,8 +198,9 @@ fn cmd_requests_open(context: &mut CommandContext, params: Value) -> CommandResu
                 amount,
                 opened: now,
                 due: now + within_months,
-                legitimacy: 0,
+                legitimacy,
                 relation: 0,
+                again: 0,
             }
         }
     };
@@ -232,6 +252,7 @@ fn request_json(request: &TradeRequest) -> Value {
         "due": request.due,
         "legitimacy": request.legitimacy,
         "relation": request.relation,
+        "again": request.again,
     })
 }
 
@@ -254,6 +275,8 @@ fn requests_json(context: &CommandContext) -> Value {
                 "can_send": row.can_send(),
                 "opened": request.map(|request| request.opened),
                 "due": request.map(|request| request.due),
+                "legitimacy": request.map(|request| request.legitimacy),
+                "again": request.map(|request| request.again),
             })
         }).collect::<Vec<_>>(),
         "scheduled": state.scheduled().iter().map(|request| json!({
@@ -262,6 +285,8 @@ fn requests_json(context: &CommandContext) -> Value {
             "good": request.good.name(),
             "amount": request.amount,
             "opens": request.opened,
+            "legitimacy": request.legitimacy,
+            "again": request.again,
         })).collect::<Vec<_>>(),
         "log": state.request_log().iter().map(|record| {
             let mut entry = request_json(&record.request);

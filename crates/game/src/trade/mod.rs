@@ -19,7 +19,7 @@ use engine::{
 
 use crate::{
     building::Building,
-    campaign::config::{CampaignConfigs, MissionPartnerDef, MissionTradeDef},
+    campaign::config::{CampaignConfigs, MissionPartnerDef, MissionRequestDef, MissionTradeDef},
     cheats,
     config::{GameConfigs, TradeRules},
     messages::MessageKind,
@@ -221,7 +221,14 @@ pub fn route_detail(trade: &CityTrade, city: &str, has_dock: bool) -> Option<Str
 // leaving out, with a warning, the partners it has no terms for.
 pub fn start(state: &mut CityTrade, world_map_name: &str, block: &MissionTradeDef, now: u32, rules: &TradeRules) {
     let map = world_map(world_map_name);
-    let left_out = state.start(world_map_name, block, |def| map.is_some_and(|map| terms_on(map, def).is_some()), now, rules);
+    // A request that gives no Legitimacy takes the rules' if the court asks, none if another city
+    // does (docs/plans/ratings.md, Q4).
+    let court_legitimacy = GameConfigs::get().sim.ratings.request_legitimacy;
+    let legitimacy = |def: &MissionRequestDef| {
+        if map.is_some_and(|map| requests::is_court_on(map, &def.from)) { court_legitimacy } else { 0 }
+    };
+    let has_terms = |def: &MissionPartnerDef| map.is_some_and(|map| terms_on(map, def).is_some());
+    let left_out = state.start(world_map_name, block, has_terms, legitimacy, now, rules);
     for city in left_out {
         log::warning!(
             log::channel!("trade"),

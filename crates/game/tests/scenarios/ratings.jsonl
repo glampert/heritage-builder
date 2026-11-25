@@ -1,6 +1,8 @@
 # The four ratings (docs/plans/ratings.md): a small city's ratings read from it, rising as a shrine
 # and a theater go up; the HUD's rings and the City book's Ratings page and Overview in each realm,
-# following ratings.set. Saves screenshots to out/ratings/. From the repository root:
+# following ratings.set; then a hidden test mission's rating goals in the briefing, the rings, the
+# goals panel (with its time limit) and the City book, met to finish it. Saves screenshots to
+# out/ratings/. From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --default-configs --window-size 1920x1080 --script crates/game/tests/scenarios/ratings.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [24, 24]}}
@@ -116,3 +118,62 @@
 {"method": "sim.pause"}
 {"method": "assert.ne", "params": {"query": "ratings.state", "path": "/ratings/culture/value", "value": 64}}
 {"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/driver_values/temples", "value": 35}}
+
+# ---- A mission's goals (Phase 2): the hidden test campaign's Culture 60, the Mandate 20 and a house at
+# level 1, within two years ----
+{"method": "session.start_mission", "params": {"campaign": "test_goals"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
+# The briefing lists the goals in the realm's words, and the time limit.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/goals", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Culture", "60"], ["The Mandate", "20"], ["Houses at level 1 or above", "1"], ["Time limit", "2 years"]]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/ratings/briefing-goals.png"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "sim.pause"}
+{"method": "input.move", "params": {"park": true}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/time_limit_months", "value": 24}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/months_left", "value": 24}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/goals/0/def", "value": {"Rating": {"rating": "culture", "min": 60}}}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/goals/0/met", "value": false}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/goals/2/goal", "value": "Houses at level 1 or above"}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/goals/2/met", "value": true}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/all_met", "value": false}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/goal", "value": 60}}
+# The rings tick the goals; the goals panel lists them and the months left.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/goals", "value": [null, 60, null, 20]}}
+{"method": "ui.click", "params": {"path": "TopBar/Goals"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/goals", "kind": "canvas"}, "path": "/widgets/0/value/1/goal", "value": "The Mandate"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/time_left", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"months_left": 24, "limit": 24}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ratings/goals-panel.png"}}
+# The City book's cards say what's left to each goal.
+{"method": "ui.click", "params": {"path": "TopBar/City book"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Ratings"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/culture", "kind": "canvas"}, "path": "/widgets/0/value/goal", "value": 60}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/culture", "kind": "canvas"}, "path": "/widgets/0/value/met", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/legitimacy", "kind": "canvas"}, "path": "/widgets/0/value/goal", "value": 20}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ratings/book-goals.png"}}
+{"method": "dialog.close"}
+# A month on, a month less.
+{"method": "time.fast_forward", "params": {"sim_secs": 61, "resume": true}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/months_elapsed", "value": 1}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/months_left", "value": 23}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/time_left", "kind": "canvas"}, "path": "/widgets/0/value/months_left", "value": 23}}
+# Culture 65 (and the Mandate kept at 30) meets the goals: the next step finishes the mission.
+{"method": "ratings.set", "params": {"rating": "culture", "value": 65}}
+{"method": "ratings.set", "params": {"rating": "legitimacy", "value": 30}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/all_met", "value": true}}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 120}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/completed", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/rows/0", "value": ["Culture", "60", "65"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/status", "value": ["done", "done", "done"]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/ratings/debrief-goals.png"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Keep playing"}}

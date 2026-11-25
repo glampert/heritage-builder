@@ -1,4 +1,5 @@
 use game::{
+    building::HouseLevel,
     campaign::{
         self,
         ActiveMission,
@@ -23,7 +24,7 @@ use game::{
     debug::preset_maps,
     profile::{self, Profile},
     realm::Realm,
-    sim::{calendar::EraDef, resources::ResourceKind},
+    sim::{calendar::EraDef, ratings::RatingKind, resources::ResourceKind},
     world::stats::WorldStats,
 };
 
@@ -39,6 +40,9 @@ fn main() {
         // Pure requirement evaluation:
         test_utils::test_fn!(test_mission_goal_is_met),
         test_utils::test_fn!(test_mission_goal_resource),
+        test_utils::test_fn!(test_mission_goal_rating),
+        test_utils::test_fn!(test_mission_goal_houses_at_level),
+        test_utils::test_fn!(test_time_limit_and_goal_problems),
         test_utils::test_fn!(test_requirements_all_met),
         // Manager state machine:
         test_utils::test_fn!(test_start_campaign_sets_active_mission),
@@ -78,7 +82,10 @@ fn build_test_configs() -> CampaignConfigs {
                         name: "Mission 1".into(),
                         description: String::new(),
                         map: MissionMap::Preset { preset_number: TEST_PRESET },
-                        requirements: MissionRequirements { goals: vec![MissionGoal::Population { min: 10 }] },
+                        requirements: MissionRequirements {
+                            goals: vec![MissionGoal::Population { min: 10 }],
+                            ..Default::default()
+                        },
                         calendar: Some(MissionCalendarDef { start_year: Some(5), start_month: Some(3), wet_months: None }),
                         finance: None,
                         risks: None,
@@ -100,7 +107,10 @@ fn build_test_configs() -> CampaignConfigs {
                         name: "Mission 2".into(),
                         description: String::new(),
                         map: MissionMap::Preset { preset_number: TEST_PRESET },
-                        requirements: MissionRequirements { goals: vec![MissionGoal::Treasury { min_gold: 100 }] },
+                        requirements: MissionRequirements {
+                            goals: vec![MissionGoal::Treasury { min_gold: 100 }],
+                            ..Default::default()
+                        },
                         calendar: None,
                         finance: None,
                         risks: None,
@@ -218,13 +228,97 @@ fn test_mission_goal_is_met() {
 
 fn test_mission_goal_resource() {
     let mut stats = WorldStats::default();
-    stats.resources.all.add(ResourceKind::Rice, 20);
+    stats.add_storage_yard_resources(ResourceKind::Rice, 12);
+    stats.add_granary_resources(ResourceKind::Rice, 8);
+    // What houses, markets and walkers hold isn't in storage (GDD 7's Stockpile).
+    stats.add_house_resources(ResourceKind::Rice, 30);
+    stats.add_market_resources(ResourceKind::Rice, 30);
+    stats.add_unit_resources(ResourceKind::Rice, 30);
 
     assert!(MissionGoal::Resource { kind: ResourceKind::Rice, min: 20 }.is_met(&stats));
     assert!(!MissionGoal::Resource { kind: ResourceKind::Rice, min: 21 }.is_met(&stats));
+    assert_eq!(MissionGoal::Resource { kind: ResourceKind::Rice, min: 20 }.achieved(&stats), 20);
 
     // A different resource the world has none of.
     assert!(!MissionGoal::Resource { kind: ResourceKind::Wood, min: 1 }.is_met(&stats));
+}
+
+// A rating goal reads the ratings the world stats counted (CityRatings::tally).
+fn test_mission_goal_rating() {
+    let mut stats = WorldStats::default();
+    stats.ratings.values[RatingKind::Culture as usize] = 25;
+    stats.ratings.values[RatingKind::Legitimacy as usize] = 29;
+
+    assert!(MissionGoal::Rating { rating: RatingKind::Culture, min: 25 }.is_met(&stats));
+    assert!(!MissionGoal::Rating { rating: RatingKind::Culture, min: 26 }.is_met(&stats));
+    assert!(!MissionGoal::Rating { rating: RatingKind::Legitimacy, min: 30 }.is_met(&stats));
+    assert_eq!(MissionGoal::Rating { rating: RatingKind::Legitimacy, min: 30 }.achieved(&stats), 29);
+    assert!(MissionGoal::Rating { rating: RatingKind::Security, min: 0 }.is_met(&stats));
+
+    // The highest goal for a rating, if the mission sets two.
+    let requirements = MissionRequirements {
+        goals: vec![
+            MissionGoal::Rating { rating: RatingKind::Culture, min: 25 },
+            MissionGoal::Population { min: 10 },
+            MissionGoal::Rating { rating: RatingKind::Culture, min: 40 },
+        ],
+        ..Default::default()
+    };
+    assert_eq!(requirements.rating_goal(RatingKind::Culture), Some(40));
+    assert_eq!(requirements.rating_goal(RatingKind::Prosperity), None);
+}
+
+// Houses at a level or above, the level as the player reads it, from 1 (decision Q5).
+fn test_mission_goal_houses_at_level() {
+    let mut stats = WorldStats::default();
+    for (level, count) in [(HouseLevel::Level0, 4), (HouseLevel::Level1, 3), (HouseLevel::Level3, 2)] {
+        for _ in 0..count {
+            stats.update_housing_stats(level);
+        }
+    }
+    assert_eq!(stats.houses.total, 9);
+    assert_eq!(stats.houses.at_or_above(1), 9, "level 1 counts every house");
+    assert_eq!(stats.houses.at_or_above(2), 5);
+    assert_eq!(stats.houses.at_or_above(4), 2);
+    assert_eq!(stats.houses.at_or_above(5), 0);
+    assert_eq!(stats.houses.at_or_above(9), 0, "past the top");
+
+    assert!(MissionGoal::HousesAtLevel { level: 2, count: 5 }.is_met(&stats));
+    assert!(!MissionGoal::HousesAtLevel { level: 2, count: 6 }.is_met(&stats));
+    assert!(MissionGoal::HousesAtLevel { level: 1, count: 9 }.is_met(&stats));
+}
+
+// A time limit counts the calendar's months from the mission's start; the goals and the limit are
+// checked as the configs load.
+fn test_time_limit_and_goal_problems() {
+    let limited = MissionRequirements { goals: vec![MissionGoal::Population { min: 1 }], time_limit_months: Some(24) };
+    assert_eq!(limited.months_left(0), Some(24));
+    assert_eq!(limited.months_left(23), Some(1));
+    assert_eq!(limited.months_left(30), Some(0), "run out");
+    assert_eq!(MissionRequirements::default().months_left(5), None);
+    assert!(limited.problems().is_empty());
+
+    let bad = MissionRequirements {
+        goals: vec![
+            MissionGoal::Rating { rating: RatingKind::Culture, min: 101 },
+            MissionGoal::HousesAtLevel { level: 0, count: 3 },
+            MissionGoal::HousesAtLevel { level: 6, count: 3 },
+        ],
+        time_limit_months: Some(0),
+    };
+    let problems = bad.problems().join("\n");
+    for expected in ["culture goal of 101", "houses at level 0", "houses at level 6", "time limit of 0"] {
+        assert!(problems.contains(expected), "{expected}: {problems}");
+    }
+    let no_goals = MissionRequirements { goals: Vec::new(), time_limit_months: Some(12) };
+    assert!(no_goals.problems().join("\n").contains("without goals"));
+
+    // As campaigns.json writes them.
+    let json = r#"{"goals": [{"Rating": {"rating": "legitimacy", "min": 30}}, {"HousesAtLevel": {"level": 2, "count": 15}}], "time_limit_months": 60}"#;
+    let parsed: MissionRequirements = serde_json::from_str(json).unwrap();
+    assert_eq!(parsed.rating_goal(RatingKind::Legitimacy), Some(30));
+    assert_eq!(parsed.time_limit_months, Some(60));
+    assert!(serde_json::from_str::<MissionRequirements>(r#"{"goals": [], "time_limit": 5}"#).is_err(), "unknown field");
 }
 
 fn test_requirements_all_met() {
@@ -232,12 +326,16 @@ fn test_requirements_all_met() {
     stats.population.total = 50;
     stats.treasury.gold_units_total = 500;
 
-    let all =
-        MissionRequirements { goals: vec![MissionGoal::Population { min: 50 }, MissionGoal::Treasury { min_gold: 500 }] };
+    let all = MissionRequirements {
+        goals: vec![MissionGoal::Population { min: 50 }, MissionGoal::Treasury { min_gold: 500 }],
+        ..Default::default()
+    };
     assert!(all.all_met(&stats));
 
-    let partial =
-        MissionRequirements { goals: vec![MissionGoal::Population { min: 50 }, MissionGoal::Treasury { min_gold: 501 }] };
+    let partial = MissionRequirements {
+        goals: vec![MissionGoal::Population { min: 50 }, MissionGoal::Treasury { min_gold: 501 }],
+        ..Default::default()
+    };
     assert!(!partial.all_met(&stats));
 
     // No goals => already met.

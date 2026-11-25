@@ -122,7 +122,7 @@ impl CityPage for Overview {
             Some(views) => views.iter().map(|view| (Some(view.value), view.goal)).collect(),
             None => vec![(None, None); names.len()],
         };
-        let goals = goals(context);
+        let goals = goals(context, page.realm);
         let goals_note = goals.0.clone();
         let goals_rows = goals.1.clone();
         let middle_value = json!({
@@ -218,7 +218,7 @@ impl CityPage for Overview {
 type GoalRow = (String, i64, i64, bool);
 
 // The mission's goals ("Mission 2" and a row per goal), or none outside a mission.
-fn goals(context: &GameUiContext) -> (Option<String>, Vec<GoalRow>) {
+fn goals(context: &GameUiContext, realm: crate::realm::Realm) -> (Option<String>, Vec<GoalRow>) {
     let Some(active) = campaign::active_mission() else {
         return (None, Vec::new());
     };
@@ -236,7 +236,7 @@ fn goals(context: &GameUiContext) -> (Option<String>, Vec<GoalRow>) {
         .goals
         .iter()
         .map(|goal| {
-            let (text, target, achieved) = super::super::goal_line(goal, stats);
+            let (text, target, achieved) = super::super::goal_line(goal, stats, realm);
             (text, target, achieved, goal.is_met(stats))
         })
         .collect();

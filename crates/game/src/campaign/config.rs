@@ -7,8 +7,14 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::world_map::config::{CityKind, LabelSide};
 use crate::{
+    building::HouseLevel,
     realm::Realm,
-    sim::{calendar::EraDef, finance::TaxLevel, resources::ResourceKind},
+    sim::{
+        calendar::EraDef,
+        finance::TaxLevel,
+        ratings::{MAX_RATING, RatingKind},
+        resources::ResourceKind,
+    },
     world::stats::WorldStats,
 };
 
@@ -457,8 +463,10 @@ pub struct MissionTradeDef {
 
 // A request in a mission's schedule (docs/plans/trade.md, §6): `amount` of a good, asked by a city
 // of the world map (the player's capital for the court, or another city) `month` months after the
-// mission's start, to be sent within `within_months`. Its effects on Legitimacy (M9) and on the
-// asker's relations (game Phase 2) are logged with it, not applied yet.
+// mission's start, to be sent within `within_months`. Met, it raises Legitimacy by `legitimacy`
+// (docs/plans/ratings.md, §3; a court's request without one takes RatingRules::request_legitimacy,
+// another city's none); failed, it lowers it. Its effect on the asker's relations is logged for game
+// Phase 2.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MissionRequestDef {
@@ -468,8 +476,8 @@ pub struct MissionRequestDef {
     pub amount: u32,
     pub month: u32,
     pub within_months: u32,
-    #[serde(default)]
-    pub legitimacy: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legitimacy: Option<i32>,
     #[serde(default)]
     pub relation: i32,
 }
@@ -514,11 +522,15 @@ pub enum MissionMap {
     Preset { preset_number: usize },
 }
 
-// A mission is complete once every goal in this list is satisfied.
+// A mission is complete once every goal in this list is satisfied. With a time limit, the goals must
+// be met within that many months of the calendar from the mission's start (GameCalendar's
+// months_elapsed), or the mission fails (docs/plans/ratings.md, §4).
 #[derive(Default, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct MissionRequirements {
     pub goals: Vec<MissionGoal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_limit_months: Option<u32>,
 }
 
 // A single completion goal. Extend by adding a variant + a match arm in `is_met`.
@@ -527,6 +539,7 @@ pub enum MissionGoal {
     Population { min: u32 },
     Employment { min_employed: u32 },
     Treasury { min_gold: u32 },
+    // A good held in the storage yards and granaries (GDD 7's Stockpile: "400 bricks in storage").
     Resource { kind: ResourceKind, min: u32 },
     // Festivals held in the mission's city (faith, docs/plans/faith.md §4): I-3's "one festival".
     FestivalsHeld { min: u32 },
@@ -539,21 +552,50 @@ pub enum MissionGoal {
     // Requests met since the mission's start (docs/plans/trade.md, §6): I-5's "fulfil 3 court
     // requests".
     RequestsFulfilled { min: u32 },
+    // A rating at `min` or above (docs/plans/ratings.md, §3): I-3's "Culture 25", I-5's "Mandate 30".
+    // The fourth is `legitimacy`, whatever its realm calls it.
+    Rating { rating: RatingKind, min: u32 },
+    // `count` finished houses at `level` or above, the level as the player reads it, from 1 (Q5):
+    // I-2's "15 houses at level 2".
+    HousesAtLevel { level: u32, count: u32 },
 }
 
 impl MissionGoal {
     // Evaluate this goal against the current world stats. `WorldStats` already
     // aggregates population, employment, treasury total and resource counts.
     pub fn is_met(&self, stats: &WorldStats) -> bool {
+        self.achieved(stats) >= self.target()
+    }
+
+    // What the goal asks for.
+    pub fn target(&self) -> i64 {
         match self {
-            Self::Population { min } => stats.population.total >= *min,
-            Self::Employment { min_employed } => stats.population.employed >= *min_employed,
-            Self::Treasury { min_gold } => stats.treasury.gold_units_total >= i64::from(*min_gold),
-            Self::Resource { kind, min } => stats.resources.all.count(*kind) >= *min,
-            Self::FestivalsHeld { min } => stats.faith.festivals_held >= *min,
-            Self::FloodsSurvived { min } => stats.floods.survived >= *min,
-            Self::TradeIncome { per_year } => stats.trade.income >= *per_year,
-            Self::RequestsFulfilled { min } => stats.trade.requests_met >= *min,
+            Self::Population { min }
+            | Self::Resource { min, .. }
+            | Self::FestivalsHeld { min }
+            | Self::FloodsSurvived { min }
+            | Self::RequestsFulfilled { min }
+            | Self::Rating { min, .. } => i64::from(*min),
+            Self::Employment { min_employed } => i64::from(*min_employed),
+            Self::Treasury { min_gold } => i64::from(*min_gold),
+            Self::TradeIncome { per_year } => i64::from(*per_year),
+            Self::HousesAtLevel { count, .. } => i64::from(*count),
+        }
+    }
+
+    // What the city has of it now.
+    pub fn achieved(&self, stats: &WorldStats) -> i64 {
+        match self {
+            Self::Population { .. } => i64::from(stats.population.total),
+            Self::Employment { .. } => i64::from(stats.population.employed),
+            Self::Treasury { .. } => stats.treasury.gold_units_total,
+            Self::Resource { kind, .. } => i64::from(stats.resources.in_storage(*kind)),
+            Self::FestivalsHeld { .. } => i64::from(stats.faith.festivals_held),
+            Self::FloodsSurvived { .. } => i64::from(stats.floods.survived),
+            Self::TradeIncome { .. } => i64::from(stats.trade.income),
+            Self::RequestsFulfilled { .. } => i64::from(stats.trade.requests_met),
+            Self::Rating { rating, .. } => i64::from(stats.ratings.value(*rating)),
+            Self::HousesAtLevel { level, .. } => i64::from(stats.houses.at_or_above(*level)),
         }
     }
 }
@@ -562,6 +604,46 @@ impl MissionRequirements {
     // All goals must be satisfied. An empty goal list is considered already met.
     pub fn all_met(&self, stats: &WorldStats) -> bool {
         self.goals.iter().all(|goal| goal.is_met(stats))
+    }
+
+    // The highest rating goal for `kind`, if any.
+    pub fn rating_goal(&self, kind: RatingKind) -> Option<u32> {
+        self.goals
+            .iter()
+            .filter_map(|goal| match goal {
+                MissionGoal::Rating { rating, min } if *rating == kind => Some(*min),
+                _ => None,
+            })
+            .max()
+    }
+
+    // The months left of its time limit after `months_elapsed` of the calendar, 0 once it's run
+    // out; None without one.
+    pub fn months_left(&self, months_elapsed: u32) -> Option<u32> {
+        self.time_limit_months.map(|limit| limit.saturating_sub(months_elapsed))
+    }
+
+    // What's wrong with the goals, for CampaignConfigs::validate.
+    pub fn problems(&self) -> Vec<String> {
+        let mut problems = Vec::new();
+        for goal in &self.goals {
+            match goal {
+                MissionGoal::Rating { rating, min } if *min > MAX_RATING => {
+                    problems.push(format!("a {rating} goal of {min}: ratings run from 0 to {MAX_RATING}"))
+                }
+                MissionGoal::HousesAtLevel { level, .. } if *level == 0 || *level as usize > HouseLevel::count() => {
+                    problems.push(format!("houses at level {level}: levels run from 1 to {}", HouseLevel::count()))
+                }
+                _ => {}
+            }
+        }
+        if self.time_limit_months == Some(0) {
+            problems.push("a time limit of 0 months; it needs 1 or more".to_string());
+        }
+        if self.time_limit_months.is_some() && self.goals.is_empty() {
+            problems.push("a time limit without goals".to_string());
+        }
+        problems
     }
 }
 
@@ -631,6 +713,9 @@ impl CampaignConfigs {
                 errors.push(format!("Campaign '{name}' comes after a hidden campaign: hidden campaigns go last, as saves name campaigns by index."));
             }
             for (index, mission) in campaign.missions.iter().enumerate() {
+                for problem in mission.requirements.problems() {
+                    errors.push(format!("Campaign '{name}', mission {index}: {problem}."));
+                }
                 if let Some(floods) = &mission.floods {
                     let wet_months = mission
                         .calendar

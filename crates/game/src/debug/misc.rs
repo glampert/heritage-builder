@@ -246,7 +246,7 @@ impl CampaignConfigs {
                         ui::bullet_text(ui_sys, format_small!("Treasury >= {min_gold} gold"))
                     }
                     MissionGoal::Resource { kind, min } => {
-                        ui::bullet_text(ui_sys, format_small!("Resource {kind} >= {min}"))
+                        ui::bullet_text(ui_sys, format_small!("{kind} in storage >= {min}"))
                     }
                     MissionGoal::FestivalsHeld { min } => ui::bullet_text(ui_sys, format_small!("Festivals held >= {min}")),
                     MissionGoal::FloodsSurvived { min } => {
@@ -258,8 +258,17 @@ impl CampaignConfigs {
                     MissionGoal::RequestsFulfilled { min } => {
                         ui::bullet_text(ui_sys, format_small!("Requests fulfilled >= {min}"))
                     }
+                    MissionGoal::Rating { rating, min } => {
+                        ui::bullet_text(ui_sys, format_small!("Rating {rating} >= {min}"))
+                    }
+                    MissionGoal::HousesAtLevel { level, count } => {
+                        ui::bullet_text(ui_sys, format_small!("Houses at level {level} or above >= {count}"))
+                    }
                 }
             }
+        }
+        if let Some(months) = mission.requirements.time_limit_months {
+            ui::text(ui_sys, format_small!("Time limit: {months} months"));
         }
     }
 }

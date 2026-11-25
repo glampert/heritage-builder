@@ -9,7 +9,8 @@
 # dock's and the ship's panels); the court asks for pottery (requests.open: a custom game has no
 # schedule), shown on the Goods page with Send now disabled until the yard holds it and in the
 # Overview's warnings, then sent from the page; Vijara asks for more metal than the city has, and its
-# request fails once its month runs out; the state survives a save and a load.
+# request fails once its month runs out; the court's request for bricks fails too, and the court asks
+# again for more; the state survives a save and a load.
 # From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/trade.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
@@ -271,6 +272,8 @@
 {"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/from", "value": "hoa_thanh"}}
 {"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/court", "value": true}}
 {"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/months_left", "value": 2}}
+# Without a Legitimacy of its own, the court's request takes the rules' (docs/plans/ratings.md, Q4).
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/legitimacy", "value": 6}}
 {"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests/0/can_send", "value": false}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "request"}}
@@ -323,6 +326,20 @@
 {"method": "assert.eq", "params": {"query": "requests.state", "path": "/requests", "value": []}}
 {"method": "assert.eq", "params": {"query": "requests.state", "path": "/log/1/id", "value": "vijara_metal"}}
 {"method": "assert.eq", "params": {"query": "requests.state", "path": "/log/1/met", "value": false}}
+# Another city's request isn't asked again.
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/scheduled", "value": []}}
+
+# The court asks for 400 bricks within a month and isn't sent them: it fails, and the court asks again
+# for a quarter more, three months later (docs/plans/ratings.md, §3); the Mandate counts the failure.
+{"method": "requests.open", "params": {"id": "court_bricks", "good": "Bricks", "amount": 400, "within_months": 1}}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "requests.state", "path": "/failed", "op": "eq", "value": 2, "timeout_frames": 6000}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/log/2/id", "value": "court_bricks"}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/scheduled/0/id", "value": "court_bricks_again_1"}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/scheduled/0/amount", "value": 500}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/scheduled/0/again", "value": 1}}
+{"method": "assert.lt", "params": {"query": "ratings.state", "path": "/ratings/legitimacy/driver_values/requests", "value": 0}}
 
 # ---- A save and a load keep it ----
 {"method": "session.save", "params": {"name": "trade_scenario"}}
@@ -339,6 +356,7 @@
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/1/open", "value": true}}
 {"method": "assert.eq", "params": {"query": "trade.state", "path": "/docks/0/variation", "value": "west_bank"}}
 {"method": "assert.eq", "params": {"query": "requests.state", "path": "/met", "value": 1}}
-{"method": "assert.eq", "params": {"query": "requests.state", "path": "/failed", "value": 1}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/failed", "value": 2}}
+{"method": "assert.eq", "params": {"query": "requests.state", "path": "/scheduled/0/id", "value": "court_bricks_again_1"}}
 {"method": "session.delete_save", "params": {"name": "trade_scenario"}}
 {"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "trade_scenario"}, "path": "/has_thumbnail", "value": false}}

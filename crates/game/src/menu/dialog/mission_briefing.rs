@@ -261,7 +261,8 @@ impl Briefing {
         ])
         .to_uppercase();
         let name = campaign.mission_display_name(active.mission_index).unwrap_or_default().to_string();
-        let year = realm::date_text(realm::ui_realm_for(false).realm, context.sim.calendar());
+        let ui_realm = realm::ui_realm_for(false).realm;
+        let year = realm::date_text(ui_realm, context.sim.calendar());
         let city_name = mission.city_display_name();
         let place = match city_name {
             Some(city) => ui::text::format(UiTextCategory::Menu, "debrief.city_year", &[("city", city), ("year", &year)]),
@@ -286,15 +287,19 @@ impl Briefing {
 
         let stats = context.world.stats();
         let digits = super::load_save::group_digits;
-        let goals = mission
+        let mut goals: Vec<(String, String)> = mission
             .requirements
             .goals
             .iter()
             .map(|goal| {
-                let (text, target, _) = super::mission_complete::goal_line(goal, stats);
+                let (text, target, _) = super::mission_complete::goal_line(goal, stats, ui_realm);
                 (text, digits(target))
             })
             .collect();
+        // A time limit is listed with them, as a target of its own.
+        if let Some(months) = mission.requirements.time_limit_months {
+            goals.push(super::mission_complete::time_limit_line(months));
+        }
 
         Self {
             mission: Some(active.mission_index),

@@ -424,8 +424,8 @@ pub fn values(ratings: &CityRatings) -> [u32; RATING_COUNT] {
     values
 }
 
-// The mission's goal for a rating. None until the missions can set one (Phase 2's
-// MissionGoal::Rating).
-pub fn mission_goal(_kind: RatingKind) -> Option<u32> {
-    None
+// The mission's goal for a rating (MissionGoal::Rating), the highest if it sets two; None outside
+// a mission or without one.
+pub fn mission_goal(kind: RatingKind) -> Option<u32> {
+    crate::campaign::active_requirements()?.rating_goal(kind)
 }

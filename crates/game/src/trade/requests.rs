@@ -7,8 +7,9 @@
 // once the storage yards and granaries hold its amount: the goods are taken at once, as a festival
 // takes its own (send). The page's button queues the send (request_send), run at the start of the
 // next frame (run_requests). Each opened, met or failed request posts a TradeNotice::Request. The
-// log counts toward MissionGoal::RequestsFulfilled, and keeps each request's Legitimacy and
-// relations effects for M9 and game Phase 2.
+// log counts toward MissionGoal::RequestsFulfilled, and its requests' Legitimacy feeds the ratings'
+// `requests` driver (docs/plans/ratings.md, §3); their relations effects wait for game Phase 2. A
+// failed court request is asked again, for more (ask_again).
 
 use common::mem::SingleThreadStatic;
 use engine::{
@@ -27,7 +28,10 @@ use crate::{
     },
     unit::task::TRADE_STORES,
     world::{World, city_stock::CityStock},
-    world_map::{config::CityKind, provider::CourtRequest},
+    world_map::{
+        config::{CityKind, WorldMapDef},
+        provider::CourtRequest,
+    },
 };
 
 // ----------------------------------------------
@@ -36,9 +40,12 @@ use crate::{
 
 // Whether `city` is the court: the player's capital on the trade state's world map.
 pub fn is_court(trade: &CityTrade, city: &str) -> bool {
-    world_map(trade.world_map())
-        .and_then(|map| map.city(city))
-        .is_some_and(|city| city.kind == CityKind::Capital && city.player)
+    world_map(trade.world_map()).is_some_and(|map| is_court_on(map, city))
+}
+
+// Whether `city` is the player's capital on `map`.
+pub fn is_court_on(map: &WorldMapDef, city: &str) -> bool {
+    map.city(city).is_some_and(|city| city.kind == CityKind::Capital && city.player)
 }
 
 // The court's city on a world map: the player's capital. None for a map without one.
@@ -51,7 +58,8 @@ pub fn court_city(trade: &CityTrade) -> Option<String> {
 pub fn title(trade: &CityTrade, request: &TradeRequest) -> String {
     let good = request.good.display_name();
     if is_court(trade, &request.from) {
-        text::format(UiTextCategory::City, "book.requests.for_court", &[("good", &good)])
+        let key = if request.again > 0 { "book.requests.for_court_again" } else { "book.requests.for_court" };
+        text::format(UiTextCategory::City, key, &[("good", &good)])
     } else {
         let city = place_name(trade.world_map(), &request.from);
         text::format(UiTextCategory::City, "book.requests.for_city", &[("good", &good), ("city", &city)])
@@ -74,19 +82,37 @@ pub fn held(context: &SimContext, good: ResourceKind) -> u32 {
 // ----------------------------------------------
 
 // A new month, `now` (from trade::on_new_month, whether the game trades or not): the requests whose
-// months ran out fail, then the scheduled ones due open, each with its notice.
+// months ran out fail, then the scheduled ones due open, each with its notice. A failed court
+// request is asked again (ask_again).
 pub fn on_new_month(context: &SimContextMut, now: u32) {
     let (failed, opened) = context.trade_mut().on_new_month(now);
-    let trade = context.trade();
     for record in failed {
         log::info!(log::channel!("trade"), "The request '{}' failed.", record.request.id);
-        let court = is_court(trade, &record.request.from);
+        let court = is_court(context.trade(), &record.request.from);
+        if court {
+            ask_again(context, &record.request, now);
+        }
         notify(TradeNotice::Request { event: RequestEvent::Failed, request: record.request, court });
     }
     for request in opened {
         log::info!(log::channel!("trade"), "The request '{}' opened.", request.id);
-        let court = is_court(trade, &request.from);
+        let court = is_court(context.trade(), &request.from);
         notify(TradeNotice::Request { event: RequestEvent::Opened, request, court });
+    }
+}
+
+// After a failed court request, the court asks for more (GDD 5.14; docs/plans/ratings.md, Q4): the
+// same good, RatingRules::ask_again_scale times the amount, ask_again_months later, with as many
+// months to send it. A request asked again is a request like any other, so failing it is asked
+// again too, for more again.
+pub fn ask_again(context: &SimContextMut, failed: &TradeRequest, now: u32) {
+    let rules = &GameConfigs::get().sim.ratings;
+    let again = failed.asked_again(now, rules.ask_again_months, rules.ask_again_scale);
+    let (id, opens) = (again.id.clone(), again.opened);
+    if context.trade_mut().schedule(again) {
+        log::info!(log::channel!("trade"), "The court will ask again: '{id}', in month {opens}.");
+    } else {
+        log::warning!(log::channel!("trade"), "The court can't ask again: the request '{id}' is known already.");
     }
 }
 
@@ -233,7 +259,9 @@ pub(super) fn notice_text(event: RequestEvent, request: &TradeRequest, court: bo
         i64::from(request.due.saturating_sub(request.opened)),
         &[],
     );
+    let again = request.again > 0;
     let key = match (event, court) {
+        (RequestEvent::Opened, true) if again => "request.opened_court_again",
         (RequestEvent::Opened, true) => "request.opened_court",
         (RequestEvent::Opened, false) => "request.opened",
         (RequestEvent::Met, true) => "request.met_court",

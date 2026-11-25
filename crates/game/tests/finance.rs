@@ -77,7 +77,7 @@ fn month_events(month: u32) -> Vec<CalendarEvent> {
 
 // Runs the month-end charges as a world step does, with `employed` workers in the stats.
 fn end_month(env: &mut TestEnvironment, month: u32, employed: u32) {
-    env.world.refresh_stats(env.sim.finance(), env.sim.faith(), env.sim.floods(), env.sim.trade());
+    env.world.refresh_stats(env.sim.stats_sources());
     env.world.stats_mut().population.employed = employed;
     let (world, tile_map) = (&env.world, &env.tile_map);
     env.sim.finance_mut().on_calendar_events(&month_events(month), world, tile_map, 1.0);
@@ -110,7 +110,7 @@ fn test_tax_office_holds_no_gold() {
 fn test_stats_count_the_balance() {
     let mut env = TestEnvironment::new();
     env.sim.finance_mut().set_balance_unrecorded(-25);
-    env.world.refresh_stats(env.sim.finance(), env.sim.faith(), env.sim.floods(), env.sim.trade());
+    env.world.refresh_stats(env.sim.stats_sources());
     assert_eq!(env.world.stats().treasury.gold_units_total, -25);
 }
 

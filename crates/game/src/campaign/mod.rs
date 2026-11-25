@@ -140,6 +140,12 @@ pub fn active_mission() -> Option<ActiveMission> {
     CampaignManager::get().progress.active.clone()
 }
 
+// The goals of the mission being played (and its time limit); None outside a campaign mission.
+pub fn active_requirements() -> Option<&'static config::MissionRequirements> {
+    let active = CampaignManager::get().progress.active.as_ref()?;
+    Some(&CampaignConfigs::get().mission(active.campaign_id, active.mission_index)?.requirements)
+}
+
 // Begin a campaign at its first mission. Returns the map to load, or None if the
 // campaign id is invalid / has no missions.
 pub fn start_campaign(campaign_id: usize) -> Option<MissionMap> {

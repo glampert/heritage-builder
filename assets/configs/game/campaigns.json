@@ -253,6 +253,37 @@
           "requirements": { "goals": [ { "Population": { "min": 1 } } ] }
         }
       ]
+    },
+    {
+      "id": "test_goals",
+      "name": "Test: Goals",
+      "realm": "dailong",
+      "stele_title": "stele.dragon_legacy.title",
+      "stele_closing": "stele.dragon_legacy.closing",
+      "hidden": true,
+      "world_map": "dragon_legacy",
+      "eras": [
+        { "name": "Long Thái", "start_year": 1 }
+      ],
+      "missions": [
+        {
+          "name": "Test: The Rated City",
+          "description": "A hidden test mission for the ratings' goals (docs/plans/ratings.md, Phase 2): only automation reaches this campaign.",
+          "stele_line": "mission.test_goals.1.stele",
+          "lead_in": "mission.test_goals.1.lead_in",
+          "briefing": "mission.test_goals.1.briefing",
+          "map": { "Preset": { "preset_number": 2 } },
+          "city": { "id": "phu_sa", "name": "city.phu_sa", "position": [690, 120], "label": "above" },
+          "requirements": {
+            "goals": [
+              { "Rating": { "rating": "culture", "min": 60 } },
+              { "Rating": { "rating": "legitimacy", "min": 20 } },
+              { "HousesAtLevel": { "level": 1, "count": 1 } }
+            ],
+            "time_limit_months": 24
+          }
+        }
+      ]
     }
   ]
 }

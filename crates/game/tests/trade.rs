@@ -80,6 +80,7 @@ fn main() {
         // Requests and the goals (Phase 4):
         test_utils::test_fn!(test_the_requests_are_checked),
         test_utils::test_fn!(test_a_mission_schedules_its_requests),
+        test_utils::test_fn!(test_the_court_asks_again),
         test_utils::test_fn!(test_sending_meets_a_request),
         test_utils::test_fn!(test_a_request_opens_now),
         test_utils::test_fn!(test_the_trade_goals),
@@ -1221,7 +1222,7 @@ fn test_the_world_maps_panel_shows_the_prices_now() {
 // ----------------------------------------------
 
 fn request_def(id: &str, from: &str, good: ResourceKind, amount: u32, month: u32, within_months: u32) -> MissionRequestDef {
-    MissionRequestDef { id: id.into(), from: from.into(), good, amount, month, within_months, legitimacy: 0, relation: 0 }
+    MissionRequestDef { id: id.into(), from: from.into(), good, amount, month, within_months, legitimacy: None, relation: 0 }
 }
 
 // The trade map with the clans open and a schedule: the court's 20 pottery a month after the start
@@ -1229,7 +1230,7 @@ fn request_def(id: &str, from: &str, good: ResourceKind, amount: u32, month: u32
 fn requests_map() -> TradeMap {
     let mut map = trade_map();
     let mut court = request_def("court_pottery", "hoa_thanh", ResourceKind::Pottery, 20, 1, 3);
-    court.legitimacy = 8;
+    court.legitimacy = Some(8);
     let block = MissionTradeDef {
         enabled: None,
         partners: vec![partner("clan_camps", true)],
@@ -1265,9 +1266,17 @@ fn test_the_requests_are_checked() {
     let bad = block(vec![
         request_def("a", "hoa_thanh", ResourceKind::Pottery, 30, 2, 6),
         request_def("a", "nowhere", ResourceKind::Gold, 0, 0, 6),
+        request_def("b_again_1", "hoa_thanh", ResourceKind::Pottery, 30, 2, 6),
     ]);
     let problems = map.trade_problems(&bad).join("\n");
-    for expected in ["names the request 'a' twice", "'nowhere', no city", "not gold", "amount and a time limit", "month 0"] {
+    for expected in [
+        "names the request 'a' twice",
+        "'nowhere', no city",
+        "not gold",
+        "amount and a time limit",
+        "month 0",
+        "kept for the court asking again",
+    ] {
         assert!(problems.contains(expected), "{expected}: {problems}");
     }
 }
@@ -1326,8 +1335,57 @@ fn test_a_mission_schedules_its_requests() {
 
     // So does the court's, three months after it opened.
     month_starts(&mut map, 29);
-    assert_eq!(request_notices(&map)[0].2, "The court's request for 20 pottery went unmet.");
+    assert_eq!(request_notices(&map)[0].2, "The court's request for 20 pottery went unmet. It will ask again, for more.");
     assert_eq!(map.env.sim.trade().requests_failed(), 2);
+}
+
+// Without a Legitimacy of its own, a court request takes the rules' and another city's none
+// (docs/plans/ratings.md, Q4). A failed court request is asked again, for more, three months later
+// with as many months to send it; another city's isn't.
+fn test_the_court_asks_again() {
+    let mut map = trade_map();
+    let block = MissionTradeDef {
+        enabled: None,
+        partners: vec![partner("clan_camps", true)],
+        requests: vec![
+            request_def("court_pottery", "hoa_thanh", ResourceKind::Pottery, 20, 1, 2),
+            request_def("vijara_rice", "vijara", ResourceKind::Rice, 10, 1, 1),
+        ],
+    };
+    trade::start(map.env.sim.trade_mut(), "dragon_legacy", &block, 25, rules());
+    trade::take_notices();
+    let legitimacy: Vec<(&str, i32)> =
+        map.env.sim.trade().scheduled().iter().map(|request| (request.id.as_str(), request.legitimacy)).collect();
+    let court_legitimacy = GameConfigs::get().sim.ratings.request_legitimacy;
+    assert_eq!(legitimacy, [("court_pottery", court_legitimacy), ("vijara_rice", 0)]);
+
+    month_starts(&mut map, 26);
+    trade::take_notices();
+    month_starts(&mut map, 27);
+    assert_eq!(request_notices(&map)[0].2, "Vijara's request for 10 rice went unmet.");
+    assert!(map.env.sim.trade().scheduled().is_empty(), "only the court asks again");
+
+    month_starts(&mut map, 28);
+    assert_eq!(request_notices(&map)[0].2, "The court's request for 20 pottery went unmet. It will ask again, for more.");
+    let again = map.env.sim.trade().scheduled().to_vec();
+    assert_eq!(again.len(), 1);
+    let again = &again[0];
+    assert_eq!(
+        (again.id.as_str(), again.amount, again.opened, again.due, again.legitimacy, again.again),
+        ("court_pottery_again_1", 25, 31, 33, court_legitimacy, 1)
+    );
+
+    month_starts(&mut map, 31);
+    assert_eq!(request_notices(&map)[0].2, "The court asks again, for more: 25 pottery within 2 months.");
+    let rows = requests::rows(&map.env.world, map.env.sim.trade(), 31);
+    assert_eq!(rows[0].title, "Pottery for the court, asked again");
+
+    // Failed again, it's asked again for more again.
+    month_starts(&mut map, 33);
+    let scheduled: Vec<(String, u32, u32)> =
+        map.env.sim.trade().scheduled().iter().map(|request| (request.id.clone(), request.amount, request.again)).collect();
+    assert_eq!(scheduled, [("court_pottery_again_2".to_string(), 32, 2)]);
+    assert_eq!(map.env.sim.trade().requests_failed(), 3);
 }
 
 // Send now: once the yards and granaries hold the amount, it's taken from them at once.
@@ -1358,7 +1416,7 @@ fn test_sending_meets_a_request() {
     assert_eq!(send(&mut map, "court_pottery"), Err(SendError::NotUnderWay), "met already");
 
     // The world stats count it, for RequestsFulfilled.
-    map.env.world.refresh_stats(map.env.sim.finance(), map.env.sim.faith(), map.env.sim.floods(), map.env.sim.trade());
+    map.env.world.refresh_stats(map.env.sim.stats_sources());
     assert_eq!(map.env.world.stats().trade.requests_met, 1);
     assert!(MissionGoal::RequestsFulfilled { min: 1 }.is_met(map.env.world.stats()));
     assert!(!MissionGoal::RequestsFulfilled { min: 2 }.is_met(map.env.world.stats()));
@@ -1398,7 +1456,7 @@ fn test_a_request_opens_now() {
 fn test_the_trade_goals() {
     let mut map = trade_map();
     let refresh = |map: &mut TradeMap| {
-        map.env.world.refresh_stats(map.env.sim.finance(), map.env.sim.faith(), map.env.sim.floods(), map.env.sim.trade());
+        map.env.world.refresh_stats(map.env.sim.stats_sources());
         map.env.world.stats().trade.income
     };
     assert_eq!(refresh(&mut map), 0);

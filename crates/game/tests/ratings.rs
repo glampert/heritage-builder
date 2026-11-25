@@ -5,6 +5,7 @@ use game::{
         BuildingKindAndId,
         destruction::{self, Destruction},
     },
+    campaign::config::MissionGoal,
     config::GameConfigs,
     debug::game_object_debug::GameObjectDebugVarRef,
     ratings::{
@@ -64,6 +65,9 @@ fn main() {
         test_utils::test_fn!(test_floods_count_only_while_the_river_floods),
         test_utils::test_fn!(test_each_realm_names_its_own_drivers),
         test_utils::test_fn!(test_a_month_recomputes_the_ratings),
+        // Goals:
+        test_utils::test_fn!(test_the_goals_read_the_ratings_and_houses),
+        test_utils::test_fn!(test_a_court_request_asked_again_counts_again),
     ]);
 }
 
@@ -76,7 +80,7 @@ fn realm_def(realm: Realm) -> &'static RealmRatingsDef {
 }
 
 fn recompute(env: &mut TestEnvironment) {
-    env.world.refresh_stats(env.sim.finance(), env.sim.faith(), env.sim.floods(), env.sim.trade());
+    env.world.refresh_stats(env.sim.stats_sources());
     let context = env.new_sim_context(0.0);
     ratings::recompute(&context);
 }
@@ -431,6 +435,7 @@ fn request(id: &str, legitimacy: i32, opened: u32, due: u32) -> TradeRequest {
         due,
         legitimacy,
         relation: 0,
+        again: 0,
     }
 }
 
@@ -527,7 +532,7 @@ fn test_a_month_recomputes_the_ratings() {
     let mut env = TestEnvironment::new();
     house_with(&mut env, Cell::new(5, 5), "house2", 6);
     test_utils::spawn_building(&mut env, Cell::new(9, 5), "shrine");
-    env.world.refresh_stats(env.sim.finance(), env.sim.faith(), env.sim.floods(), env.sim.trade());
+    env.world.refresh_stats(env.sim.stats_sources());
     assert!(!env.sim.ratings().is_rated());
     let date = env.sim.calendar().date(30, 60.0);
     {
@@ -536,4 +541,69 @@ fn test_a_month_recomputes_the_ratings() {
     }
     assert!(env.sim.ratings().is_rated());
     assert_eq!(driver(&env, RatingKind::Culture, "temples"), Some(35));
+}
+
+// ----------------------------------------------
+// Goals (Phase 2)
+// ----------------------------------------------
+
+// The world stats count the ratings (as recomputed, or set by hand until the next recompute) and the
+// finished houses by level, for the Rating and HousesAtLevel goals.
+fn test_the_goals_read_the_ratings_and_houses() {
+    let mut env = TestEnvironment::new();
+    house_with(&mut env, Cell::new(5, 5), "house0", 2);
+    house_with(&mut env, Cell::new(9, 5), "house2", 4);
+    recompute(&mut env);
+    let culture = env.sim.ratings().value(RatingKind::Culture);
+    let stats = env.world.stats();
+    assert_eq!(stats.ratings.value(RatingKind::Culture), culture);
+    assert_eq!(stats.houses.at_level[0], 1);
+    assert_eq!(stats.houses.at_level[2], 1);
+    assert_eq!(stats.houses.at_or_above(1), 2);
+    assert_eq!(stats.houses.at_or_above(3), 1, "house2 is the player's level 3");
+    assert!(MissionGoal::HousesAtLevel { level: 3, count: 1 }.is_met(stats));
+    assert!(!MissionGoal::HousesAtLevel { level: 4, count: 1 }.is_met(stats));
+
+    env.sim.ratings_mut().set_value(RatingKind::Culture, 55);
+    env.world.refresh_stats(env.sim.stats_sources());
+    assert!(MissionGoal::Rating { rating: RatingKind::Culture, min: 55 }.is_met(env.world.stats()));
+    assert!(!MissionGoal::Rating { rating: RatingKind::Culture, min: 56 }.is_met(env.world.stats()));
+
+    // A world step tallies them too.
+    test_utils::tick(&mut env, 0.5);
+    assert_eq!(env.world.stats().ratings.value(RatingKind::Culture), 55);
+}
+
+// A court request asked again after failing (trade::requests::ask_again): for more, later, with as
+// many months to send it; it's logged like any other, so failing it too takes away its Legitimacy
+// again.
+fn test_a_court_request_asked_again_counts_again() {
+    let mut env = TestEnvironment::new();
+    let start = now(&env);
+    let first = request("court_pottery", 6, start, start + 2);
+    let again = first.asked_again(start + 2, 3, 1.25);
+    assert_eq!(again.id, "court_pottery_again_1");
+    assert_eq!((again.amount, again.opened, again.due, again.legitimacy, again.again), (38, start + 5, start + 7, 6, 1));
+    let third = again.asked_again(start + 7, 3, 1.25);
+    assert_eq!((third.id.as_str(), third.amount, third.again), ("court_pottery_again_2", 48, 2));
+    assert_eq!(third.first_id(), "court_pottery");
+
+    // The first fails; the court asks again three months later.
+    assert!(env.sim.trade_mut().open_request(first, start));
+    advance_months(&mut env, 2);
+    assert_eq!(env.sim.trade_mut().on_new_month(start + 2).0.len(), 1);
+    assert!(env.sim.trade_mut().schedule(again.clone()));
+    assert!(!env.sim.trade_mut().schedule(again), "known already");
+
+    advance_months(&mut env, 3);
+    let (failed, opened) = env.sim.trade_mut().on_new_month(start + 5);
+    assert!(failed.is_empty());
+    assert_eq!(opened.iter().map(|request| request.id.as_str()).collect::<Vec<_>>(), ["court_pottery_again_1"]);
+
+    advance_months(&mut env, 2);
+    assert_eq!(env.sim.trade_mut().on_new_month(start + 7).0.len(), 1, "unmet again");
+    recompute(&mut env);
+    let lost = -6.0 * 1.5 * (ratings::fade(5, 24) + ratings::fade(0, 24));
+    assert_eq!(driver(&env, RatingKind::Legitimacy, "requests"), Some(lost.round() as i32));
+    assert_eq!(env.sim.trade().requests_failed(), 2);
 }

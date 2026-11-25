@@ -1,6 +1,9 @@
 use crate::{
     building::HouseLevel,
-    sim::resources::{ResourceKind, ResourceStock},
+    sim::{
+        ratings::{RATING_COUNT, RatingKind},
+        resources::{ResourceKind, ResourceStock},
+    },
 };
 
 // ----------------------------------------------
@@ -91,6 +94,30 @@ pub struct HousingStats {
     pub total: u32,
     pub lowest_level: HouseLevel,
     pub highest_level: HouseLevel,
+    pub at_level: [u32; HouseLevel::count()], // Finished houses by level, from HouseLevel::Level0.
+}
+
+impl HousingStats {
+    // The houses at `level` or above, the level as the player reads it, from 1 (MissionGoal::
+    // HousesAtLevel); 0 for a level past the top.
+    pub fn at_or_above(&self, level: u32) -> u32 {
+        let first = (level.max(1) - 1) as usize;
+        self.at_level.iter().skip(first).sum()
+    }
+}
+
+// The four ratings as the goals read them (sim::CityRatings::tally): their values at the last
+// recompute, or one set by hand since.
+#[derive(Default)]
+pub struct RatingStats {
+    pub values: [u32; RATING_COUNT], // In RatingKind's order.
+}
+
+impl RatingStats {
+    #[inline]
+    pub fn value(&self, kind: RatingKind) -> u32 {
+        self.values[kind as usize]
+    }
 }
 
 pub struct GlobalResourceCounts {
@@ -109,6 +136,14 @@ pub struct GlobalResourceCounts {
     pub services: ResourceStock,
 }
 
+impl GlobalResourceCounts {
+    // A good held in the storage yards and granaries (MissionGoal::Resource).
+    #[inline]
+    pub fn in_storage(&self, kind: ResourceKind) -> u32 {
+        self.storage_yards.count(kind) + self.granaries.count(kind)
+    }
+}
+
 pub struct WorldStats {
     // Global counts:
     pub population: PopulationStats,
@@ -117,6 +152,7 @@ pub struct WorldStats {
     pub faith: FaithStats,
     pub floods: FloodStats,
     pub trade: TradeStats,
+    pub ratings: RatingStats,
 
     // Housing stats:
     pub houses: HousingStats,
@@ -134,7 +170,13 @@ impl Default for WorldStats {
             faith: FaithStats::default(),
             floods: FloodStats::default(),
             trade: TradeStats::default(),
-            houses: HousingStats { total: 0, lowest_level: HouseLevel::max(), highest_level: HouseLevel::min() },
+            ratings: RatingStats::default(),
+            houses: HousingStats {
+                total: 0,
+                lowest_level: HouseLevel::max(),
+                highest_level: HouseLevel::min(),
+                at_level: [0; HouseLevel::count()],
+            },
             resources: GlobalResourceCounts {
                 all: ResourceStock::accept_all(),
                 units: ResourceStock::accept_all(),
@@ -212,6 +254,7 @@ impl WorldStats {
         if level > self.houses.highest_level {
             self.houses.highest_level = level;
         }
+        self.houses.at_level[level as usize] += 1;
         self.houses.total += 1;
     }
 }

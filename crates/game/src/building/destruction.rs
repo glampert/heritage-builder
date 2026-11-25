@@ -68,7 +68,7 @@ pub fn destroy_building(context: &SimContextMut, kind_and_id: BuildingKindAndId,
 
     // The stats are recounted on every step; recount them now so the HUD, world.stats and the
     // construction checks don't count the building's people and goods until then.
-    context.world_mut().refresh_stats(context.finance(), context.faith(), context.floods(), context.trade());
+    context.world_mut().refresh_stats(context.stats_sources());
 
     context.minimap_mut().push_icon(MinimapIcon::Alert, base_cell, RUBBLE_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
 

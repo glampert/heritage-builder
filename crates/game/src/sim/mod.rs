@@ -257,6 +257,18 @@ impl Simulation {
         &mut self.ratings
     }
 
+    // What the world stats count of the simulation's state (World::refresh_stats).
+    #[inline]
+    pub fn stats_sources(&self) -> crate::world::StatsSources<'_> {
+        crate::world::StatsSources {
+            finance: &self.finance,
+            faith: &self.faith,
+            floods: &self.floods,
+            trade: &self.trade,
+            ratings: &self.ratings,
+        }
+    }
+
     #[inline]
     pub fn task_manager(&self) -> &UnitTaskManager {
         &self.task_manager
@@ -326,7 +338,7 @@ impl Simulation {
 
         // A recompute the World Debug window's Ratings tab asked for.
         if crate::ratings::take_recompute_request() {
-            world.refresh_stats(&self.finance, &self.faith, &self.floods, &self.trade);
+            world.refresh_stats(self.stats_sources());
             let context = self.new_sim_context(0.0, tile_map, world);
             crate::ratings::recompute(&context);
         }
