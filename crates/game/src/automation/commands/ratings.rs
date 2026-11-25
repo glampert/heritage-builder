@@ -11,7 +11,7 @@ use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     campaign,
     menu::dialog,
-    ratings::{self, FailureReason, MAX_RATING, RatingKind},
+    ratings::{self, FailureReason, MAX_RATING, RatingKind, distinctions},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -50,8 +50,11 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "The goals of the mission being played (docs/plans/ratings.md, §3), read against the world stats \
                recounted now: each one's `def` (as campaigns.json writes it), its line as the player reads it in the \
                game's realm (`goal`), `target`, `achieved` and `met`; whether they're `all_met` and the mission \
-               `completed`; its time limit (`time_limit_months`, `months_elapsed`, `months_left`, null without one) \
-               and the game's `failure`. Outside a mission: `in_mission` false and no goals.",
+               `completed`; its time limit (`time_limit_months`, `months_elapsed`, `months_left`, null without one), \
+               its `distinctions` (docs/plans/ratings.md, §5: each one's `id`, `def`, its line as the player reads it \
+               (`distinction`) and `state`: open or spoiled while the mission goes on, earned (in this play or an \
+               earlier one) or missed once it's finished) and the game's `failure`. Outside a mission: \
+               `in_mission` false and no goals.",
         params: &[],
         run: cmd_goals_state,
     },
@@ -132,6 +135,23 @@ fn cmd_goals_state(context: &mut CommandContext, _params: Value) -> CommandResul
     let months_elapsed = sim.calendar().months_elapsed();
     let active = campaign::active_mission();
     let requirements = campaign::active_requirements();
+    let earned = active
+        .as_ref()
+        .map(|active| campaign::earned_distinctions(active.campaign_id, active.mission_index))
+        .unwrap_or_default();
+    let completed = active.as_ref().is_some_and(|active| active.completed);
+    let distinctions: Vec<Value> = campaign::active_distinctions()
+        .unwrap_or_default()
+        .iter()
+        .map(|distinction| {
+            json!({
+                "id": distinction.id,
+                "def": distinction.condition,
+                "distinction": dialog::distinction_line(&distinction.condition, realm),
+                "state": distinctions::state(distinction, sim.ratings(), completed, &earned).to_string(),
+            })
+        })
+        .collect();
     let goals: Vec<Value> = requirements
         .map(|requirements| {
             requirements
@@ -156,10 +176,11 @@ fn cmd_goals_state(context: &mut CommandContext, _params: Value) -> CommandResul
         "mission": active.as_ref().map(|active| active.mission_index),
         "goals": goals,
         "all_met": requirements.is_some_and(|requirements| requirements.all_met(stats)),
-        "completed": active.as_ref().is_some_and(|active| active.completed),
+        "completed": completed,
         "time_limit_months": requirements.and_then(|requirements| requirements.time_limit_months),
         "months_elapsed": months_elapsed,
         "months_left": requirements.and_then(|requirements| requirements.months_left(months_elapsed)),
+        "distinctions": distinctions,
         "failure": sim.ratings().failure().map(|reason| reason.to_string()),
     }))
 }

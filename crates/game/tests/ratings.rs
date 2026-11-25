@@ -5,7 +5,7 @@ use game::{
         BuildingKindAndId,
         destruction::{self, Destruction},
     },
-    campaign::config::MissionGoal,
+    campaign::config::{DistinctionCondition, MissionDistinctionDef, MissionGoal},
     config::GameConfigs,
     debug::game_object_debug::GameObjectDebugVarRef,
     ratings::{
@@ -20,6 +20,7 @@ use game::{
         RatingKind,
         RealmRatingsDef,
         config::NO_FESTIVAL_DRIVER,
+        distinctions::{self, DistinctionState},
         failure::{self, FailureNotice, MissionTerms},
     },
     realm::Realm,
@@ -28,6 +29,7 @@ use game::{
         calendar::CalendarDate,
         faith::FestivalRecord,
         finance::TaxLevel,
+        floods::FloodRecord,
         ratings::{DriverValue, Rating},
         resources::ResourceKind,
         risks::{CityRisks, Disaster},
@@ -74,6 +76,9 @@ fn main() {
         test_utils::test_fn!(test_a_year_of_low_legitimacy_recalls_the_governor),
         test_utils::test_fn!(test_a_time_limit_runs_out),
         test_utils::test_fn!(test_each_realm_words_its_failures),
+        // Distinctions:
+        test_utils::test_fn!(test_each_distinction_condition),
+        test_utils::test_fn!(test_distinctions_spoil_month_by_month),
     ]);
 }
 
@@ -739,4 +744,142 @@ fn test_each_realm_words_its_failures() {
         }
     }
     assert_eq!(engine::ui::text::get(UiTextCategory::Realm, "failure.dailong.legitimacy"), "The court has recalled you");
+}
+
+// ----------------------------------------------
+// Distinctions (Phase 4)
+// ----------------------------------------------
+
+fn distinction(id: &str, condition: DistinctionCondition) -> MissionDistinctionDef {
+    MissionDistinctionDef { id: id.into(), condition, stele_line: String::new() }
+}
+
+fn broken(env: &mut TestEnvironment, condition: &DistinctionCondition) -> bool {
+    let context = env.new_sim_context(0.0);
+    distinctions::is_broken(condition, &context)
+}
+
+fn earned(env: &mut TestEnvironment, distinction: &MissionDistinctionDef) -> bool {
+    let context = env.new_sim_context(0.0);
+    distinctions::is_earned(distinction, &context)
+}
+
+// Each form: a goal is read as the goals are met; the others break for good from the mission's
+// start, never before it.
+fn test_each_distinction_condition() {
+    let mut env = mission_env();
+    advance_months(&mut env, 2);
+    let start = distinctions::mission_start_month(&env.new_sim_context(0.0));
+    assert_eq!(start + 2, now(&env), "two months into the mission");
+
+    // A goal, met or not; never broken.
+    let culture =
+        distinction("culture", DistinctionCondition::Goal(MissionGoal::Rating { rating: RatingKind::Culture, min: 60 }));
+    env.world.stats_mut().ratings.values[RatingKind::Culture as usize] = 59;
+    assert!(!earned(&mut env, &culture));
+    env.world.stats_mut().ratings.values[RatingKind::Culture as usize] = 60;
+    assert!(earned(&mut env, &culture));
+    assert!(!broken(&mut env, &culture.condition));
+
+    // A month's end in debt.
+    let no_debt = DistinctionCondition::NoDebt;
+    assert!(!broken(&mut env, &no_debt));
+    env.sim.finance_mut().set_balance_unrecorded(-10);
+    assert!(!broken(&mut env, &no_debt), "in debt, but not at a month's end yet");
+    env.sim.finance_mut().set_months_in_debt(1);
+    assert!(broken(&mut env, &no_debt));
+    env.sim.finance_mut().set_months_in_debt(0);
+    env.sim.finance_mut().set_balance_unrecorded(100);
+
+    // A breach since the mission's start.
+    let never_breached = DistinctionCondition::NeverBreached;
+    let record = |ordinal_month: u32, breaches: u32| FloodRecord {
+        ordinal_month,
+        reach: 1,
+        severity: 1.0,
+        cells: 0,
+        buildings_damaged: 0,
+        fields_flooded: 0,
+        breaches,
+    };
+    env.sim.floods_mut().begin_flood(Vec::new(), 1.0, 0, record(start - 1, 2));
+    env.sim.floods_mut().begin_flood(Vec::new(), 1.0, 0, record(start, 0));
+    assert!(!broken(&mut env, &never_breached), "a breach before the mission, a flood held back in it");
+    env.sim.floods_mut().begin_flood(Vec::new(), 1.0, 0, record(start + 1, 1));
+    assert!(broken(&mut env, &never_breached));
+
+    // A house lost since the mission's start (another building doesn't count).
+    let no_house_lost = DistinctionCondition::NoHouseLost;
+    env.sim.risks_mut().record_disaster(Disaster::BurntDown { house: true }, start - 1);
+    env.sim.risks_mut().record_disaster(Disaster::Collapsed { house: false }, start + 1);
+    assert!(!broken(&mut env, &no_house_lost));
+    env.sim.risks_mut().record_disaster(Disaster::Collapsed { house: true }, start + 2);
+    assert!(broken(&mut env, &no_house_lost));
+
+    // The good out of storage while people live in the city.
+    let rice = DistinctionCondition::NeverShortOf { good: ResourceKind::Rice };
+    env.world.stats_mut().population.total = 0;
+    assert!(!broken(&mut env, &rice), "no one to go short");
+    env.world.stats_mut().population.total = 5;
+    assert!(broken(&mut env, &rice));
+    env.world.stats_mut().add_storage_yard_resources(ResourceKind::Rice, 4);
+    assert!(!broken(&mut env, &rice));
+
+    // Within so many months of the start.
+    let within = DistinctionCondition::Within { months: 3 };
+    assert!(!broken(&mut env, &within), "two months in");
+    advance_months(&mut env, 1);
+    assert!(broken(&mut env, &within), "three months in");
+
+    // A spoiled distinction isn't earned, even once its condition holds again.
+    let no_debt = distinction("no_debt", DistinctionCondition::NoDebt);
+    assert!(earned(&mut env, &no_debt));
+    env.sim.ratings_mut().spoil("no_debt");
+    assert!(!earned(&mut env, &no_debt));
+}
+
+// A month's start spoils the "never" forms broken then, kept with the game; not a goal, and nothing
+// outside a mission, once it's finished or once it's lost. Each one's state follows.
+fn test_distinctions_spoil_month_by_month() {
+    let mut env = mission_env();
+    let list = [
+        distinction("no_debt", DistinctionCondition::NoDebt),
+        distinction("culture", DistinctionCondition::Goal(MissionGoal::Rating { rating: RatingKind::Culture, min: 99 })),
+        distinction("quick", DistinctionCondition::Within { months: 1 }),
+    ];
+    let check = |env: &mut TestEnvironment, terms: Option<MissionTerms>| {
+        let context = env.new_sim_context(0.0);
+        distinctions::check_spoiled(&context, &list, terms.as_ref())
+    };
+    let state = |env: &TestEnvironment, index: usize, completed: bool, earned: &[String]| {
+        distinctions::state(&list[index], env.sim.ratings(), completed, earned)
+    };
+
+    assert!(check(&mut env, Some(terms(None))).is_empty(), "nothing broken");
+    assert_eq!(state(&env, 0, false, &[]), DistinctionState::Open);
+
+    env.sim.finance_mut().set_months_in_debt(1);
+    advance_months(&mut env, 1);
+    assert!(check(&mut env, None).is_empty(), "outside a mission");
+    assert!(check(&mut env, Some(MissionTerms { completed: true, ..terms(None) })).is_empty(), "finished");
+    env.sim.ratings_mut().set_failure(Some(FailureReason::Debt));
+    assert!(check(&mut env, Some(terms(None))).is_empty(), "lost");
+    env.sim.ratings_mut().set_failure(None);
+
+    assert_eq!(check(&mut env, Some(terms(None))), ["no_debt", "quick"]);
+    assert!(check(&mut env, Some(terms(None))).is_empty(), "spoiled once");
+    assert_eq!(env.sim.ratings().spoiled().iter().collect::<Vec<_>>(), ["no_debt", "quick"]);
+    assert_eq!(state(&env, 0, false, &[]), DistinctionState::Spoiled);
+    assert_eq!(state(&env, 1, false, &[]), DistinctionState::Open, "a goal waits for the end");
+
+    // Kept with the game.
+    let saved = serde_json::to_value(env.sim.ratings()).unwrap();
+    let loaded: CityRatings = serde_json::from_value(saved).unwrap();
+    assert!(loaded.is_spoiled("no_debt") && loaded.is_spoiled("quick") && !loaded.is_spoiled("culture"));
+
+    // Once finished: earned (in this play or an earlier one) or missed.
+    let earned = ["no_debt".to_string()];
+    assert_eq!(state(&env, 0, true, &earned), DistinctionState::Earned);
+    assert_eq!(state(&env, 1, true, &earned), DistinctionState::Missed);
+    assert_eq!(DistinctionState::Spoiled.to_string(), "spoiled");
 }

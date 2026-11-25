@@ -5,8 +5,10 @@
 //   menu::stele::SteleArt on the skin's `intermission.complete` placement: wider than the
 //   debrief's, its niche stretched to match), the last line freshly carved;
 // - right, on the skin's big panel: "CAMPAIGN I COMPLETE", the campaign's name, the realm and the
-//   date it was finished in, its closing line (the campaign's `stele_closing`), its missions, the
-//   stats (missions finished, the last city and its population), the note that the next campaign
+//   date it was finished in, its closing line (the campaign's `stele_closing`), its missions (a
+//   mark beside each for each distinction it earned, M9, while the campaign has any), the stats
+//   (missions finished, the distinctions earned, the last city and its population), the note that
+//   the next campaign
 //   is open (or that every one is finished), Watch the epilogue when the campaign has one (it
 //   plays over the screen), and Return to the menu, which plays the epilogue first while the
 //   profile hasn't seen it.
@@ -23,7 +25,9 @@
 //
 // Paths: CampaignComplete/stele (kind canvas: title, lines, newest, rows_to_come);
 // CampaignComplete/panel/kicker, name, place, closing, missions_title, missions (kind table: a row
-// per mission, its number and name; missions_2 for a second column), stats (kind key_values),
+// per mission, its number and name; missions_2 for a second column), and while the campaign has
+// distinctions missions_note and marks (kind canvas: `marks`, the distinctions earned per row;
+// marks_2 beside missions_2), stats (kind key_values),
 // note/next, Watch the epilogue (only for a campaign with an epilogue), Return to the menu.
 
 use common::{Color, Rect};
@@ -70,6 +74,13 @@ const MISSION_ROW: f32 = 36.0;
 const MISSIONS_PER_COLUMN: usize = 5;
 const MISSION_NUMBER_WIDTH: f32 = 30.0;
 const MISSION_COLUMN_GAP: f32 = 24.0;
+const MISSIONS_NOTE_SIZE: f32 = 17.0;
+// The distinctions' marks beside a mission: stars this far apart, the last this far in from the
+// column's right, and their outer and inner radii.
+const MARK_SPACING: f32 = 22.0;
+const MARK_RIGHT: f32 = 14.0;
+const MARK_RADII: [f32; 2] = [10.0, 4.2];
+const MARKS_WIDTH: f32 = 60.0;
 const STAT_GAP: f32 = 6.0;
 const NOTE_HEIGHT: f32 = 84.0;
 const NOTE_EMBLEM: [f32; 3] = [46.0, 28.0, 90.0]; // The emblem's centre and radius, and the text's left, in from the box's left.
@@ -157,6 +168,8 @@ struct Summary {
     place: Option<String>,
     closing: Option<String>,
     missions: Vec<(String, String)>, // Number, name.
+    // The distinctions earned by each mission's row, while the campaign has any.
+    marks: Option<Vec<usize>>,
     stats: Vec<(String, String)>,
     next: Option<(Option<Realm>, String)>, // The next campaign's realm (its emblem) and the note.
     stele: Option<Stele>,
@@ -170,6 +183,7 @@ impl Summary {
             place: None,
             closing: None,
             missions: Vec::new(),
+            marks: None,
             stats: Vec::new(),
             next: None,
             stele: None,
@@ -226,17 +240,28 @@ impl Summary {
             })
             .collect();
 
-        // TODO(realm-ui): M9's distinctions earned ("8 of 12", a mark per distinction beside each
-        // mission) and the largest city the campaign founded (its population kept per mission in
-        // the profile) go here, as the mockup shows them.
+        // TODO(realm-ui): the largest city the campaign founded (its population kept per mission in
+        // the profile) goes here, as the mockup shows it.
         let done = steps.iter().filter(|&&step| finished_by(step).is_some()).count();
-        let mut stats = vec![(
-            ui::text::get(UiTextCategory::Menu, "campaign_complete.stat.missions").to_string(),
+        let of = |done: usize, total: usize| {
             ui::text::format(UiTextCategory::Menu, "campaign_complete.of", &[
                 ("done", &done.to_string()),
-                ("total", &steps.len().to_string()),
-            ]),
+                ("total", &total.to_string()),
+            ])
+        };
+        let mut stats = vec![(
+            ui::text::get(UiTextCategory::Menu, "campaign_complete.stat.missions").to_string(),
+            of(done, steps.len()),
         )];
+        // The distinctions earned, and a mark per mission's: only while the campaign has any.
+        let tally = stele_data::distinction_tally(configs, profile, active.campaign_id).filter(|tally| tally.total > 0);
+        if let Some(tally) = &tally {
+            stats.push((
+                ui::text::get(UiTextCategory::Menu, "campaign_complete.stat.distinctions").to_string(),
+                of(tally.earned, tally.total),
+            ));
+        }
+        let marks = tally.map(|tally| tally.steps.iter().map(|&(_, earned, _)| earned).collect());
         if let Some(city) =
             configs.mission(active.campaign_id, active.mission_index).and_then(|mission| mission.city_display_name())
         {
@@ -278,6 +303,7 @@ impl Summary {
             place: Some(place),
             closing,
             missions,
+            marks,
             stats,
             next,
             stele,
@@ -527,7 +553,28 @@ fn panel_parts(
         )
         .with_heading_font()
         .with_letter_spacing(scales.pt(SECTION_LETTER_SPACING));
-        parts.push(tight(context, title, font, SECTION_SIZE, scales).into());
+        let title = tight(context, title, font, SECTION_SIZE, scales);
+        if summary.marks.is_some() {
+            // "each mark is a distinction", in italics at the right.
+            let note = ui::text::get(UiTextCategory::Menu, "campaign_complete.marks");
+            let font = scales.font(MISSIONS_NOTE_SIZE);
+            let note_width = (super::screen::text_width(context, note, font) + scales.pt(4.0)).min(width * 0.6);
+            let note = UiRichText::from_spans([UiTextSpan::emphasized(note)])
+                .with_label("missions_note")
+                .with_font_scale(font)
+                .with_width(note_width)
+                .with_align(UiTextAlign::Right)
+                .with_text_color(sub);
+            let mut row = UiColumns::new().with_spacing(0.0).with_width(width);
+            row.add_column(UiColumnWidth::Fraction(1.0), left_group().with_widget(title));
+            row.add_column(
+                UiColumnWidth::Fixed(note_width),
+                left_group().with_widget(tight(context, note, font, MISSIONS_NOTE_SIZE, scales)),
+            );
+            parts.push(row.into());
+        } else {
+            parts.push(title.into());
+        }
         parts.push(gap(5).into());
         parts.push(missions(context, scales, summary, width, tightness).into());
     }
@@ -580,6 +627,9 @@ fn missions(context: &GameUiContext, scales: Scales, summary: &Summary, width: f
     let gap = scales.pt(MISSION_COLUMN_GAP);
     let column_width = ((width - gap) / 2.0).floor();
 
+    let mark_chunks: Option<Vec<&[usize]>> = summary.marks.as_ref().map(|marks| marks.chunks(per_column).collect());
+    let marks_width = if mark_chunks.is_some() { scales.pt(MARKS_WIDTH) } else { 0.0 };
+
     let mut columns = UiColumns::new().with_spacing(gap).with_width(width);
     for index in 0..2 {
         let Some(chunk) = chunks.get(index) else {
@@ -590,7 +640,7 @@ fn missions(context: &GameUiContext, scales: Scales, summary: &Summary, width: f
         let mut table = skin::table()
             .with_label(label)
             .with_look(look)
-            .with_width(column_width)
+            .with_width(column_width - marks_width)
             .with_font_scale(font)
             .with_column_spacing(0.0)
             .with_header(UiTableHeader { hidden: true, ..UiTableHeader::default() })
@@ -602,9 +652,58 @@ fn missions(context: &GameUiContext, scales: Scales, summary: &Summary, width: f
         for (number, name) in chunk.iter() {
             table = table.with_row(UiTableRow::new([number.clone(), name.clone()]));
         }
-        columns.add_column(UiColumnWidth::Fixed(column_width), left_group().with_widget(table));
+        let Some(marks) = mark_chunks.as_ref().and_then(|chunks| chunks.get(index)) else {
+            columns.add_column(UiColumnWidth::Fixed(column_width), left_group().with_widget(table));
+            continue;
+        };
+        // The marks beside the table, a row of stars level with each mission's row.
+        let label = if index == 0 { "marks".to_string() } else { format!("marks_{}", index + 1) };
+        let height = table.measure(context).y;
+        let row = UiWidgetGroup::new()
+            .with_stack_vertically(false)
+            .with_center_horizontally(false)
+            .with_center_vertically(false)
+            .with_widget_spacing(Vec2::zero())
+            .with_widget(table)
+            .with_widget(marks_canvas(scales, label, marks.to_vec(), Vec2::new(marks_width, height)));
+        columns.add_column(UiColumnWidth::Fixed(column_width), left_group().with_widget(row));
     }
     columns
+}
+
+// A star per distinction earned beside each mission's row (`marks`, top to bottom), in the accent
+// colour, right-aligned in `size`.
+fn marks_canvas(scales: Scales, label: String, marks: Vec<usize>, size: Vec2) -> UiCanvas {
+    let color = skin::intermission_color("accent", "accent");
+    let value = serde_json::json!({ "marks": marks });
+    let (spacing, right) = (scales.pt(MARK_SPACING), scales.pt(MARK_RIGHT));
+    let (outer, inner) = (scales.pt(MARK_RADII[0]), scales.pt(MARK_RADII[1]));
+    UiCanvas::new(size, move |_, painter, rect| {
+        let row = rect.height() / marks.len().max(1) as f32;
+        for (index, &count) in marks.iter().enumerate() {
+            let y = rect.min.y + row * (index as f32 + 0.5);
+            for mark in 0..count {
+                let centre = Vec2::new(rect.max.x - right - spacing * mark as f32, y);
+                star(painter, centre, outer, inner, color);
+            }
+        }
+    })
+    .with_label(label, Some(value))
+}
+
+// A filled five-pointed star, its first point up: its middle pentagon and a triangle per point (the
+// painter fills convex shapes).
+fn star(painter: &ui::UiPainter, centre: Vec2, outer: f32, inner: f32, color: Color) {
+    let point = |index: usize, reach: f32| {
+        let angle = std::f32::consts::PI * (index as f32 / 5.0 - 0.5);
+        centre + Vec2::new(angle.cos(), angle.sin()) * reach
+    };
+    let pentagon: Vec<Vec2> = (0..5).map(|index| point(index * 2 + 1, inner)).collect();
+    painter.convex_polygon(&pentagon, color, 0.0, color);
+    for tip in 0..5 {
+        let triangle = [point(tip * 2 + 9, inner), point(tip * 2, outer), point(tip * 2 + 1, inner)];
+        painter.convex_polygon(&triangle, color, 0.0, color);
+    }
 }
 
 // "Campaign II is open: ...": a dashed box with the next campaign's emblem in a ring (a star when

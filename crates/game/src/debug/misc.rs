@@ -270,5 +270,11 @@ impl CampaignConfigs {
         if let Some(months) = mission.requirements.time_limit_months {
             ui::text(ui_sys, format_small!("Time limit: {months} months"));
         }
+        if !mission.distinctions.is_empty() {
+            ui::text(ui_sys, "Distinctions:");
+            for distinction in &mission.distinctions {
+                ui::bullet_text(ui_sys, format!("{}: {:?}", distinction.id, distinction.condition));
+            }
+        }
     }
 }

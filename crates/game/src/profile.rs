@@ -63,7 +63,7 @@ pub struct CampaignRecord {
     pub reached: bool,                  // Playable: the first campaign, or the one before it finished.
     pub current_mission: Option<usize>, // The mission last started, by index in the campaign.
     pub missions_finished: Vec<usize>,  // Indices of the missions finished, ascending.
-    pub distinctions: Vec<String>,      // TODO(realm-ui): the distinctions earned, once M9 awards them.
+    pub distinctions: Vec<String>,      // The distinctions earned, by id, in the order first earned.
     pub finished: bool,                 // Its last mission is finished.
     // The site picked at each choice point started (the world map's choice box), by step: the
     // campaign resumes there (next_mission). Left out of the file while empty.
@@ -277,6 +277,18 @@ impl Profile {
     // A mission's goals were met. Finishing a mission of a campaign's last step finishes the
     // campaign and reaches the next visible one in campaigns.json (a hidden campaign reaches none).
     pub fn mission_finished(&mut self, configs: &CampaignConfigs, campaign_index: usize, mission_index: usize) {
+        self.mission_finished_with(configs, campaign_index, mission_index, &[]);
+    }
+
+    // mission_finished, the mission having earned the distinctions `distinctions` (by id): added to
+    // those an earlier play earned (ids the mission doesn't have are left out).
+    pub fn mission_finished_with(
+        &mut self,
+        configs: &CampaignConfigs,
+        campaign_index: usize,
+        mission_index: usize,
+        distinctions: &[String],
+    ) {
         let Some(campaign) = configs.campaign(campaign_index) else {
             return;
         };
@@ -286,7 +298,14 @@ impl Profile {
         if let Err(position) = record.missions_finished.binary_search(&mission_index) {
             record.missions_finished.insert(position, mission_index);
         }
-        // TODO(realm-ui): record the mission's distinctions here once M9 awards them.
+        if let Some(mission) = campaign.missions.get(mission_index) {
+            for id in distinctions {
+                if mission.distinctions.iter().any(|distinction| distinction.id == *id) && !record.distinctions.contains(id)
+                {
+                    record.distinctions.push(id.clone());
+                }
+            }
+        }
 
         if campaign.is_last_step(mission_index) {
             record.finished = true;
@@ -588,12 +607,13 @@ pub fn on_choice_made(campaign_index: usize, step: usize, site: ChoiceSite) {
     update(|profile| profile.choice_made(CampaignConfigs::get(), campaign_index, step, site));
 }
 
-// A campaign mission's goals were met (campaign::take_finished_missions, drained by GameLoop).
-pub fn on_mission_finished(campaign_index: usize, mission_index: usize) {
+// A campaign mission's goals were met, earning the distinctions `distinctions`
+// (campaign::take_finished_missions, drained by GameLoop).
+pub fn on_mission_finished(campaign_index: usize, mission_index: usize, distinctions: &[String]) {
     if !CampaignConfigs::is_initialized() {
         return;
     }
-    update(|profile| profile.mission_finished(CampaignConfigs::get(), campaign_index, mission_index));
+    update(|profile| profile.mission_finished_with(CampaignConfigs::get(), campaign_index, mission_index, distinctions));
 }
 
 // A story sequence was seen: played to its end or skipped (the comic viewer).

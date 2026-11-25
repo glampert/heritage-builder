@@ -38,6 +38,7 @@ const CARD_NUMBER_FONT_SCALE: f32 = 0.85;
 const CARD_NAME_FONT_SCALE: f32 = 1.4;
 const CARD_REALM_FONT_SCALE: f32 = 0.95;
 const CARD_STATUS_FONT_SCALE: f32 = 1.0;
+const CARD_DISTINCTIONS_FONT_SCALE: f32 = 0.9;
 const BUTTON_SPACING: f32 = 24.0;
 const BACK_BUTTON_WIDTH: f32 = 200.0;
 const REPLAY_BUTTON_WIDTH: f32 = 260.0;
@@ -233,10 +234,9 @@ fn card(context: &mut GameUiContext, campaign_index: usize, scale: PickerScale, 
         contents.add_widget(UiWidgetGroup::new().with_widget(marks));
     }
 
-    // Where it stands.
+    // Where it stands, and the distinctions earned (while it has any).
     // TODO(realm-ui): "Last played today, 23:10" (the profile records no time yet) and the quote,
-    // the newest line of the campaign's stele (Phase 3); the distinctions earned stay hidden until
-    // M9 awards them (open decision 11).
+    // the newest line of the campaign's stele (Phase 3).
     let (status, tooltip) = if !playable {
         let text = unlock_text(campaign_index);
         (text.clone(), Some(text))
@@ -259,6 +259,16 @@ fn card(context: &mut GameUiContext, campaign_index: usize, scale: PickerScale, 
         card_text(status, CARD_STATUS_FONT_SCALE, scale, if playable && missions > 0 { "ink" } else { "sub" })
             .with_label("status"),
     );
+    if playable
+        && let Some(tally) = crate::campaign::stele::distinction_tally(configs, profile, campaign_index)
+        && tally.total > 0
+    {
+        let text = ui::text::format(UiTextCategory::Menu, "campaign_picker.distinctions", &[
+            ("earned", &tally.earned.to_string()),
+            ("total", &tally.total.to_string()),
+        ]);
+        contents.add_widget(card_text(text, CARD_DISTINCTIONS_FONT_SCALE, scale, "sub").with_label("distinctions"));
+    }
 
     let mut card = skin::card(context, campaign_number(campaign_index), contents)
         .with_row(row)

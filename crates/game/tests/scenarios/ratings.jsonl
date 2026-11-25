@@ -140,6 +140,9 @@
 {"method": "assert.eq", "params": {"query": "goals.state", "path": "/goals/2/met", "value": true}}
 {"method": "assert.eq", "params": {"query": "goals.state", "path": "/all_met", "value": false}}
 {"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/goal", "value": 60}}
+# Its distinctions (Phase 4), open while the mission goes on.
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/distinctions/0", "value": {"id": "no_debt", "def": "NoDebt", "distinction": "Never fall into debt", "state": "open"}}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/distinctions/1/distinction", "value": "Culture 80 or higher"}}
 # The rings tick the goals; the goals panel lists them and the months left.
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/goals", "value": [null, 60, null, 20]}}
 {"method": "ui.click", "params": {"path": "TopBar/Goals"}}
@@ -176,6 +179,10 @@
 {"method": "assert.eq", "params": {"query": "goals.state", "path": "/completed", "value": true}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/rows/0", "value": ["Culture", "60", "65"]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/status", "value": ["done", "done", "done"]}}
+# Never in debt earned, Culture 80 missed; the ratings' bars as set.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/distinctions", "kind": "table"}, "path": "/widgets/0/value/status", "value": ["done", "failed"]}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/distinctions/1/state", "value": "missed"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/ratings", "kind": "canvas"}, "path": "/widgets/0/value/values", "value": [15, 65, 30, 30]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "screenshot", "params": {"path": "out/ratings/debrief-goals.png"}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Keep playing"}}
@@ -186,9 +193,19 @@
 {"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "sim.pause"}
 {"method": "input.move", "params": {"park": true}}
-{"method": "finance.set", "params": {"balance": -500, "months_in_debt": 11}}
+# A month's end in debt spoils never in debt: out of reach for good, kept with the game.
+{"method": "finance.set", "params": {"balance": -500, "months_in_debt": 1}}
 {"method": "time.fast_forward", "params": {"sim_secs": 61, "resume": true}}
-{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionFailed", "timeout_frames": 60}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/distinctions/0/state", "value": "spoiled"}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/distinctions/1/state", "value": "open"}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/spoiled", "value": ["no_debt"]}}
+# Its twelfth month in debt: run to just before the month's end, then play into it (the failure screen
+# pauses the game).
+{"method": "finance.set", "params": {"balance": -500, "months_in_debt": 11}}
+{"method": "time.fast_forward", "params": {"sim_secs": 58.5, "resume": true}}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionFailed", "timeout_frames": 300}}
 {"method": "assert.eq", "params": {"query": "goals.state", "path": "/failure", "value": "debt"}}
 {"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 1 FAILED"}}

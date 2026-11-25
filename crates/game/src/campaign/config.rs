@@ -254,10 +254,10 @@ pub struct MissionDef {
     pub briefing_new: Vec<String>,
     #[serde(default)]
     pub briefing_threats: Option<String>,
-    // The distinctions the mission can earn and the line each adds to the stele once earned
-    // (docs/plans/realm-ui.md, Phase 3: Stele). Empty until M9 defines distinctions and awards
-    // them into the profile (CampaignRecord::distinctions, by id).
-    // TODO(realm-ui): M9 fills these in, with the debrief's distinctions table.
+    // The distinctions the mission can earn (docs/plans/ratings.md, §5; GDD 7: one or two optional
+    // goals, at most MAX_DISTINCTIONS) and the line each adds to the stele once earned: the ones met
+    // when its goals are met (ratings::distinctions), recorded in the profile by id
+    // (CampaignRecord::distinctions).
     #[serde(default)]
     pub distinctions: Vec<MissionDistinctionDef>,
 }
@@ -290,14 +290,57 @@ impl MissionDef {
     }
 }
 
-// A distinction a mission can earn (M9), and the stele line it adds.
-#[derive(Clone, Serialize, Deserialize)]
+// The most distinctions a mission can have (GDD 7: "one or two optional goals").
+pub const MAX_DISTINCTIONS: usize = 2;
+
+// A distinction a mission can earn (docs/plans/ratings.md, §5): an optional goal, earned if it holds
+// when the mission's goals are met, and the stele line it adds once earned.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MissionDistinctionDef {
     // Names it in the profile (CampaignRecord::distinctions): unique in its campaign.
     pub id: String,
+    // What earns it.
+    pub condition: DistinctionCondition,
     // The line it adds to the stele, after its mission's: a Story key.
     pub stele_line: String,
+}
+
+// What earns a distinction (ratings::distinctions checks them). A goal is read when the mission's
+// goals are met; the others are kept month by month from the mission's start and spoiled for good
+// once broken (CityRatings::spoiled), and checked once more then.
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum DistinctionCondition {
+    // A goal met when the mission's goals are: "Culture 60 or higher", "The Mandate 50 or higher".
+    Goal(MissionGoal),
+    // Never in debt at a month's end (Finance::months_in_debt).
+    NoDebt,
+    // No flood breached a dyke (the floods' log).
+    NeverBreached,
+    // No house burned down or collapsed (the risks' disasters).
+    NoHouseLost,
+    // Never without the good in the storage yards and granaries at a month's start while people
+    // lived in the city: "Never run short of rice".
+    NeverShortOf { good: ResourceKind },
+    // The goals met within this many months of the calendar from the mission's start.
+    Within { months: u32 },
+}
+
+impl DistinctionCondition {
+    // Whether it's kept month by month from the mission's start, and spoiled once broken: every form
+    // but a goal.
+    pub fn can_spoil(&self) -> bool {
+        !matches!(self, Self::Goal(_))
+    }
+
+    // What's wrong with it, for CampaignConfigs::validate.
+    pub fn problem(&self) -> Option<String> {
+        match self {
+            Self::Goal(goal) => goal.problem(),
+            Self::Within { months: 0 } => Some("a distinction within 0 months; it needs 1 or more".to_string()),
+            _ => None,
+        }
+    }
 }
 
 // The city a mission founds, on its campaign's world map (crate::world_map).
@@ -553,7 +596,7 @@ pub struct MissionRequirements {
 }
 
 // A single completion goal. Extend by adding a variant + a match arm in `is_met`.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum MissionGoal {
     Population { min: u32 },
     Employment { min_employed: u32 },
@@ -602,6 +645,20 @@ impl MissionGoal {
         }
     }
 
+    // What's wrong with it, for CampaignConfigs::validate: a rating goal past the scale, a house
+    // level that doesn't exist.
+    pub fn problem(&self) -> Option<String> {
+        match self {
+            Self::Rating { rating, min } if *min > MAX_RATING => {
+                Some(format!("a {rating} goal of {min}: ratings run from 0 to {MAX_RATING}"))
+            }
+            Self::HousesAtLevel { level, .. } if *level == 0 || *level as usize > HouseLevel::count() => {
+                Some(format!("houses at level {level}: levels run from 1 to {}", HouseLevel::count()))
+            }
+            _ => None,
+        }
+    }
+
     // What the city has of it now.
     pub fn achieved(&self, stats: &WorldStats) -> i64 {
         match self {
@@ -644,18 +701,7 @@ impl MissionRequirements {
 
     // What's wrong with the goals, for CampaignConfigs::validate.
     pub fn problems(&self) -> Vec<String> {
-        let mut problems = Vec::new();
-        for goal in &self.goals {
-            match goal {
-                MissionGoal::Rating { rating, min } if *min > MAX_RATING => {
-                    problems.push(format!("a {rating} goal of {min}: ratings run from 0 to {MAX_RATING}"))
-                }
-                MissionGoal::HousesAtLevel { level, .. } if *level == 0 || *level as usize > HouseLevel::count() => {
-                    problems.push(format!("houses at level {level}: levels run from 1 to {}", HouseLevel::count()))
-                }
-                _ => {}
-            }
-        }
+        let mut problems: Vec<String> = self.goals.iter().filter_map(MissionGoal::problem).collect();
         if self.time_limit_months == Some(0) {
             problems.push("a time limit of 0 months; it needs 1 or more".to_string());
         }
@@ -720,7 +766,9 @@ impl CampaignConfigs {
     // mission cities with one id, a hidden campaign before a visible one; a campaign with missions
     // and no stele title or closing line, a mission without its lead-in or briefing, a step (a
     // mission that isn't a variant) without its stele line, a distinction id given twice in a
-    // campaign. Empty when all is well. (That the keys are in en.json, the tests check: tests/world_map.rs.)
+    // campaign, a mission with more than MAX_DISTINCTIONS, a distinction without an id or a stele
+    // line or whose condition is wrong. Empty when all is well. (That the keys are in en.json, the
+    // tests check: tests/world_map.rs.)
     pub fn validate(&self) -> Vec<String> {
         let mut errors = Vec::new();
         let mut hidden_seen = false;
@@ -800,11 +848,31 @@ impl CampaignConfigs {
                         errors.push(format!("Campaign '{name}', mission {index}: no {field}."));
                     }
                 }
+                if mission.distinctions.len() > MAX_DISTINCTIONS {
+                    errors.push(format!(
+                        "Campaign '{name}', mission {index}: {} distinctions; a mission has {MAX_DISTINCTIONS} at most.",
+                        mission.distinctions.len()
+                    ));
+                }
                 for distinction in &mission.distinctions {
-                    if distinctions.contains(&distinction.id.as_str()) {
+                    if distinction.id.is_empty() {
+                        errors.push(format!("Campaign '{name}', mission {index}: a distinction has no id."));
+                    } else if distinctions.contains(&distinction.id.as_str()) {
                         errors.push(format!("Campaign '{name}': two distinctions have the id '{}'.", distinction.id));
                     }
                     distinctions.push(&distinction.id);
+                    if distinction.stele_line.is_empty() {
+                        errors.push(format!(
+                            "Campaign '{name}', mission {index}: the distinction '{}' has no stele_line.",
+                            distinction.id
+                        ));
+                    }
+                    if let Some(problem) = distinction.condition.problem() {
+                        errors.push(format!(
+                            "Campaign '{name}', mission {index}: the distinction '{}': {problem}.",
+                            distinction.id
+                        ));
+                    }
                 }
             }
             for target in 0..campaign.missions.len() {

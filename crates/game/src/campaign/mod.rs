@@ -19,6 +19,7 @@ pub mod stele;
 
 use config::{
     CampaignConfigs,
+    MissionDistinctionDef,
     MissionFaithDef,
     MissionFinanceDef,
     MissionFloodsDef,
@@ -53,6 +54,15 @@ pub struct ActiveMission {
     pub completed: bool,
 }
 
+// A mission whose goals were met, and the ids of the distinctions it earned then
+// (ratings::distinctions::earned).
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct FinishedMission {
+    pub campaign_id: usize,
+    pub mission_index: usize,
+    pub distinctions: Vec<String>,
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CampaignPrompt {
     MissionComplete,
@@ -74,9 +84,13 @@ pub struct CampaignManager {
     // The progress before that mission start, which cancel_mission_start puts back if its map
     // doesn't load.
     progress_before_start: CampaignProgress,
-    // Missions whose goals were met since GameLoop last took them, as (campaign id,
-    // mission index): the player's profile records them (take_finished_missions).
-    finished_missions: Vec<(usize, usize)>,
+    // Missions whose goals were met since GameLoop last took them, with the distinctions they
+    // earned: the player's profile records them (take_finished_missions).
+    finished_missions: Vec<FinishedMission>,
+    // The mission being played, once its goals were met, with the distinctions it earned: what the
+    // debrief shows, since the profile records them a frame later (distinctions_awarded). Runtime
+    // only: a session change drops it.
+    award: Option<FinishedMission>,
     // A mission's map has loaded: the in-game menus open its briefing (take_pending_briefing),
     // before any prompt (a mission finished at once waits for the briefing's Begin).
     briefing_pending: bool,
@@ -90,6 +104,7 @@ impl CampaignManager {
             suppress_snapshot_restore: false,
             progress_before_start: CampaignProgress::default(),
             finished_missions: Vec::new(),
+            award: None,
             briefing_pending: false,
         }
     }
@@ -155,6 +170,48 @@ pub fn active_requirements() -> Option<&'static config::MissionRequirements> {
     Some(&CampaignConfigs::get().mission(active.campaign_id, active.mission_index)?.requirements)
 }
 
+// The distinctions of the mission being played; None outside a campaign mission.
+pub fn active_distinctions() -> Option<&'static [MissionDistinctionDef]> {
+    if !CampaignManager::is_initialized() {
+        return None;
+    }
+    let active = CampaignManager::get().progress.active.as_ref()?;
+    Some(&CampaignConfigs::get().mission(active.campaign_id, active.mission_index)?.distinctions)
+}
+
+// The ids of the distinctions the mission at `mission_index` of the campaign at `campaign_id`
+// earned as its goals were met in this session (empty for another mission, or once the session
+// changed): the debrief adds them to the profile's (Profile::mission_finished_with), which records
+// them the frame after.
+pub fn distinctions_awarded(campaign_id: usize, mission_index: usize) -> Vec<String> {
+    if !CampaignManager::is_initialized() {
+        return Vec::new();
+    }
+    CampaignManager::get()
+        .award
+        .as_ref()
+        .filter(|award| award.campaign_id == campaign_id && award.mission_index == mission_index)
+        .map(|award| award.distinctions.clone())
+        .unwrap_or_default()
+}
+
+// The ids of the distinctions of the mission at `mission_index` of the campaign at `campaign_id`
+// earned so far: this session's award (distinctions_awarded) with those the profile holds from it.
+pub fn earned_distinctions(campaign_id: usize, mission_index: usize) -> Vec<String> {
+    let mut earned = distinctions_awarded(campaign_id, mission_index);
+    let configs = CampaignConfigs::get();
+    if let (Some(campaign), Some(mission)) = (configs.campaign(campaign_id), configs.mission(campaign_id, mission_index))
+        && let Some(record) = crate::profile::get().record(&campaign.id)
+    {
+        for distinction in &mission.distinctions {
+            if record.distinctions.contains(&distinction.id) && !earned.contains(&distinction.id) {
+                earned.push(distinction.id.clone());
+            }
+        }
+    }
+    earned
+}
+
 // Begin a campaign at its first mission. Returns the map to load, or None if the
 // campaign id is invalid / has no missions.
 pub fn start_campaign(campaign_id: usize) -> Option<MissionMap> {
@@ -170,6 +227,7 @@ pub fn start_mission(campaign_id: usize, mission_index: usize) -> Option<Mission
     mgr.progress_before_start = mgr.progress.clone();
     mgr.progress.active = Some(ActiveMission { campaign_id, mission_index, completed: false });
     mgr.pending_prompt = None;
+    mgr.award = None;
     mgr.briefing_pending = false; // Asked for again once the mission's map has loaded.
     mgr.suppress_snapshot_restore = true;
 
@@ -220,6 +278,7 @@ pub fn advance_to_next_mission() -> Option<MissionMap> {
         mgr.progress_before_start = mgr.progress.clone();
         mgr.progress.active = Some(ActiveMission { campaign_id, mission_index: next_index, completed: false });
         mgr.pending_prompt = None;
+        mgr.award = None;
         mgr.briefing_pending = false;
         mgr.suppress_snapshot_restore = true;
         Some(map)
@@ -276,9 +335,9 @@ pub fn take_pending_briefing() -> bool {
     std::mem::take(&mut CampaignManager::get_mut().briefing_pending)
 }
 
-// The missions finished since the last call, as (campaign id, mission index). tick() runs inside
+// The missions finished since the last call, with the distinctions they earned. tick() runs inside
 // the simulation step, so GameLoop takes them each frame and records them in the profile.
-pub fn take_finished_missions() -> Vec<(usize, usize)> {
+pub fn take_finished_missions() -> Vec<FinishedMission> {
     std::mem::take(&mut CampaignManager::get_mut().finished_missions)
 }
 
@@ -297,6 +356,7 @@ pub fn restore_snapshot(progress: CampaignProgress) -> bool {
     let mgr = CampaignManager::get_mut();
     mgr.progress = progress;
     mgr.pending_prompt = None;
+    mgr.award = None;
     mgr.briefing_pending = false; // A save of a mission under way loads without its briefing.
     false
 }
@@ -405,7 +465,8 @@ pub fn active_mission_calendar() -> Option<CalendarSettings> {
     Some(settings)
 }
 
-// Per-tick requirement evaluation. Called from `CampaignSystem::update`.
+// Per-tick requirement evaluation. Called from `CampaignSystem::update`. Once the goals are met, the
+// mission is finished with the distinctions that hold then (ratings::distinctions::earned).
 pub fn tick(context: &SimContext) {
     let mgr = CampaignManager::get_mut();
 
@@ -428,6 +489,17 @@ pub fn tick(context: &SimContext) {
             active.completed = true;
         }
         mgr.pending_prompt = Some(CampaignPrompt::MissionComplete);
-        mgr.finished_missions.push((campaign_id, mission_index));
+        let distinctions = crate::ratings::distinctions::earned(context, &mission.distinctions);
+        if !mission.distinctions.is_empty() {
+            log::info!(
+                log::channel!("campaign"),
+                "Mission {mission_index} finished, earning {} of its {} distinctions: {distinctions:?}.",
+                distinctions.len(),
+                mission.distinctions.len()
+            );
+        }
+        let finished = FinishedMission { campaign_id, mission_index, distinctions };
+        mgr.award = Some(finished.clone());
+        mgr.finished_missions.push(finished);
     }
 }

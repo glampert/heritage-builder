@@ -5,10 +5,12 @@ use game::{
         ActiveMission,
         CampaignProgress,
         CampaignPrompt,
+        FinishedMission,
         config::{
             CampaignConfigs,
             CampaignDef,
             ChoiceSite,
+            DistinctionCondition,
             LabelSide,
             MissionCalendarDef,
             MissionChoiceDef,
@@ -53,6 +55,7 @@ fn main() {
         test_utils::test_fn!(test_start_campaign_sets_active_mission),
         test_utils::test_fn!(test_start_mission_resumes_a_campaign),
         test_utils::test_fn!(test_tick_detects_mission_completion),
+        test_utils::test_fn!(test_a_finished_mission_earns_its_distinctions),
         test_utils::test_fn!(test_a_lost_mission_cant_be_won),
         test_utils::test_fn!(test_advance_to_next_mission),
         test_utils::test_fn!(test_advance_through_a_choice),
@@ -107,7 +110,18 @@ fn build_test_configs() -> CampaignConfigs {
                         briefing: None,
                         briefing_new: Vec::new(),
                         briefing_threats: None,
-                        distinctions: Vec::new(),
+                        distinctions: vec![
+                            MissionDistinctionDef {
+                                id: "no_debt".into(),
+                                condition: DistinctionCondition::NoDebt,
+                                stele_line: String::new(),
+                            },
+                            MissionDistinctionDef {
+                                id: "crowded".into(),
+                                condition: DistinctionCondition::Goal(MissionGoal::Population { min: 20 }),
+                                stele_line: String::new(),
+                            },
+                        ],
                     },
                     MissionDef {
                         id: String::new(),
@@ -442,8 +456,9 @@ fn test_tick_detects_mission_completion() {
     assert!(campaign::active_mission().unwrap().completed);
     assert_eq!(campaign::take_pending_prompt(), Some(CampaignPrompt::MissionComplete));
 
-    // The finished mission is queued once for the player's profile (GameLoop takes it).
-    assert_eq!(campaign::take_finished_missions(), vec![(0, 0)]);
+    // The finished mission is queued once for the player's profile (GameLoop takes it), with the
+    // distinction it earned (never in debt; 20 people it didn't reach).
+    assert_eq!(campaign::take_finished_missions(), vec![finished(0, 0, &["no_debt"])]);
     {
         let context = env.new_sim_context(0.0);
         campaign::tick(&context);
@@ -460,7 +475,56 @@ fn test_tick_detects_mission_completion() {
     }
     campaign::reset();
     assert!(campaign::active_mission().is_none());
-    assert_eq!(campaign::take_finished_missions(), vec![(0, 0)]);
+    assert_eq!(campaign::take_finished_missions(), vec![finished(0, 0, &["no_debt"])]);
+}
+
+fn finished(campaign_id: usize, mission_index: usize, distinctions: &[&str]) -> FinishedMission {
+    FinishedMission { campaign_id, mission_index, distinctions: distinctions.iter().map(|id| id.to_string()).collect() }
+}
+
+// The distinctions that hold as the goals are met are earned: queued with the finished mission, kept
+// for the debrief (distinctions_awarded) and recorded in the profile, added to an earlier play's; a
+// spoiled one isn't earned, and a session change drops the award.
+fn test_a_finished_mission_earns_its_distinctions() {
+    ensure_campaign_setup();
+    campaign::start_campaign(0); // Mission 1: Population 10; never in debt, or 20 people.
+    let mut env = TestEnvironment::with_preset_map(TEST_PRESET);
+    assert_eq!(campaign::active_distinctions().map(<[_]>::len), Some(2));
+    assert!(campaign::distinctions_awarded(0, 0).is_empty(), "nothing until the goals are met");
+
+    env.world.stats_mut().population.total = 10;
+    {
+        let context = env.new_sim_context(0.0);
+        campaign::tick(&context);
+    }
+    let first = campaign::take_finished_missions();
+    assert_eq!(first, vec![finished(0, 0, &["no_debt"])]);
+    assert_eq!(campaign::distinctions_awarded(0, 0), ["no_debt"]);
+    assert!(campaign::distinctions_awarded(0, 1).is_empty(), "another mission's");
+    assert_eq!(campaign::earned_distinctions(0, 0), ["no_debt"]);
+
+    // The profile keeps them, and a replay adds the rest; ids the mission doesn't have are left out.
+    let configs = build_test_configs();
+    let mut profile = Profile::new();
+    profile.mission_finished_with(&configs, 0, 0, &first[0].distinctions);
+    assert_eq!(profile.record("test_campaign").unwrap().distinctions, ["no_debt"]);
+    profile.mission_finished_with(&configs, 0, 0, &["crowded".to_string(), "no_debt".to_string(), "bogus".to_string()]);
+    profile.mission_finished_with(&configs, 0, 1, &["no_debt".to_string()]);
+    assert_eq!(profile.record("test_campaign").unwrap().distinctions, ["no_debt", "crowded"]);
+    assert_eq!(profile.record("test_campaign").unwrap().missions_finished, [0, 1]);
+
+    // Played again: never in debt spoiled this time, 20 people reached.
+    campaign::start_campaign(0);
+    assert!(campaign::distinctions_awarded(0, 0).is_empty(), "a new start drops the award");
+    env.sim.ratings_mut().spoil("no_debt");
+    env.world.stats_mut().population.total = 25;
+    {
+        let context = env.new_sim_context(0.0);
+        campaign::tick(&context);
+    }
+    assert_eq!(campaign::take_finished_missions(), vec![finished(0, 0, &["crowded"])]);
+    campaign::reset();
+    assert!(campaign::distinctions_awarded(0, 0).is_empty(), "a reset drops the award");
 }
 
 fn test_advance_to_next_mission() {
@@ -744,8 +808,11 @@ fn test_stele_lines() {
     campaign.missions[0].stele_line = Some("mission.dragon_legacy.1.stele".into());
     campaign.missions[1].stele_line = Some("mission.dragon_legacy.2.stele".into());
     campaign.missions[3].stele_line = Some("mission.dragon_legacy.3.stele".into());
-    campaign.missions[0].distinctions =
-        vec![MissionDistinctionDef { id: "full_granary".into(), stele_line: "mission.test_choices.1.stele".into() }];
+    campaign.missions[0].distinctions = vec![MissionDistinctionDef {
+        id: "full_granary".into(),
+        condition: DistinctionCondition::NoDebt,
+        stele_line: "mission.test_choices.1.stele".into(),
+    }];
     let configs = CampaignConfigs { campaigns: vec![campaign] };
     let line = |key: &str| engine::ui::text::get(engine::ui::text::UiTextCategory::Story, key).to_string();
 
@@ -823,11 +890,58 @@ fn test_stele_validation() {
         mission.briefing = Some("mission.dragon_legacy.1.briefing".into());
     }
     assert_eq!(CampaignConfigs { campaigns: vec![campaign.clone_for_test()] }.validate(), Vec::<String>::new());
-    let twice = MissionDistinctionDef { id: "twice".into(), stele_line: "x".into() };
+    let twice =
+        MissionDistinctionDef { id: "twice".into(), condition: DistinctionCondition::NoDebt, stele_line: "x".into() };
     campaign.missions[0].distinctions = vec![twice.clone()];
     campaign.missions[3].distinctions = vec![twice];
-    let errors = CampaignConfigs { campaigns: vec![campaign] }.validate();
+    let errors = CampaignConfigs { campaigns: vec![campaign.clone_for_test()] }.validate();
     assert!(errors.iter().any(|error| error.contains("two distinctions have the id 'twice'")), "{errors:?}");
+
+    // At most two to a mission, each with an id, a stele line and a sound condition.
+    let distinction = |id: &str, condition: DistinctionCondition| MissionDistinctionDef {
+        id: id.into(),
+        condition,
+        stele_line: "x".into(),
+    };
+    campaign.missions[3].distinctions = Vec::new();
+    campaign.missions[0].distinctions = vec![
+        distinction("a", DistinctionCondition::NoDebt),
+        distinction("b", DistinctionCondition::Within { months: 0 }),
+        distinction("", DistinctionCondition::Goal(MissionGoal::Rating { rating: RatingKind::Culture, min: 101 })),
+    ];
+    campaign.missions[0].distinctions[0].stele_line = String::new();
+    let errors = CampaignConfigs { campaigns: vec![campaign.clone_for_test()] }.validate();
+    for expected in [
+        "mission 0: 3 distinctions; a mission has 2 at most",
+        "mission 0: a distinction has no id",
+        "the distinction 'a' has no stele_line",
+        "the distinction 'b': a distinction within 0 months",
+        "a culture goal of 101",
+    ] {
+        assert!(errors.iter().any(|error| error.contains(expected)), "expected '{expected}' in {errors:?}");
+    }
+    campaign.missions[0].distinctions.truncate(1);
+    campaign.missions[0].distinctions[0].stele_line = "x".into();
+    assert_eq!(CampaignConfigs { campaigns: vec![campaign] }.validate(), Vec::<String>::new());
+
+    // As campaigns.json writes them.
+    let parsed: Vec<MissionDistinctionDef> = serde_json::from_str(
+        r#"[
+            { "id": "a", "condition": "NoDebt", "stele_line": "x" },
+            { "id": "b", "condition": { "NeverShortOf": { "good": "Rice" } }, "stele_line": "x" },
+            { "id": "c", "condition": { "Goal": { "Rating": { "rating": "legitimacy", "min": 50 } } }, "stele_line": "x" }
+        ]"#,
+    )
+    .unwrap();
+    assert_eq!(parsed[1].condition, DistinctionCondition::NeverShortOf { good: ResourceKind::Rice });
+    assert_eq!(
+        parsed[2].condition,
+        DistinctionCondition::Goal(MissionGoal::Rating { rating: RatingKind::Legitimacy, min: 50 })
+    );
+    assert!(
+        serde_json::from_str::<MissionDistinctionDef>(r#"{ "id": "a", "stele_line": "x" }"#).is_err(),
+        "a condition is required"
+    );
 }
 
 trait CloneForTest {

@@ -61,7 +61,7 @@ use mission_briefing::*;
 
 mod story_comic;
 pub(crate) use load_save::group_digits;
-pub(crate) use mission_complete::goal_line;
+pub(crate) use mission_complete::{distinction_line, goal_line};
 use story_comic::*;
 pub use story_comic::{StoryEnd, StoryRequest};
 

@@ -1,6 +1,6 @@
 # Ratings, goals and failure
 
-**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17), Phase 1 (the ratings on screen) and Phase 2 (goals and requests, save v18) and Phase 3 (failure); Phase 4 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17), Phase 1 (the ratings on screen) and Phase 2 (goals and requests, save v18), Phase 3 (failure) and Phase 4 (distinctions); Phase 5 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
 - GDD 5.17: the four ratings, Prosperity, Culture, Security and Legitimacy, each with its own name for Legitimacy in each realm (the Mandate, Divine Favour, Merit);
 - GDD 7's goals that are still missing, its failure conditions and its optional distinctions;
 - the Legitimacy half of the court requests (GDD 5.14), which M10 left logged and not applied.
@@ -552,11 +552,47 @@ It was researched against `853baf3d` on `claude`. File and line references point
 
 ### Phase 4: Distinctions (medium)
 
-- [ ] `DistinctionCondition` and its checks; `CityRatings::spoiled` tracked monthly; `campaign::distinctions_earned`.
-- [ ] The award into the profile with the finished mission; the stele's lines.
-- [ ] The debrief's distinctions and rating meters; the campaign-complete count and marks; the picker's count.
-- [ ] The hidden test campaigns' distinctions; `ui_intermission.jsonl` checks them.
-- [ ] Tests for each condition and the award.
+- [x] `DistinctionCondition` and its checks; `CityRatings::spoiled` tracked monthly; `campaign::distinctions_earned`.
+- [x] The award into the profile with the finished mission; the stele's lines.
+- [x] The debrief's distinctions and rating meters; the campaign-complete count and marks; the picker's count.
+- [x] The hidden test campaigns' distinctions; `ui_intermission.jsonl` checks them.
+- [x] Tests for each condition and the award.
+
+**Notes (2026-11-25):**
+- **What was built:**
+  - **The data:** `MissionDistinctionDef` gains `condition` (`DistinctionCondition`, required): `Goal(MissionGoal)`, `NoDebt`, `NeverBreached`, `NoHouseLost`, `NeverShortOf { good }` and `Within { months }`. `CampaignConfigs::validate` refuses more than `MAX_DISTINCTIONS` (2) on a mission, a distinction without an id or stele line, and a condition with a problem (`MissionGoal::problem`, shared with the goals' checks; `Within` of 0 months).
+  - **`ratings::distinctions`** ([ratings/distinctions.rs](../../crates/game/src/ratings/distinctions.rs)):
+    - `is_broken`: a month's end in debt (`Finance::months_in_debt` above 0), a flood log record with a breach or a disaster month with a house lost since the mission's start (`mission_start_month`, the calendar's start), the good out of storage while people live in the city, or the months gone (`months_elapsed >= months`, as the time limit counts). A goal never is.
+    - `check_spoiled`: at each month's start, after the failure's check (`ratings::on_new_month`), spoils the mission's broken distinctions into `CityRatings::spoiled` (saved since v17), not a goal, and nothing outside a mission, once it's finished or once it's lost.
+    - `is_earned` and `earned`: as the goals are met, a distinction that isn't spoiled nor broken now, and whose goal is met.
+    - `state`: open or spoiled while the mission goes on, earned or missed once it's finished.
+  - **The award:** `campaign::tick` reads `distinctions::earned` as the goals are met and queues it with the finished mission (`FinishedMission`, `take_finished_missions`), and keeps it for the debrief (`campaign::distinctions_awarded`; runtime only, dropped by any session change). `GameLoop` records it with the mission (`profile::on_mission_finished`, `Profile::mission_finished_with`), added to an earlier play's; ids the mission doesn't have are left out. `campaign::earned_distinctions` is this play's with the profile's.
+  - **The debrief:**
+    - a Distinctions section after the goals: its title with "each one adds a line to the stele", and a table with a tick for each one earned (in this play or an earlier one) and a crossed ring, its line dimmed, for each one not (`UiTableRow::with_color`, new). A mission without distinctions shows none.
+    - the four ratings as bars over the stats, in the UI realm's words (`MissionComplete/panel/ratings`, a canvas).
+    - The stele is carved from the profile with this play's award, so a distinction's line shows freshly carved with the mission's.
+  - **The campaign-complete screen:** "Distinctions N of M" in the stats and a star per distinction earned beside each mission (`marks`, a canvas beside each missions table), with "each mark is a distinction" by the Missions title, while the campaign has any (`stele::distinction_tally`: each step counted at the mission that finished it).
+  - **The campaign picker:** "N of M distinctions" under a playable card's status while its campaign has any.
+  - **Automation and the developer UI:** `goals.state`'s `distinctions` (`id`, `def`, `distinction`, `state`); the campaign debug window lists them.
+  - **Data:** each hidden test campaign's first mission has two, one earned and one missed when played as the scenarios do: never in debt and Culture 60 (`test_choices`), within a year and 1,000 people (Kambara's), never a breach and Prosperity 90 (Tampadesa's), never in debt and Culture 80 (`test_goals`). Campaign I's missions have none until M13.
+  - **Tests:**
+    - `tests/ratings.rs`: each condition (from the mission's start, not before it), and the monthly spoiling with its states and save.
+    - `tests/campaign.rs`: the award (queued, kept for the debrief, into the profile with a replay's, a spoiled one left out, dropped by a new start), the checks and the JSON forms.
+  - **Scenarios:**
+    - `ui_intermission.jsonl`: `test_choices`' debrief (the table, its note, `goals.state`, the stele's new line, the profile, the rating bars), its last debrief's stele, the campaign-complete screen's count, note and marks, and Kambara's and Tampadesa's debriefs.
+    - `ratings.jsonl`: the test mission's distinctions open, then earned and missed on its debrief with the bars, and never in debt spoiled by a month's end in debt.
+- **Deviations:**
+  - **No `campaign::distinctions_earned`:** `distinctions_awarded` (this play's) and `earned_distinctions` (with the profile's).
+  - **The debrief shows a distinction earned in an earlier play as earned,** as the stele carries its line.
+  - **"Never short of" and the others are checked once more as the goals are met,** besides each month's start.
+  - **The rating bars come before the stats, under the room left over,** and the distinctions after the goals; the room between them grows or shrinks.
+  - **No save change:** `CityRatings::spoiled` (v17) and `CampaignRecord::distinctions` (profile version 1) were already there.
+- **UI changes:** the debrief's Distinctions section and rating bars; the campaign-complete screen's distinctions stat, marks and note; the picker card's count; `UiTableRow::with_color` (engine).
+- **Verified:**
+  - `cargo test --workspace`;
+  - both clippy runs;
+  - every scenario on a release build (macOS), `determinism.jsonl` twice;
+  - the screenshots: the debrief in Đại Long's, Kambara's and Tampadesa's looks, and the campaign-complete screen's marks.
 
 ### Phase 5: Custom games (small)
 

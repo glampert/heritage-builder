@@ -104,6 +104,10 @@
           "name": "Test: The First Seal",
           "description": "A hidden test mission: only automation reaches this campaign.",
           "stele_line": "mission.test_choices.1.stele",
+          "distinctions": [
+            { "id": "no_debt", "condition": "NoDebt", "stele_line": "distinction.test_choices.no_debt" },
+            { "id": "culture_60", "condition": { "Goal": { "Rating": { "rating": "culture", "min": 60 } } }, "stele_line": "distinction.test_choices.culture_60" }
+          ],
           "lead_in": "mission.test_choices.1.lead_in",
           "briefing": "mission.test_choices.1.briefing",
           "briefing_new": ["briefing.test.new"],
@@ -160,6 +164,10 @@
           "name": "Test: The Lotus Gate",
           "description": "A hidden test mission: only automation reaches this campaign, to show Kambara's choice box. No goals: it's finished at once, and the debrief's Continue to the world map opens the world map's choice.",
           "stele_line": "mission.test_choices_kambara.1.stele",
+          "distinctions": [
+            { "id": "within_a_year", "condition": { "Within": { "months": 12 } }, "stele_line": "distinction.test_choices_kambara.within_a_year" },
+            { "id": "a_thousand", "condition": { "Goal": { "Population": { "min": 1000 } } }, "stele_line": "distinction.test_choices_kambara.a_thousand" }
+          ],
           "lead_in": "mission.test_choices_kambara.1.lead_in",
           "briefing": "mission.test_choices_kambara.1.briefing",
           "briefing_new": ["briefing.test.new"],
@@ -215,6 +223,10 @@
           "name": "Test: The Copper Road",
           "description": "A hidden test mission: only automation reaches this campaign, to show Tampadesa's choice box. No goals: it's finished at once, and the debrief's Continue to the world map opens the world map's choice.",
           "stele_line": "mission.test_choices_tampadesa.1.stele",
+          "distinctions": [
+            { "id": "no_breach", "condition": "NeverBreached", "stele_line": "distinction.test_choices_tampadesa.no_breach" },
+            { "id": "prosperity_90", "condition": { "Goal": { "Rating": { "rating": "prosperity", "min": 90 } } }, "stele_line": "distinction.test_choices_tampadesa.prosperity_90" }
+          ],
           "lead_in": "mission.test_choices_tampadesa.1.lead_in",
           "briefing": "mission.test_choices_tampadesa.1.briefing",
           "briefing_new": ["briefing.test.new"],
@@ -270,6 +282,10 @@
           "name": "Test: The Rated City",
           "description": "A hidden test mission for the ratings' goals (docs/plans/ratings.md, Phase 2): only automation reaches this campaign.",
           "stele_line": "mission.test_goals.1.stele",
+          "distinctions": [
+            { "id": "no_debt", "condition": "NoDebt", "stele_line": "distinction.test_goals.no_debt" },
+            { "id": "culture_80", "condition": { "Goal": { "Rating": { "rating": "culture", "min": 80 } } }, "stele_line": "distinction.test_goals.culture_80" }
+          ],
           "lead_in": "mission.test_goals.1.lead_in",
           "briefing": "mission.test_goals.1.briefing",
           "map": { "Preset": { "preset_number": 2 } },

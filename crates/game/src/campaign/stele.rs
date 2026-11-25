@@ -103,6 +103,38 @@ pub fn partly_carved(configs: &CampaignConfigs, campaign_index: usize, rows_to_c
     Some(build(campaign, campaign_index, &steps[..carved], None, rows_to_come, None))
 }
 
+// A campaign's distinctions, step by step, as the campaign-complete screen and the picker count
+// them ("8 of 12"): each step's at the mission that finished it, else at the step's own mission.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DistinctionTally {
+    // Per step, in order: the mission counted, its distinctions earned and its distinctions.
+    pub steps: Vec<(usize, usize, usize)>,
+    pub earned: usize,
+    pub total: usize,
+}
+
+// The distinctions of the campaign at `campaign_index` as the profile has earned them. None for a
+// campaign that doesn't exist.
+pub fn distinction_tally(configs: &CampaignConfigs, profile: &Profile, campaign_index: usize) -> Option<DistinctionTally> {
+    let campaign = configs.campaign(campaign_index)?;
+    let record = profile.record(&campaign.id);
+    let finished = record.map_or(&[][..], |record| record.missions_finished.as_slice());
+    let earned_ids = record.map_or(&[][..], |record| record.distinctions.as_slice());
+    let steps: Vec<(usize, usize, usize)> = campaign
+        .steps()
+        .into_iter()
+        .map(|step| {
+            let mission_index = finished_mission(campaign, record, finished, step).unwrap_or(step);
+            let distinctions = &campaign.missions[mission_index].distinctions;
+            let earned = distinctions.iter().filter(|distinction| earned_ids.contains(&distinction.id)).count();
+            (mission_index, earned, distinctions.len())
+        })
+        .collect();
+    let earned = steps.iter().map(|step| step.1).sum();
+    let total = steps.iter().map(|step| step.2).sum();
+    Some(DistinctionTally { steps, earned, total })
+}
+
 // The mission that finished the step `step`, if one did: the site picked there's, if it's
 // finished, else the first finished of the step and the missions its sites start.
 fn finished_mission(
@@ -140,7 +172,6 @@ fn build(
             None => campaign.mission_display_name(mission_index).unwrap_or_default().to_string(),
         };
         lines.push(SteleLine { mission_index, mission_number, distinction: None, key, text, newest: false });
-        // TODO(realm-ui): M9 awards distinctions into the profile (CampaignRecord::distinctions).
         let earned = record.map_or(&[][..], |record| record.distinctions.as_slice());
         for distinction in mission.distinctions.iter().filter(|distinction| earned.contains(&distinction.id)) {
             lines.push(SteleLine {

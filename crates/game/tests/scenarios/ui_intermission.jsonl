@@ -363,7 +363,20 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/name"}, "path": "/widgets/0/value", "value": "Test: The First Seal"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/rows/0/1", "value": "1"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 1}}
+# Its distinctions (M9): never in debt earned, Culture 60 missed; the one earned adds its line to the
+# stele, carved freshly with the mission's, and the profile records it.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/distinctions", "kind": "table"}, "path": "/widgets/0/value", "value": {"columns": [""], "rows": [["Never fall into debt"], ["Culture 60 or higher"]], "status": ["done", "failed"]}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/distinctions_note"}, "path": "/widgets/0/value", "value": "each one adds a line to the stele"}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/distinctions/0/state", "value": "earned"}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/distinctions/1/state", "value": "missed"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/lines", "value": ["Test: at Phù Sa the first seal was set in the river mud.", "Test: at Phù Sa the treasury never ran dry."]}}
+{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "test_choices", "newest": 0}, "path": "/stele/lines/1", "value": {"mission": 0, "number": 1, "distinction": "no_debt", "key": "distinction.test_choices.no_debt", "text": "Test: at Phù Sa the treasury never ran dry.", "newest": true}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/1/distinctions", "value": ["no_debt"]}}
+# The four ratings as bars, in the realm's words.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names", "value": ["Prosperity", "Culture", "Security", "The Mandate"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/ratings", "kind": "canvas"}, "path": "/widgets/0/value/values/1", "value": 0}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/debrief_distinctions.png"}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 # Its story sequence after the mission first (over the debrief): skipped.
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
@@ -395,10 +408,12 @@
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 2 COMPLETE"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/lines", "value": ["Test: at Phù Sa the first seal was set in the river mud.", "Test: at Vân Cảng the island harbour opened instead."]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/lines", "value": ["Test: at Phù Sa the first seal was set in the river mud.", "Test: at Phù Sa the treasury never ran dry.", "Test: at Vân Cảng the island harbour opened instead."]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 0}}
+# A mission without distinctions shows none.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/distinctions"}, "path": "/widgets", "value": []}}
 # intermission.state with newest by id: site B's line (the one it carved, the profile having it).
-{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "test_choices", "newest": "southern_shore_b"}, "path": "/stele/lines/1", "value": {"mission": 2, "number": 2, "distinction": null, "key": "mission.test_choices.3.stele", "text": "Test: at Vân Cảng the island harbour opened instead.", "newest": true}}}
+{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "test_choices", "newest": "southern_shore_b"}, "path": "/stele/lines/2", "value": {"mission": 2, "number": 2, "distinction": null, "key": "mission.test_choices.3.stele", "text": "Test: at Vân Cảng the island harbour opened instead.", "newest": true}}}
 {"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "test_choices", "newest": "southern_shore_b"}, "path": "/stele/lines/0/newest", "value": false}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_intermission/debrief_last_mission.png"}}
@@ -410,7 +425,12 @@
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 0}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/missions", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["1", "Test: The First Seal"], ["2", "Test: The Southern Shore (Vân Cảng)"]]}}
+# The distinctions earned: one of the campaign's two, a mark beside the first mission.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/marks", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"marks": [1, 0]}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/missions_note"}, "path": "/widgets/0/value", "value": "each mark is a distinction"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/stats", "kind": "key_values"}, "path": "/widgets/0/value/1", "value": ["Distinctions", "1 of 2"]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/note/next"}, "path": "/widgets/0/value", "value": "The stele is finished: its deeds will be read long after the city is gone."}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/campaign_complete_distinctions.png"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "dialog.close"}
 
@@ -438,6 +458,8 @@
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 1 COMPLETE"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/name"}, "path": "/widgets/0/value", "value": "Test: The Lotus Gate"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/distinctions", "kind": "table"}, "path": "/widgets/0/value/status", "value": ["done", "failed"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names/3", "value": "Divine favour"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_intermission/flow_kambara_debrief.png"}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
@@ -504,6 +526,8 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 1 COMPLETE"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/name"}, "path": "/widgets/0/value", "value": "Test: The Copper Road"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/distinctions", "kind": "table"}, "path": "/widgets/0/value", "value": {"columns": [""], "rows": [["Never breach a dyke"], ["Prosperity 90 or higher"]], "status": ["done", "failed"]}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names/3", "value": "Merit"}}
 {"method": "screenshot", "params": {"path": "out/ui_intermission/flow_tampadesa_debrief.png"}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 # Its sequence after the mission first: skipped.

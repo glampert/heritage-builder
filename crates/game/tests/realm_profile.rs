@@ -502,9 +502,9 @@ fn test_reaching_campaign_two_switches_home_realm() {
     assert_eq!(realm::ui_realm_for(true), UiRealm { realm: Realm::DaiLong, source: UiRealmSource::Profile });
 
     // Finishing its last mission reaches campaign two, and the menus take Kambara's look.
-    profile::on_mission_finished(0, 0);
+    profile::on_mission_finished(0, 0, &[]);
     assert_eq!(realm::ui_realm_for(true).realm, Realm::DaiLong);
-    profile::on_mission_finished(0, 1);
+    profile::on_mission_finished(0, 1, &[]);
     assert!(profile::get().is_reached("two"));
     assert_eq!(realm::ui_realm_for(true), UiRealm { realm: Realm::Kambara, source: UiRealmSource::Profile });
 
@@ -541,7 +541,7 @@ fn test_in_game_realm_follows_active_campaign() {
 
 fn test_override_wins() {
     ensure_setup();
-    profile::on_mission_finished(0, 1); // Campaign two reached: Kambara in the menus.
+    profile::on_mission_finished(0, 1, &[]); // Campaign two reached: Kambara in the menus.
     campaign::start_campaign(2); // Tampadesa in game.
 
     realm::set_override(Some(Realm::DaiLong));

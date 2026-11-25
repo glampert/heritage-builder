@@ -801,10 +801,11 @@ impl GameLoop {
         }
     }
 
-    // The campaign missions whose goals were met last frame go in the player's profile.
+    // The campaign missions whose goals were met last frame go in the player's profile, with the
+    // distinctions they earned.
     fn record_finished_missions(&mut self) {
-        for (campaign_id, mission_index) in campaign::take_finished_missions() {
-            profile::on_mission_finished(campaign_id, mission_index);
+        for finished in campaign::take_finished_missions() {
+            profile::on_mission_finished(finished.campaign_id, finished.mission_index, &finished.distinctions);
         }
     }
 

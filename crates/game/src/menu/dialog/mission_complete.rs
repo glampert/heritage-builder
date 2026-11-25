@@ -6,8 +6,10 @@
 //   each mission to come;
 // - right, on the skin's big panel: "MISSION N COMPLETE", the mission's name, its city and the
 //   year in the realm's era; the goals (target and achieved, a mark per goal) from its
-//   requirements and the city's stats; the stats (population, treasury, years taken); the note
-//   that its city joins the world map; and Keep playing and Continue.
+//   requirements and the city's stats; its distinctions, each marked earned or not (M9: this play's
+//   with an earlier play's, ratings::distinctions; each earned adds a line to the stele, carved
+//   freshly with the mission's); the four ratings as bars; the stats (population, treasury, years
+//   taken); the note that its city joins the world map; and Keep playing and Continue.
 //
 // Keep playing closes it and the game goes on (the mission stays finished). Continue first plays
 // the mission's story sequence after it, over the debrief, if the profile hasn't seen it
@@ -24,8 +26,14 @@
 //
 // Paths: MissionComplete/stele (kind canvas: title, lines, newest, rows_to_come);
 // MissionComplete/panel/kicker, name, place, goals (kind table: Goals, Target, Achieved, a status
-// per row), stats (kind key_values), note/joins, Keep playing, and the Continue button (Continue to
-// the world map, Continue to the next mission, or Continue).
+// per row), distinctions_title, distinctions_note and distinctions (kind table: a row per
+// distinction, its status done when earned, failed when not; a mission with none shows none),
+// ratings_title and ratings (kind canvas: names, values), stats (kind key_values), note/joins, Keep
+// playing, and the Continue button (Continue to the world map, Continue to the next mission, or
+// Continue).
+
+use common::{Color, Rect};
+use engine::ui::{UiLabelLook, UiTextAnchor};
 
 use super::{
     screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight, tight_row},
@@ -34,7 +42,7 @@ use super::{
 use crate::{
     campaign::{
         self,
-        config::{CampaignConfigs, MissionGoal, MissionRequirements},
+        config::{CampaignConfigs, DistinctionCondition, MissionGoal, MissionRequirements},
         stele::{self as stele_data, Stele},
     },
     menu::stele::SteleArt,
@@ -63,6 +71,21 @@ const STAT_LABEL_SIZE: f32 = 19.0;
 const STAT_VALUE_SIZE: f32 = 32.0;
 const NOTE_SIZE: f32 = 22.0;
 const BUTTON_TEXT_SIZE: f32 = 22.0;
+const DISTINCTION_SIZE: f32 = 22.0;
+const SECTION_NOTE_SIZE: f32 = 17.0;
+const RATING_NAME_SIZE: f32 = 19.0;
+const RATING_VALUE_SIZE: f32 = 22.0;
+
+// The distinctions: a row each, 42 points apart.
+const DISTINCTION_ROW: f32 = 42.0;
+
+// The ratings: four columns side by side, each its name and value over a bar 12 points tall, 24
+// points short of the column's right; the names' baseline 22 points under the title (and up to 8
+// more at full tightness), the bar's top 14 under it.
+const RATING_BASELINE: [f32; 2] = [22.0, 8.0];
+const RATING_BAR: [f32; 2] = [14.0, 12.0];
+const RATING_COLUMN_GAP: f32 = 24.0;
+const RATING_BAR_MIN: f32 = 0.04; // The least of a bar that's filled, as the mockup's.
 
 // The goals: a row per goal 46 points apart, the target's column ending 204 points left of the
 // achieved one's right edge.
@@ -80,9 +103,10 @@ const CONTINUE_WIDTH: f32 = 420.0;
 
 // The gaps between the panel's parts as the mockup spaces them (tightness 1), from the top: after
 // the kicker, the name, the place and the rule; and from the bottom, between the stats and the
-// note and above the buttons. The room left over goes between the goals and the stats, where M9's
-// distinctions and ratings will go.
-const GAPS: [f32; 6] = [12.0, 4.0, 16.0, 24.0, 26.0, 36.0];
+// note and above the buttons; then above the distinctions' title, under a section's title, and
+// between the ratings and the stats. The room left over goes between the distinctions and the
+// ratings.
+const GAPS: [f32; 9] = [12.0, 4.0, 16.0, 24.0, 26.0, 36.0, 26.0, 6.0, 20.0];
 
 // ----------------------------------------------
 // State
@@ -181,6 +205,8 @@ struct Debrief {
     name: Option<String>,
     place: Option<String>,
     goals: Vec<GoalRow>,
+    distinctions: Vec<(String, bool)>, // Each distinction's line, and whether it's earned.
+    ratings: Vec<(String, u32)>,       // Each rating's name in the UI realm's words, and its value.
     stats: Vec<(String, String)>,
     joins: Option<String>,
     stele: Option<Stele>,
@@ -201,6 +227,8 @@ impl Debrief {
             name: None,
             place: None,
             goals: Vec::new(),
+            distinctions: Vec::new(),
+            ratings: Vec::new(),
             stats: Vec::new(),
             joins: None,
             stele: None,
@@ -233,18 +261,31 @@ impl Debrief {
         let joins = city.map(|city| ui::text::format(UiTextCategory::Menu, "debrief.joins", &[("city", city)]));
 
         // The profile records the mission at the start of the next frame (GameLoop takes the
-        // finished missions then), so the stele is carved from a copy that has it already. A
-        // preview's (campaign::preview), as if the campaign had been played up to the mission.
+        // finished missions then), so the stele is carved from a copy that has it already, with the
+        // distinctions it earned (campaign::distinctions_awarded). A preview's (campaign::preview),
+        // as if the campaign had been played up to the mission.
         let profile = if campaign::preview::is_active() {
             campaign::preview::shown_profile().clone()
         } else {
             let mut profile = profile::get().clone();
-            profile.mission_finished(configs, active.campaign_id, active.mission_index);
+            let awarded = campaign::distinctions_awarded(active.campaign_id, active.mission_index);
+            profile.mission_finished_with(configs, active.campaign_id, active.mission_index, &awarded);
             profile
         };
         let stele = stele_data::stele(configs, &profile, active.campaign_id, Some(active.mission_index));
 
-        Self { kicker, name, place, goals, stats, joins, stele, continue_label }
+        // Each distinction, earned in this play or an earlier one: the stele carries its line.
+        let earned = profile.record(&campaign.id).map_or(&[][..], |record| record.distinctions.as_slice());
+        let distinctions = mission
+            .distinctions
+            .iter()
+            .map(|distinction| (distinction_line(&distinction.condition, ui_realm), earned.contains(&distinction.id)))
+            .collect();
+        let ratings = crate::ratings::views(context.sim.ratings(), ui_realm)
+            .map(|views| views.into_iter().map(|view| (view.name, view.value)).collect())
+            .unwrap_or_default();
+
+        Self { kicker, name, place, goals, distinctions, ratings, stats, joins, stele, continue_label }
     }
 }
 
@@ -286,8 +327,13 @@ pub(super) fn stat_rows(context: &GameUiContext) -> Vec<(String, String)> {
 // A goal as the player reads it ("Population", "The Mandate" in `realm`'s words), its target and what
 // the city has of it now: the debrief's, the briefing's, the HUD's goals panel's and the Overview's.
 pub(crate) fn goal_line(goal: &MissionGoal, stats: &WorldStats, realm: realm::Realm) -> (String, i64, i64) {
+    (goal_text(goal, realm), goal.target(), goal.achieved(stats))
+}
+
+// A goal's name as the player reads it, in `realm`'s words.
+fn goal_text(goal: &MissionGoal, realm: realm::Realm) -> String {
     let get = |key: &str| ui::text::get(UiTextCategory::Menu, key).to_string();
-    let text = match goal {
+    match goal {
         MissionGoal::Population { .. } => get("debrief.goal.population"),
         MissionGoal::Employment { .. } => get("debrief.goal.employment"),
         MissionGoal::Treasury { .. } => get("debrief.goal.treasury"),
@@ -302,8 +348,30 @@ pub(crate) fn goal_line(goal: &MissionGoal, stats: &WorldStats, realm: realm::Re
         MissionGoal::HousesAtLevel { level, .. } => {
             ui::text::format(UiTextCategory::Menu, "debrief.goal.houses_at_level", &[("level", &level.to_string())])
         }
-    };
-    (text, goal.target(), goal.achieved(stats))
+    }
+}
+
+// A distinction as the player reads it, in `realm`'s words: "The Mandate 50 or higher", "Never run
+// short of rice".
+pub(crate) fn distinction_line(condition: &DistinctionCondition, realm: realm::Realm) -> String {
+    let get = |key: &str| ui::text::get(UiTextCategory::Menu, key).to_string();
+    match condition {
+        DistinctionCondition::Goal(goal) => ui::text::format(UiTextCategory::Menu, "debrief.distinction.goal", &[
+            ("goal", &goal_text(goal, realm)),
+            ("target", &super::load_save::group_digits(goal.target())),
+        ]),
+        DistinctionCondition::NoDebt => get("debrief.distinction.no_debt"),
+        DistinctionCondition::NeverBreached => get("debrief.distinction.never_breached"),
+        DistinctionCondition::NoHouseLost => get("debrief.distinction.no_house_lost"),
+        DistinctionCondition::NeverShortOf { good } => ui::text::format(
+            UiTextCategory::Menu,
+            "debrief.distinction.never_short_of",
+            &[("good", &good.display_name().to_lowercase())],
+        ),
+        DistinctionCondition::Within { months } => {
+            ui::text::format(UiTextCategory::Menu, "debrief.distinction.within", &[("time", &months_text(*months))])
+        }
+    }
 }
 
 // The time limit's line as the briefing lists it under the goals: "Time limit", "3 years".
@@ -577,11 +645,21 @@ fn panel_parts(
         parts.push(goals_table(context, scales, &debrief.goals, width, tightness).into());
     }
 
-    // TODO(realm-ui): M9's distinctions (each with its mark, "each one adds a line to the stele")
-    // and the four ratings' meters go here, between the goals and the stats, as the mockup shows
-    // them, once M9 brings them: the room left over is theirs (panel).
+    if !debrief.distinctions.is_empty() {
+        parts.push(gap(6).into());
+        let note = ui::text::get(UiTextCategory::Menu, "debrief.distinctions.note");
+        parts.push(section_title(context, scales, "distinctions", "debrief.distinctions", Some(note), width).into());
+        parts.push(gap(7).into());
+        parts.push(distinctions_table(context, scales, &debrief.distinctions, width, tightness).into());
+    }
 
+    // The ratings keep to the stats, under the room left over.
     let mut bottom: Vec<UiWidgetImpl> = Vec::new();
+    if !debrief.ratings.is_empty() {
+        bottom.push(section_title(context, scales, "ratings", "debrief.ratings", None, width).into());
+        bottom.push(ratings_bars(scales, &debrief.ratings, width, tightness).into());
+        bottom.push(gap(8).into());
+    }
     if !debrief.stats.is_empty() {
         bottom.push(stats_values(scales, &debrief.stats, width, tightness).into());
     }
@@ -681,6 +759,131 @@ pub(super) fn goals_table(
         table = table.with_row(UiTableRow::new([goal.clone(), target.clone(), achieved.clone()]).with_status(status));
     }
     table
+}
+
+// A section's title ("DISTINCTIONS", the Menu key `key`'s text) in the goals' header look at the
+// left, labeled `<label>_title`, and its note in italics at the right (`<label>_note`).
+fn section_title(
+    context: &GameUiContext,
+    scales: Scales,
+    label: &str,
+    key: &str,
+    note: Option<&str>,
+    width: f32,
+) -> UiColumns {
+    let color = skin::intermission_color;
+    let font = scales.heading_font(HEADER_SIZE);
+    let title = text_line(
+        &ui::text::get(UiTextCategory::Menu, key).to_uppercase(),
+        &format!("{label}_title"),
+        font,
+        color("section", "accent"),
+        0.0,
+        UiTextAlign::Left,
+    )
+    .with_heading_font()
+    .with_letter_spacing(scales.pt(HEADER_LETTER_SPACING));
+    let title = tight(context, title, font, HEADER_SIZE, scales);
+
+    let mut columns = UiColumns::new().with_spacing(0.0).with_width(width);
+    columns.add_column(UiColumnWidth::Fraction(1.0), left_group().with_widget(title));
+    if let Some(note) = note {
+        let font = scales.font(SECTION_NOTE_SIZE);
+        let note_width = (super::screen::text_width(context, note, font) + scales.pt(4.0)).min(width * 0.6);
+        let note = UiRichText::from_spans([UiTextSpan::emphasized(note)])
+            .with_label(format!("{label}_note"))
+            .with_font_scale(font)
+            .with_width(note_width)
+            .with_align(UiTextAlign::Right)
+            .with_text_color(color("sub", "sub"));
+        let note = tight(context, note, font, SECTION_NOTE_SIZE, scales);
+        columns.add_column(UiColumnWidth::Fixed(note_width), left_group().with_widget(note));
+    }
+    columns
+}
+
+// The distinctions: a row per distinction with its mark, a tick when earned and a crossed ring when
+// not (its line dimmed), as the goals' table draws them.
+fn distinctions_table(
+    context: &GameUiContext,
+    scales: Scales,
+    distinctions: &[(String, bool)],
+    width: f32,
+    tightness: f32,
+) -> UiTable {
+    let color = skin::intermission_color;
+    let font = scales.font(DISTINCTION_SIZE);
+    let line = context.calc_text_size(font, "Ag").y;
+    let mut look = skin::row_look();
+    look.label_color = Some(color("text", "ink"));
+    look.rule_color = None;
+    look.padding = ((scales.pt(DISTINCTION_ROW) - line) * 0.5 * (0.5 + 0.5 * tightness)).max(scales.pt(2.0));
+    let mut table = skin::table()
+        .with_label("distinctions")
+        .with_look(look)
+        .with_width(width)
+        .with_font_scale(font)
+        .with_header(UiTableHeader { hidden: true, ..UiTableHeader::default() })
+        .with_status_column(UiTableStatusLook::Badges {
+            done: color("check", "accent"),
+            mark: color("check_mark", "on_accent"),
+            open: color("check_open", "sub"),
+        })
+        .with_column(UiTableColumn::new("", UiColumnWidth::Fraction(1.0), UiColumnAlign::Left));
+    for (line, earned) in distinctions {
+        let row = UiTableRow::new([line.clone()]);
+        let row = if *earned {
+            row.with_status(UiTableStatus::Done)
+        } else {
+            row.with_status(UiTableStatus::Failed).with_color(color("sub", "sub"))
+        };
+        table = table.with_row(row);
+    }
+    table
+}
+
+// The four ratings side by side: each its name and value over a bar filled to it, painted as the
+// mockup lays them out. Labeled `ratings` (value: names, values).
+fn ratings_bars(scales: Scales, ratings: &[(String, u32)], width: f32, tightness: f32) -> UiCanvas {
+    let color = skin::intermission_color;
+    let (name_color, value_color, fill) = (color("sub", "sub"), color("text", "ink"), color("accent", "accent"));
+    let rule = color("rule", "sub");
+    let track = Color { a: rule.a * 0.6, ..rule };
+    let baseline = scales.pt(RATING_BASELINE[0] + RATING_BASELINE[1] * tightness);
+    let height = (baseline + scales.pt(RATING_BAR[0] + RATING_BAR[1])).ceil();
+    let name_look = UiLabelLook {
+        size: scales.pt(RATING_NAME_SIZE) / skin::font_em(false),
+        color: name_color,
+        ..UiLabelLook::default()
+    };
+    let value_look = UiLabelLook {
+        size: scales.pt(RATING_VALUE_SIZE) / skin::font_em(true),
+        heading_font: true,
+        color: value_color,
+        ..UiLabelLook::default()
+    };
+    let value = serde_json::json!({
+        "names": ratings.iter().map(|(name, _)| name.clone()).collect::<Vec<_>>(),
+        "values": ratings.iter().map(|(_, value)| *value).collect::<Vec<_>>(),
+    });
+    let ratings = ratings.to_vec();
+    let (gap, bar_top, bar_height) = (scales.pt(RATING_COLUMN_GAP), scales.pt(RATING_BAR[0]), scales.pt(RATING_BAR[1]));
+    UiCanvas::new(Vec2::new(width, height), move |_, painter, rect| {
+        let column = rect.width() / ratings.len().max(1) as f32;
+        for (index, (name, value)) in ratings.iter().enumerate() {
+            let left = rect.min.x + column * index as f32;
+            let right = left + column - gap;
+            let y = rect.min.y + baseline;
+            painter.label(Vec2::new(left, y), UiTextAnchor::Start, name, &name_look);
+            painter.label(Vec2::new(right, y), UiTextAnchor::End, &value.to_string(), &value_look);
+            let bar = Rect::from_pos_and_size(Vec2::new(left, y + bar_top), Vec2::new(right - left, bar_height));
+            painter.rect_filled(bar, track, bar_height * 0.5);
+            let filled = (*value as f32 / crate::ratings::MAX_RATING as f32).clamp(RATING_BAR_MIN, 1.0);
+            let fill_rect = Rect::from_pos_and_size(bar.min, Vec2::new(bar.width() * filled, bar_height));
+            painter.rect_filled(fill_rect, fill, bar_height * 0.5);
+        }
+    })
+    .with_label("ratings", Some(value))
 }
 
 // "<City> joins the world map": a dashed box with a map's mark.

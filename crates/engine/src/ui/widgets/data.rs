@@ -405,15 +405,22 @@ impl UiTableStatus {
 pub struct UiTableRow {
     pub cells: Vec<String>,
     pub status: Option<UiTableStatus>,
+    pub color: Option<Color>, // Every cell's text, over its column's colour.
 }
 
 impl UiTableRow {
     pub fn new(cells: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        Self { cells: cells.into_iter().map(Into::into).collect(), status: None }
+        Self { cells: cells.into_iter().map(Into::into).collect(), status: None, color: None }
     }
 
     pub fn with_status(mut self, status: UiTableStatus) -> Self {
         self.status = Some(status);
+        self
+    }
+
+    // Its cells' text in `color`, whatever their columns' (a row set apart: a distinction missed).
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = Some(color);
         self
     }
 }
@@ -594,7 +601,7 @@ impl UiWidget for UiTable {
                 }
                 for (index, column) in self.columns.iter().enumerate() {
                     let text = table_row.cells.get(index).map_or("", String::as_str);
-                    let color = column.color.map_or(text_color, color32);
+                    let color = table_row.color.or(column.color).map_or(text_color, color32);
                     draw_cell_text(ui, column_rect(index, row_rect), text, &font, color, column.align);
                 }
                 draw_rule(ui, row_rect, &self.look);
