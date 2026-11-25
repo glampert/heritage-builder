@@ -707,8 +707,9 @@ impl GameSession {
             let rules = &GameConfigs::get().sim.trade;
             crate::trade::start(self.sim.trade_mut(), &world_map, &trade.unwrap_or_default(), now, rules);
         }
-        // A new city, rated from its start. A campaign mission can be lost; any other game can't.
-        let fails_on = if campaign::active_mission().is_some() { FailureSwitches::ON } else { FailureSwitches::OFF };
+        // A new city, rated from its start. A campaign mission can be lost as its `failure` block
+        // says (both ways unless it turns one off); any other game can't.
+        let fails_on = campaign::active_mission_failure().unwrap_or(FailureSwitches::OFF);
         self.sim.ratings_mut().start(fails_on);
         self.rate_city();
     }
@@ -1217,6 +1218,12 @@ impl GameSession {
         // World stats aren't saved; count them now instead of at the first simulation step.
         self.refresh_world_stats();
         self.rate_city_if_unrated();
+
+        // A save of a lost mission loads lost: its failure screen opens again, paused.
+        if self.sim.ratings().failure().is_some() && campaign::active_mission().is_some() {
+            self.sim.pause();
+            campaign::request_failure_screen();
+        }
 
         new_generation();
         Ok(())

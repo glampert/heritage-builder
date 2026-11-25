@@ -307,6 +307,7 @@ impl RunLoop for GameLoop {
         self.notify_floods();
         self.notify_farms();
         self.notify_trade();
+        self.notify_failure_warnings();
         self.update_after_save();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
@@ -716,6 +717,12 @@ impl GameLoop {
             return;
         }
 
+        // Nor once the mission is lost (docs/plans/ratings.md, §4): Continue would load the lost
+        // city. It stops for the session.
+        if self.session.sim().ratings().failure().is_some() {
+            return;
+        }
+
         let delta_time_secs = self.engine.frame_clock().delta_time();
 
         if self.autosave_timer.tick(delta_time_secs).should_update() {
@@ -846,6 +853,18 @@ impl GameLoop {
         for notice in notices {
             let name = crate::trade::partner_name(self.session.sim().trade(), notice.partner());
             let (kind, sound, text) = crate::trade::notice_message(&notice, &name);
+            self.post_message(kind, text);
+            ui::sound::play(self.engine.sound_system_mut(), sound);
+        }
+    }
+
+    // The warnings that the mission may be lost (docs/plans/ratings.md, §4), in the game's realm's
+    // words.
+    fn notify_failure_warnings(&mut self) {
+        let notices = crate::ratings::failure::take_notices();
+        let realm = self.session.sim().realm();
+        for notice in notices {
+            let (kind, sound, text) = crate::ratings::failure::notice_message(&notice, realm);
             self.post_message(kind, text);
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }

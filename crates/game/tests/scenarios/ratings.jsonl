@@ -1,8 +1,10 @@
 # The four ratings (docs/plans/ratings.md): a small city's ratings read from it, rising as a shrine
 # and a theater go up; the HUD's rings and the City book's Ratings page and Overview in each realm,
 # following ratings.set; then a hidden test mission's rating goals in the briefing, the rings, the
-# goals panel (with its time limit) and the City book, met to finish it. Saves screenshots to
-# out/ratings/. From the repository root:
+# goals panel (with its time limit) and the City book, met to finish it; then the mission lost to a
+# year in debt: the failure screen, Escape's popup, a save that loads lost, Try again, a loss on
+# Legitimacy in each realm's words and Return to the menu. Saves screenshots to out/ratings/. From
+# the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --default-configs --window-size 1920x1080 --script crates/game/tests/scenarios/ratings.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [24, 24]}}
@@ -177,3 +179,59 @@
 {"method": "input.move", "params": {"park": true}}
 {"method": "screenshot", "params": {"path": "out/ratings/debrief-goals.png"}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Keep playing"}}
+
+# ---- Failure (Phase 3): the test mission in debt for its twelfth month ----
+{"method": "session.start_mission", "params": {"campaign": "test_goals"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "sim.pause"}
+{"method": "input.move", "params": {"park": true}}
+{"method": "finance.set", "params": {"balance": -500, "months_in_debt": 11}}
+{"method": "time.fast_forward", "params": {"sim_secs": 61, "resume": true}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionFailed", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/failure", "value": "debt"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 1 FAILED"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/reason"}, "path": "/widgets/0/value", "value": "The treasury has failed the city"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/why"}, "path": "/widgets/0/value", "value": "The treasury stayed in debt for 12 months in a row."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/goals", "kind": "table"}, "path": "/widgets/0/value/rows/0/0", "value": "Culture"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/ratings/failed-debt.png"}}
+# Escape asks before leaving; Cancel stays.
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Return to Menu Popup/Cancel"}, "path": "/widgets/0"}}
+{"method": "screenshot", "params": {"path": "out/ratings/failed-popup.png"}}
+{"method": "ui.click", "params": {"path": "Return to Menu Popup/Cancel"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MissionFailed"}}
+# A save of the lost game loads lost, its failure screen again.
+{"method": "session.save", "params": {"name": "ratings_failed"}}
+{"method": "wait.until", "params": {"query": "session.save_info", "args": {"name": "ratings_failed"}, "path": "/has_thumbnail", "op": "eq", "value": true, "timeout_frames": 60}}
+{"method": "session.load_save", "params": {"name": "ratings_failed"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionFailed", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/failure", "value": "debt"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "session.delete_save", "params": {"name": "ratings_failed"}}
+# Try again: the mission from its start, its briefing first, out of debt.
+{"method": "ui.click", "params": {"path": "MissionFailed/panel/Try again"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/months_elapsed", "value": 0}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/months_in_debt", "value": 0}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "sim.pause"}
+# Lost on Legitimacy, in each realm's words; then Return to the menu.
+{"method": "campaign.fail", "params": {"reason": "legitimacy"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionFailed", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/reason"}, "path": "/widgets/0/value", "value": "The court has recalled you"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/reason"}, "path": "/widgets/0/value", "value": "The sangha turns away"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/why"}, "path": "/widgets/0/value", "value": "Merit stayed below 10 for 12 months."}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/ratings/failed-tampadesa.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "MissionFailed/panel/Return to the menu"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "Home", "timeout_frames": 60}}

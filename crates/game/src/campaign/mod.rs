@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::GameConfigs,
-    sim::{CalendarSettings, SimContext},
+    sim::{CalendarSettings, SimContext, ratings::FailureSwitches},
 };
 
 // ----------------------------------------------
@@ -57,6 +57,8 @@ pub struct ActiveMission {
 pub enum CampaignPrompt {
     MissionComplete,
     CampaignComplete,
+    // The mission was lost (CityRatings::failure; ratings::check_failure): the failure screen.
+    MissionFailed,
 }
 
 // ----------------------------------------------
@@ -136,12 +138,19 @@ impl BuildingAvailability {
     }
 }
 
+// The mission being played; None outside a campaign, and before the campaigns are set up (tests).
 pub fn active_mission() -> Option<ActiveMission> {
+    if !CampaignManager::is_initialized() {
+        return None;
+    }
     CampaignManager::get().progress.active.clone()
 }
 
 // The goals of the mission being played (and its time limit); None outside a campaign mission.
 pub fn active_requirements() -> Option<&'static config::MissionRequirements> {
+    if !CampaignManager::is_initialized() {
+        return None;
+    }
     let active = CampaignManager::get().progress.active.as_ref()?;
     Some(&CampaignConfigs::get().mission(active.campaign_id, active.mission_index)?.requirements)
 }
@@ -233,6 +242,17 @@ pub fn has_pending_prompt() -> bool {
 
 pub fn take_pending_prompt() -> Option<CampaignPrompt> {
     CampaignManager::get_mut().pending_prompt.take()
+}
+
+// The prompt waiting to open, left pending.
+pub fn pending_prompt() -> Option<CampaignPrompt> {
+    CampaignManager::get().pending_prompt
+}
+
+// The mission was lost (ratings::check_failure, or a save of a lost mission loaded): the in-game
+// menus open the failure screen, over whatever dialogs are open. Nothing is recorded in the profile.
+pub fn request_failure_screen() {
+    CampaignManager::get_mut().pending_prompt = Some(CampaignPrompt::MissionFailed);
 }
 
 // The active mission's map has loaded and it starts (GameSession::start_mission): its briefing is
@@ -337,6 +357,14 @@ pub fn active_mission_trade() -> Option<(String, Option<MissionTradeDef>)> {
 }
 
 // The risks setting of the active mission, if it sets one. None outside a campaign.
+// The failures the active mission can end in: its `failure` block's, else both. None outside a
+// campaign.
+pub fn active_mission_failure() -> Option<FailureSwitches> {
+    let active = CampaignManager::get().progress.active.as_ref()?;
+    let mission = CampaignConfigs::get().mission(active.campaign_id, active.mission_index)?;
+    Some(mission.failure.clone().unwrap_or_default().switches())
+}
+
 pub fn active_mission_risks() -> Option<MissionRisksDef> {
     let active = CampaignManager::get().progress.active.clone()?;
     let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
@@ -389,6 +417,11 @@ pub fn tick(context: &SimContext) {
     let Some(mission) = CampaignConfigs::get().mission(campaign_id, mission_index) else {
         return;
     };
+
+    // A lost mission can't be won.
+    if context.ratings().failure().is_some() {
+        return;
+    }
 
     if mission.requirements.all_met(context.world().stats()) {
         if let Some(active) = mgr.progress.active.as_mut() {

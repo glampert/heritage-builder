@@ -1,6 +1,6 @@
 # Ratings, goals and failure
 
-**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17), Phase 1 (the ratings on screen) and Phase 2 (goals and requests, save v18); Phase 3 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17), Phase 1 (the ratings on screen) and Phase 2 (goals and requests, save v18) and Phase 3 (failure); Phase 4 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
 - GDD 5.17: the four ratings, Prosperity, Culture, Security and Legitimacy, each with its own name for Legitimacy in each realm (the Mandate, Divine Favour, Merit);
 - GDD 7's goals that are still missing, its failure conditions and its optional distinctions;
 - the Legitimacy half of the court requests (GDD 5.14), which M10 left logged and not applied.
@@ -506,12 +506,49 @@ It was researched against `853baf3d` on `claude`. File and line references point
 
 ### Phase 3: Failure (medium)
 
-- [ ] `MissionFailureDef` and its checks; `ratings::check_failure` for debt, Legitimacy and time; the Legitimacy clock saved.
-- [ ] `campaign::fail`, `ActiveMission::failed`, `CampaignPrompt::MissionFailed`, the pause and the autosave stopped.
-- [ ] The `MissionFailed` screen in each realm, its three buttons, Escape's popup, the realms' failure strings.
-- [ ] The warnings in the message log.
-- [ ] The Screens menu's Mission failed preview; `campaign.fail`.
-- [ ] Tests for each condition and for a finished mission; `ratings.jsonl` fails a test mission on debt and tries again.
+- [x] `MissionFailureDef` and its checks; `ratings::check_failure` for debt, Legitimacy and time; the Legitimacy clock saved.
+- [x] `campaign::fail`, `ActiveMission::failed`, `CampaignPrompt::MissionFailed`, the pause and the autosave stopped.
+- [x] The `MissionFailed` screen in each realm, its three buttons, Escape's popup, the realms' failure strings.
+- [x] The warnings in the message log.
+- [x] The Screens menu's Mission failed preview; `campaign.fail`.
+- [x] Tests for each condition and for a finished mission; `ratings.jsonl` fails a test mission on debt and tries again.
+
+**Notes (2026-11-25):**
+- **What was built:**
+  - **The mission's `failure` block** (`MissionFailureDef { debt, legitimacy }`, each on unless set false; `switches()`), read as the mission starts (`campaign::active_mission_failure`, into `CityRatings::start`). A time limit can always fail the mission.
+  - **`ratings::failure`** ([ratings/failure.rs](../../crates/game/src/ratings/failure.rs)), run by `ratings::on_new_month` once the ratings are recomputed:
+    - `mission_terms`: whether the mission is finished, its time limit and whether its goals are met. None outside a campaign mission, where nothing is lost.
+    - `check_failure`: moves the Legitimacy clock (`legitimacy_low_months`, month-starts in a row below `recall_below`; 0 while that failure is off), then loses the mission for debt (`Finance::is_debt_overdue`), Legitimacy (`recall_months` in a row) or time (the limit's months passed, the goals unmet), in that order. The failure is kept on `CityRatings::failure`. A finished or lost mission isn't checked.
+    - The warnings, as `FailureNotice`s: Legitimacy below the mark as the clock starts and in its last three months, and 12, 6, 3 and 1 months of the time limit left. `GameLoop::notify_failure_warnings` posts them as Warnings with the Alert sound ("The Mandate has fallen below 10. If it stays there for 11 months, the mission is lost."). The debt's warnings stay Finance's.
+  - **On failure:** `campaign::request_failure_screen` queues `CampaignPrompt::MissionFailed`; the in-game menus open the screen over any dialog open (closing them), not over a story sequence; the dialog pauses the simulation. `campaign::tick` doesn't finish a lost mission. The autosave stops while the game is lost. A save of a lost mission loads paused, its screen again.
+  - **The failure screen** (`MissionFailed`, [mission_failed.rs](../../crates/game/src/menu/dialog/mission_failed.rs)): the debrief's panel, centred on its backdrop. It shows:
+    - "MISSION N FAILED", the name, city and year;
+    - the reason in the realm's words (`failure.<realm>.<reason>`, Realm: "The court has recalled you", "The king withdraws his favour", "The sangha turns away");
+    - why, plainly ("The Mandate stayed below 10 for 12 months.");
+    - the goals' table and the stats, shared with the debrief (`mission_complete::goal_rows`, `stat_rows`, `goals_table`, `stats_values`);
+    - Return to the menu, Load a save (Load / Save over it: Cancel comes back) and Try again (`home::start_campaign_mission`: the briefing again, no story).
+
+    Escape opens `Return to Menu Popup` (Cancel, Return to the menu) instead of closing it.
+  - **The Screens menu:** `Screens/Failure` (debt, legitimacy, time) and `Screens/Mission failed`, a preview (`PreviewScreen::MissionFailed`) whose buttons and Escape only close it.
+  - **Automation:** `campaign.fail reason=...` loses the mission being played now; `finance.set months_in_debt=N` sets the debt clock.
+  - **Tests:**
+    - `tests/ratings.rs`: debt (with a finished mission, the switch off and no mission), the Legitimacy clock with its reset and warnings, the time limit with its warnings, and each realm's wording.
+    - `tests/campaign.rs`: a lost mission can't be won, and the failure block.
+  - **Scenarios:**
+    - `ratings.jsonl`: the test mission's twelfth month in debt, the screen, its popup, a save that loads lost, Try again, a loss on Legitimacy in Đại Long's and Tampadesa's words, and Return to the menu.
+    - `ui_dev_screens.jsonl`: the preview in Đại Long's and Kambara's looks.
+- **Deviations:**
+  - **No `ActiveMission::failed` and no `campaign::fail`.** The failure stays on `CityRatings` (Phase 0's choice), and the campaign only queues the prompt (`request_failure_screen`). No save change.
+  - **The screen opens over any dialog,** where the debrief waits for none to be open: a lost game shouldn't play on under the City book.
+  - **The Legitimacy clock counts month starts,** after the recompute, as the debt's counts month-ends; the same months.
+  - **No message when the mission is lost:** the screen says it.
+  - **`campaign::active_mission` and `active_requirements` return None before the campaigns are set up,** as in the test harness, which steps months without them.
+- **UI changes:** the failure screen (new, no mockup); its popup; the Screens menu's Failure and Mission failed (developer UI); the failure warnings in the message log.
+- **Verified:**
+  - `cargo test --workspace`;
+  - both clippy runs;
+  - every scenario on a release build (macOS), `determinism.jsonl` twice;
+  - the screenshots: the screen in Đại Long's, Kambara's and Tampadesa's looks, and its popup.
 
 ### Phase 4: Distinctions (medium)
 

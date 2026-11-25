@@ -67,6 +67,7 @@ fn mission(name: &str) -> MissionDef {
         calendar: None,
         finance: None,
         risks: None,
+        failure: None,
         faith: None,
         floods: None,
         trade: None,

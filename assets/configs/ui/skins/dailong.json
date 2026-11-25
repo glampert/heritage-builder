@@ -361,6 +361,7 @@
     "About": {"size": [940, 940]},
     "WorldMap": {"size": "fullscreen"},
     "MissionComplete": {"size": "fullscreen"},
+    "MissionFailed": {"size": "fullscreen"},
     "CampaignComplete": {"size": "fullscreen"},
     "StoryComic": {"size": "fullscreen"},
     "MissionBriefing": {"size": [1520, 980]},

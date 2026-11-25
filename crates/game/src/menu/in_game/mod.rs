@@ -165,13 +165,19 @@ impl GameMenusSystem for InGameMenus {
         if !previewing && dialog::current().is_none() && campaign::is_briefing_pending() {
             dialog::open_mission_start(context);
         }
-        if !previewing && dialog::current().is_none() {
+        // A lost mission's failure screen opens over any dialog open (closing them), but not over a
+        // story sequence or a briefing still to open.
+        let failed = campaign::pending_prompt() == Some(CampaignPrompt::MissionFailed);
+        if !previewing && (dialog::current().is_none() || (failed && !dialog::is_story_playing())) {
             match campaign::take_pending_prompt() {
                 Some(CampaignPrompt::MissionComplete) => {
                     dialog::open(dialog::DialogMenuKind::MissionComplete, false, context);
                 }
                 Some(CampaignPrompt::CampaignComplete) => {
                     dialog::open(dialog::DialogMenuKind::CampaignComplete, false, context);
+                }
+                Some(CampaignPrompt::MissionFailed) => {
+                    dialog::open(dialog::DialogMenuKind::MissionFailed, true, context);
                 }
                 None => {}
             }

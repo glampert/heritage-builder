@@ -20,6 +20,7 @@ use game::{
         RatingKind,
         RealmRatingsDef,
         config::NO_FESTIVAL_DRIVER,
+        failure::{self, FailureNotice, MissionTerms},
     },
     realm::Realm,
     sim::{
@@ -68,6 +69,11 @@ fn main() {
         // Goals:
         test_utils::test_fn!(test_the_goals_read_the_ratings_and_houses),
         test_utils::test_fn!(test_a_court_request_asked_again_counts_again),
+        // Failure:
+        test_utils::test_fn!(test_debt_loses_the_mission),
+        test_utils::test_fn!(test_a_year_of_low_legitimacy_recalls_the_governor),
+        test_utils::test_fn!(test_a_time_limit_runs_out),
+        test_utils::test_fn!(test_each_realm_words_its_failures),
     ]);
 }
 
@@ -606,4 +612,131 @@ fn test_a_court_request_asked_again_counts_again() {
     let lost = -6.0 * 1.5 * (ratings::fade(5, 24) + ratings::fade(0, 24));
     assert_eq!(driver(&env, RatingKind::Legitimacy, "requests"), Some(lost.round() as i32));
     assert_eq!(env.sim.trade().requests_failed(), 2);
+}
+
+// ----------------------------------------------
+// Failure (Phase 3)
+// ----------------------------------------------
+
+fn terms(time_limit_months: Option<u32>) -> MissionTerms {
+    MissionTerms { completed: false, time_limit_months, goals_met: false }
+}
+
+fn check(env: &mut TestEnvironment, terms: Option<MissionTerms>) -> Option<FailureReason> {
+    let context = env.new_sim_context(0.0);
+    failure::check_failure(&context, terms.as_ref())
+}
+
+// A mission that can be lost both ways, its Legitimacy well above the mark.
+fn mission_env() -> TestEnvironment {
+    let mut env = TestEnvironment::new();
+    env.sim.ratings_mut().start(FailureSwitches::ON);
+    env.sim.ratings_mut().set_value(RatingKind::Legitimacy, 50);
+    failure::take_notices();
+    env
+}
+
+// The debt running out its months loses the mission, unless the mission is finished, its debt's
+// failure is off, or it's outside a mission; once lost, nothing more happens.
+fn test_debt_loses_the_mission() {
+    let mut env = mission_env();
+    let limit = GameConfigs::get().sim.finance.debt_limit_months;
+    env.sim.finance_mut().set_balance_unrecorded(-100);
+    env.sim.finance_mut().set_months_in_debt(limit - 1);
+    assert_eq!(check(&mut env, Some(terms(None))), None, "a month to go");
+
+    env.sim.finance_mut().set_months_in_debt(limit);
+    assert_eq!(check(&mut env, None), None, "outside a mission");
+    assert_eq!(check(&mut env, Some(MissionTerms { completed: true, ..terms(None) })), None, "finished");
+    env.sim.ratings_mut().set_fails_on(FailureSwitches { debt: false, legitimacy: true });
+    assert_eq!(check(&mut env, Some(terms(None))), None, "debt's failure off");
+    assert_eq!(env.sim.ratings().failure(), None);
+
+    env.sim.ratings_mut().set_fails_on(FailureSwitches::ON);
+    assert_eq!(check(&mut env, Some(terms(None))), Some(FailureReason::Debt));
+    assert_eq!(env.sim.ratings().failure(), Some(FailureReason::Debt));
+    assert_eq!(check(&mut env, Some(terms(None))), None, "lost once");
+    assert!(failure::take_notices().is_empty(), "the debt's warnings are Finance's");
+}
+
+// Legitimacy below the mark at recall_months month-ends in a row recalls the governor; a month
+// above it stops the clock. Warned of when it starts and in its last three months.
+fn test_a_year_of_low_legitimacy_recalls_the_governor() {
+    let mut env = mission_env();
+    let rules = &GameConfigs::get().sim.ratings;
+    let (below, months) = (rules.recall_below, rules.recall_months);
+    let low_months = |env: &TestEnvironment| env.sim.ratings().legitimacy_low_months();
+
+    env.sim.ratings_mut().set_value(RatingKind::Legitimacy, below - 1);
+    assert_eq!(check(&mut env, Some(terms(None))), None);
+    assert_eq!(low_months(&env), 1);
+    assert_eq!(failure::take_notices(), [FailureNotice::LegitimacyLow { months_left: months - 1, started: true }]);
+
+    // A month at the mark stops the clock.
+    env.sim.ratings_mut().set_value(RatingKind::Legitimacy, below);
+    assert_eq!(check(&mut env, Some(terms(None))), None);
+    assert_eq!(low_months(&env), 0);
+
+    env.sim.ratings_mut().set_value(RatingKind::Legitimacy, below - 1);
+    for _ in 1..months - 3 {
+        assert_eq!(check(&mut env, Some(terms(None))), None);
+    }
+    assert_eq!(failure::take_notices().len(), 1, "only as it starts");
+    for _ in 0..3 {
+        assert_eq!(check(&mut env, Some(terms(None))), None);
+    }
+    assert_eq!(
+        failure::take_notices(),
+        [3, 2, 1].map(|left| FailureNotice::LegitimacyLow { months_left: left, started: false })
+    );
+    assert_eq!(check(&mut env, Some(terms(None))), Some(FailureReason::Legitimacy));
+    assert_eq!(low_months(&env), months);
+
+    // Without Legitimacy's failure the clock doesn't run.
+    env.sim.ratings_mut().start(FailureSwitches { debt: true, legitimacy: false });
+    for _ in 0..months + 1 {
+        assert_eq!(check(&mut env, Some(terms(None))), None);
+    }
+    assert_eq!(low_months(&env), 0);
+    assert!(failure::take_notices().is_empty());
+
+    // The warning's words, the realm's name for the rating.
+    let notice = FailureNotice::LegitimacyLow { months_left: 11, started: true };
+    let (kind, _, text) = failure::notice_message(&notice, Realm::DaiLong);
+    assert_eq!(kind, game::messages::MessageKind::Warning);
+    assert_eq!(text, "The Mandate has fallen below 10. If it stays there for 11 months, the mission is lost.");
+}
+
+// The goals unmet when the time limit's months have passed lose the mission; met, it isn't lost.
+// Warned of with 12, 6, 3 and 1 months left.
+fn test_a_time_limit_runs_out() {
+    let mut env = mission_env();
+    let limit = env.sim.calendar().months_elapsed() + 12;
+    let mut warned = Vec::new();
+    for _ in 0..12 {
+        assert_eq!(check(&mut env, Some(terms(Some(limit)))), None);
+        warned.extend(failure::take_notices());
+        advance_months(&mut env, 1);
+    }
+    let expected: Vec<FailureNotice> =
+        failure::TIME_WARNINGS.iter().map(|&months_left| FailureNotice::TimeLeft { months_left }).collect();
+    assert_eq!(warned, expected);
+    let (_, _, text) = failure::notice_message(&expected[3], Realm::DaiLong);
+    assert_eq!(text, "1 month left to meet the mission's goals.");
+
+    assert_eq!(check(&mut env, Some(MissionTerms { goals_met: true, ..terms(Some(limit)) })), None, "met in time");
+    assert_eq!(check(&mut env, Some(terms(None))), None, "no limit");
+    assert_eq!(check(&mut env, Some(terms(Some(limit)))), Some(FailureReason::Time));
+}
+
+// Each realm words each failure its own way (the failure screen's `failure.<realm>.<reason>`).
+fn test_each_realm_words_its_failures() {
+    use engine::ui::text::{self, UiTextCategory};
+    for realm in Realm::iter() {
+        for reason in FailureReason::iter() {
+            let key = format!("failure.{realm}.{reason}");
+            assert!(text::peek(UiTextCategory::Realm, &key, None).1.is_some(), "en.json lacks Realm '{key}'");
+        }
+    }
+    assert_eq!(engine::ui::text::get(UiTextCategory::Realm, "failure.dailong.legitimacy"), "The court has recalled you");
 }

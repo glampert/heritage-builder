@@ -14,6 +14,7 @@ use game::{
             MissionChoiceDef,
             MissionDef,
             MissionDistinctionDef,
+            MissionFailureDef,
             MissionGoal,
             MissionMap,
             MissionRef,
@@ -24,7 +25,11 @@ use game::{
     debug::preset_maps,
     profile::{self, Profile},
     realm::Realm,
-    sim::{calendar::EraDef, ratings::RatingKind, resources::ResourceKind},
+    sim::{
+        calendar::EraDef,
+        ratings::{FailureReason, FailureSwitches, RatingKind},
+        resources::ResourceKind,
+    },
     world::stats::WorldStats,
 };
 
@@ -48,6 +53,7 @@ fn main() {
         test_utils::test_fn!(test_start_campaign_sets_active_mission),
         test_utils::test_fn!(test_start_mission_resumes_a_campaign),
         test_utils::test_fn!(test_tick_detects_mission_completion),
+        test_utils::test_fn!(test_a_lost_mission_cant_be_won),
         test_utils::test_fn!(test_advance_to_next_mission),
         test_utils::test_fn!(test_advance_through_a_choice),
         test_utils::test_fn!(test_continue_playing_no_requeue),
@@ -89,6 +95,7 @@ fn build_test_configs() -> CampaignConfigs {
                         calendar: Some(MissionCalendarDef { start_year: Some(5), start_month: Some(3), wet_months: None }),
                         finance: None,
                         risks: None,
+                        failure: None,
                         faith: None,
                         floods: None,
                         trade: None,
@@ -114,6 +121,7 @@ fn build_test_configs() -> CampaignConfigs {
                         calendar: None,
                         finance: None,
                         risks: None,
+                        failure: None,
                         faith: None,
                         floods: None,
                         trade: None,
@@ -153,6 +161,7 @@ fn build_choice_campaign() -> CampaignDef {
         calendar: None,
         finance: None,
         risks: None,
+        failure: None,
         faith: None,
         floods: None,
         trade: None,
@@ -379,6 +388,33 @@ fn test_start_mission_resumes_a_campaign() {
     assert!(campaign::start_mission(0, 2).is_none());
     assert_eq!(campaign::active_mission().map(|active| active.mission_index), Some(1));
     campaign::reset();
+}
+
+// A lost mission's goals met later don't finish it; the failure screen is asked for. A mission's
+// failure block turns its debt or Legitimacy failure off.
+fn test_a_lost_mission_cant_be_won() {
+    ensure_campaign_setup();
+    campaign::start_campaign(0); // Mission 1 goal: Population >= 10.
+    assert_eq!(campaign::active_mission_failure(), Some(FailureSwitches::ON), "no block: both");
+
+    let mut env = TestEnvironment::with_preset_map(TEST_PRESET);
+    env.sim.ratings_mut().set_failure(Some(FailureReason::Time));
+    campaign::request_failure_screen();
+    assert_eq!(campaign::pending_prompt(), Some(CampaignPrompt::MissionFailed));
+    env.world.stats_mut().population.total = 10;
+    {
+        let context = env.new_sim_context(0.0);
+        campaign::tick(&context);
+    }
+    assert!(!campaign::active_mission().unwrap().completed);
+    assert_eq!(campaign::take_pending_prompt(), Some(CampaignPrompt::MissionFailed));
+    assert!(campaign::take_finished_missions().is_empty());
+
+    let block: MissionFailureDef = serde_json::from_str(r#"{"legitimacy": false}"#).unwrap();
+    assert_eq!(block.switches(), FailureSwitches { debt: true, legitimacy: false });
+    assert!(serde_json::from_str::<MissionFailureDef>(r#"{"time": false}"#).is_err(), "unknown field");
+    campaign::reset();
+    assert_eq!(campaign::active_mission_failure(), None, "outside a campaign");
 }
 
 fn test_tick_detects_mission_completion() {

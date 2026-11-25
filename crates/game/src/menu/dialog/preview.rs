@@ -19,27 +19,29 @@ use super::*;
 use crate::{
     GameLoop,
     campaign::{self, preview::MissionPreview},
+    ratings::FailureReason,
     session,
 };
 
 // What a preview shows.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum PreviewScreen {
-    Briefing,                   // The mission's briefing, as Begin shows it (the Game menu's).
-    BriefingAtStart,            // As it opens when the mission starts: a choice point's sites in place of Begin.
-    Debrief,                    // MissionComplete, the mission just finished.
-    CampaignComplete,           // The campaign finished at the mission (its last step).
-    WorldMapAfter,              // The world map once the mission is finished: its next mission or choice.
-    WorldMapDuring,             // The world map while the mission is played: its choice closed.
-    Popup(world_map::MapPopup), // The world map with one of its popups.
-    Story(String),              // A sequence of the campaign, by id.
+    Briefing,                     // The mission's briefing, as Begin shows it (the Game menu's).
+    BriefingAtStart,              // As it opens when the mission starts: a choice point's sites in place of Begin.
+    Debrief,                      // MissionComplete, the mission just finished.
+    CampaignComplete,             // The campaign finished at the mission (its last step).
+    WorldMapAfter,                // The world map once the mission is finished: its next mission or choice.
+    WorldMapDuring,               // The world map while the mission is played: its choice closed.
+    Popup(world_map::MapPopup),   // The world map with one of its popups.
+    MissionFailed(FailureReason), // The failure screen, lost for that reason.
+    Story(String),                // A sequence of the campaign, by id.
 }
 
 impl PreviewScreen {
     // Whether the mission shows as finished (the world map offers the next mission then).
     fn completed(&self) -> bool {
         match self {
-            Self::Briefing | Self::BriefingAtStart | Self::WorldMapDuring | Self::Story(_) => false,
+            Self::Briefing | Self::BriefingAtStart | Self::WorldMapDuring | Self::Story(_) | Self::MissionFailed(_) => false,
             Self::Popup(popup) => *popup != world_map::MapPopup::FinishFirst,
             Self::Debrief | Self::CampaignComplete | Self::WorldMapAfter => true,
         }
@@ -158,6 +160,10 @@ fn open(request: &PreviewRequest, context: &mut GameUiContext) -> bool {
         }
         PreviewScreen::Debrief => super::open(DialogMenuKind::MissionComplete, true, context),
         PreviewScreen::CampaignComplete => super::open(DialogMenuKind::CampaignComplete, true, context),
+        PreviewScreen::MissionFailed(reason) => {
+            super::mission_failed::set_preview_reason(Some(*reason));
+            super::open(DialogMenuKind::MissionFailed, true, context)
+        }
         PreviewScreen::WorldMapAfter | PreviewScreen::WorldMapDuring => super::open(DialogMenuKind::WorldMap, true, context),
         PreviewScreen::Popup(popup) => {
             super::open(DialogMenuKind::WorldMap, true, context) && world_map::open_popup(context, *popup)

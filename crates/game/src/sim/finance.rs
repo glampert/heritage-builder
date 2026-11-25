@@ -350,6 +350,12 @@ impl Finance {
         self.balance = balance;
     }
 
+    // Automation and tests: the debt clock set by hand (month-ends in debt in a row).
+    #[inline]
+    pub fn set_months_in_debt(&mut self, months: u32) {
+        self.months_in_debt = months;
+    }
+
     // The world stats' treasury, and the trade income the TradeIncome goal reads: the exports' gold
     // this year or last, whichever is higher.
     #[inline]

@@ -34,7 +34,7 @@ use super::{
 use crate::{
     campaign::{
         self,
-        config::{CampaignConfigs, MissionGoal},
+        config::{CampaignConfigs, MissionGoal, MissionRequirements},
         stele::{self as stele_data, Stele},
     },
     menu::stele::SteleArt,
@@ -180,7 +180,7 @@ struct Debrief {
     kicker: String,
     name: Option<String>,
     place: Option<String>,
-    goals: Vec<(String, String, String, bool)>, // Goal, target, achieved, met.
+    goals: Vec<GoalRow>,
     stats: Vec<(String, String)>,
     joins: Option<String>,
     stele: Option<Stele>,
@@ -228,35 +228,8 @@ impl Debrief {
             None => year,
         });
 
-        let stats = context.world.stats();
-        let digits = super::load_save::group_digits;
-        let goals = mission
-            .requirements
-            .goals
-            .iter()
-            .map(|goal| {
-                let (text, target, achieved) = goal_line(goal, stats, ui_realm);
-                (text, digits(target), digits(achieved), goal.is_met(stats))
-            })
-            .collect();
-
-        // The years the city was governed: its first year counts as one.
-        let calendar = context.sim.calendar();
-        let years = calendar.months_elapsed() / 12 + 1;
-        // The treasury as the world stats counted it, as the goals read it: the step that finished
-        // the mission may have charged month-end wages and upkeep after the count (the balance
-        // then reads lower), and the simulation stays paused under the debrief.
-        let stats = vec![
-            (
-                ui::text::get(UiTextCategory::Menu, "debrief.stat.population").to_string(),
-                digits(i64::from(stats.population.total)),
-            ),
-            (
-                ui::text::get(UiTextCategory::Menu, "debrief.stat.treasury").to_string(),
-                digits(stats.treasury.gold_units_total),
-            ),
-            (ui::text::get(UiTextCategory::Menu, "debrief.stat.years").to_string(), years.to_string()),
-        ];
+        let goals = goal_rows(&mission.requirements, context.world.stats(), ui_realm);
+        let stats = stat_rows(context);
         let joins = city.map(|city| ui::text::format(UiTextCategory::Menu, "debrief.joins", &[("city", city)]));
 
         // The profile records the mission at the start of the next frame (GameLoop takes the
@@ -273,6 +246,41 @@ impl Debrief {
 
         Self { kicker, name, place, goals, stats, joins, stele, continue_label }
     }
+}
+
+// A goal's row in the debrief's and the failure screen's table: its line, target, what the city
+// achieved, and whether it's met.
+pub(super) type GoalRow = (String, String, String, bool);
+
+pub(super) fn goal_rows(requirements: &MissionRequirements, stats: &WorldStats, realm: realm::Realm) -> Vec<GoalRow> {
+    let digits = super::load_save::group_digits;
+    requirements
+        .goals
+        .iter()
+        .map(|goal| {
+            let (text, target, achieved) = goal_line(goal, stats, realm);
+            (text, digits(target), digits(achieved), goal.is_met(stats))
+        })
+        .collect()
+}
+
+// The stats under the goals: population, treasury, years taken.
+pub(super) fn stat_rows(context: &GameUiContext) -> Vec<(String, String)> {
+    let digits = super::load_save::group_digits;
+    let stats = context.world.stats();
+    // The years the city was governed: its first year counts as one.
+    let years = context.sim.calendar().months_elapsed() / 12 + 1;
+    // The treasury as the world stats counted it, as the goals read it: the step that finished
+    // the mission may have charged month-end wages and upkeep after the count (the balance
+    // then reads lower), and the simulation stays paused under the debrief.
+    vec![
+        (
+            ui::text::get(UiTextCategory::Menu, "debrief.stat.population").to_string(),
+            digits(i64::from(stats.population.total)),
+        ),
+        (ui::text::get(UiTextCategory::Menu, "debrief.stat.treasury").to_string(), digits(stats.treasury.gold_units_total)),
+        (ui::text::get(UiTextCategory::Menu, "debrief.stat.years").to_string(), years.to_string()),
+    ]
 }
 
 // A goal as the player reads it ("Population", "The Mandate" in `realm`'s words), its target and what
@@ -534,7 +542,6 @@ fn panel_parts(
     tightness: f32,
 ) -> (Vec<UiWidgetImpl>, Vec<UiWidgetImpl>) {
     let color = skin::intermission_color;
-    let text = color("text", "ink");
     let sub = color("sub", "sub");
     let gap = |index: usize| spacer(scales.pt(GAPS[index]) * tightness);
     let mut parts: Vec<UiWidgetImpl> = Vec::new();
@@ -567,7 +574,7 @@ fn panel_parts(
 
     if !debrief.goals.is_empty() {
         parts.push(gap(3).into());
-        parts.push(goals_table(context, scales, debrief, width, tightness).into());
+        parts.push(goals_table(context, scales, &debrief.goals, width, tightness).into());
     }
 
     // TODO(realm-ui): M9's distinctions (each with its mark, "each one adds a line to the stele")
@@ -576,27 +583,7 @@ fn panel_parts(
 
     let mut bottom: Vec<UiWidgetImpl> = Vec::new();
     if !debrief.stats.is_empty() {
-        let mut look = skin::row_look();
-        look.label_color = Some(sub);
-        look.value_color = Some(text);
-        look.rule_color = None;
-        look.padding = 0.0;
-        let mut stats = skin::key_values()
-            .with_label("stats")
-            .with_look(look)
-            .with_width(width)
-            .with_font_scale(scales.font(STAT_LABEL_SIZE))
-            .with_columns(UiKeyValueColumns {
-                value_font_scale: scales.heading_font(STAT_VALUE_SIZE),
-                heading_font: true,
-                gap: scales.pt(STAT_GAP) * tightness,
-                // The mockup's rows (Tampadesa's Amita draws its own twice as tall as its letters).
-                max_lines: Some([tight_row(STAT_LABEL_SIZE, scales), tight_row(STAT_VALUE_SIZE, scales)]),
-            });
-        for (label, value) in &debrief.stats {
-            stats = stats.with_pair(label.clone(), value.clone());
-        }
-        bottom.push(stats.into());
+        bottom.push(stats_values(scales, &debrief.stats, width, tightness).into());
     }
 
     if let Some(joins) = &debrief.joins {
@@ -607,8 +594,40 @@ fn panel_parts(
     (parts, bottom)
 }
 
+// The stats side by side, each label over its value (`stats`).
+pub(super) fn stats_values(scales: Scales, stats: &[(String, String)], width: f32, tightness: f32) -> UiKeyValues {
+    let color = skin::intermission_color;
+    let mut look = skin::row_look();
+    look.label_color = Some(color("sub", "sub"));
+    look.value_color = Some(color("text", "ink"));
+    look.rule_color = None;
+    look.padding = 0.0;
+    let mut values = skin::key_values()
+        .with_label("stats")
+        .with_look(look)
+        .with_width(width)
+        .with_font_scale(scales.font(STAT_LABEL_SIZE))
+        .with_columns(UiKeyValueColumns {
+            value_font_scale: scales.heading_font(STAT_VALUE_SIZE),
+            heading_font: true,
+            gap: scales.pt(STAT_GAP) * tightness,
+            // The mockup's rows (Tampadesa's Amita draws its own twice as tall as its letters).
+            max_lines: Some([tight_row(STAT_LABEL_SIZE, scales), tight_row(STAT_VALUE_SIZE, scales)]),
+        });
+    for (label, value) in stats {
+        values = values.with_pair(label.clone(), value.clone());
+    }
+    values
+}
+
 // The goals: a row per goal with its mark (met or not), its target and what the city achieved.
-fn goals_table(context: &GameUiContext, scales: Scales, debrief: &Debrief, width: f32, tightness: f32) -> UiTable {
+pub(super) fn goals_table(
+    context: &GameUiContext,
+    scales: Scales,
+    goals: &[GoalRow],
+    width: f32,
+    tightness: f32,
+) -> UiTable {
     let color = skin::intermission_color;
     let font = scales.font(GOAL_SIZE);
     let line = context.calc_text_size(font, "Ag").y;
@@ -657,7 +676,7 @@ fn goals_table(context: &GameUiContext, scales: Scales, debrief: &Debrief, width
             UiColumnWidth::Fixed(scales.pt(ACHIEVED_WIDTH)),
             UiColumnAlign::Right,
         ));
-    for (goal, target, achieved, met) in &debrief.goals {
+    for (goal, target, achieved, met) in goals {
         let status = if *met { UiTableStatus::Done } else { UiTableStatus::Pending };
         table = table.with_row(UiTableRow::new([goal.clone(), target.clone(), achieved.clone()]).with_status(status));
     }

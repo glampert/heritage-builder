@@ -26,12 +26,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "finance.set",
-        help: "Set the tax level, the wage or the balance, then report finance.state. Setting the balance isn't \
-               recorded in the accounts.",
+        help: "Set the tax level, the wage, the balance or the debt clock, then report finance.state. Setting the \
+               balance isn't recorded in the accounts.",
         params: &[
             ParamDef { name: "tax_level", kind: "string", required: false, help: "None, Low, Normal, High or Harsh." },
             ParamDef { name: "wage", kind: "int", required: false, help: "Gold per employed worker per year, 0 to 1000." },
             ParamDef { name: "balance", kind: "int", required: false, help: "Gold in the treasury; negative is debt." },
+            ParamDef {
+                name: "months_in_debt",
+                kind: "u32",
+                required: false,
+                help: "The debt clock: month-ends in debt in a row (the next month-end in debt counts on from it).",
+            },
         ],
         run: cmd_set,
     },
@@ -49,6 +55,7 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
         tax_level: Option<String>,
         wage: Option<u32>,
         balance: Option<i64>,
+        months_in_debt: Option<u32>,
     }
 
     let params: Params = parse_params(params)?;
@@ -77,6 +84,9 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     }
     if let Some(balance) = params.balance {
         finance.set_balance_unrecorded(balance);
+    }
+    if let Some(months) = params.months_in_debt {
+        finance.set_months_in_debt(months);
     }
 
     done(state_json(context))

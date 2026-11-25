@@ -5,6 +5,7 @@
 // nothing over RatingRules::fade_months (decision Q2). The state is sim::ratings::CityRatings.
 
 pub mod config;
+pub mod failure;
 
 use common::{coords::CellRange, mem::SingleThreadStatic};
 pub use config::{DriverDef, DriverKind, NO_FESTIVAL_DRIVER, RatingConfigs, RealmRatingsDef, driver_name, rating_name};
@@ -33,9 +34,15 @@ use crate::{
 // ----------------------------------------------
 
 // A new month's start (Simulation::update, last in the month, so the month's festival and the
-// requests opened or failed count): the ratings recomputed.
+// requests opened or failed count): the ratings recomputed, then whether the mission is lost
+// (failure::check_failure), which opens the failure screen.
 pub fn on_new_month(context: &SimContextMut, _date: CalendarDate) {
     recompute(context);
+    let terms = failure::mission_terms(context);
+    if let Some(reason) = failure::check_failure(context, terms.as_ref()) {
+        log::info!(log::channel!("ratings"), "The mission is lost: {reason}.");
+        crate::campaign::request_failure_screen();
+    }
 }
 
 // Every rating read again from the city and its realm's file, and the month it was read in kept.

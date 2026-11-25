@@ -1,8 +1,9 @@
 // The developer editor's Screens menu: opens the retail screens that are hard to reach in play,
 // for a campaign and mission picked in it (every campaign, the hidden test campaigns included): a
 // mission's briefing (also as it opens at the mission's start, offering a choice point's sites),
-// its debrief, the campaign-complete screen, the world map after or during the mission (its next
-// mission's box or choice) and its popups, and every story sequence of the campaign.
+// its debrief, the campaign-complete screen, the failure screen for a reason picked, the world map
+// after or during the mission (its next mission's box or choice) and its popups, and every story
+// sequence of the campaign.
 //
 // Each is a preview (menu::dialog::preview): the in-game menus show it over the city, it records
 // nothing in the profile and starts no session (its buttons that would only close it), and the
@@ -11,6 +12,7 @@
 //
 // Paths: Screens/Realm (dropdown: auto or a realm), Screens/Campaign (dropdown: campaign ids),
 // Screens/Mission (dropdown: "N · name"), a button per screen (Screens/Mission briefing, ...),
+// Screens/Failure (dropdown: debt, legitimacy, time) for Screens/Mission failed,
 // Screens/Sequence (dropdown: sequence ids) and Screens/Play sequence.
 
 use engine::ui;
@@ -22,6 +24,7 @@ use crate::{
         preview::{self, PreviewRequest, PreviewScreen},
         world_map::MapPopup,
     },
+    ratings::FailureReason,
     realm::{self, Realm},
     story::StoryConfigs,
     ui_context::GameUiContext,
@@ -33,6 +36,7 @@ pub struct ScreensDevMenu {
     campaign: usize,
     mission: usize,
     sequence: usize,
+    failure: usize, // The failure screen's reason, in FailureReason's order.
 }
 
 impl ScreensDevMenu {
@@ -99,6 +103,14 @@ impl ScreensDevMenu {
             }
             if ui::button(ui_sys, "Campaign complete") {
                 screen = Some(PreviewScreen::CampaignComplete);
+            }
+            // The failure screen, for the reason picked.
+            let reasons: Vec<String> = FailureReason::iter().map(|reason| reason.to_string()).collect();
+            ui::combo(ui_sys, "Failure", &mut self.failure, &reasons);
+            if ui::button(ui_sys, "Mission failed")
+                && let Some(reason) = FailureReason::iter().nth(self.failure)
+            {
+                screen = Some(PreviewScreen::MissionFailed(reason));
             }
             if ui::button(ui_sys, "World map after the mission") {
                 screen = Some(PreviewScreen::WorldMapAfter);

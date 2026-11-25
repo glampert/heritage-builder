@@ -66,7 +66,7 @@ impl Rating {
 
 // Why a game was lost (GDD 7): its debt ran out its months, Legitimacy stayed near zero for a year
 // (the court recalls the governor), or its time limit ran out.
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize, Display, EnumString)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize, Display, EnumIter, EnumString)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum FailureReason {

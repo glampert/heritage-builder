@@ -11,7 +11,7 @@ use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     campaign,
     menu::dialog,
-    ratings::{self, MAX_RATING, RatingKind},
+    ratings::{self, FailureReason, MAX_RATING, RatingKind},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -55,6 +55,15 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         params: &[],
         run: cmd_goals_state,
     },
+    CommandDef {
+        name: "campaign.fail",
+        help: "Loses the campaign mission being played now for `reason`, as a month's start would \
+               (docs/plans/ratings.md, §4): the failure is kept with the game (a save of it loads lost), the \
+               simulation pauses and the failure screen (MissionFailed) opens. Fails outside a campaign mission, \
+               and for a mission finished or lost already. Reports goals.state.",
+        params: &[ParamDef { name: "reason", kind: "string", required: true, help: "debt, legitimacy or time." }],
+        run: cmd_campaign_fail,
+    },
 ];
 
 fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
@@ -84,6 +93,34 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     }
     context.session.sim_mut().ratings_mut().set_value(kind, params.value);
     done(state_json(context))
+}
+
+fn cmd_campaign_fail(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        reason: String,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let reason = FailureReason::from_str(&params.reason).map_err(|_| {
+        CommandError::invalid_params(format!("Unknown reason '{}': use debt, legitimacy or time.", params.reason))
+    })?;
+    let Some(active) = campaign::active_mission() else {
+        return Err(CommandError::invalid_params("No campaign mission is being played."));
+    };
+    if active.completed {
+        return Err(CommandError::invalid_params("The mission is finished: it can't be lost."));
+    }
+    if let Some(failure) = context.session.sim().ratings().failure() {
+        return Err(CommandError::invalid_params(format!("The mission is lost already ({failure}).")));
+    }
+    let sim = context.session.sim_mut();
+    sim.ratings_mut().set_failure(Some(reason));
+    sim.pause();
+    campaign::request_failure_screen();
+    cmd_goals_state(context, Value::Null)
 }
 
 fn cmd_goals_state(context: &mut CommandContext, _params: Value) -> CommandResult {

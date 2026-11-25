@@ -12,7 +12,7 @@ use crate::{
     sim::{
         calendar::EraDef,
         finance::TaxLevel,
-        ratings::{MAX_RATING, RatingKind},
+        ratings::{FailureSwitches, MAX_RATING, RatingKind},
         resources::ResourceKind,
     },
     world::stats::WorldStats,
@@ -211,6 +211,9 @@ pub struct MissionDef {
     // Whether fire and collapse risks build up. None: RiskConfigs::enabled.
     #[serde(default)]
     pub risks: Option<MissionRisksDef>,
+    // Which failures can end the mission (docs/plans/ratings.md, §4). None: both.
+    #[serde(default)]
+    pub failure: Option<MissionFailureDef>,
     // Whether patrons' favour moves and festivals can be planned. None: both on.
     #[serde(default)]
     pub faith: Option<MissionFaithDef>,
@@ -381,6 +384,22 @@ pub struct MissionFinanceDef {
 pub struct MissionRisksDef {
     pub enabled: Option<bool>,
     pub disease: Option<bool>,
+}
+
+// Which failures can end a mission (docs/plans/ratings.md, §4): its debt running out its months
+// (`debt`) and Legitimacy staying near zero for a year (`legitimacy`), each on unless set false. Its
+// time limit, if it has one (MissionRequirements::time_limit_months), always can.
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MissionFailureDef {
+    pub debt: Option<bool>,
+    pub legitimacy: Option<bool>,
+}
+
+impl MissionFailureDef {
+    pub fn switches(&self) -> FailureSwitches {
+        FailureSwitches { debt: self.debt.unwrap_or(true), legitimacy: self.legitimacy.unwrap_or(true) }
+    }
 }
 
 // A mission's faith switches (docs/plans/faith.md, decision Q13). None: on.
