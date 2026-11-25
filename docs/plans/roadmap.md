@@ -55,7 +55,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | Done: risk state (save v7); fire, collapse, rubble; fire watch, builders' guild; disease and hospital dispatch (save v8); the Risk lens, the info panel's risk lines and the World Debug Risks tab |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | [seasons-floods.md](seasons-floods.md) | Done: the floods' data and state (save v11); farmsteads with rice fields the player lays around them, replacing the rice farm, sown and reaped in harvests; the flood (its damage, the crops it takes, silt, the water drawn on the map, its messages, faith's flood events and the Flood lens); dykes drawn like roads, their wear and the builders who keep them, breaches and the `FloodsSurvived` goal; fertility, sluice gates (a dry-season harvest, the silt without the water) and the Fertility lens; irrigation as connected water (canals from the river or a gate's outlet, water flowing from field to field; Phase 6, at the user's request). Its balance is M13's |
 | M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | Done: data, state and save v10; the patrons' shrines and temples, picked from the palette's variation submenu; favour, the Patrons tab and the Faith lens; blessings and misfortunes; festivals and the festival square (floods' events came with M7 Phase 2; Culture and Legitimacy wait for M9) |
-| M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
+| M9 | Ratings, goals and failure | Medium | M4, M7, M8 | [ratings.md](ratings.md) | In progress: the plan's decisions confirmed (2026-11-25); Phase 0 next |
 | M10 | Trade v1 and court requests | Large | M1, M4, M5 | [trade.md](trade.md) | Done (2026-11-22: the data, the state, save v12; land routes, the trade limits dialog, caravans; docks, trade ships and their dockers, save v13; prices that move with trade and drift back; court requests and the `TradeIncome` and `RequestsFulfilled` goals, save v14; the docs). No trade post: caravans trade at the storage yards and granaries (Q1); docks and trade ships brought forward from Phase 2; the `TradeIncome` and `RequestsFulfilled` goals brought forward from M9 (Q10) |
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
 | M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3, the comic viewer (I-A and I-B as data) with Phase 4; the other sequences wait for their missions |
@@ -176,7 +176,7 @@ GDD 5.11:
 
 ### M9: Ratings, goals and failure (medium)
 
-GDD 5.17 and 7:
+See [ratings.md](ratings.md). GDD 5.17 and 7:
 - **Ratings:** Prosperity, Culture, Security and Legitimacy (the Mandate), recomputed monthly, each with a breakdown of what drives it.
 - **Goals:** extend `MissionGoal` (`campaign/config.rs`) with `Rating`, `HousesAtLevel`, `Stockpile`, `SurviveUntil` and `SurviveAttacks`. The last two are for Phase 2. The goals of the systems that came first came with them: `FloodsSurvived` (M7, for `SeasonsSurvived`), `FestivalsHeld` (M8), `TradeIncome` and `RequestsFulfilled` (M10).
 - **Legitimacy from requests:** M10's request log (`CityTrade::request_log`) keeps each request met or failed with its `legitimacy` effect; the Mandate applies it, and "the court may ask for more" after a failure (GDD 5.14).
@@ -314,7 +314,7 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 14 | The mission's request schedule (`sim.trade.scheduled`) and each request's Legitimacy and relations effects | M10 | Done (Phase 4) |
 | 15 | Each cell's level and shape (`tile_map.elevation`, saved as runs) | T | Done (Stage 1) |
 | 16 | The flood's level, the highest ground it rises over (`sim.floods.profile.flood_level`) | T | Done (Stage 6) |
-| … | Ratings state | M9 | Planned |
+| 17 | Ratings state (`sim.ratings`) and the disasters log (`sim.risks`) | M9 | Planned ([ratings.md](ratings.md)) |
 
 ## Conventions for every milestone
 
