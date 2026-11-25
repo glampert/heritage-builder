@@ -2520,6 +2520,28 @@ impl UiPainter {
         self.painter.line_segment([egui_pos2(a), egui_pos2(b)], Stroke::new(width, color32(color)));
     }
 
+    // A circle's arc `width` points wide from `from` to `to`, in turns clockwise from the top (0.25
+    // is the right, 1 the whole way round), its ends rounded: a rating's ring filled up to its value.
+    // Nothing for an arc of no length.
+    pub fn arc(&self, center: Vec2, radius: f32, from: f32, to: f32, width: f32, color: Color) {
+        let sweep = (to - from).clamp(0.0, 1.0);
+        if sweep <= 0.0 || radius <= 0.0 {
+            return;
+        }
+        let point = |turn: f32| {
+            let angle = turn * std::f32::consts::TAU;
+            Vec2::new(center.x + radius * angle.sin(), center.y - radius * angle.cos())
+        };
+        // A segment every 1/96 of a turn, so even a large ring reads as round.
+        let segments = ((sweep * 96.0).ceil() as usize).max(2);
+        let points: Vec<Vec2> = (0..=segments).map(|i| point(from + sweep * i as f32 / segments as f32)).collect();
+        self.polyline(&points, width, color, sweep >= 1.0);
+        if sweep < 1.0 {
+            self.circle_filled(point(from), width * 0.5, color);
+            self.circle_filled(point(from + sweep), width * 0.5, color);
+        }
+    }
+
     // Connected segments, back to the first point if `closed`.
     pub fn polyline(&self, points: &[Vec2], width: f32, color: Color, closed: bool) {
         let points: Vec<Pos2> = points.iter().map(|p| egui_pos2(*p)).collect();

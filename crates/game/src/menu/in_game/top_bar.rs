@@ -5,7 +5,8 @@
 // - the speed controls: pause, play (1×), fast (2×) and faster (4×), the one in use pressed;
 // - the date in the UI realm's era words and the season;
 // - population, treasury (the warning colour in debt) and the food in granaries and markets;
-// - the four ratings as placeholder rings until M9 rates them;
+// - the four ratings, each a ring filled to its value with the rating's initial in it, the mission's
+//   goal for it ticked on the ring, and its value beside it (crate::ratings);
 // - the game menu's buttons: Game, Load / Save, Settings, City book (the city management dialog
 //   until Phase 6's City book), Briefing (a campaign mission's only);
 // - the realm's gap ornaments in the stretches between them.
@@ -25,6 +26,7 @@ use crate::{
         dialog::{self, DialogMenuKind, goal_line},
         skin::{self, HudGlyphGroup, HudTileKind, SkinPanel},
     },
+    ratings::{self, RatingView},
     realm::{self, Realm},
     sim::{calendar::Season, resources::ResourceKind},
     ui_context::GameUiContext,
@@ -55,6 +57,7 @@ struct BarStats {
     treasury: i64,
     food: u32,
     goals: Vec<GoalRow>,
+    ratings: Option<Vec<RatingView>>, // None while the city isn't rated.
 }
 
 #[derive(Clone, PartialEq)]
@@ -118,6 +121,7 @@ impl BarStats {
             treasury: context.sim.finance().balance(),
             food: food_stored(context),
             goals: goal_rows(context),
+            ratings: ratings::views(context.sim.ratings(), realm),
         }
     }
 
@@ -138,6 +142,15 @@ fn look(size: f32, color: Color, heading: bool) -> UiLabelLook {
 
 fn digits(value: i64) -> String {
     dialog::group_digits(value)
+}
+
+// "+12", "−4" (a true minus), "0".
+fn signed(value: i64) -> String {
+    match value.signum() {
+        1 => format!("+{}", digits(value)),
+        -1 => format!("−{}", digits(-value)),
+        _ => "0".to_string(),
+    }
 }
 
 // The fourth rating is the realm's own: the Mandate, Divine favour, Merit.
@@ -264,6 +277,7 @@ pub struct TopBar {
     built_for: BuiltFor,
     buttons: Vec<(BarButton, UiWidgetGroupWidgetIndex)>,
     canvases: Vec<(Option<Stat>, UiWidgetGroupWidgetIndex)>, /* The date's (None) and the stats', their values updated each frame. */
+    ratings_canvas: Option<UiWidgetGroupWidgetIndex>,
 }
 
 impl TopBar {
@@ -320,7 +334,7 @@ impl TopBar {
 
         // The stats between the speed controls and the menu, their gaps split either side, each gap
         // keeping room for its ornament: the stats at their size where they fit, narrower on a
-        // narrow window, and without the ratings (placeholders until M9) where even that doesn't fit.
+        // narrow window, and without the ratings where even that doesn't fit.
         let room = inner_width - fixed - 6.0 * TILE_GAP;
         let stats_room = room - 2.0 * ORNAMENT_MIN_GAP;
         let full = DATE_WIDTH + 3.0 * STAT_WIDTH + RATINGS_WIDTH;
@@ -337,9 +351,8 @@ impl TopBar {
         for stat in [Stat::Population, Stat::Treasury, Stat::Food] {
             canvases.push((Some(stat), row.add_widget(stat_canvas(context, &stats, stat, Vec2::new(stat_width, tile.y)))));
         }
-        if with_ratings {
-            row.add_widget(ratings_canvas(context, Vec2::new(ratings_width, tile.y), k));
-        }
+        let ratings_canvas =
+            with_ratings.then(|| row.add_widget(ratings_canvas(context, &stats, Vec2::new(ratings_width, tile.y), k)));
         row.add_widget(ornament_canvas(context, "ornament_right", Vec2::new(gap, tile.y)));
         for button in menu_buttons {
             add(context, &mut row, button);
@@ -360,7 +373,7 @@ impl TopBar {
             GoalsPanel::new(context, &stats, anchor)
         });
 
-        Self { menu, row, goals_panel, stats, built_for, buttons, canvases }
+        Self { menu, row, goals_panel, stats, built_for, buttons, canvases, ratings_canvas }
     }
 
     // The bar's width with everything at its size: its tiles, the stats and ratings, and each gap
@@ -437,7 +450,14 @@ impl TopBar {
     fn update_canvases(&mut self, context: &mut GameUiContext) {
         let stats = self.stats.borrow().clone();
         let date_tooltip = skin::tooltip(context, format!("{}\n{}", stats.day, stats.season));
+        let ratings_tooltip = skin::tooltip(context, ratings_tooltip_text(&stats));
         let Some(row) = self.menu.widget_as_mut::<UiWidgetGroup>(self.row) else { return };
+        if let Some(index) = self.ratings_canvas
+            && let Some(canvas) = row.widget_as_mut::<UiCanvas>(index)
+        {
+            canvas.set_value(Some(ratings_value(&stats)));
+            canvas.set_tooltip(Some(ratings_tooltip));
+        }
         for (stat, index) in &self.canvases {
             if let Some(canvas) = row.widget_as_mut::<UiCanvas>(*index) {
                 match stat {
@@ -574,31 +594,90 @@ fn stat_canvas(context: &mut GameUiContext, stats: &SharedStats, stat: Stat, siz
     .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Hud, stat.tooltip())))
 }
 
-// The ratings: rings with each rating's initial, not rated ("—") until M9.
-fn ratings_canvas(context: &mut GameUiContext, size: Vec2, k: f32) -> UiCanvas {
+// The ratings: a ring each, filled to its value in the skin's `rating_fill` from the top clockwise,
+// the mission's goal ticked across it, its initial in it and its value beside it ("—" while the
+// city isn't rated).
+fn ratings_canvas(context: &mut GameUiContext, stats: &SharedStats, size: Vec2, k: f32) -> UiCanvas {
     let realm = skin::current_realm();
     let names = rating_names(realm);
     let text = skin::hud_color("text", "ink");
     let sub = skin::hud_color("sub", "sub");
     let track = skin::hud_color("rating_track", "sub");
+    let fill = skin::hud_color("rating_fill", "accent");
     let rule = skin::hud_color("rule", "sub");
     let initials: Vec<String> = names.iter().map(|name| rating_initial(name)).collect();
-    let lines: Vec<String> = names
-        .iter()
-        .map(|name| ui::text::format(UiTextCategory::Hud, "rating.placeholder", &[("rating", name.as_str())]))
-        .collect();
     let squeeze = k;
+    let shared = stats.clone();
+    let (value, tooltip) = {
+        let stats = stats.borrow();
+        (ratings_value(&stats), ratings_tooltip_text(&stats))
+    };
     UiCanvas::new(size, move |_, painter, rect| {
+        let stats = shared.borrow();
         painter.line(Vec2::new(rect.min.x, rect.min.y + 2.0), Vec2::new(rect.min.x, rect.max.y - 2.0), 2.0, rule);
         for (k, initial) in initials.iter().enumerate() {
             let center = Vec2::new(rect.min.x + 30.0 * squeeze + k as f32 * RATING_STEP * squeeze, rect.center().y);
+            let view = stats.ratings.as_ref().and_then(|views| views.get(k));
             painter.circle_stroke(center, 15.0, 3.5, track);
+            if let Some(view) = view {
+                painter.arc(center, 15.0, 0.0, view.value as f32 / 100.0, 3.5, fill);
+                if let Some(goal) = view.goal {
+                    let angle = goal.min(100) as f32 / 100.0 * std::f32::consts::TAU;
+                    let at = |radius: f32| center + Vec2::new(radius * angle.sin(), -radius * angle.cos());
+                    painter.line(at(11.0), at(19.0), 2.0, text);
+                }
+            }
             painter.label(center + Vec2::new(0.0, 5.5), UiTextAnchor::Middle, initial, &look(14.0, text, true));
-            painter.label(center + Vec2::new(21.0, 5.5), UiTextAnchor::Start, "—", &look(14.0, sub, false));
+            let number = view.map_or_else(|| "—".to_string(), |view| view.value.to_string());
+            painter.label(center + Vec2::new(21.0, 5.5), UiTextAnchor::Start, &number, &look(14.0, sub, false));
         }
     })
-    .with_label("ratings", Some(json!({ "placeholder": true, "names": names })))
-    .with_tooltip(skin::tooltip(context, lines.join("\n")))
+    .with_label("ratings", Some(value))
+    .with_tooltip(skin::tooltip(context, tooltip))
+}
+
+// What `TopBar/ratings` records: whether the city is rated, the ratings' names in the UI realm, their
+// values and the mission's goals.
+fn ratings_value(stats: &BarStats) -> serde_json::Value {
+    let views = stats.ratings.as_deref().unwrap_or_default();
+    json!({
+        "rated": stats.ratings.is_some(),
+        "names": rating_names(skin::current_realm()),
+        "values": views.iter().map(|view| view.value).collect::<Vec<_>>(),
+        "goals": views.iter().map(|view| view.goal).collect::<Vec<_>>(),
+    })
+}
+
+// The ratings' tooltip: a rating and its goal on a line, its largest drivers under it.
+fn ratings_tooltip_text(stats: &BarStats) -> String {
+    let Some(views) = &stats.ratings else {
+        let names = rating_names(skin::current_realm());
+        return names
+            .iter()
+            .map(|name| ui::text::format(UiTextCategory::Hud, "rating.not_rated", &[("rating", name.as_str())]))
+            .collect::<Vec<_>>()
+            .join("\n");
+    };
+    let mut lines = Vec::new();
+    for view in views {
+        let value = view.value.to_string();
+        lines.push(match view.goal {
+            Some(goal) => ui::text::format(UiTextCategory::Hud, "rating.tooltip_goal", &[
+                ("rating", view.name.as_str()),
+                ("value", &value),
+                ("goal", &goal.to_string()),
+            ]),
+            None => {
+                ui::text::format(UiTextCategory::Hud, "rating.tooltip", &[("rating", view.name.as_str()), ("value", &value)])
+            }
+        });
+        let drivers: Vec<String> =
+            view.largest_drivers(2).iter().map(|(name, value)| format!("{name} {}", signed(i64::from(*value)))).collect();
+        if !drivers.is_empty() {
+            lines.push(format!("    {}", drivers.join(" · ")));
+        }
+    }
+    lines.join("\n")
 }
 
 // A rating's initial in its ring: its name's first letter, an article left out ("The Mandate": M).

@@ -5,9 +5,10 @@
 //   side tabs (an icon and a title each), and Close at the foot;
 // - right, the page: its title, a note and a rule, then its cards.
 //
-// The pages (CityPage, each its own module): Overview, Population, Goods, Finances and Heritage.
-// A milestone adds its page (M9's Ratings, M11's Labour and Food) by writing a CityPage and
-// listing it in PAGES, the order the tabs show them.
+// The pages (CityPage, each its own module): Overview, Population, Goods, Finances, Ratings and
+// Heritage. A milestone adds its page (M11's Labour and Food) by writing a CityPage and listing it
+// in PAGES, the order the tabs show them (the mockups': Ratings after Finances, then Labour and
+// Food, then Heritage).
 //
 // It's built afresh when it opens, and again while open once a game month passes, the window's
 // size changes or the tax level or wage do (the Finances page's figures follow them): a page
@@ -39,6 +40,7 @@ mod goods;
 mod heritage;
 mod overview;
 mod population;
+mod ratings;
 
 // ----------------------------------------------
 // Layout (points on the generator's 1620 × 960 panel, scaled with it)
@@ -85,8 +87,8 @@ static STATE: UiStaticVar<BookState> =
     UiStaticVar::new(BookState { page: 0, heritage_tab: 2, festival: None, scale: None, built: None });
 
 // What the open book is built from: the window's size, the game's month, the tax level and wage,
-// the festivals' plans, log and planner (heritage::festivals_key), and the requests under way and
-// logged (one sent from the Goods page).
+// the festivals' plans, log and planner (heritage::festivals_key), the requests under way and
+// logged (one sent from the Goods page), and the ratings' values.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 struct BuildKey {
     window: (u32, u32),
@@ -95,6 +97,7 @@ struct BuildKey {
     wage: u32,
     festivals: u64,
     requests: (usize, usize),
+    ratings: [u32; crate::ratings::RATING_COUNT],
 }
 
 fn build_key(context: &GameUiContext) -> BuildKey {
@@ -107,12 +110,13 @@ fn build_key(context: &GameUiContext) -> BuildKey {
         wage: finance.wage(),
         festivals: heritage::festivals_key(context),
         requests: (context.sim.trade().requests().len(), context.sim.trade().request_log().len()),
+        ratings: crate::ratings::values(context.sim.ratings()),
     }
 }
 
 // Whether the open book must be built again: a month passed, the window's size changed, the tax
-// level or wage, the festivals (one planned or held, the planner's pick) or the requests (one sent;
-// the page shown and the Heritage tab are kept).
+// level or wage, the festivals (one planned or held, the planner's pick), the requests (one sent) or
+// the ratings (ratings.recompute, ratings.set); the page shown and the Heritage tab are kept.
 pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
     !in_home_menu() && STATE.as_ref().built != Some(build_key(context))
 }
@@ -178,8 +182,14 @@ pub(super) trait CityPage: Sync {
 }
 
 // The pages, in the order the tabs show them.
-static PAGES: [&dyn CityPage; 5] =
-    [&overview::Overview, &population::Population, &goods::Goods, &finances::Finances, &heritage::Heritage];
+static PAGES: [&dyn CityPage; 6] = [
+    &overview::Overview,
+    &population::Population,
+    &goods::Goods,
+    &finances::Finances,
+    &ratings::Ratings,
+    &heritage::Heritage,
+];
 
 // ----------------------------------------------
 // CityManagement
@@ -528,6 +538,27 @@ impl<'a> Paint<'a> {
         let d = if up { -1.0 } else { 1.0 };
         let points = [self.at(x - 5.0, y - 3.0 * d), self.at(x, y + 3.5 * d), self.at(x + 5.0, y - 3.0 * d)];
         self.painter.polyline(&points, 2.2 * self.k, color, false);
+    }
+
+    // A rating's ring (pages.py's `ring`): its track, the accent from the top clockwise up to
+    // `value` (0 to 100), a tick across it at the goal, and the value in its middle ("—" while the
+    // city isn't rated). `r`, `stroke` and `label` in mockup px.
+    pub fn ring(&self, cx: f32, cy: f32, r: f32, value: Option<u32>, goal: Option<u32>, stroke: f32, label: f32) {
+        let center = self.at(cx, cy);
+        self.painter.circle_stroke(center, r * self.k, stroke * self.k, self.c.track);
+        if let Some(value) = value {
+            self.painter.arc(center, r * self.k, 0.0, value as f32 / 100.0, stroke * self.k, self.c.accent);
+        }
+        if let Some(goal) = goal {
+            let angle = goal.min(100) as f32 / 100.0 * std::f32::consts::TAU;
+            let point = |radius: f32| self.at(cx + radius * angle.sin(), cy - radius * angle.cos());
+            self.painter.line(point(r - stroke), point(r + stroke), 3.0 * self.k, self.c.text);
+        }
+        let (text, color) = match value {
+            Some(value) => (value.to_string(), self.c.text),
+            None => ("—".to_string(), self.c.sub),
+        };
+        self.text(cx, cy + label * 0.36, &text, label, color, UiTextAnchor::Middle, true);
     }
 
     // A goal's mark: a filled disc with a tick when met, else a ring.

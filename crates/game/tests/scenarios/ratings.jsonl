@@ -1,0 +1,118 @@
+# The four ratings (docs/plans/ratings.md): a small city's ratings read from it, rising as a shrine
+# and a theater go up; the HUD's rings and the City book's Ratings page and Overview in each realm,
+# following ratings.set. Saves screenshots to out/ratings/. From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --default-configs --window-size 1920x1080 --script crates/game/tests/scenarios/ratings.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [24, 24]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "cheats.set", "params": {"name": "no_city_risks", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "sim.pause"}
+
+# ---- A new map is rated at once ----
+{"method": "assert.exists", "params": {"query": "ratings.state", "path": "/rated_month"}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/realm", "value": "dailong"}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/legitimacy/name", "value": "The Mandate"}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/legitimacy/driver_values/fair_taxes", "value": 10}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/fails_on/debt", "value": false}}
+
+# ---- Two houses with people; then a shrine and a theater raise Culture ----
+{"method": "finance.set", "params": {"balance": 1000}}
+{"method": "world.road", "params": {"from": [3, 10], "to": [20, 10]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [8, 9]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [13, 9]}}
+{"method": "world.add_population", "params": {"cell": [8, 9], "count": 2}}
+{"method": "world.add_population", "params": {"cell": [13, 9], "count": 2}}
+{"method": "ratings.recompute"}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/driver_values/temples", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/driver_values/theatre", "value": 0}}
+{"method": "world.place", "params": {"tile": "shrine", "cell": [11, 9]}}
+{"method": "ratings.recompute"}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/driver_values/temples", "value": 35}}
+{"method": "world.place", "params": {"tile": "theater", "cell": [15, 11]}}
+{"method": "ratings.recompute"}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/driver_values/theatre", "value": 25}}
+# 35 + 25, less 2 for a year without a festival.
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/driver_values/no_festival", "value": -2}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/value", "value": 58}}
+# Harsh taxes are unfair.
+{"method": "finance.set", "params": {"tax_level": "Harsh"}}
+{"method": "ratings.recompute"}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/legitimacy/driver_values/fair_taxes", "value": -15}}
+{"method": "finance.set", "params": {"tax_level": "Normal"}}
+{"method": "ratings.recompute"}
+
+# ---- The HUD's rings follow the ratings ----
+{"method": "ratings.set", "params": {"rating": "security", "value": 42}}
+{"method": "input.move", "params": {"park": true}}
+# The widget registry is off until a ui command turns it on.
+{"method": "ui.tree", "params": {"fields": ["path"]}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/rated", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/values/2", "value": 42}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names/3", "value": "The Mandate"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/goals", "value": [null, null, null, null]}}
+{"method": "ui.hover", "params": {"path": "TopBar/ratings"}}
+{"method": "wait.frames", "params": {"frames": 30}}
+{"method": "screenshot", "params": {"path": "out/ratings/hud-dailong.png"}}
+{"method": "input.move", "params": {"park": true}}
+
+# ---- The City book's Ratings page, after Finances ----
+{"method": "ui.click", "params": {"path": "TopBar/City book"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Ratings"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Ratings"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "tab", "fields": ["path", "value"]}, "path": "/widgets/4", "value": {"path": "CityManagement/Ratings", "value": true}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/title", "kind": "canvas"}, "path": "/widgets/0/value/note", "value": "What raises and lowers each rating"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/security", "kind": "canvas"}, "path": "/widgets/0/value/value", "value": 42}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/culture", "kind": "canvas"}, "path": "/widgets/0/value/drivers/0", "value": {"name": "Temples and shrines", "value": 35}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/culture", "kind": "canvas"}, "path": "/widgets/0/value/drivers/1", "value": {"name": "Theatre", "value": 25}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/legitimacy", "kind": "canvas"}, "path": "/widgets/0/value/name", "value": "The Mandate"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/legitimacy", "kind": "canvas"}, "path": "/widgets/0/value/met", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ratings/book-dailong.png"}}
+# A rating set while the book is open: it reads the ratings again.
+{"method": "ratings.set", "params": {"rating": "prosperity", "value": 77}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/prosperity", "kind": "canvas"}, "path": "/widgets/0/value/value", "value": 77}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Ratings"}}
+{"method": "ratings.recompute"}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# ---- Kambara's and Tampadesa's words for them ----
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/legitimacy", "kind": "canvas"}, "path": "/widgets/0/value/name", "value": "Divine favour"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/culture", "kind": "canvas"}, "path": "/widgets/0/value/drivers/1/name", "value": "Dance halls"}}
+{"method": "screenshot", "params": {"path": "out/ratings/book-kambara.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/legitimacy", "kind": "canvas"}, "path": "/widgets/0/value/name", "value": "Merit"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/culture", "kind": "canvas"}, "path": "/widgets/0/value/drivers/1/name", "value": "Pwè theatre"}}
+{"method": "screenshot", "params": {"path": "out/ratings/book-tampadesa.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# ---- The Overview's ratings card ----
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Overview"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/standing", "kind": "canvas"}, "path": "/widgets/0/value/ratings/rated", "value": true}}
+{"method": "ratings.set", "params": {"rating": "culture", "value": 64}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/standing", "kind": "canvas"}, "path": "/widgets/0/value/ratings/values/1", "value": 64}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/standing", "kind": "canvas"}, "path": "/widgets/0/value/ratings/goals", "value": [null, null, null, null]}}
+{"method": "screenshot", "params": {"path": "out/ratings/overview-dailong.png"}}
+{"method": "dialog.close"}
+
+# ---- A month's start reads them again ----
+# The game hasn't run yet: a month and a step take it past the month's end (the calendar moves in the
+# world's half-second steps).
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/value", "value": 64}}
+{"method": "time.fast_forward", "params": {"sim_secs": 61, "resume": true}}
+{"method": "sim.pause"}
+{"method": "assert.ne", "params": {"query": "ratings.state", "path": "/ratings/culture/value", "value": 64}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/culture/driver_values/temples", "value": 35}}

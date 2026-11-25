@@ -1,6 +1,6 @@
 // The Overview page (city-overview-<realm>.jpg): four cards (population, treasury, food,
-// employment), the ratings (placeholder rings until M9) and the mission's goals, and what needs
-// attention.
+// employment), the four ratings (each a ring, a tick at the mission's goal for it) and the mission's
+// goals, and what needs attention.
 
 use common::Vec2;
 use engine::ui::{self, UiTextAnchor, text::UiTextCategory, widgets::*};
@@ -11,6 +11,7 @@ use crate::{
     campaign::{self, config::CampaignConfigs},
     city::CityHistory,
     menu::skin,
+    ratings,
     ui_context::GameUiContext,
 };
 
@@ -116,26 +117,41 @@ impl CityPage for Overview {
 
         // The ratings and the goals.
         let names = crate::menu::in_game::rating_names(page.realm);
+        let views = ratings::views(context.sim.ratings(), page.realm);
+        let rings: Vec<(Option<u32>, Option<u32>)> = match &views {
+            Some(views) => views.iter().map(|view| (Some(view.value), view.goal)).collect(),
+            None => vec![(None, None); names.len()],
+        };
         let goals = goals(context);
         let goals_note = goals.0.clone();
         let goals_rows = goals.1.clone();
         let middle_value = json!({
-            "ratings": { "placeholder": true, "names": names },
+            "ratings": {
+                "names": names,
+                "rated": views.is_some(),
+                "values": rings.iter().map(|(value, _)| *value).collect::<Vec<_>>(),
+                "goals": rings.iter().map(|(_, goal)| *goal).collect::<Vec<_>>(),
+            },
             "goals": goals_rows.iter().map(|(goal, target, achieved, met)| json!({ "goal": goal, "target": target, "achieved": achieved, "met": met })).collect::<Vec<_>>(),
         });
         let ratings_title = get("book.ratings");
         let ratings_note = get("book.ratings.note");
-        let no_goal = get("book.ratings.not_yet");
+        let no_goal = get("book.ratings.no_goal");
         let goals_title = get("book.goals");
         let no_goals = get("book.goals.none");
         let middle = body_canvas(page, BODY.x, MIDDLE_HEIGHT, "standing", middle_value, move |p: &Paint| {
             p.card(0.0, 0.0, RATINGS_WIDTH, MIDDLE_HEIGHT, Some(&ratings_title), Some(&ratings_note));
-            for (k, name) in names.iter().enumerate() {
+            for (k, (name, (value, goal))) in names.iter().zip(&rings).enumerate() {
                 let cx = 88.0 + k as f32 * 148.0;
-                p.painter.circle_stroke(p.at(cx, 122.0), 48.0 * p.k, 9.0 * p.k, p.c.track);
-                p.text(cx, 133.0, "—", 30.0, p.c.sub, UiTextAnchor::Middle, true);
+                p.ring(cx, 122.0, 48.0, *value, *goal, 9.0, 30.0);
                 p.text(cx, 202.0, name, 18.0, p.c.text, UiTextAnchor::Middle, false);
-                p.text(cx, 228.0, &no_goal, 16.0, p.c.sub, UiTextAnchor::Middle, false);
+                let goal_text = match goal {
+                    Some(goal) => {
+                        ui::text::format(UiTextCategory::City, "book.ratings.goal", &[("goal", &goal.to_string())])
+                    }
+                    None => no_goal.clone(),
+                };
+                p.text(cx, 228.0, &goal_text, 16.0, p.c.sub, UiTextAnchor::Middle, false);
             }
             let gx = RATINGS_WIDTH + GAP;
             let gw = BODY.x - gx;

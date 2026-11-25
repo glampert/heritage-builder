@@ -1,6 +1,6 @@
 # Ratings, goals and failure
 
-**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17); Phase 1 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17) and Phase 1 (the ratings on screen); Phase 2 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
 - GDD 5.17: the four ratings, Prosperity, Culture, Security and Legitimacy, each with its own name for Legitimacy in each realm (the Mandate, Divine Favour, Merit);
 - GDD 7's goals that are still missing, its failure conditions and its optional distinctions;
 - the Legitimacy half of the court requests (GDD 5.14), which M10 left logged and not applied.
@@ -416,9 +416,30 @@ It was researched against `853baf3d` on `claude`. File and line references point
 
 ### Phase 1: The ratings on screen (medium)
 
-- [ ] The top bar's rings, values, goal ticks and tooltips; the canvas's new value.
-- [ ] The City book's Ratings page in each realm, and the Overview's live card.
-- [ ] `ui_hud.jsonl` and `ui_city.jsonl` updated; the start of `ratings.jsonl`.
+- [x] The top bar's rings, values, goal ticks and tooltips; the canvas's new value.
+- [x] The City book's Ratings page in each realm, and the Overview's live card.
+- [x] `ui_hud.jsonl` and `ui_city.jsonl` updated; the start of `ratings.jsonl`.
+
+**Notes (2026-11-25):**
+- **What was built:**
+  - `ratings::views` (`RatingView`): what the screens show of each rating, in a realm's words: its name, value, the mission's goal for it (`ratings::mission_goal`) and its drivers' names and values, with `largest_drivers` for the tooltip. `ratings::values` gives the four values.
+  - `UiPainter::arc` (engine): a circle's arc in turns clockwise from the top, its ends rounded, for a ring filled to its value.
+  - The HUD's `TopBar/ratings`: a ring per rating filled in the skin's `hud.colors.rating_fill` (which nothing read before), the goal ticked across it, the initial in it and the value beside it, "—" while unrated. Its tooltip gives each rating, with its goal, and its two largest drivers each way. The bar reads the ratings each frame with its other stats; the canvas's value is `rated`, `names`, `values` and `goals`.
+  - The City book's Ratings page (`city_book/ratings.rs`), after `city-ratings-<realm>.jpg`: a card per rating (`CityManagement/Ratings/<rating>`) with its ring (`Paint::ring`, pages.py's), "Goal N: met", "Goal N: M to go" or "No goal in this mission", the breakdown in the realm's words and the "Rating" total, its rows set closer where a rating has more drivers than the mockup's four.
+  - The Overview's `standing` card's rings, live, with "goal N" or "no goal" under each.
+  - The book is rebuilt when the ratings' values change (`BuildKey::ratings`), so it follows `ratings.recompute` and `ratings.set` as well as the month.
+  - The strings: `rating.not_rated`, `rating.tooltip`, `rating.tooltip_goal` (Hud); `book.page.ratings`, `book.note.ratings`, `book.rating.*`, `book.ratings.goal` and `book.ratings.no_goal` (City). `rating.placeholder` and `book.ratings.not_yet` are gone.
+  - `ratings.jsonl` (in CI's list), `ui_hud.jsonl`'s rings, and `ui_city.jsonl`'s Ratings page in each realm and at 200% and 75% UI scale.
+- **Deviations:**
+  - **The Ratings tab follows Finances,** where the mockups' tab column puts it (Overview, Population, Goods, Finances, Ratings, Labour, Food, Heritage), not Overview as §6 said. Heritage moves down one.
+  - **No goal ticks yet.** No mission can set a rating goal until Phase 2's `MissionGoal::Rating`. The rings, cards and tooltip draw one from `ratings::mission_goal`, which returns none until then.
+  - **The clamp can show.** A rating whose drivers add up below 0 is shown at 0 over drivers adding to less (the plan's "a clamp shows as no driver"). The mockups' breakdowns always add up because their numbers were picked to.
+- **UI changes:** the HUD's ratings (rings, values, tooltip); the City book's Ratings tab and page; the Overview's ratings card.
+- **Verified:**
+  - `cargo test --workspace`;
+  - both clippy runs;
+  - `ratings.jsonl` (94 steps), `ui_hud.jsonl` and `ui_city.jsonl` on a release build (macOS), and every other scenario;
+  - the screenshots: the Ratings page in each realm's look and at 200%, the HUD's rings and tooltip, the Overview's card.
 
 ### Phase 2: Goals and requests (medium)
 

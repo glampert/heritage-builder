@@ -361,3 +361,71 @@ fn read_driver(context: &SimContext, facts: &CityFacts, driver: &DriverDef, rule
 }
 
 const MONTHS_A_YEAR: u32 = crate::sim::calendar::MONTHS_PER_YEAR;
+
+// ----------------------------------------------
+// What the screens show
+// ----------------------------------------------
+
+// A rating as the HUD, the City book and the debrief show it, in a realm's words.
+#[derive(Clone, PartialEq, Debug)]
+pub struct RatingView {
+    pub kind: RatingKind,
+    pub name: String,
+    pub value: u32,
+    // The mission's goal for it, if it has one.
+    pub goal: Option<u32>,
+    // Each driver's name and value, in its breakdown's order.
+    pub drivers: Vec<(String, i32)>,
+}
+
+impl RatingView {
+    pub fn is_goal_met(&self) -> bool {
+        self.goal.is_some_and(|goal| self.value >= goal)
+    }
+
+    // Its largest drivers: up to `count` raising it, then up to `count` lowering it, each the
+    // largest first.
+    pub fn largest_drivers(&self, count: usize) -> Vec<(String, i32)> {
+        let mut up: Vec<_> = self.drivers.iter().filter(|(_, value)| *value > 0).cloned().collect();
+        let mut down: Vec<_> = self.drivers.iter().filter(|(_, value)| *value < 0).cloned().collect();
+        up.sort_by_key(|(_, value)| -value);
+        down.sort_by_key(|(_, value)| *value);
+        up.into_iter().take(count).chain(down.into_iter().take(count)).collect()
+    }
+}
+
+// The four ratings in `realm`'s words, with the mission's goals; None while the city isn't rated
+// yet.
+pub fn views(ratings: &CityRatings, realm: crate::realm::Realm) -> Option<Vec<RatingView>> {
+    if !ratings.is_rated() {
+        return None;
+    }
+    let views = RatingKind::iter()
+        .map(|kind| {
+            let rating = ratings.get(kind);
+            RatingView {
+                kind,
+                name: rating_name(realm, kind),
+                value: rating.value,
+                goal: mission_goal(kind),
+                drivers: rating.drivers.iter().map(|driver| (driver_name(realm, &driver.id), driver.value)).collect(),
+            }
+        })
+        .collect();
+    Some(views)
+}
+
+// The four ratings' values, in RatingKind's order.
+pub fn values(ratings: &CityRatings) -> [u32; RATING_COUNT] {
+    let mut values = [0; RATING_COUNT];
+    for (value, kind) in values.iter_mut().zip(RatingKind::iter()) {
+        *value = ratings.value(kind);
+    }
+    values
+}
+
+// The mission's goal for a rating. None until the missions can set one (Phase 2's
+// MissionGoal::Rating).
+pub fn mission_goal(_kind: RatingKind) -> Option<u32> {
+    None
+}
