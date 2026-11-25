@@ -8,7 +8,7 @@
   - the systems added since, which all work on the grid (§10);
   - what Zeus does, from the user's reverse-engineering notes (§11);
   - the open decisions that follow from them (Q9 to Q15, and Q1 reopened).
-- The spike (Stage 0, 2026-11-22, branch `spike/terrain-height`, never merged) changed the design in places: the draw order's two extra rules and the rims (§3), picking without a lookup grid (§4), positions kept flat and lifted as they're drawn (§2), and the art as Blender pieces made before the rendering (§5, Stage 2). Its notes are under Stage 0.
+- The spike (Stage 0, 2026-11-22, branch `spike/terrain-height`, never merged, deleted on 2026-11-25 once the milestone was done) changed the design in places: the draw order's two extra rules and the rims (§3), picking without a lookup grid (§4), positions kept flat and lifted as they're drawn (§2), and the art as Blender pieces made before the rendering (§5, Stage 2). Its notes are under Stage 0.
 - References name functions rather than lines, which move. Re-check them before relying on them.
 
 ## How to resume this work
@@ -400,7 +400,7 @@ On a throwaway branch off `claude`, with programmer art (flat-coloured cliff qua
 
 Done when: the draw order is right in the screenshots, the frame time stays within budget (Q8), and the user picks a level height and agrees the look works.
 
-**Notes (2026-11-22): a go, at 32 px.** The spike is commit `078d4abb` on `spike/terrain-height` (never merged): `tile/elevation.rs` (the run's height map, the programmer art, picking), the raised pass in `tile/rendering.rs`, the culling padding in `camera.rs`, height-aware picking in `TileMapLayer::find_exact_cell_for_point`, and `terrain.*` commands (`showcase`, `hills`, `set`, `step`, `rims`, `faces`, `walk`, `pick`) for scripted scenes.
+**Notes (2026-11-22): a go, at 32 px.** The spike is commit `078d4abb`, on `spike/terrain-height` (never merged; the branch was deleted on 2026-11-25): `tile/elevation.rs` (the run's height map, the programmer art, picking), the raised pass in `tile/rendering.rs`, the culling padding in `camera.rs`, height-aware picking in `TileMapLayer::find_exact_cell_for_point`, and `terrain.*` commands (`showcase`, `hills`, `set`, `step`, `rims`, `faces`, `walk`, `pick`) for scripted scenes.
 - **Draw order:** right in every scene: a storage yard on a plateau's front corner, a temple behind a cliff, a granary and a 4 × 4 palace pressed against cliffs in front, a university beside a two-level block, trees on the rim, walkers behind, on and up a ramp, and a 128 × 128 map with hills and about 2,400 objects in view. It needed two rules the plan lacked: the ground under a building sorts with the building, and walkers sort by the cell they're nearest (§3).
 - **Readability:** back edges vanish, so a walker or building behind a plateau looks sunk into the grass, correct but unexplained. A light rim along raised back edges fixes it (§5). Noise heights make jagged one-cell steps; maps want broad plateaus, so the editor's terrace and smooth brushes matter.
 - **Picking:** exact for tops, faces, the cell in front of a cliff and the cell a raised top hides, by testing the columns in front of the point (§4). No lookup grid.
