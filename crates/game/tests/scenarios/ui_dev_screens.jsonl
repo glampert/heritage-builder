@@ -557,6 +557,8 @@
 {"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 0}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/stats"}, "path": "/widgets/0/value/0", "value": ["Missions", "2 of 2"]}}
+# Its issues printed first: CI's Linux fonts measure differently from macOS's.
+{"method": "ui.layout_issues"}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_dev_screens/campaign_complete_tampadesa.png"}}
 {"method": "ui.click", "params": {"path": "CampaignComplete/panel/Return to the menu"}}
