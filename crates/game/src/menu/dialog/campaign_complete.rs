@@ -543,12 +543,15 @@ fn panel_parts(
     if !summary.missions.is_empty() {
         parts.push(gap(4).into());
         let font = scales.heading_font(SECTION_SIZE);
+        // As wide as its text where the note shares its row (the debrief's section titles), else
+        // the panel's width.
+        let title_width = if summary.marks.is_some() { 0.0 } else { width };
         let title = text_line(
             &ui::text::get(UiTextCategory::Menu, "campaign_complete.missions").to_uppercase(),
             "missions_title",
             font,
             color("section", "accent"),
-            width,
+            title_width,
             UiTextAlign::Left,
         )
         .with_heading_font()
