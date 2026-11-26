@@ -58,7 +58,7 @@ The game uses fictional names. Real civilisations are references only; see [worl
 ### Modes
 
 - **Campaign:** three campaigns of 10 missions each, played in order: Đại Long, then Kambara, then Tampadesa. Missions 1–5 of Campaign I teach the game. Its missions 6–10 and both later campaigns are full city-building challenges where the story unfolds. Each mission is one map, usually one city, which you found or take over. A mission should take about **1 hour** at normal speed.
-- **Custom Game (sandbox):** pick a realm, a map, a starting year and goals (or none). Disasters, attacks and economic difficulty can be turned on or off. This mode serves the creative and relaxed player. The home menu already has a placeholder button for it.
+- **Custom Game (sandbox):** pick a realm, a map, a starting year and goals (or none). Disasters, attacks, economic difficulty and failure (debt and Legitimacy) can be turned on or off. This mode serves the creative and relaxed player.
 - **Later:** a scenario editor built on the existing developer map editor, and mod support for configs and maps.
 
 Unlocking: Campaign II unlocks when Campaign I is finished, and Campaign III when Campaign II is. Custom Game unlocks each realm when its campaign is started.
