@@ -116,6 +116,7 @@ pub struct UiSkinDef {
     pub world_map: SkinWorldMapDef,
     pub intermission: SkinIntermissionDef,
     pub briefing: SkinBriefingDef,
+    pub event: SkinEventDef,
     pub story: SkinStoryDef,
     pub dialogs: BTreeMap<String, SkinDialogDef>, // "default", then by dialog kind name.
     pub hud: SkinHudDef,
@@ -146,6 +147,7 @@ impl Default for UiSkinDef {
             world_map: SkinWorldMapDef::default(),
             intermission: SkinIntermissionDef::default(),
             briefing: SkinBriefingDef::default(),
+            event: SkinEventDef::default(),
             story: SkinStoryDef::default(),
             dialogs: BTreeMap::new(),
             hud: SkinHudDef::default(),
@@ -921,6 +923,22 @@ impl Default for SkinBriefingDef {
             bullet: SkinBullet::Square,
             bullet_color: "accent".into(),
         }
+    }
+}
+
+// An event popup's picture (docs/plans/messages.md, §2a; event-<realm>.jpg): `picture`, a scene
+// cut to the popup's picture about `focus` (fractions of its width and height: the point kept in the
+// middle where it can be). Until there's art of its own, the realm's home backdrop.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinEventDef {
+    pub picture: String,
+    pub focus: [f32; 2],
+}
+
+impl Default for SkinEventDef {
+    fn default() -> Self {
+        Self { picture: String::new(), focus: [0.5, 0.5] }
     }
 }
 
@@ -1786,6 +1804,11 @@ pub fn intermission() -> &'static SkinIntermissionDef {
 // The current skin's briefing art.
 pub fn briefing() -> &'static SkinBriefingDef {
     &current().briefing
+}
+
+// The current skin's event popup art.
+pub fn event() -> &'static SkinEventDef {
+    &current().event
 }
 
 // The City book's look (Phase 6): its page icons' folder (white art the book tints) and its

@@ -1,5 +1,5 @@
 // The Game tab: autosave and its interval, the default game speed, edge scrolling, the three
-// camera zoom switches, the UI scale, colour-blind-safe overlays and the language.
+// camera zoom switches, the UI scale, colour-blind-safe overlays, event popups and the language.
 
 use super::*;
 use crate::config::DisplayConfigs;
@@ -116,6 +116,11 @@ pub(super) fn settings() -> Vec<SettingDef> {
             UiString::key(UiTextCategory::Menu, "settings.color_blind_overlays"),
             |configs| SettingValue::Bool(configs.display.color_blind_overlays),
             |configs, value| configs.display.color_blind_overlays = value.as_bool(),
+        ),
+        toggle(
+            UiString::key(UiTextCategory::Menu, "settings.event_popups"),
+            |configs| SettingValue::Bool(configs.display.event_popups),
+            |configs, value| configs.display.event_popups = value.as_bool(),
         ),
         SettingDef {
             tab,

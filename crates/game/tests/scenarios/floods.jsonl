@@ -9,6 +9,8 @@
 # in, the Fertility lens, the dry season's sowing); and floods turned off. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/floods.jsonl --default-configs --fresh-profile
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+# Event popups off (messages.jsonl checks them): a flood would open one over the city, pausing it.
+{"method": "config.set", "params": {"path": "/display/event_popups", "value": false}}
 {"method": "session.new_map", "params": {"size": [40, 40]}}
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
 {"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}

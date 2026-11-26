@@ -187,6 +187,7 @@
     }
   },
   "briefing": { "image_outline": "#77705A", "bullet": "diamond", "bullet_color": "#98AD7A" },
+  "event": { "picture": "skins/kambara/home_backdrop.jpg", "focus": [0.5, 0.42] },
   "story": {
     "backdrop": "skins/kambara/world_map_backdrop.jpg",
     "frame": "skins/kambara/story_frame.png",

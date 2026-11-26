@@ -1,6 +1,6 @@
 # Messages and advisors
 
-**Status (2026-11-26): accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phase 0 done; Phase 1 next.** This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-26): accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phases 0 and 1 done; Phase 2 next.** This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
 - GDD 5.18's advisor messages and events: typed messages with a priority, a place on the map or a page, and a popup for the important ones (the mockups' `event-<realm>.jpg`);
 - GDD 5.3's labour priorities per sector, as in Pharaoh, and the advisor pages the roadmap asks for: the City book's Labour and Food pages (`city-labour-<realm>.jpg`, `city-food-<realm>.jpg`). Finances (M4) and Ratings (M9) are pages already;
 - the two inspector actions realm-ui Phase 8 left disabled: Pause work, and a store's Get and Empty orders.
@@ -174,10 +174,20 @@ Notes (2026-11-26):
 
 ### Phase 1: Event popups (medium)
 
-- [ ] `EventPopup` and the events that raise one (Q3), their text in each realm's words.
-- [ ] The `EventPopup` dialog, its queue and its buttons; ui-art's `event_picture`.
-- [ ] Settings' "Event popups".
-- [ ] `messages.jsonl`.
+- [x] `EventPopup` and the events that raise one (Q3), their text in each realm's words.
+- [x] The `EventPopup` dialog, its queue and its buttons; the picture (see the notes: no ui-art `event_picture` yet).
+- [x] Settings' "Event popups".
+- [x] `messages.jsonl`.
+
+Notes (2026-11-26):
+- **As built.** `messages::EventPopup` (kicker, title, text, icon, up to 3 `EventLine`s) on a `Message` (`with_popup`, priority Event), built by `messages::popups` from each notice as `GameLoop` posts it: `flood`, `request` (opened, failed), `faith` (a blessing or misfortune, its lines from the event's effect: `effect_lines`), `outbreak`, `failure` (Legitimacy's clock starting and its last month, with its three lowest drivers; a time limit's last 3 months and last month, with the goals not met) and `debt` (3 months and 1 month before it's overdue, while the game can be lost to it). `messages::queue_popup`, `take_popup`, `queued_popups` and `clear_popups` keep the queue; `GameLoop::post_message` queues while `DisplayConfigs::event_popups` is on and not under the developer editor; `InGameMenus::end_frame` opens the oldest once no dialog, briefing or prompt is open and no preview runs. The dialog (`menu/dialog/event_popup.rs`, `DialogMenuKind::EventPopup`) follows the briefing's pattern: the skin's `dialogs.EventPopup` size (920 × 810, `offset` [0, −24] as the mockup places it), the mockup's coordinates at the panel's scale, set smaller until it fits. A click on an event's line in the log, or `messages.open`, opens its popup again (`message_log::open`; `go_to_target` for its button).
+- **Deviations.**
+  - **The picture.** No ui-art `event_picture`: the mockup's picture is the reference city painting, which the game doesn't ship. The skin's `event` block names a picture and a `focus` to cut it about, and every realm uses its home backdrop until real art lands (Q4 holds: one picture per realm).
+  - **Breaches.** A breach is told in the flood's paragraph ("It broke through the dykes in 2 places.") rather than a popup of its own, since it only ever comes with a flood; its log line stays.
+  - **Line icons.** The mockup's house, farm and star come from the City book's page icons, tinted with the accent, beside the HUD's line icons (`popups::LINE_ICONS`): no new art.
+  - **Words.** Realm words where the game has them (the fourth rating's name, a patron's event, the river's name); the court is "the court" in every realm.
+  - **Scenarios.** `risks.jsonl`, `floods.jsonl` and `trade.jsonl` turn event popups off (`config.set`), since an outbreak, a flood or a request now opens one over the city and pauses it; `messages.jsonl` checks the real flood's and request's popups.
+- **Verified.** `cargo test --workspace` (`tests/messages.rs`: the queue, each builder's words and when it gives none; `ui_skins`: the picture exists), both clippy runs, all 31 CI scenarios on a release build (the new `messages.jsonl` also at 1280 × 720 and 1440 × 800), `determinism.jsonl` twice. Screenshots of the popup in each realm and at 200% UI scale.
 
 ### Phase 2: Labour priorities, Pause work and storage orders (large)
 

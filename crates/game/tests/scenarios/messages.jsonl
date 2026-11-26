@@ -1,0 +1,119 @@
+# The game's messages and event popups (docs/plans/messages.md, M11 Phases 0 and 1): a custom game
+# on the Blank map, where the court asks for pottery (requests.open): its popup opens over the city
+# (its kicker, title and lines, in each realm, no layout issue), and its Open the goods page opens
+# the City book there (it fits at 200% and 75% UI scale); its line in the HUD's log opens the
+# popup again. A river laid on the map
+# floods (floods.flood_now): its popup's Show on map moves the camera to the water. Event popups
+# turned off in Settings: the next flood goes to the log only, still an event, and its line opens
+# its popup. Saves screenshots to out/messages/.
+# From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/messages.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
+{"method": "ui.click", "params": {"path": "Home/Custom Game"}}
+{"method": "ui.click", "params": {"path": "CustomGame/Start"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 60}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/display/event_popups"}, "path": "", "value": true}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/queue", "value": []}}
+
+# ---- The court's request: its popup over the city ----
+{"method": "requests.open", "params": {"id": "court_pottery", "good": "Pottery", "amount": 10, "within_months": 2}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "EventPopup", "timeout_frames": 10}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/priority", "value": "event"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "request"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/target", "value": {"kind": "page", "page": "goods"}}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/popup/kicker", "value": "Request from the court"}}
+{"method": "assert.exists", "params": {"query": "messages.state", "path": "/shown"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/queue", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/kicker"}, "path": "/widgets/0/value", "value": "REQUEST FROM THE COURT"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/title"}, "path": "/widgets/0/value", "value": "The court asks for pottery"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/line_1", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "Send 10 pottery within 2 months."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/line_1_icon"}, "path": "/widgets/0/value/icon", "value": "request"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/picture"}, "path": "/widgets/0/value/icon", "value": "request"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/Open the goods page"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/Ok"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/messages/request_dailong.png"}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "EventPopup"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/messages/request_kambara.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/messages/request_tampadesa.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# At 200% and 75% UI scale it all fits, set smaller where it must.
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "EventPopup"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/messages/request_200.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Its button opens the City book on the Goods page.
+{"method": "ui.click", "params": {"path": "EventPopup/Open the goods page"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CityManagement"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Goods"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+
+# ---- Its line in the log opens it again; Ok closes it ----
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/line_1", "kind": "message"}, "path": "/widgets/0/value/priority", "value": "event"}}
+{"method": "ui.click", "params": {"path": "MessageLog/line_1"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "EventPopup"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/title"}, "path": "/widgets/0/value", "value": "The court asks for pottery"}}
+{"method": "ui.click", "params": {"path": "EventPopup/Ok"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+
+# ---- A flood: its popup's Show on map ----
+# A river along x 64 and 65 (the Blank map is 128 × 128), its sources read again.
+{"method": "world.place_area", "params": {"tile": "water", "from": [64, 30], "to": [65, 98]}}
+{"method": "floods.set", "params": {"enabled": false}}
+{"method": "floods.set", "params": {"enabled": true}}
+{"method": "assert.exists", "params": {"query": "floods.state", "path": "/sources/0"}}
+{"method": "camera.teleport", "params": {"cell": [30, 40]}}
+{"method": "floods.flood_now", "params": {"reach": 3}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "EventPopup", "timeout_frames": 10}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/kicker"}, "path": "/widgets/0/value", "value": "FLOOD"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/title"}, "path": "/widgets/0/value", "value": "The river floods"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "EventPopup/line_2", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "No building was damaged."}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/target/kind", "value": "cell"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/messages/flood_dailong.png"}}
+{"method": "ui.click", "params": {"path": "EventPopup/Show on map"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.ge", "params": {"query": "camera.state", "path": "/center_cell/0", "value": 58}}
+{"method": "assert.le", "params": {"query": "camera.state", "path": "/center_cell/0", "value": 71}}
+
+# ---- Event popups off: the next flood goes to the log only ----
+{"method": "floods.recede"}
+{"method": "dialog.open", "params": {"name": "GameSettings"}}
+{"method": "ui.set", "params": {"path": "MainSettings/Game/Event popups", "value": false}}
+{"method": "ui.click", "params": {"path": "MainSettings/Ok"}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/display/event_popups"}, "path": "", "value": false}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "floods.flood_now", "params": {"reach": 2}}
+{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/queue", "value": []}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/priority", "value": "event"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/popup/kicker", "value": "Flood"}}
+# Its line still opens it.
+{"method": "ui.click", "params": {"path": "MessageLog/line_1"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "EventPopup"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}

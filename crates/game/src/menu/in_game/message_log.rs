@@ -4,8 +4,8 @@
 // and marked "now", the others in its sub colour. Hidden while the log is empty. Each line is a
 // canvas of its own, recorded as `MessageLog/line_<N>` from the newest, `line_1` (kind `message`,
 // value its message's `id`, `kind`, `priority`, `text`, `target` and `month`); a line whose message
-// has a place takes clicks, lit while hovered, and takes the player there (open;
-// docs/plans/messages.md, Phase 0). Its close tile (`MessageLog/Close`) hides it until a newer
+// has a place or a popup takes clicks, lit while hovered, and takes the player there or opens the
+// popup again (open; docs/plans/messages.md, Phases 0 and 1). Its close tile (`MessageLog/Close`) hides it until a newer
 // message comes (messages::dismiss), and it hides itself once its newest message is SHOW_SECS old.
 
 use common::{Color, Rect, Vec2};
@@ -135,7 +135,7 @@ impl MessageLog {
 
 // The line of the message `index` from the newest, `width` points wide: its kind's icon and its
 // text, the newest's in the heading font and marked "now". It takes clicks when the message has a
-// place.
+// place or a popup.
 fn line(context: &mut GameUiContext, message: Message, index: usize, width: f32) -> UiCanvas {
     let newest = index == 0;
     let text = skin::hud_color("text", "ink");
@@ -144,7 +144,7 @@ fn line(context: &mut GameUiContext, message: Message, index: usize, width: f32)
     let bleed = skin::hud_icon_bleed();
     let now = ui::text::get(UiTextCategory::Hud, "messages.now").to_string();
     let value = message.to_json();
-    let (id, has_target) = (message.id, message.target.is_some());
+    let (id, clickable) = (message.id, message.target.is_some() || message.popup.is_some());
     let canvas = UiCanvas::new(Vec2::new(width, ROW_HEIGHT), move |_, painter, rect| {
         let y = rect.min.y + ROW_HEIGHT * 0.5;
         let scale = 22.0 / (icon_size.x - 2.0 * bleed).max(1.0);
@@ -165,7 +165,7 @@ fn line(context: &mut GameUiContext, message: Message, index: usize, width: f32)
     })
     .with_label(format!("line_{}", index + 1), Some(value))
     .with_kind("message");
-    if !has_target {
+    if !clickable {
         return canvas;
     }
     let hover = Color { a: HOVER_ALPHA, ..skin::hud_color("sub", "sub") };
@@ -176,10 +176,19 @@ fn line(context: &mut GameUiContext, message: Message, index: usize, width: f32)
     })
 }
 
+// A click on a message's line: an important event's popup opens again (its button goes to its
+// place), any other message goes to its place (go_to_target).
+pub fn open(message: &Message, context: &mut GameUiContext) -> bool {
+    if message.popup.is_some() {
+        return dialog::open_event_popup(message.clone(), context);
+    }
+    go_to_target(message, context)
+}
+
 // Takes the player to the message's place: the camera to its cell, or to its building (where it
 // stood once it's gone); the City book on its page; the world map, its city picked. False when it
 // has no place or the dialog didn't open (the world map outside a game).
-pub fn open(message: &Message, context: &mut GameUiContext) -> bool {
+pub fn go_to_target(message: &Message, context: &mut GameUiContext) -> bool {
     let Some(target) = &message.target else {
         return false;
     };

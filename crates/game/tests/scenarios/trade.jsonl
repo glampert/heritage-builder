@@ -14,6 +14,8 @@
 # From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/trade.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+# Event popups off (messages.jsonl checks them): a request opened or failed would open one over the city, pausing it.
+{"method": "config.set", "params": {"path": "/display/event_popups", "value": false}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
 {"method": "ui.click", "params": {"path": "Home/Custom Game"}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CustomGame"}}

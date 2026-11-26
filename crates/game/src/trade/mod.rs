@@ -889,7 +889,7 @@ pub fn take_notices() -> Vec<TradeNotice> {
 }
 
 // "20 wood, 8 metal".
-fn goods_text(goods: &[(ResourceKind, u32)]) -> String {
+pub(crate) fn goods_text(goods: &[(ResourceKind, u32)]) -> String {
     goods
         .iter()
         .map(|(good, count)| {

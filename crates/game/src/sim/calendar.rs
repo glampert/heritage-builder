@@ -234,6 +234,11 @@ impl GameCalendar {
         self.settings.era_of(year).map(|era| (era.name.as_str(), year - era.start_year + 1))
     }
 
+    // The era of the World Year `year` and the year in it, as era() gives the current one's.
+    pub fn era_at(&self, year: u32) -> Option<(&str, u32)> {
+        self.settings.era_of(year).map(|era| (era.name.as_str(), year - era.start_year + 1))
+    }
+
     // The year as the realm counts it: "Long Thái 3", or "Year 3" without an era.
     pub fn year_name(&self) -> YearName<'_> {
         YearName { calendar: self }

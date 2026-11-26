@@ -185,6 +185,20 @@ impl GameMenusSystem for InGameMenus {
                 None => {}
             }
         }
+        // An important event's popup (crate::messages: queued as its message was posted), one at
+        // a time, once nothing else is open: no dialog, no briefing or prompt waiting. Those queued
+        // when event popups were turned off are dropped.
+        if !crate::config::GameConfigs::get().display.event_popups {
+            crate::messages::clear_popups();
+        }
+        if !previewing
+            && dialog::current().is_none()
+            && !campaign::is_briefing_pending()
+            && campaign::pending_prompt().is_none()
+            && let Some(message) = crate::messages::take_popup()
+        {
+            dialog::open_event_popup(message, context);
+        }
 
         dialog::draw_current(context);
         dialog::preview::return_if_closed(context);

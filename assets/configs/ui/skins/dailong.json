@@ -335,6 +335,7 @@
     }
   },
   "briefing": { "panel": "dialog", "image_outline": "#6B4F33", "image_outline_width": 3, "bullet": "square", "bullet_color": "accent" },
+  "event": { "picture": "skins/dailong/home_backdrop.jpg", "focus": [0.5, 0.6] },
   "story": {
     "backdrop": "skins/dailong/world_map_backdrop.jpg",
     "frame": "skins/dailong/story_frame.png",
@@ -366,6 +367,7 @@
     "CampaignComplete": {"size": "fullscreen"},
     "StoryComic": {"size": "fullscreen"},
     "MissionBriefing": {"size": [1520, 980]},
+    "EventPopup": {"size": [920, 810], "offset": [0, -24]},
     "MainGame": {"size": [640, 920]},
     "LoadOrSaveGame": {"size": [1540, 940]},
     "MainSettings": {"size": [1200, 920]},

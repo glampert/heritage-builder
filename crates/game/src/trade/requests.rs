@@ -251,7 +251,7 @@ pub fn panel_request(trade: &CityTrade, city: &str, now: u32) -> Option<CourtReq
 }
 
 // A request's notice in the message log: its kind, sound and text. `city` names its asker.
-pub(super) fn notice_text(event: RequestEvent, request: &TradeRequest, court: bool, city: &str) -> String {
+pub(crate) fn notice_text(event: RequestEvent, request: &TradeRequest, court: bool, city: &str) -> String {
     let goods = super::goods_text(&[(request.good, request.amount)]);
     let months = text::format_count(
         UiTextCategory::Messages,

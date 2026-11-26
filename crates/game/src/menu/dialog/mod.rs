@@ -76,6 +76,9 @@ pub mod world_map;
 use world_map::WorldMap;
 
 mod trade_limits;
+
+mod event_popup;
+use event_popup::EventPopup;
 use trade_limits::TradeLimits;
 
 // ----------------------------------------------
@@ -140,6 +143,9 @@ pub enum DialogMenuImpl {
 
     // Trade (docs/plans/trade.md):
     TradeLimits,
+
+    // An important event's popup (docs/plans/messages.md, §2):
+    EventPopup,
 }
 
 const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
@@ -167,6 +173,7 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     WorldMap,
     StoryComic,
     TradeLimits,
+    EventPopup,
 ];
 
 impl DialogMenuKind {
@@ -295,6 +302,9 @@ pub fn sync(context: &mut GameUiContext) {
         // The window's size changed the briefing's, which its layout follows (a UI scale change
         // rebuilds every dialog: rebuild_all).
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::MissionBriefing);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::EventPopup) && event_popup::needs_rebuild(context) {
+        // The window's size changed: the popup's layout follows it.
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::EventPopup);
     } else if dialogs.menu_stack.contains(&DialogMenuKind::StoryComic) && story_comic::needs_rebuild(context) {
         // Another panel shows, or the window's size changed: the viewer is built for each.
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::StoryComic);
@@ -433,6 +443,17 @@ pub fn open_world_map_at(city: Option<&str>, context: &mut GameUiContext) -> boo
         world_map::select_city(city);
     }
     true
+}
+
+// Opens an important event's popup (`message` has one: messages::Message::popup), in place of one
+// open: the in-game menus open the queued ones (messages::take_popup), the HUD's log on a click.
+pub fn open_event_popup(message: crate::messages::Message, context: &mut GameUiContext) -> bool {
+    event_popup::open_message(message, context)
+}
+
+// The message whose popup is open.
+pub fn event_popup_shown() -> Option<crate::messages::Message> {
+    event_popup::shown()
 }
 
 // Opens the trade limits dialog for the partner `city` (a dock's Set trade limits).
@@ -891,6 +912,7 @@ impl DialogMenusSingleton {
             DialogMenuKind::WorldMap => Some(world_map::prepare),
             DialogMenuKind::StoryComic => Some(story_comic::prepare),
             DialogMenuKind::TradeLimits => Some(trade_limits::prepare),
+            DialogMenuKind::EventPopup => Some(event_popup::prepare),
             _ => None,
         };
         if let Some(prepare_fn) = prepare_on_open

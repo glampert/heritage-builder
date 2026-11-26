@@ -34,7 +34,7 @@ use crate::{
         GameMenusMode,
         dialog::{self, DialogMenuKind},
     },
-    messages::{Message, MessageKind, MessagePriority, MessageTarget},
+    messages::{Message, MessageKind, MessagePriority, MessageTarget, popups},
     profile,
     prop::config::PropConfigs,
     save_header,
@@ -784,14 +784,20 @@ impl GameLoop {
 
     // A message for each debt notice the simulation raised last frame (sim::finance::Finance). Going into
     // debt and the warnings play Alert; getting out of debt is good news and plays Notification.
-    // Each on the City book's Finances page.
+    // Each on the City book's Finances page; the warnings 3 months and 1 month before the debt is
+    // overdue open a popup while the game can be lost to it.
     fn notify_finances(&mut self) {
         let notices = self.session.sim_mut().finance_mut().take_notices();
+        let balance = self.session.sim().finance().balance();
+        let can_lose = self.session.sim().ratings().fails_on().debt;
         for notice in notices {
             let good_news = notice.is_good_news();
             let sound = if good_news { UiSoundKey::Notification } else { UiSoundKey::Alert };
             let kind = if good_news { MessageKind::Finance } else { MessageKind::Warning };
-            self.post_message(Message::new(kind, notice.text).with_target(MessageTarget::CityPage("finances")));
+            let popup = popups::debt(&notice, balance, can_lose);
+            self.post_message(
+                Message::new(kind, notice.text).with_target(MessageTarget::CityPage("finances")).with_popup(popup),
+            );
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
@@ -813,7 +819,7 @@ impl GameLoop {
 
     // A message for each fire, fire put out, building burnt down, collapse and outbreak last
     // frame (building::risks), at its building or where it stood. A fire put out and an outbreak
-    // over are less pressing.
+    // over are less pressing. An outbreak opens a popup.
     fn notify_risks(&mut self) {
         use building::risks::RiskNoticeKind;
         for notice in building::risks::take_notices() {
@@ -824,8 +830,12 @@ impl GameLoop {
                     MessagePriority::Warning
                 }
             };
+            let popup = popups::outbreak(&notice);
             self.post_message(
-                Message::new(MessageKind::Warning, notice.text).with_priority(priority).with_target(notice.target),
+                Message::new(MessageKind::Warning, notice.text)
+                    .with_priority(priority)
+                    .with_target(notice.target)
+                    .with_popup(popup),
             );
         }
     }
@@ -833,16 +843,21 @@ impl GameLoop {
     // A message for each blessing and misfortune that came last frame (faith::events): a blessing
     // is a Faith message and plays Notification, a misfortune a Warning and plays Alert (a fire's,
     // a collapse's and an outbreak's own notices and minimap alerts come from the risks). Each on
-    // the City book's Heritage page, where the patrons and festivals are.
+    // the City book's Heritage page, where the patrons and festivals are. A blessing or misfortune
+    // opens a popup.
     fn notify_faith(&mut self) {
         let notices = self.session.sim_mut().faith_mut().take_notices();
+        let realm = self.session.sim().faith().realm();
         for notice in notices {
+            let popup = popups::faith(&notice, realm);
             let (kind, sound) = if notice.is_good_news() {
                 (MessageKind::Faith, UiSoundKey::Notification)
             } else {
                 (MessageKind::Warning, UiSoundKey::Alert)
             };
-            self.post_message(Message::new(kind, notice.text).with_target(MessageTarget::CityPage("heritage")));
+            self.post_message(
+                Message::new(kind, notice.text).with_target(MessageTarget::CityPage("heritage")).with_popup(popup),
+            );
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
@@ -862,13 +877,14 @@ impl GameLoop {
     }
 
     // Trade's notices (crate::trade): a caravan, a ship or envoys at their partner on the world
-    // map, a request on the Goods page.
+    // map, a request on the Goods page. A request opened or failed opens a popup.
     fn notify_trade(&mut self) {
         let notices = crate::trade::take_notices();
+        let realm = self.session.sim().realm();
         for notice in notices {
             let name = crate::trade::partner_name(self.session.sim().trade(), notice.partner());
             let (message, sound) = crate::trade::notice_message(&notice, &name);
-            self.post_message(message);
+            self.post_message(message.with_popup(popups::request(&notice, &name, realm)));
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
@@ -880,7 +896,8 @@ impl GameLoop {
         let realm = self.session.sim().realm();
         for notice in notices {
             let (message, sound) = crate::ratings::failure::notice_message(&notice, realm);
-            self.post_message(message);
+            let popup = popups::failure(&notice, &message.text, realm, &self.failure_context(realm));
+            self.post_message(message.with_popup(popup));
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
@@ -893,23 +910,61 @@ impl GameLoop {
         if notices.is_empty() {
             return;
         }
-        let profile = self.session.sim().floods().profile();
-        let river = crate::floods::river_name(profile);
-        let sources = profile.sources.clone();
+        let floods = self.session.sim().floods();
+        let river = crate::floods::river_name(floods.profile());
+        let sources = floods.profile().sources.clone();
+        let months = floods.flood().map_or(0, |flood| flood.months_left);
+        let dykes = !floods.dyke_wear().is_empty();
         for notice in notices {
             let (message, sound) = crate::floods::notice_message(&notice, &river, &sources);
-            self.post_message(message);
+            self.post_message(message.with_popup(popups::flood(&notice, &river, months, dykes)));
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
 
     // A notice for the HUD's message log, dated this month; the developer editor, which draws no
-    // log, shows it as a toast as it always did.
+    // log, shows it as a toast as it always did. An important event's popup is queued to open
+    // (InGameMenus) while event popups are on, but not under the developer editor.
     fn post_message(&mut self, message: Message) {
-        if self.session.current_menus_mode() == Some(GameMenusMode::DevEditor) {
+        let dev_editor = self.session.current_menus_mode() == Some(GameMenusMode::DevEditor);
+        if dev_editor {
             self.engine.ui_system().show_toast(message.text.clone());
         }
-        crate::messages::post(message, self.session.sim().calendar().ordinal_month());
+        let has_popup = message.popup.is_some();
+        let id = crate::messages::post(message, self.session.sim().calendar().ordinal_month());
+        if has_popup && self.configs.display.event_popups && !dev_editor {
+            crate::messages::queue_popup(id);
+        }
+    }
+
+    // What a failure warning's popup lists: the fourth rating's three lowest drivers (their names in
+    // `realm`'s words and values), and the game's goals not met yet (each one's text, what's
+    // achieved and its target).
+    fn failure_context(&self, realm: crate::realm::Realm) -> popups::FailureContext {
+        let mut drivers: Vec<(String, i32)> = crate::ratings::views(self.session.sim().ratings(), realm)
+            .and_then(|views| views.into_iter().find(|view| view.kind == crate::sim::ratings::RatingKind::Legitimacy))
+            .map(|view| view.drivers)
+            .unwrap_or_default();
+        drivers.sort_by_key(|(_, value)| *value);
+        drivers.truncate(crate::messages::MAX_EVENT_LINES);
+
+        let stats = self.session.world().stats();
+        let digits = dialog::group_digits;
+        let unmet = campaign::game_requirements()
+            .map(|requirements| {
+                requirements
+                    .goals
+                    .iter()
+                    .filter(|goal| !goal.is_met(stats))
+                    .take(crate::messages::MAX_EVENT_LINES)
+                    .map(|goal| {
+                        let (text, target, achieved) = dialog::goal_line(goal, stats, realm);
+                        popups::UnmetGoal { goal: text, achieved: digits(achieved), target: digits(target) }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        popups::FailureContext { drivers, unmet }
     }
 
     // Saves the current frame to screenshots/. A toast reports the result once it's written.

@@ -611,6 +611,10 @@ pub struct DisplayConfigs {
     // TODO(realm-ui): stored only: the water tiles have one frame each today. The tile renderer
     // should skip their animation when it's off, once water animates.
     pub animated_water: bool,
+
+    // Important events open a popup (docs/plans/messages.md, §2); off, they go to the message log
+    // only, where a click on their line opens it.
+    pub event_popups: bool,
 }
 
 impl DisplayConfigs {
@@ -625,7 +629,7 @@ impl DisplayConfigs {
 
 impl Default for DisplayConfigs {
     fn default() -> Self {
-        Self { ui_scale_percent: 100, color_blind_overlays: false, animated_water: true }
+        Self { ui_scale_percent: 100, color_blind_overlays: false, animated_water: true, event_popups: true }
     }
 }
 

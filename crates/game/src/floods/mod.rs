@@ -58,9 +58,10 @@ pub const FLOOD_ALERT_TINT: Color = Color::new(0.35, 0.6, 0.9, 1.0);
 pub enum FloodNotice {
     // The wet season's first month: the river is rising.
     RiverRising,
-    // The flood came: the cells under water, the buildings it damaged and the fields it covered;
-    // `at`, the first building it damaged, else a cell under water, for the message's place.
-    Flood { cells: u32, buildings_damaged: u32, fields_flooded: u32, at: Option<Cell> },
+    // The flood came: the cells under water, the buildings it damaged, the fields it covered and
+    // the dyke cells it broke through; `at`, the first building it damaged, else a cell under
+    // water, for the message's place.
+    Flood { cells: u32, buildings_damaged: u32, fields_flooded: u32, breaches: u32, at: Option<Cell> },
     // The water broke through dykes at that many cells, the first `at`.
     Breached { breaches: u32, at: Option<Cell> },
     // The sluice gates let the flood's silt onto that many fields behind the dykes, the first `at`.
@@ -134,7 +135,7 @@ pub fn notice_message(notice: &FloodNotice, river: &str, sources: &[Cell]) -> (M
 }
 
 // "the river" as a sentence's first words: "The river".
-fn sentence_start(words: &str) -> String {
+pub(crate) fn sentence_start(words: &str) -> String {
     let mut chars = words.chars();
     match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect(),
@@ -316,7 +317,8 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
         "The river floods: {cell_count} cells to a reach of {reach} (severity {severity:.2}), {buildings_damaged} \
          buildings damaged, {fields_flooded} fields under water."
     );
-    notify(FloodNotice::Flood { cells: cell_count, buildings_damaged, fields_flooded, at });
+    let breaches = breached.len() as u32;
+    notify(FloodNotice::Flood { cells: cell_count, buildings_damaged, fields_flooded, breaches, at });
     if !breached.is_empty() {
         notify(FloodNotice::Breached { breaches: breached.len() as u32, at: breached.first().copied() });
     }

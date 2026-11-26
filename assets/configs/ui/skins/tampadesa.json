@@ -185,6 +185,7 @@
     }
   },
   "briefing": { "image_outline": "#8A6A48", "bullet": "circle", "bullet_color": "#E9C977" },
+  "event": { "picture": "skins/tampadesa/home_backdrop.jpg", "focus": [0.6, 0.58] },
   "story": {
     "backdrop": "skins/tampadesa/world_map_backdrop.jpg",
     "frame": "skins/tampadesa/story_frame.png",

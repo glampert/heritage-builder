@@ -359,7 +359,7 @@ fn test_world_map_art_fits() {
 // The intermission's art (`intermission`, `briefing`): the stele and its niche are their rect grown
 // by their bleed, at whatever pixels per point ui-art drew them (the same on both axes); the newest
 // line's mark exists; the backdrop is the 1920 × 1080 screen; the stele's text fits on it; every
-// look and colour resolves; the panels exist.
+// look and colour resolves; the panels exist; the event popup's picture exists.
 fn test_intermission_art_fits() {
     for (realm, skin) in skins() {
         let art = &skin.intermission;
@@ -419,6 +419,13 @@ fn test_intermission_art_fits() {
             assert!(skin.panels.contains_key(panel), "{realm}: no panel '{panel}' for the intermission or briefing");
         }
         assert!(resolves(&skin.briefing.image_outline), "{realm}: briefing: no colour '{}'", skin.briefing.image_outline);
+        // The event popup's picture (docs/plans/messages.md, §2a) and its focus, a point on it.
+        assert!(ui_asset_exists(&skin.event.picture), "{realm}: event picture: {} doesn't exist", skin.event.picture);
+        assert!(
+            skin.event.focus.iter().all(|share| (0.0..=1.0).contains(share)),
+            "{realm}: event focus {:?} isn't on the picture",
+            skin.event.focus
+        );
     }
 }
 

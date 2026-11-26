@@ -1,6 +1,7 @@
 // The game's messages (crate::messages, docs/plans/messages.md, M11 Phase 0; the HUD's log,
-// docs/plans/realm-ui.md, P5d): what the log holds, a message added by hand for tests, and a
-// message's place opened as a click on its line opens it.
+// docs/plans/realm-ui.md, P5d): what the log holds and the event popups waiting to open (M11
+// Phase 1), a message added by hand for tests, and a message's place or popup opened as a click on
+// its line opens it.
 
 use common::coords::Cell;
 use serde::Deserialize;
@@ -9,8 +10,9 @@ use strum::IntoEnumIterator;
 
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
+    config::GameConfigs,
     menu::{dialog, in_game::message_log},
-    messages::{self, Message, MessageKind, MessagePriority, MessageTarget},
+    messages::{self, EventLine, EventPopup, MAX_EVENT_LINES, Message, MessageKind, MessagePriority, MessageTarget, popups},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -19,14 +21,17 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "The message log's messages, newest first (id; kind: construction, warning, finance, faith, season, harvest, \
                trade or request; priority: info, notice, warning or event; text; target: null or {kind: cell, cell}, \
                {kind: building, building, cell}, {kind: page, page}, {kind: world_map, city}; month, the ordinal month \
-               it came in), and count. A new or loaded game starts it empty.",
+               it came in; popup: null or an important event's {kicker, title, text, icon, lines: [{icon, text}]}), \
+               count, queue (the ids of the messages whose popups wait to open, oldest first) and shown (the id of the \
+               message whose popup is open, or null). A new or loaded game starts it empty.",
         params: &[],
         run: cmd_state,
     },
     CommandDef {
         name: "messages.push",
         help: "Adds a message to the log, the newest, as the game's notices do (no sound). Its priority is its kind's \
-               unless given.",
+               unless given; with a popup it's an important event's (priority event), its popup queued to open while \
+               event popups are on.",
         params: &[
             ParamDef {
                 name: "kind",
@@ -44,13 +49,21 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                        {kind: page, page: overview|population|goods|finances|ratings|heritage}, or {kind: world_map, \
                        city: <id>} (city optional).",
             },
+            ParamDef {
+                name: "popup",
+                kind: "object",
+                required: false,
+                help: "An important event's popup: {kicker, title, text, icon, lines: [[icon, text], ...]} (icon: a \
+                       line icon, messages::popups::LINE_ICONS; at most 3 lines).",
+            },
         ],
         run: cmd_push,
     },
     CommandDef {
         name: "messages.open",
-        help: "Takes the player to a message's place, as a click on its line in the HUD's log does: the camera to its \
-               cell or building, the City book on its page, or the world map. Reports whether it went.",
+        help: "As a click on a message's line in the HUD's log: an important event's popup opens again; any other \
+               message takes the player to its place: the camera to its cell or building, the City book on its page, or \
+               the world map. Reports whether it went.",
         params: &[ParamDef { name: "id", kind: "integer", required: true, help: "The message's id (messages.state)." }],
         run: cmd_open,
     },
@@ -59,7 +72,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
 fn cmd_state(_context: &mut CommandContext, _params: Value) -> CommandResult {
     let latest = messages::latest(messages::CAPACITY);
     let listed: Vec<Value> = latest.iter().map(Message::to_json).collect();
-    done(json!({ "count": latest.len(), "messages": listed }))
+    let shown = dialog::event_popup_shown().map(|message| message.id);
+    done(json!({ "count": latest.len(), "messages": listed, "queue": messages::queued_popups(), "shown": shown }))
 }
 
 #[derive(Deserialize)]
@@ -71,6 +85,20 @@ struct PushParams {
     priority: Option<MessagePriority>,
     #[serde(default)]
     target: Option<TargetParams>,
+    #[serde(default)]
+    popup: Option<PopupParams>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PopupParams {
+    kicker: String,
+    title: String,
+    #[serde(default)]
+    text: String,
+    icon: String,
+    #[serde(default)]
+    lines: Vec<(String, String)>,
 }
 
 #[derive(Deserialize)]
@@ -132,13 +160,39 @@ fn cmd_push(context: &mut CommandContext, params: Value) -> CommandResult {
         }
         Some(TargetParams::WorldMap { city }) => Some(MessageTarget::WorldMap(city)),
     };
-    let mut message = Message::new(params.kind, params.text).with_target(target);
+    let popup = match params.popup {
+        None => None,
+        Some(popup) => {
+            let icons = std::iter::once(&popup.icon).chain(popup.lines.iter().map(|(icon, _)| icon));
+            if let Some(icon) = icons.into_iter().find(|icon| !popups::LINE_ICONS.contains(&icon.as_str())) {
+                return Err(CommandError::invalid_params(format!(
+                    "Unknown icon '{icon}': {}.",
+                    popups::LINE_ICONS.join(", ")
+                )));
+            }
+            if popup.lines.len() > MAX_EVENT_LINES {
+                return Err(CommandError::invalid_params(format!("A popup has at most {MAX_EVENT_LINES} lines.")));
+            }
+            Some(EventPopup {
+                kicker: popup.kicker,
+                title: popup.title,
+                text: popup.text,
+                icon: popup.icon,
+                lines: popup.lines.into_iter().map(|(icon, text)| EventLine { icon, text }).collect(),
+            })
+        }
+    };
+    let has_popup = popup.is_some();
+    let mut message = Message::new(params.kind, params.text).with_target(target).with_popup(popup);
     if let Some(priority) = params.priority {
         message = message.with_priority(priority);
     }
     let month = context.session.sim().calendar().ordinal_month();
     let id = messages::post(message, month);
-    done(json!({ "id": id, "count": messages::latest(messages::CAPACITY).len() }))
+    if has_popup && GameConfigs::get().display.event_popups {
+        messages::queue_popup(id);
+    }
+    done(json!({ "id": id, "count": messages::latest(messages::CAPACITY).len(), "queue": messages::queued_popups() }))
 }
 
 fn map_cell(context: &mut CommandContext, cell: [i32; 2]) -> Result<Cell, CommandError> {
@@ -160,12 +214,16 @@ fn cmd_open(context: &mut CommandContext, params: Value) -> CommandResult {
     let Some(message) = messages::find(params.id) else {
         return Err(CommandError::not_found(format!("No message {} in the log.", params.id)));
     };
-    if message.target.is_none() {
-        return Err(CommandError::failed(format!("Message {} has no place to go to.", params.id)));
+    if message.target.is_none() && message.popup.is_none() {
+        return Err(CommandError::failed(format!("Message {} has no place to go to nor a popup.", params.id)));
     }
     let opened = context.session.with_ui_context(context.engine, |ui_context| message_log::open(&message, ui_context));
     if !opened {
         return Err(CommandError::failed(format!("Message {}'s place couldn't be shown.", params.id)));
     }
-    done(json!({ "opened": true, "target": message.target.as_ref().map(MessageTarget::to_json) }))
+    done(json!({
+        "opened": true,
+        "popup": message.popup.is_some(),
+        "target": message.target.as_ref().map(MessageTarget::to_json),
+    }))
 }

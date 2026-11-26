@@ -4,7 +4,12 @@
 // requests, the warnings that a mission may be lost), newest first. Each has a kind (its icon), a
 // priority, the month it came in and, where it has one, a place: a cell or building on the map, a
 // City book page or the world map, which the HUD's log lines take the player to
-// (menu::in_game::message_log::open). Runtime only: a new or loaded game starts empty.
+// (menu::in_game::message_log::open). An important event's message (priority Event, M11 Phase 1)
+// carries its popup (EventPopup, built by `popups`), queued as it's posted while event popups are
+// on (GameLoop::post_message) and opened by the in-game menus once no other dialog is open
+// (dialog::open_event_popup). Runtime only: a new or loaded game starts empty, its queue too.
+
+pub mod popups;
 
 use std::collections::VecDeque;
 
@@ -94,6 +99,38 @@ impl MessageTarget {
     }
 }
 
+// An important event's popup (docs/plans/messages.md, §2; event-<realm>.jpg): a kicker ("Flood"),
+// a title, a paragraph, up to MAX_EVENT_LINES lines of what it brings, each with a line icon, and
+// the icon on its picture's disc. Its button to the event's place is its message's target's.
+#[derive(Clone, PartialEq, Debug)]
+pub struct EventPopup {
+    pub kicker: String,
+    pub title: String,
+    pub text: String,
+    pub icon: String, // A line icon's name (popups::LINE_ICONS).
+    pub lines: Vec<EventLine>,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct EventLine {
+    pub icon: String,
+    pub text: String,
+}
+
+pub const MAX_EVENT_LINES: usize = 3;
+
+impl EventPopup {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "kicker": self.kicker,
+            "title": self.title,
+            "text": self.text,
+            "icon": self.icon,
+            "lines": self.lines.iter().map(|line| json!({ "icon": line.icon, "text": line.text })).collect::<Vec<_>>(),
+        })
+    }
+}
+
 #[derive(Clone)]
 pub struct Message {
     pub id: u64, // Counts up from the first message of the run; 0 until it's posted.
@@ -102,12 +139,13 @@ pub struct Message {
     pub text: String,
     pub target: Option<MessageTarget>,
     pub month: u32, // The ordinal month it came in (GameCalendar::ordinal_month).
+    pub popup: Option<Box<EventPopup>>,
 }
 
 impl Message {
     // A message of `kind` at its default priority, with no place.
     pub fn new(kind: MessageKind, text: impl Into<String>) -> Self {
-        Self { id: 0, kind, priority: kind.default_priority(), text: text.into(), target: None, month: 0 }
+        Self { id: 0, kind, priority: kind.default_priority(), text: text.into(), target: None, month: 0, popup: None }
     }
 
     pub fn with_priority(mut self, priority: MessagePriority) -> Self {
@@ -120,6 +158,16 @@ impl Message {
         self
     }
 
+    // An important event's message, with its popup, at priority Event; None changes nothing.
+    pub fn with_popup(mut self, popup: Option<EventPopup>) -> Self {
+        if let Some(mut popup) = popup {
+            popup.lines.truncate(MAX_EVENT_LINES);
+            self.popup = Some(Box::new(popup));
+            self.priority = MessagePriority::Event;
+        }
+        self
+    }
+
     // What messages.state reports of it.
     pub fn to_json(&self) -> Value {
         json!({
@@ -129,6 +177,7 @@ impl Message {
             "text": self.text,
             "target": self.target.as_ref().map(MessageTarget::to_json),
             "month": self.month,
+            "popup": self.popup.as_ref().map(|popup| popup.to_json()),
         })
     }
 }
@@ -137,10 +186,11 @@ struct MessageLog {
     messages: VecDeque<Message>,
     next_id: u64,
     dismissed: u64, // The newest message's id when the player closed the HUD's log: it shows again for a newer one.
+    popups: VecDeque<Message>, // Events whose popups wait to open, oldest first.
 }
 
 static LOG: SingleThreadStatic<MessageLog> =
-    SingleThreadStatic::new(MessageLog { messages: VecDeque::new(), next_id: 1, dismissed: 0 });
+    SingleThreadStatic::new(MessageLog { messages: VecDeque::new(), next_id: 1, dismissed: 0, popups: VecDeque::new() });
 
 // A new message, the newest, raised in the ordinal month `month`. Returns its id.
 pub fn post(mut message: Message, month: u32) -> u64 {
@@ -151,6 +201,35 @@ pub fn post(mut message: Message, month: u32) -> u64 {
     log.messages.push_front(message);
     log.messages.truncate(CAPACITY);
     log.next_id - 1
+}
+
+// Queues the popup of the message `id` (posted, with a popup) to open once nothing else is open.
+pub fn queue_popup(id: u64) {
+    let log = LOG.as_mut();
+    if let Some(message) = log.messages.iter().find(|message| message.id == id && message.popup.is_some()) {
+        let message = message.clone();
+        log.popups.push_back(message);
+    }
+}
+
+// The oldest popup waiting to open, taken from the queue.
+pub fn take_popup() -> Option<Message> {
+    LOG.as_mut().popups.pop_front()
+}
+
+// Drops the popups waiting to open: event popups turned off in Settings.
+pub fn clear_popups() {
+    LOG.as_mut().popups.clear();
+}
+
+// Whether a popup waits to open.
+pub fn has_popup() -> bool {
+    !LOG.as_ref().popups.is_empty()
+}
+
+// The ids of the messages whose popups wait to open, oldest first.
+pub fn queued_popups() -> Vec<u64> {
+    LOG.as_ref().popups.iter().map(|message| message.id).collect()
 }
 
 // The latest `count` messages, newest first.
@@ -185,4 +264,5 @@ pub fn clear() {
     let log = LOG.as_mut();
     log.messages.clear();
     log.dismissed = 0;
+    log.popups.clear();
 }
