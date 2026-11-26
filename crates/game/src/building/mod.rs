@@ -52,6 +52,7 @@ use crate::{
         DebugUiMode,
         game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color},
     },
+    messages::MessageTarget,
     pathfind::{self, NodeKind as PathNodeKind},
     save_context::*,
     tile::{
@@ -71,7 +72,7 @@ pub mod construction;
 pub mod destruction;
 pub mod risks;
 use destruction::{Destruction, FIRE_ALERT_TINT};
-use risks::{BuildingRisks, MAX_RISK, RiskKind};
+use risks::{BuildingRisks, MAX_RISK, RiskKind, RiskNoticeKind};
 
 // The minimap alert at a sick house.
 pub const OUTBREAK_ALERT_TINT: Color = Color::new(0.75, 0.85, 0.25, 1.0);
@@ -534,7 +535,7 @@ impl Building {
                 log::info!(log::channel!("construction"), "{} completed at {}.", building.name(), building.base_cell());
 
                 if settlers == 0 {
-                    construction::notify_completed(building.name());
+                    construction::notify_completed(building.name(), building.kind_and_id(), building.base_cell());
                 }
             });
         } else if stage != prev_stage {
@@ -847,7 +848,11 @@ impl Building {
         let base_cell = building.base_cell();
         context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Diseased, true);
         context.minimap_mut().push_icon(MinimapIcon::Alert, base_cell, OUTBREAK_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
-        risks::notify(format!("Sickness has broken out in a {}.", building.notice_name().to_lowercase()));
+        risks::notify(
+            RiskNoticeKind::Outbreak,
+            format!("Sickness has broken out in a {}.", building.notice_name().to_lowercase()),
+            MessageTarget::Building(building.kind_and_id(), base_cell),
+        );
     }
 
     // Ends the house's outbreak, with no one left, its disease risk set to `disease`, on the
@@ -878,11 +883,12 @@ impl Building {
         context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Diseased, false);
         context.minimap_mut().resolve_alerts(base_cell);
         let name = building.notice_name().to_lowercase();
-        risks::notify(match deaths {
+        let text = match deaths {
             0 => format!("The sickness at the {name} is over."),
             1 => format!("The sickness at the {name} is over. 1 person died."),
             _ => format!("The sickness at the {name} is over. {deaths} people died."),
-        });
+        };
+        risks::notify(RiskNoticeKind::OutbreakOver, text, MessageTarget::Building(building.kind_and_id(), base_cell));
     }
 
     // A medic's visit cures the house: no more deaths, and no disease risk. Runs with the
@@ -942,7 +948,11 @@ impl Building {
         let base_cell = building.base_cell();
         context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Burning, true);
         context.minimap_mut().push_icon(MinimapIcon::Alert, base_cell, FIRE_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
-        risks::notify(format!("Fire! The {} is burning.", building.notice_name().to_lowercase()));
+        risks::notify(
+            RiskNoticeKind::Fire,
+            format!("Fire! The {} is burning.", building.notice_name().to_lowercase()),
+            MessageTarget::Building(building.kind_and_id(), base_cell),
+        );
     }
 
     // A fire watcher's visit puts the fire out: the building works again, unharmed, with no
@@ -954,7 +964,11 @@ impl Building {
         let base_cell = self.base_cell();
         context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Burning, false);
         context.minimap_mut().resolve_alerts(base_cell);
-        risks::notify(format!("The fire at the {} is out.", self.notice_name().to_lowercase()));
+        risks::notify(
+            RiskNoticeKind::FireOut,
+            format!("The fire at the {} is out.", self.notice_name().to_lowercase()),
+            MessageTarget::Building(self.kind_and_id(), base_cell),
+        );
     }
 
     // Queues the building's collapse, which leaves rubble at the end of the step (see

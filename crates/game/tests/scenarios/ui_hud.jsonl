@@ -153,12 +153,29 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "construction"}}
 {"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "Small Well completed."}}
-{"method": "messages.push", "params": {"kind": "warning", "text": "A fire broke out in the potters' quarter."}}
-{"method": "messages.push", "params": {"kind": "finance", "text": "The treasury is out of debt."}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/priority", "value": "info"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/target", "value": {"kind": "building", "building": "SmallWell", "cell": [30, 30]}}}
+{"method": "messages.push", "params": {"kind": "warning", "text": "A fire broke out in the potters' quarter.", "target": {"kind": "cell", "cell": [40, 36]}}}
+{"method": "messages.push", "params": {"kind": "finance", "text": "The treasury is out of debt.", "target": {"kind": "page", "page": "finances"}}}
 {"method": "messages.push", "params": {"kind": "construction", "text": "The shrine was finished."}}
 {"method": "wait.frames", "params": {"frames": 2}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/messages", "kind": "canvas"}, "path": "/widgets/0/value", "value": [{"kind": "construction", "text": "The shrine was finished."}, {"kind": "finance", "text": "The treasury is out of debt."}, {"kind": "warning", "text": "A fire broke out in the potters' quarter."}]}}
+# A line per message, newest first, with its kind, priority, text and place.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/", "kind": "message", "fields": ["path"]}, "path": "/widgets", "value": [{"path": "MessageLog/line_1"}, {"path": "MessageLog/line_2"}, {"path": "MessageLog/line_3"}]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/line_1", "kind": "message"}, "path": "/widgets/0/value/text", "value": "The shrine was finished."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/line_2", "kind": "message"}, "path": "/widgets/0/value/kind", "value": "finance"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/line_2", "kind": "message"}, "path": "/widgets/0/value/priority", "value": "notice"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/line_3", "kind": "message"}, "path": "/widgets/0/value/text", "value": "A fire broke out in the potters' quarter."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/line_3", "kind": "message"}, "path": "/widgets/0/value/priority", "value": "warning"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+# A line with a page opens the City book there; one with a cell moves the camera to it.
+{"method": "ui.click", "params": {"path": "MessageLog/line_2"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CityManagement"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Finances"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "ui.click", "params": {"path": "MessageLog/line_3"}}
+{"method": "assert.eq", "params": {"query": "camera.state", "path": "/center_cell", "value": [40, 36]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "screenshot", "params": {"path": "out/ui_hud/dailong_messages.png"}}

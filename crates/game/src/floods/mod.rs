@@ -27,7 +27,7 @@ use crate::{
     building::{BuildingKind, BuildingKindAndId, risks::RiskKind},
     config::GameConfigs,
     farms,
-    messages::MessageKind,
+    messages::{Message, MessageKind, MessageTarget},
     sim::{
         SimContext,
         SimContextMut,
@@ -58,12 +58,13 @@ pub const FLOOD_ALERT_TINT: Color = Color::new(0.35, 0.6, 0.9, 1.0);
 pub enum FloodNotice {
     // The wet season's first month: the river is rising.
     RiverRising,
-    // The flood came: the cells under water, the buildings it damaged and the fields it covered.
-    Flood { cells: u32, buildings_damaged: u32, fields_flooded: u32 },
-    // The water broke through dykes at that many cells.
-    Breached { breaches: u32 },
-    // The sluice gates let the flood's silt onto that many fields behind the dykes.
-    Sluiced { fields: u32 },
+    // The flood came: the cells under water, the buildings it damaged and the fields it covered;
+    // `at`, the first building it damaged, else a cell under water, for the message's place.
+    Flood { cells: u32, buildings_damaged: u32, fields_flooded: u32, at: Option<Cell> },
+    // The water broke through dykes at that many cells, the first `at`.
+    Breached { breaches: u32, at: Option<Cell> },
+    // The sluice gates let the flood's silt onto that many fields behind the dykes, the first `at`.
+    Sluiced { fields: u32, at: Option<Cell> },
     // The water went: the fields its silt reached.
     Receded { fields: u32 },
 }
@@ -88,15 +89,19 @@ pub fn river_name(profile: &FloodProfile) -> String {
 }
 
 // A notice's message: its kind, its sound and its text, naming `river`.
-pub fn notice_message(notice: &FloodNotice, river: &str) -> (MessageKind, UiSoundKey, String) {
+pub fn notice_message(notice: &FloodNotice, river: &str, sources: &[Cell]) -> (Message, UiSoundKey) {
     let river = sentence_start(river);
+    let at = |cell: Option<Cell>| cell.map(MessageTarget::Cell);
     match *notice {
         FloodNotice::RiverRising => (
-            MessageKind::Season,
+            Message::new(
+                MessageKind::Season,
+                text::format(UiTextCategory::Messages, "floods.river_rising", &[("river", &river)]),
+            )
+            .with_target(at(sources.first().copied())),
             UiSoundKey::Notification,
-            text::format(UiTextCategory::Messages, "floods.river_rising", &[("river", &river)]),
         ),
-        FloodNotice::Flood { buildings_damaged, fields_flooded, .. } => {
+        FloodNotice::Flood { buildings_damaged, fields_flooded, at: cell, .. } => {
             let buildings =
                 text::format_count(UiTextCategory::Messages, "floods.buildings_damaged", buildings_damaged as i64, &[]);
             let fields = text::format_count(UiTextCategory::Messages, "floods.fields", fields_flooded as i64, &[]);
@@ -105,16 +110,16 @@ pub fn notice_message(notice: &FloodNotice, river: &str) -> (MessageKind, UiSoun
                 ("buildings", &buildings),
                 ("fields", &fields),
             ]);
-            (MessageKind::Warning, UiSoundKey::Alert, text)
+            (Message::new(MessageKind::Warning, text).with_target(at(cell)), UiSoundKey::Alert)
         }
-        FloodNotice::Breached { breaches } => {
+        FloodNotice::Breached { breaches, at: cell } => {
             let text =
                 text::format_count(UiTextCategory::Messages, "floods.breached", breaches as i64, &[("river", &river)]);
-            (MessageKind::Warning, UiSoundKey::Alert, text)
+            (Message::new(MessageKind::Warning, text).with_target(at(cell)), UiSoundKey::Alert)
         }
-        FloodNotice::Sluiced { fields } => {
+        FloodNotice::Sluiced { fields, at: cell } => {
             let text = text::format_count(UiTextCategory::Messages, "floods.sluiced", fields as i64, &[]);
-            (MessageKind::Season, UiSoundKey::Notification, text)
+            (Message::new(MessageKind::Season, text).with_target(at(cell)), UiSoundKey::Notification)
         }
         FloodNotice::Receded { fields } => {
             let text = if fields == 0 {
@@ -123,7 +128,7 @@ pub fn notice_message(notice: &FloodNotice, river: &str) -> (MessageKind, UiSoun
                 let fields = text::format_count(UiTextCategory::Messages, "floods.fields", fields as i64, &[]);
                 text::format(UiTextCategory::Messages, "floods.receded", &[("fields", &fields)])
             };
-            (MessageKind::Season, UiSoundKey::Notification, text)
+            (Message::new(MessageKind::Season, text), UiSoundKey::Notification)
         }
     }
 }
@@ -249,6 +254,7 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
 
     let (risks_on, disease_on) = (context.risks().is_active(), context.risks().is_disease_active());
     let mut buildings_damaged = 0;
+    let mut first_damaged = None;
     for id in reached {
         let Some(building) = context.find_building_mut(id.kind, id.id) else {
             continue;
@@ -268,6 +274,7 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
         if damaged {
             buildings_damaged += 1;
             let cell = building.base_cell();
+            first_damaged.get_or_insert(cell);
             context.minimap_mut().push_icon(MinimapIcon::Alert, cell, FLOOD_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
         }
     }
@@ -301,6 +308,7 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
         breaches: breached.len() as u32,
     };
     let cell_count = record.cells;
+    let at = first_damaged.or_else(|| cells.get(cells.len() / 2).copied());
     context.floods_mut().begin_flood(cells, severity, rules.silt, record);
 
     log::info!(
@@ -308,13 +316,13 @@ fn come(context: &SimContextMut, reach: Option<u32>, ordinal_month: u32) {
         "The river floods: {cell_count} cells to a reach of {reach} (severity {severity:.2}), {buildings_damaged} \
          buildings damaged, {fields_flooded} fields under water."
     );
-    notify(FloodNotice::Flood { cells: cell_count, buildings_damaged, fields_flooded });
+    notify(FloodNotice::Flood { cells: cell_count, buildings_damaged, fields_flooded, at });
     if !breached.is_empty() {
-        notify(FloodNotice::Breached { breaches: breached.len() as u32 });
+        notify(FloodNotice::Breached { breaches: breached.len() as u32, at: breached.first().copied() });
     }
     if !sluiced.is_empty() {
         log::info!(log::channel!("floods"), "The sluice gates let the silt onto {} fields.", sluiced.len());
-        notify(FloodNotice::Sluiced { fields: sluiced.len() as u32 });
+        notify(FloodNotice::Sluiced { fields: sluiced.len() as u32, at: sluiced.first().copied() });
     }
 }
 

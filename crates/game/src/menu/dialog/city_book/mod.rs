@@ -133,6 +133,16 @@ pub(super) fn redirect(kind: DialogMenuKind) -> Option<Option<usize>> {
     }
 }
 
+// The page with that id ("goods"), by its index in PAGES.
+pub(super) fn page_index(id: &str) -> Option<usize> {
+    PAGES.iter().position(|page| page.id() == id)
+}
+
+// The pages' ids, in the order the tabs show them.
+pub fn page_ids() -> impl Iterator<Item = &'static str> {
+    PAGES.iter().map(|page| page.id())
+}
+
 // Sets the book up for opening on `page` (or the one shown last).
 pub(super) fn prepare(page: Option<usize>) {
     let state = STATE.as_mut();

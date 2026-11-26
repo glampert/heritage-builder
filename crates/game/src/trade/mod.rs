@@ -22,7 +22,7 @@ use crate::{
     campaign::config::{CampaignConfigs, MissionPartnerDef, MissionRequestDef, MissionTradeDef},
     cheats,
     config::{GameConfigs, TradeRules},
-    messages::MessageKind,
+    messages::{Message, MessageKind, MessageTarget},
     pathfind::Node,
     realm::Realm,
     sim::{
@@ -903,7 +903,17 @@ fn goods_text(goods: &[(ResourceKind, u32)]) -> String {
 }
 
 // A notice's message: its kind, sound and text. `partner_name` names the partner's city.
-pub fn notice_message(notice: &TradeNotice, partner_name: &str) -> (MessageKind, UiSoundKey, String) {
+pub fn notice_message(notice: &TradeNotice, partner_name: &str) -> (Message, UiSoundKey) {
+    let (message, sound) = notice_text(notice, partner_name);
+    // A caravan's, a ship's and envoys' partner on the world map; a request on the Goods page.
+    let target = match notice {
+        TradeNotice::Request { .. } => MessageTarget::CityPage("goods"),
+        _ => MessageTarget::WorldMap(Some(notice.partner().to_string())),
+    };
+    (message.with_target(target), sound)
+}
+
+fn notice_text(notice: &TradeNotice, partner_name: &str) -> (Message, UiSoundKey) {
     // "brought 20 bricks and took 8 metal: +40 gold", in a caravan's or a ship's words.
     let traded = |keys: [&str; 4], sold: &[(ResourceKind, u32)], bought: &[(ResourceKind, u32)], paid: u32, earned: u32| {
         let net = i64::from(earned) - i64::from(paid);
@@ -920,7 +930,7 @@ pub fn notice_message(notice: &TradeNotice, partner_name: &str) -> (MessageKind,
             (true, false) => keys[2],
             (true, true) => keys[3],
         };
-        (MessageKind::Trade, UiSoundKey::Notification, text::format(UiTextCategory::Messages, key, &args))
+        (Message::new(MessageKind::Trade, text::format(UiTextCategory::Messages, key, &args)), UiSoundKey::Notification)
     };
     match notice {
         TradeNotice::Caravan { sold, bought, paid, earned, .. } => traded(
@@ -931,9 +941,11 @@ pub fn notice_message(notice: &TradeNotice, partner_name: &str) -> (MessageKind,
             *earned,
         ),
         TradeNotice::Ship { turned_back: true, .. } => (
-            MessageKind::Trade,
+            Message::new(
+                MessageKind::Trade,
+                text::format(UiTextCategory::Messages, "trade.ship_turned_back", &[("partner", partner_name)]),
+            ),
             UiSoundKey::Notification,
-            text::format(UiTextCategory::Messages, "trade.ship_turned_back", &[("partner", partner_name)]),
         ),
         TradeNotice::Ship { sold, bought, paid, earned, .. } => traded(
             ["trade.ship", "trade.ship_brought", "trade.ship_took", "trade.ship_nothing"],
@@ -945,13 +957,13 @@ pub fn notice_message(notice: &TradeNotice, partner_name: &str) -> (MessageKind,
         TradeNotice::Gifts { goods, .. } => {
             let key = if goods.is_empty() { "trade.envoys_nothing" } else { "trade.envoys" };
             let args = [("partner", partner_name), ("goods", &goods_text(goods))];
-            (MessageKind::Trade, UiSoundKey::Notification, text::format(UiTextCategory::Messages, key, &args))
+            (Message::new(MessageKind::Trade, text::format(UiTextCategory::Messages, key, &args)), UiSoundKey::Notification)
         }
         TradeNotice::Request { event, request, court } => {
             let text = requests::notice_text(*event, request, *court, partner_name);
             match event {
-                requests::RequestEvent::Failed => (MessageKind::Warning, UiSoundKey::Alert, text),
-                _ => (MessageKind::Request, UiSoundKey::Notification, text),
+                requests::RequestEvent::Failed => (Message::new(MessageKind::Warning, text), UiSoundKey::Alert),
+                _ => (Message::new(MessageKind::Request, text), UiSoundKey::Notification),
             }
         }
     }

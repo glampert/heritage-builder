@@ -1,6 +1,6 @@
 # Messages and advisors
 
-**Status (2026-11-26): accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phase 0 in progress.** This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-26): accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phase 0 done; Phase 1 next.** This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
 - GDD 5.18's advisor messages and events: typed messages with a priority, a place on the map or a page, and a popup for the important ones (the mockups' `event-<realm>.jpg`);
 - GDD 5.3's labour priorities per sector, as in Pharaoh, and the advisor pages the roadmap asks for: the City book's Labour and Food pages (`city-labour-<realm>.jpg`, `city-food-<realm>.jpg`). Finances (M4) and Ratings (M9) are pages already;
 - the two inspector actions realm-ui Phase 8 left disabled: Pause work, and a store's Get and Empty orders.
@@ -63,11 +63,11 @@ It was researched against `f053fb6a` on `claude`. File and line references point
 
 - **`Message`** gains:
   - `priority: MessagePriority`: `Info` (a building done, a caravan), `Notice` (a harvest, a festival held, the river rising), `Warning` (a fire, debt, a breach) and `Event` (a popup's: §2);
-  - `target: Option<MessageTarget>`: `Cell(Cell)`, `Building(BuildingKindAndId, Cell)` (its cell kept, so it still shows where it stood once it's gone), `CityPage(&'static str)`, `WorldMap`;
+  - `target: Option<MessageTarget>`: `Cell(Cell)`, `Building(BuildingKindAndId, Cell)` (its cell kept, so it still shows where it stood once it's gone), `CityPage(&'static str)`, `WorldMap(Option<String>)` (a city to pick);
   - `popup: Option<Box<EventPopup>>` for an `Event`;
   - its date (the ordinal month), for the popup's date line and the log's age.
 - **Notices carry their place.** Each system's notice gains what the message needs: a fire's or collapse's building (risks), a request's id (trade), the flood's cells and counts (floods), a patron's event (faith). `GameLoop`'s `notify_*` build `Message`s from them through one `messages::post(Message)`; finance's notices carry their severity (the `TODO(realm-ui)` closes).
-- **The HUD's log** keeps its three lines; a click on one goes to its target (the camera to its cell, `camera.teleport` with heights; a page opens the City book on it) or reopens its popup. Each line is recorded as `MessageLog/<id>` (kind `message`, value its kind, priority and text) so `ui.click` reaches it. A line with a target shows a pointer on hover.
+- **The HUD's log** keeps its three lines; a click on one goes to its target (the camera to its cell, `camera.teleport` with heights; a page opens the City book on it) or reopens its popup. Each line is recorded as `MessageLog/line_<N>` from the newest (kind `message`, value its message's id, kind, priority, text, target and month) so `ui.click` reaches it. A line with a target is lit on hover (Phase 0's notes).
 - **Runtime only,** as today: a load starts an empty log. The popups' queue (§2) is runtime too.
 
 ### 2. Event popups (Phase 1)
@@ -161,10 +161,16 @@ It was researched against `f053fb6a` on `claude`. File and line references point
 
 ### Phase 0: Typed messages (medium)
 
-- [ ] `MessagePriority`, `MessageTarget`, a message's date; `messages::post`.
-- [ ] Each system's notices carry their place; finance's carry their severity.
-- [ ] The HUD log's lines go to their targets; recorded per line.
-- [ ] `messages.state`, `messages.push`, `messages.open`; `tests/messages.rs`.
+- [x] `MessagePriority`, `MessageTarget`, a message's date; `messages::post`.
+- [x] Each system's notices carry their place; finance's carry their severity.
+- [x] The HUD log's lines go to their targets; recorded per line.
+- [x] `messages.state`, `messages.push`, `messages.open`; `tests/messages.rs`.
+
+Notes (2026-11-26):
+- **As built.** `messages::Message` (`id`, `kind`, `priority`, `text`, `target`, `month`), built with `Message::new(kind, text)`, `with_priority` and `with_target`, and posted by `messages::post(message, month)`; a kind gives the default priority (`MessageKind::default_priority`: construction and trade Info, warnings Warning, the rest Notice). `MessageTarget` is `Cell`, `Building(BuildingKindAndId, Cell)`, `CityPage(&'static str)` and `WorldMap(Option<String>)`, the city to pick on the map (a trade partner). Each system's notice carries what its message needs: `construction::CompletedNotice` (the building and its cell), `risks::RiskNotice` (a `RiskNoticeKind` and its target), `finance::DebtNotice` (a `DebtNoticeKind`: the out-of-debt `TODO(realm-ui)` is gone), the floods' notices an `at` cell (the first building damaged or a cell under water, the first breach, the first silted field; the river rising goes to its first source). `floods::notice_message`, `trade::notice_message` and `failure::notice_message` return a `Message` and its sound. Faith's go to the Heritage page, the harvests to the Goods page (the Food page from Phase 3), trade's to the partner on the world map or a request to the Goods page, Legitimacy's warnings to the Ratings page and the time limit's to the Overview.
+- **Deviations.** The log's lines are recorded by position, `MessageLog/line_1` (the newest) to `line_3`, not by id, so scripts can click them; the id is in their value. The engine sets no OS cursor, so a line with a place is lit while hovered (`UiCanvas::with_hover_fill`, the HUD's sub colour, faint) instead of showing a pointer. The `MessageLog/messages` canvas is gone (`ui_hud.jsonl` reads the lines). A building target goes to the building's base cell, not its middle, as the inspector's Show its home does. The log still says "now" for the newest line; the month is kept for Phase 1's popups.
+- **Engine.** `UiCanvas` takes clicks (`on_clicked`, playing ButtonPressed), a hover fill and a recorded kind (`with_kind`).
+- **Verified.** `cargo test --workspace` (the new `tests/messages.rs`: the log, the default priorities, the JSON, and each system's notice with its place), both clippy runs, all 30 CI scenarios on a release build (`ui_hud.jsonl` now reads the lines, opens the Finances page from one and moves the camera from another), and `determinism.jsonl` twice with the same outputs and save. The hover fill was checked in screenshots in each realm.
 
 ### Phase 1: Event popups (medium)
 

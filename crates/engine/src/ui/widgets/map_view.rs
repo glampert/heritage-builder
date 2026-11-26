@@ -1,10 +1,11 @@
 use std::any::Any;
 
-use common::{Rect, Vec2};
+use common::{Color, Rect, Vec2};
 use egui::Sense;
 use serde_json::{Value, json};
+use smallbox::smallbox;
 
-use super::{UiTooltipText, UiWidget, UiWidgetContext};
+use super::{UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext};
 use crate::{
     render::texture::TextureHandle,
     ui::{
@@ -12,6 +13,7 @@ use crate::{
         UiString,
         UiSystem,
         immediate::{self, egui_vec2, to_rect},
+        sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
     },
 };
 
@@ -439,15 +441,23 @@ fn wheel_event_steps(delta: f32) -> f32 {
 // ----------------------------------------------
 
 pub type UiCanvasPaint = Box<dyn FnMut(&mut dyn UiWidgetContext, &UiPainter, Rect)>;
+pub type UiCanvasClicked = UiWidgetCallback<dyn Fn(&UiCanvas, &mut dyn UiWidgetContext)>;
 
 // A rect painted by a callback each frame: a legend's glyphs, a coin, the HUD's stats. Recorded as
-// kind "canvas" when labeled, with the value it's given, and its tooltip shown while it's hovered.
+// kind "canvas" (or the kind it's given) when labeled, with the value it's given, and its tooltip
+// shown while it's hovered. Given a click callback (on_clicked), it takes clicks, filled while
+// hovered with its hover fill, and plays ButtonPressed when clicked: the HUD's message lines.
 pub struct UiCanvas {
     label: UiString,
+    kind: &'static str,
     size: Vec2,
     paint: Option<UiCanvasPaint>,
     value: Option<Value>,
     tooltip: Option<UiTooltipText>,
+    hover_fill: Option<(Color, f32)>, // Its colour and corner radius.
+    sounds: UiWidgetSounds,           // Hovered: nothing, Pressed: ButtonPressed.
+    hovered: bool,
+    on_clicked: UiCanvasClicked,
 }
 
 impl UiWidget for UiCanvas {
@@ -459,30 +469,48 @@ impl UiWidget for UiCanvas {
         debug_assert!(context.is_inside_widget_window());
 
         let ui_sys = context.ui_sys();
+        let clickable = self.on_clicked.is_some();
+        let sense = if clickable { Sense::click() } else { Sense::hover() };
         let (rect, response, painter) = ui_sys.with_ui(|ui| {
-            let (rect, response) = ui.allocate_exact_size(egui_vec2(self.size), Sense::hover());
+            let (rect, response) = ui.allocate_exact_size(egui_vec2(self.size), sense);
             (to_rect(rect), response, ui.painter().clone())
         });
+        let painter = UiPainter::from_egui(painter, ui_sys);
+        if clickable
+            && response.hovered()
+            && let Some((color, radius)) = self.hover_fill
+        {
+            painter.rect_filled(rect, color, radius);
+        }
         if let Some(paint) = &mut self.paint {
-            let painter = UiPainter::from_egui(painter, ui_sys);
             paint(context, &painter, rect);
         }
         if !self.label.is_empty() {
             let value = &self.value;
             let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
+            let kind = self.kind;
             ui_sys.with_ui(|ui| {
-                immediate::record_lazy(ui_sys, ui, &response, "canvas", self.label.resolve(), tooltip, true, || {
-                    value.clone()
-                })
+                immediate::record_lazy(ui_sys, ui, &response, kind, self.label.resolve(), tooltip, true, || value.clone())
             });
         } else {
             ui_sys.set_last_response(&response);
         }
-        if response.hovered()
-            && let Some(tooltip) = &self.tooltip
-        {
+        let hovered = response.hovered();
+        if hovered && let Some(tooltip) = &self.tooltip {
             tooltip.draw(context);
         }
+        if clickable {
+            if hovered && !self.hovered {
+                self.sounds.play(context, UiSoundEvent::Hovered, None);
+            }
+            if response.clicked() {
+                self.sounds.play(context, UiSoundEvent::Pressed, Some(UiSoundKey::ButtonPressed));
+                if let Some(on_clicked) = &self.on_clicked {
+                    on_clicked(self, context);
+                }
+            }
+        }
+        self.hovered = hovered;
     }
 
     fn measure(&self, _context: &dyn UiWidgetContext) -> Vec2 {
@@ -499,7 +527,18 @@ impl UiCanvas {
     where
         F: FnMut(&mut dyn UiWidgetContext, &UiPainter, Rect) + 'static,
     {
-        Self { label: UiString::default(), size, paint: Some(Box::new(paint)), value: None, tooltip: None }
+        Self {
+            label: UiString::default(),
+            kind: "canvas",
+            size,
+            paint: Some(Box::new(paint)),
+            value: None,
+            tooltip: None,
+            hover_fill: None,
+            sounds: UiWidgetSounds::new(),
+            hovered: false,
+            on_clicked: None,
+        }
     }
 
     // Shown while the pointer is over it.
@@ -522,6 +561,33 @@ impl UiCanvas {
     pub fn with_label(mut self, label: impl Into<UiString>, value: Option<Value>) -> Self {
         self.label = label.into();
         self.value = value;
+        self
+    }
+
+    // The kind it's recorded as, in place of "canvas".
+    pub fn with_kind(mut self, kind: &'static str) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    // Takes clicks: `f` runs when it's clicked, after its paint.
+    pub fn on_clicked<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&UiCanvas, &mut dyn UiWidgetContext) + 'static,
+    {
+        self.on_clicked = Some(smallbox!(f));
+        self
+    }
+
+    // Painted under its contents while it's hovered, if it takes clicks.
+    pub fn with_hover_fill(mut self, color: Color, radius: f32) -> Self {
+        self.hover_fill = Some((color, radius));
+        self
+    }
+
+    // `event` (Hovered or Pressed) plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.sounds.set(event, role);
         self
     }
 }

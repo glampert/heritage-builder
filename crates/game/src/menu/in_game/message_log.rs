@@ -1,19 +1,23 @@
 // The HUD's message log (docs/plans/realm-ui.md, Phase 5: P5d; hud-<realm>.jpg): the three latest
 // messages (crate::messages), centred at the bottom of the screen between the minimap and the build
 // column on the skin's `hud_panel`, each with its kind's icon, the newest in the HUD's text colour
-// and marked "now", the others in its sub colour. Hidden while the log is empty. Recorded as the
-// canvas `MessageLog/messages` (value: the messages shown, newest first: `kind`, `text`). Its
-// close tile (`MessageLog/Close`) hides it until a newer message comes (messages::dismiss), and it
-// hides itself once its newest message is SHOW_SECS old.
+// and marked "now", the others in its sub colour. Hidden while the log is empty. Each line is a
+// canvas of its own, recorded as `MessageLog/line_<N>` from the newest, `line_1` (kind `message`,
+// value its message's `id`, `kind`, `priority`, `text`, `target` and `month`); a line whose message
+// has a place takes clicks, lit while hovered, and takes the player there (open;
+// docs/plans/messages.md, Phase 0). Its close tile (`MessageLog/Close`) hides it until a newer
+// message comes (messages::dismiss), and it hides itself once its newest message is SHOW_SECS old.
 
 use common::{Color, Rect, Vec2};
 use engine::ui::{self, UiLabelLook, UiPainter, UiTextAnchor, text::UiTextCategory, widgets::*};
-use serde_json::json;
 
 use super::layout;
 use crate::{
-    menu::skin::{self, SkinPanel},
-    messages::{self, Message},
+    menu::{
+        dialog,
+        skin::{self, SkinPanel},
+    },
+    messages::{self, Message, MessageTarget},
     ui_context::GameUiContext,
 };
 
@@ -24,11 +28,10 @@ const MAX_WIDTH: f32 = 860.0;
 const SHOW_SECS: f32 = 20.0; // How long the log shows after its newest message comes (frame time).
 const CLOSE_SIZE: f32 = 26.0; // The close tile's size in points.
 const CLOSE_GAP: f32 = 8.0;
+const HOVER_ALPHA: f32 = 0.2; // The hover fill's: the HUD's sub text colour, faint.
 
 pub struct MessageLog {
     menu: Option<UiMenuRcMut>,
-    canvas: Option<UiWidgetGroupWidgetIndex>,
-    row: Option<UiMenuWidgetIndex>,
     built_for: (Vec2, f32, u64), // The window, the minimap's right edge and the newest message it was built for.
     newest: u64,                 // The newest message's id, and how long it has shown.
     newest_age: f32,
@@ -36,7 +39,7 @@ pub struct MessageLog {
 
 impl MessageLog {
     pub fn new() -> Self {
-        Self { menu: None, canvas: None, row: None, built_for: (Vec2::zero(), 0.0, 0), newest: 0, newest_age: 0.0 }
+        Self { menu: None, built_for: (Vec2::zero(), 0.0, 0), newest: 0, newest_age: 0.0 }
     }
 
     fn build(&mut self, context: &mut GameUiContext, shown: Vec<Message>) {
@@ -57,43 +60,15 @@ impl MessageLog {
         let size = Vec2::new(width, (inner.y + insets[1] + insets[3] + LOG_SLACK).ceil());
         let position = Vec2::new((window.x - width) * 0.5, window.y - size.y - layout::MARGIN);
 
-        let text = skin::hud_color("text", "ink");
-        let sub = skin::hud_color("sub", "sub");
-        let icons: Vec<_> = shown.iter().map(|message| skin::hud_icon(context, message.kind.icon())).collect();
-        let bleed = skin::hud_icon_bleed();
-        let now = ui::text::get(UiTextCategory::Hud, "messages.now").to_string();
-        let value =
-            json!(shown.iter().map(|message| json!({ "kind": message.kind, "text": message.text })).collect::<Vec<_>>());
-        let canvas = UiCanvas::new(lines, move |_, painter, rect| {
-            for (k, message) in shown.iter().enumerate() {
-                let y = rect.min.y + k as f32 * ROW_HEIGHT + ROW_HEIGHT * 0.5;
-                let (icon, icon_size) = icons[k];
-                let scale = 22.0 / (icon_size.x - 2.0 * bleed).max(1.0);
-                let drawn = icon_size * scale;
-                painter.image(
-                    icon,
-                    Rect::from_pos_and_size(Vec2::new(rect.min.x + 12.0, y) - drawn * 0.5, drawn),
-                    Color::white(),
-                );
-                let look = UiLabelLook {
-                    size: 17.0,
-                    heading_font: k == 0,
-                    color: if k == 0 { text } else { sub },
-                    ..Default::default()
-                };
-                let right = if k == 0 { rect.max.x - 48.0 } else { rect.max.x };
-                let line = fit_text(painter, &message.text, right - rect.min.x - 34.0, &look);
-                painter.label(Vec2::new(rect.min.x + 34.0, y + 6.0), UiTextAnchor::Start, &line, &look);
-                if k == 0 {
-                    painter.label(Vec2::new(rect.max.x, y + 6.0), UiTextAnchor::End, &now, &UiLabelLook {
-                        size: 14.0,
-                        color: sub,
-                        ..Default::default()
-                    });
-                }
-            }
-        })
-        .with_label("messages", Some(value));
+        // A line per message, newest first, the rows left empty under them.
+        let mut lines_group = UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::zero());
+        let count = shown.len();
+        for (k, message) in shown.into_iter().enumerate() {
+            lines_group.add_widget(line(context, message, k, lines.x));
+        }
+        for _ in count..SHOWN {
+            lines_group.add_widget(UiCanvas::new(Vec2::new(lines.x, ROW_HEIGHT), |_, _, _| {}));
+        }
 
         let mut menu = panel.apply_to_menu(
             UiMenu::new("MessageLog")
@@ -118,11 +93,9 @@ impl MessageLog {
             .with_stack_vertically(false)
             .with_center_horizontally(false)
             .with_widget_spacing(Vec2::new(CLOSE_GAP, 0.0));
-        let canvas = row.add_widget(canvas);
+        row.add_widget(lines_group);
         row.add_widget(close);
-        let row = menu.add_widget(row);
-        self.canvas = Some(canvas);
-        self.row = Some(row);
+        menu.add_widget(row);
         self.menu = Some(menu.into_rc());
     }
 
@@ -158,6 +131,79 @@ impl MessageLog {
     pub fn reset(&mut self) {
         self.menu = None;
     }
+}
+
+// The line of the message `index` from the newest, `width` points wide: its kind's icon and its
+// text, the newest's in the heading font and marked "now". It takes clicks when the message has a
+// place.
+fn line(context: &mut GameUiContext, message: Message, index: usize, width: f32) -> UiCanvas {
+    let newest = index == 0;
+    let text = skin::hud_color("text", "ink");
+    let sub = skin::hud_color("sub", "sub");
+    let (icon, icon_size) = skin::hud_icon(context, message.kind.icon());
+    let bleed = skin::hud_icon_bleed();
+    let now = ui::text::get(UiTextCategory::Hud, "messages.now").to_string();
+    let value = message.to_json();
+    let (id, has_target) = (message.id, message.target.is_some());
+    let canvas = UiCanvas::new(Vec2::new(width, ROW_HEIGHT), move |_, painter, rect| {
+        let y = rect.min.y + ROW_HEIGHT * 0.5;
+        let scale = 22.0 / (icon_size.x - 2.0 * bleed).max(1.0);
+        let drawn = icon_size * scale;
+        painter.image(icon, Rect::from_pos_and_size(Vec2::new(rect.min.x + 12.0, y) - drawn * 0.5, drawn), Color::white());
+        let look =
+            UiLabelLook { size: 17.0, heading_font: newest, color: if newest { text } else { sub }, ..Default::default() };
+        let right = if newest { rect.max.x - 48.0 } else { rect.max.x };
+        let fitted = fit_text(painter, &message.text, right - rect.min.x - 34.0, &look);
+        painter.label(Vec2::new(rect.min.x + 34.0, y + 6.0), UiTextAnchor::Start, &fitted, &look);
+        if newest {
+            painter.label(Vec2::new(rect.max.x, y + 6.0), UiTextAnchor::End, &now, &UiLabelLook {
+                size: 14.0,
+                color: sub,
+                ..Default::default()
+            });
+        }
+    })
+    .with_label(format!("line_{}", index + 1), Some(value))
+    .with_kind("message");
+    if !has_target {
+        return canvas;
+    }
+    let hover = Color { a: HOVER_ALPHA, ..skin::hud_color("sub", "sub") };
+    canvas.with_hover_fill(hover, 4.0).on_clicked(move |_, context| {
+        if let Some(message) = messages::find(id) {
+            open(&message, context_as_mut::<GameUiContext>(context));
+        }
+    })
+}
+
+// Takes the player to the message's place: the camera to its cell, or to its building (where it
+// stood once it's gone); the City book on its page; the world map, its city picked. False when it
+// has no place or the dialog didn't open (the world map outside a game).
+pub fn open(message: &Message, context: &mut GameUiContext) -> bool {
+    let Some(target) = &message.target else {
+        return false;
+    };
+    match target {
+        MessageTarget::Cell(cell) => go_to(*cell, context),
+        MessageTarget::Building(building, cell) => {
+            let standing = {
+                let sim = context.new_sim_context();
+                sim.find_building(building.kind, building.id).map(|building| building.base_cell())
+            };
+            go_to(standing.unwrap_or(*cell), context)
+        }
+        MessageTarget::CityPage(page) => dialog::open_city_page(page, context),
+        MessageTarget::WorldMap(city) => dialog::open_world_map_at(city.as_deref(), context),
+    }
+}
+
+// The camera onto `cell`, at its ground's height. False for a cell off the map.
+fn go_to(cell: common::coords::Cell, context: &mut GameUiContext) -> bool {
+    if !context.tile_map.is_cell_within_bounds(cell) {
+        return false;
+    }
+    let height = context.tile_map.elevation().centre_height(cell);
+    context.camera.teleport_raised(cell, height)
 }
 
 // `text`, cut with an ellipsis where it would run past `width` points.

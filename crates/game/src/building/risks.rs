@@ -29,6 +29,7 @@ use strum::{Display, EnumCount, EnumIter, EnumString};
 use super::{BuildingKind, BuildingKindAndId};
 use crate::{
     config::{GameConfigs, RiskConfigs},
+    messages::MessageTarget,
     sim::SimContext,
     unit::{Unit, task::UnitTaskRespond},
     world::World,
@@ -560,18 +561,37 @@ impl RiskSummary {
 // Notices
 // ----------------------------------------------
 
-// Fires, fires put out, buildings burnt down, collapses and outbreaks since the GameLoop last
-// took them; it shows each as a toast (GameLoop::notify_risks). The simulation has no Engine,
-// hence the queue, as for construction notices.
-static NOTICES: SingleThreadStatic<Vec<String>> = SingleThreadStatic::new(Vec::new());
-
-// Logs `message` on the risks channel and queues it as a toast.
-pub(crate) fn notify(message: String) {
-    log::info!(log::channel!("risks"), "{message}");
-    NOTICES.as_mut().push(message);
+// What a risk notice tells.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum RiskNoticeKind {
+    Fire,
+    FireOut,
+    BurntDown,
+    Collapsed,
+    Outbreak,
+    OutbreakOver,
 }
 
-pub fn take_notices() -> Vec<String> {
+// A risk notice: what happened, its text, and where (the building, or its cell once it's gone).
+#[derive(Clone)]
+pub struct RiskNotice {
+    pub kind: RiskNoticeKind,
+    pub text: String,
+    pub target: MessageTarget,
+}
+
+// Fires, fires put out, buildings burnt down, collapses and outbreaks since the GameLoop last
+// took them; it posts each as a message (GameLoop::notify_risks). The simulation has no Engine,
+// hence the queue, as for construction notices.
+static NOTICES: SingleThreadStatic<Vec<RiskNotice>> = SingleThreadStatic::new(Vec::new());
+
+// Logs `text` on the risks channel and queues it for the message log.
+pub(crate) fn notify(kind: RiskNoticeKind, text: String, target: MessageTarget) {
+    log::info!(log::channel!("risks"), "{text}");
+    NOTICES.as_mut().push(RiskNotice { kind, text, target });
+}
+
+pub fn take_notices() -> Vec<RiskNotice> {
     std::mem::take(NOTICES.as_mut())
 }
 

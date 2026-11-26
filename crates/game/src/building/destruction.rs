@@ -10,8 +10,9 @@ use common::{Color, mem::SingleThreadStatic};
 use engine::log;
 use strum::Display;
 
-use super::{BuildingKind, BuildingKindAndId, risks};
+use super::{BuildingKind, BuildingKindAndId, risks, risks::RiskNoticeKind};
 use crate::{
+    messages::MessageTarget,
     sim::{
         SimContextMut,
         resources::{RESOURCE_KIND_COUNT, StockItem},
@@ -81,7 +82,11 @@ pub fn destroy_building(context: &SimContextMut, kind_and_id: BuildingKindAndId,
         "{name} at {base_cell} {what}, leaving {rubble_cells} cells of rubble. Lost: {}.",
         lost_goods_text(&lost).unwrap_or_else(|| "nothing".into())
     );
-    risks::notify(destruction_notice(name, what, &lost));
+    let kind = match cause {
+        Destruction::BurntDown => RiskNoticeKind::BurntDown,
+        Destruction::Collapsed => RiskNoticeKind::Collapsed,
+    };
+    risks::notify(kind, destruction_notice(name, what, &lost), MessageTarget::Cell(base_cell));
     true
 }
 

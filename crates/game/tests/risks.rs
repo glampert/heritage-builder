@@ -135,6 +135,11 @@ fn with_risks<F: FnOnce()>(test: F) {
     cheats::get_mut().no_city_risks = true;
 }
 
+// The risk notices' texts since the last call.
+fn notice_texts() -> Vec<String> {
+    risks::take_notices().into_iter().map(|notice| notice.text).collect()
+}
+
 fn seconds_per_month() -> Seconds {
     GameConfigs::get().sim.seconds_per_month
 }
@@ -499,7 +504,7 @@ fn test_visits_reset_their_risk() {
 // it can't hand out or take, and announced.
 fn test_a_fire_risk_at_the_top_starts_a_fire() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let yard = test_utils::spawn_building(&mut env, Cell::new(20, 11), "storage_yard");
@@ -518,14 +523,14 @@ fn test_a_fire_risk_at_the_top_starts_a_fire() {
         assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), 0, "construction can't take from it");
         assert!(building_tile_flags(&env, Cell::new(20, 11)).intersects(TileFlags::Burning));
         assert_eq!(env.tile_map.minimap().alert_count(), 1, "a fire raises a minimap alert");
-        assert_eq!(risks::take_notices(), vec!["Fire! The storage yard is burning.".to_string()]);
+        assert_eq!(notice_texts(), vec!["Fire! The storage yard is burning.".to_string()]);
     });
 }
 
 // A building burns for burn_secs, then is gone, with rubble on every cell it stood on.
 fn test_a_fire_burns_down_and_leaves_rubble() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let yard = test_utils::spawn_building(&mut env, Cell::new(20, 11), "storage_yard");
@@ -540,7 +545,7 @@ fn test_a_fire_burns_down_and_leaves_rubble() {
         assert_pile(&env, &cells_of(footprint), "a burnt-down 3x3");
         assert_eq!(rubble_at(&env, Cell::new(21, 12)), Some("1111"), "the middle of the pile");
 
-        let notices = risks::take_notices();
+        let notices = notice_texts();
         assert_eq!(notices.last().map(String::as_str), Some("The storage yard burnt down."));
     });
 }
@@ -582,7 +587,7 @@ fn test_a_fire_spreads_to_its_neighbours() {
 // walkers are turned away while it burns.
 fn test_a_fire_watcher_puts_out_a_fire() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let house = test_utils::spawn_building(&mut env, Cell::new(10, 11), "house0");
@@ -606,7 +611,7 @@ fn test_a_fire_watcher_puts_out_a_fire() {
 
         secs(&mut env, burn_secs() + 2.0);
         assert!(exists(&env, house), "a fire put out doesn't burn the house down");
-        assert_eq!(risks::take_notices(), vec![
+        assert_eq!(notice_texts(), vec![
             "Fire! The house is burning.".to_string(),
             "The fire at the house is out.".to_string()
         ]);
@@ -639,7 +644,7 @@ fn test_fires_wait_while_risks_are_off() {
 // A collapse risk at the top brings the building down in the same step.
 fn test_a_collapse_leaves_rubble_at_once() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let yard = test_utils::spawn_building(&mut env, Cell::new(20, 11), "storage_yard");
@@ -649,7 +654,7 @@ fn test_a_collapse_leaves_rubble_at_once() {
         assert!(!exists(&env, yard), "collapsed");
         assert_pile(&env, &cells_of(footprint), "a collapsed 3x3");
         assert_eq!(env.tile_map.minimap().alert_count(), 1, "a collapse raises a minimap alert");
-        assert_eq!(risks::take_notices(), vec!["The storage yard collapsed.".to_string()]);
+        assert_eq!(notice_texts(), vec!["The storage yard collapsed.".to_string()]);
 
         // Clearing the rubble resolves it.
         let context = env.new_sim_context(0.0);
@@ -827,7 +832,7 @@ fn test_commands_for_a_destroyed_building_are_skipped() {
 // stop counting them at once, no gold moves, and the notice lists them.
 fn test_a_burnt_yard_loses_its_goods_at_once() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let burnt = test_utils::spawn_building(&mut env, Cell::new(6, 11), "storage_yard");
@@ -866,7 +871,7 @@ fn test_a_burnt_yard_loses_its_goods_at_once() {
         check(&env, "after the next step");
         assert_eq!(serde_json::to_value(env.sim.finance()).unwrap(), finance_before, "no gold moves");
 
-        let notice = risks::take_notices().pop().unwrap();
+        let notice = notice_texts().pop().unwrap();
         assert!(notice.starts_with("The storage yard burnt down. Lost: "), "{notice}");
         assert!(notice.contains("20 wood") && notice.contains("12 bricks"), "{notice}");
     });
@@ -1000,7 +1005,7 @@ fn test_their_patrols_visit_every_building() {
 // down and comes home. Its patrol walker is held back, so the fire is the dispatch's.
 fn test_a_fire_watch_sends_a_walker_to_a_fire() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let fire_watch = test_utils::spawn_building(&mut env, Cell::new(5, 11), "fire_watch");
@@ -1024,7 +1029,7 @@ fn test_a_fire_watch_sends_a_walker_to_a_fire() {
 
         test_utils::tick_until(&mut env, 200, TICK_SECS, |env| !test_utils::unit_exists(env, walker));
         assert!(!fire_response_is_out(&mut env, fire_watch), "back home, ready for the next fire");
-        let notices = risks::take_notices();
+        let notices = notice_texts();
         assert_eq!(notices.last().map(String::as_str), Some("The fire at the house is out."));
     });
 }
@@ -1051,7 +1056,7 @@ fn test_a_fire_out_of_reach_gets_no_walker() {
 // coming home, so one walker puts out both.
 fn test_a_fire_watcher_goes_on_to_the_next_fire() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let fire_watch = test_utils::spawn_building(&mut env, Cell::new(5, 11), "fire_watch");
@@ -1079,7 +1084,7 @@ fn test_a_fire_watcher_goes_on_to_the_next_fire() {
 
         test_utils::tick_until(&mut env, 200, TICK_SECS, |env| !test_utils::unit_exists(env, walker));
         assert!(!fire_response_is_out(&mut env, fire_watch), "back home once no fire is left");
-        let notices = risks::take_notices();
+        let notices = notice_texts();
         assert_eq!(notices.iter().filter(|notice| notice.as_str() == "The fire at the house is out.").count(), 2);
     });
 }
@@ -1379,7 +1384,7 @@ fn test_a_house_at_risk_falls_sick() {
         |configs| configs.outbreak_chance_at_max = 1.0,
         || {
             with_risks(|| {
-                let _ = risks::take_notices();
+                let _ = notice_texts();
                 let mut env = TestEnvironment::new();
                 road(&mut env);
                 let house = house_with(&mut env, Cell::new(20, 11), "house2", 12);
@@ -1399,7 +1404,7 @@ fn test_a_house_at_risk_falls_sick() {
                 assert!(building_tile_flags(&env, Cell::new(20, 11)).intersects(TileFlags::Diseased));
                 assert!(!is_sick(&env, empty), "no one to fall sick");
                 assert!(!building(&env, empty).can_fall_sick());
-                assert_eq!(risks::take_notices(), ["Sickness has broken out in a house."]);
+                assert_eq!(notice_texts(), ["Sickness has broken out in a house."]);
                 assert_eq!(population(&env, house), 12, "no one dies in the grace period");
             })
         },
@@ -1427,7 +1432,7 @@ fn test_a_medics_patrol_resets_the_disease_risk() {
 // each time, until no one is left; the outbreak ends then, with its deaths told.
 fn test_a_sick_house_loses_residents_after_the_grace_period() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let house = house_with(&mut env, Cell::new(20, 11), "house2", 12);
@@ -1455,7 +1460,7 @@ fn test_a_sick_house_loses_residents_after_the_grace_period() {
         assert_eq!(risk(&env, house, RiskKind::Disease), MAX_RISK / 2.0, "the next residents start at some risk");
         assert!(!building_tile_flags(&env, Cell::new(20, 11)).intersects(TileFlags::Diseased));
         assert_eq!(env.sim.risks().disease_deaths(), 12);
-        assert_eq!(risks::take_notices(), [
+        assert_eq!(notice_texts(), [
             "Sickness has broken out in a house.",
             "The sickness at the house is over. 12 people died."
         ]);
@@ -1511,7 +1516,7 @@ fn test_a_sick_house_spreads_disease_to_the_houses_around_it() {
 // A medic's visit cures a sick house: no more deaths, no disease risk, drawn well again.
 fn test_a_medic_cures_an_outbreak() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let house = house_with(&mut env, Cell::new(10, 11), "house2", 12);
@@ -1534,7 +1539,7 @@ fn test_a_medic_cures_an_outbreak() {
 
         secs(&mut env, risk_configs().death_interval_secs * 3.0);
         assert_eq!(population(&env, house), 11, "no one dies after the cure");
-        assert_eq!(risks::take_notices(), [
+        assert_eq!(notice_texts(), [
             "Sickness has broken out in a house.",
             "The sickness at the house is over. 1 person died."
         ]);
@@ -1571,7 +1576,7 @@ fn test_a_hospital_sends_a_medic_to_an_outbreak() {
 // A sick house that empties for another reason (its residents leave) ends its outbreak too.
 fn test_an_empty_sick_house_ends_its_outbreak() {
     with_risks(|| {
-        let _ = risks::take_notices();
+        let _ = notice_texts();
         let mut env = TestEnvironment::new();
         road(&mut env);
         let house = house_with(&mut env, Cell::new(20, 11), "house0", 2);
@@ -1589,7 +1594,7 @@ fn test_an_empty_sick_house_ends_its_outbreak() {
         while let Some(settler) = test_utils::find_unit_by_config(&env, UnitConfigKey::Settler) {
             despawn_walker(&mut env, settler);
         }
-        let notices = risks::take_notices();
+        let notices = notice_texts();
         assert_eq!(notices.last().map(String::as_str), Some("The sickness at the house is over."), "no one died of it");
     });
 }

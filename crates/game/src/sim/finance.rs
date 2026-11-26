@@ -222,6 +222,29 @@ impl YearAccounts {
 // Finance
 // ----------------------------------------------
 
+// What a debt notice tells: the treasury went into debt, a warning with the months left before
+// the debt is overdue, the debt overdue, or out of debt (the good news).
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum DebtNoticeKind {
+    InDebt,
+    Warning { months_left: u32 },
+    Overdue,
+    OutOfDebt,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DebtNotice {
+    pub kind: DebtNoticeKind,
+    pub text: String,
+}
+
+impl DebtNotice {
+    #[inline]
+    pub fn is_good_news(&self) -> bool {
+        self.kind == DebtNoticeKind::OutOfDebt
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Finance {
     // Gold in the treasury. Negative is debt.
@@ -242,10 +265,10 @@ pub struct Finance {
     this_year: YearAccounts,
     last_year: YearAccounts,
 
-    // Debt notices since the GameLoop last took them (take_notices); it shows each as a toast
+    // Debt notices since the GameLoop last took them (take_notices); it posts each as a message
     // (GameLoop::notify_finances). Runtime only: a load starts with none.
     #[serde(skip)]
-    notices: Vec<String>,
+    notices: Vec<DebtNotice>,
 }
 
 impl Finance {
@@ -263,7 +286,7 @@ impl Finance {
         }
     }
 
-    pub fn take_notices(&mut self) -> Vec<String> {
+    pub fn take_notices(&mut self) -> Vec<DebtNotice> {
         std::mem::take(&mut self.notices)
     }
 
@@ -496,24 +519,34 @@ impl Finance {
         let months = self.months_in_debt;
         let limit = configs.debt_limit_months;
 
-        // In the player's language: the log line is the toast's text.
+        // In the player's language: the log line is the message's text.
         let notice = if months == 0 {
-            (months_before != 0).then(|| text::get(UiTextCategory::Messages, "finance.out_of_debt").to_string())
+            (months_before != 0)
+                .then(|| (DebtNoticeKind::OutOfDebt, text::get(UiTextCategory::Messages, "finance.out_of_debt").to_string()))
         } else if limit != 0 && months == limit {
-            Some(text::format_count(UiTextCategory::Messages, "finance.debt_overdue", months.into(), &[]))
+            Some((
+                DebtNoticeKind::Overdue,
+                text::format_count(UiTextCategory::Messages, "finance.debt_overdue", months.into(), &[]),
+            ))
         } else if months == 1 {
-            Some(text::format(UiTextCategory::Messages, "finance.in_debt", &[("balance", &self.balance.to_string())]))
+            Some((
+                DebtNoticeKind::InDebt,
+                text::format(UiTextCategory::Messages, "finance.in_debt", &[("balance", &self.balance.to_string())]),
+            ))
         } else if limit != 0 && months < limit && limit - months <= WARNING_MONTHS {
             let left = limit - months;
             let months = months.to_string();
-            Some(text::format_count(UiTextCategory::Messages, "finance.debt_warning", left.into(), &[("months", &months)]))
+            Some((
+                DebtNoticeKind::Warning { months_left: left },
+                text::format_count(UiTextCategory::Messages, "finance.debt_warning", left.into(), &[("months", &months)]),
+            ))
         } else {
             None
         };
 
-        if let Some(message) = notice {
-            log::info!(log::channel!("finance"), "{message}");
-            self.notices.push(message);
+        if let Some((kind, text)) = notice {
+            log::info!(log::channel!("finance"), "{text}");
+            self.notices.push(DebtNotice { kind, text });
         }
     }
 }
@@ -662,7 +695,8 @@ mod tests {
         assert_eq!(finance.months_in_debt(), 0);
         assert!(!finance.is_debt_overdue(&configs));
 
-        assert_eq!(finance.take_notices(), vec![
+        let notices: Vec<String> = finance.take_notices().into_iter().map(|notice| notice.text).collect();
+        assert_eq!(notices, vec![
             "The treasury is in debt: -5 gold.".to_string(),
             "2 months in debt: 2 months left before the debt is overdue.".to_string(),
             "3 months in debt: 1 month left before the debt is overdue.".to_string(),

@@ -138,3 +138,7 @@ harness = false
 [[test]]
 name    = "ratings"
 harness = false
+
+[[test]]
+name    = "messages"
+harness = false

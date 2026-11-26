@@ -820,7 +820,7 @@ fn test_a_worn_dyke_breaches() {
     assert_eq!(record.breaches, 1);
     assert_eq!(city_floods.floods_survived(), 0);
     let notices = river::take_notices();
-    assert!(notices.iter().any(|notice| matches!(notice, FloodNotice::Breached { breaches: 1 })), "{notices:?}");
+    assert!(notices.iter().any(|notice| matches!(notice, FloodNotice::Breached { breaches: 1, .. })), "{notices:?}");
 }
 
 fn test_the_floods_survived_goal() {
@@ -1068,7 +1068,7 @@ fn test_a_sluice_gate_lets_the_silt_in() {
     assert!(sown(&env, farmstead, watered), "its crop kept: the silt, not the water");
     assert_eq!(city_floods.log()[0].fields_flooded, 0);
     let notices = river::take_notices();
-    assert!(notices.iter().any(|notice| matches!(notice, FloodNotice::Sluiced { fields: 1 })), "{notices:?}");
+    assert!(notices.iter().any(|notice| matches!(notice, FloodNotice::Sluiced { fields: 1, .. })), "{notices:?}");
 }
 
 fn test_no_silt_where_the_water_doesnt_reach_the_gate() {

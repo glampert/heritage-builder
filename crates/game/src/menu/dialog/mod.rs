@@ -408,13 +408,40 @@ pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &
     DialogMenusSingleton::get_mut().open_dialog(dialog_menu_kind, context)
 }
 
-// The mission's briefing as its map loads (campaign::take_pending_briefing): only this one offers a
-// choice point's sites, when none is picked yet (mission_briefing::open_at_mission_start).
+// Opens the City book on the page `id` ("goods"; city_book::page_ids), or turns it to that page if
+// it's open. False for an unknown page, or if it didn't open.
+pub fn open_city_page(id: &str, context: &mut GameUiContext) -> bool {
+    let Some(page) = city_book::page_index(id) else {
+        return false;
+    };
+    let kind = DialogMenuKind::CityManagement;
+    let dialogs = DialogMenusSingleton::get_mut();
+    if dialogs.find_dialog(kind).is_open() {
+        dialogs.find_dialog_as::<CityManagement>().select_page(page);
+        return true;
+    }
+    city_book::prepare(Some(page));
+    open(kind, false, context)
+}
+
+// Opens the world map (in game only) with the city `city` picked, if its map has it.
+pub fn open_world_map_at(city: Option<&str>, context: &mut GameUiContext) -> bool {
+    if !is_open(DialogMenuKind::WorldMap) && !open(DialogMenuKind::WorldMap, false, context) {
+        return false;
+    }
+    if let Some(city) = city {
+        world_map::select_city(city);
+    }
+    true
+}
+
 // Opens the trade limits dialog for the partner `city` (a dock's Set trade limits).
 pub fn open_trade_limits(context: &mut GameUiContext, city: &str) {
     trade_limits::open(context, city);
 }
 
+// The mission's briefing as its map loads (campaign::take_pending_briefing): only this one offers a
+// choice point's sites, when none is picked yet (mission_briefing::open_at_mission_start).
 pub fn open_mission_briefing_at_start(context: &mut GameUiContext) -> bool {
     mission_briefing::open_at_mission_start(context)
 }

@@ -4,11 +4,12 @@
 use std::fmt;
 
 use arrayvec::ArrayVec;
-use common::{mem::SingleThreadStatic, time::Seconds};
+use common::{coords::Cell, mem::SingleThreadStatic, time::Seconds};
 use serde::{Deserialize, Deserializer, Serialize, de};
 use strum::{Display, EnumString};
 
 use crate::{
+    building::BuildingKindAndId,
     cheats,
     config::GameConfigs,
     sim::resources::{ResourceKind, StockItem},
@@ -266,16 +267,23 @@ impl ConstructionSite {
 // Completion notices
 // ----------------------------------------------
 
-// Buildings the player had built that completed since the GameLoop last took them; it shows a
-// toast and plays a sound for each (GameLoop::notify_constructions_completed). The simulation
-// update that completes a site has no Engine, hence the queue. Settlers' houses aren't listed.
-static COMPLETED: SingleThreadStatic<Vec<String>> = SingleThreadStatic::new(Vec::new());
-
-pub(crate) fn notify_completed(building_name: &str) {
-    COMPLETED.as_mut().push(building_name.to_string());
+// A building the player had built that completed: its name, and where it stands.
+pub struct CompletedNotice {
+    pub name: String,
+    pub building: BuildingKindAndId,
+    pub cell: Cell,
 }
 
-pub fn take_completed() -> Vec<String> {
+// Buildings the player had built that completed since the GameLoop last took them; it posts a
+// message and plays a sound for them (GameLoop::notify_constructions_completed). The simulation
+// update that completes a site has no Engine, hence the queue. Settlers' houses aren't listed.
+static COMPLETED: SingleThreadStatic<Vec<CompletedNotice>> = SingleThreadStatic::new(Vec::new());
+
+pub(crate) fn notify_completed(building_name: &str, building: BuildingKindAndId, cell: Cell) {
+    COMPLETED.as_mut().push(CompletedNotice { name: building_name.to_string(), building, cell });
+}
+
+pub fn take_completed() -> Vec<CompletedNotice> {
     std::mem::take(COMPLETED.as_mut())
 }
 

@@ -34,6 +34,7 @@ use crate::{
         GameMenusMode,
         dialog::{self, DialogMenuKind},
     },
+    messages::{Message, MessageKind, MessagePriority, MessageTarget},
     profile,
     prop::config::PropConfigs,
     save_header,
@@ -770,28 +771,29 @@ impl GameLoop {
             return;
         }
 
-        for name in &completed {
-            let message = ui::text::format(UiTextCategory::Messages, "toast.construction_completed", &[("building", name)]);
-            self.post_message(crate::messages::MessageKind::Construction, message);
+        for notice in completed {
+            let text =
+                ui::text::format(UiTextCategory::Messages, "toast.construction_completed", &[("building", &notice.name)]);
+            self.post_message(
+                Message::new(MessageKind::Construction, text)
+                    .with_target(MessageTarget::Building(notice.building, notice.cell)),
+            );
         }
         ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::ConstructionCompleted);
     }
 
     // A message for each debt notice the simulation raised last frame (sim::finance::Finance). Going into
     // debt and the warnings play Alert; getting out of debt is good news and plays Notification.
+    // Each on the City book's Finances page.
     fn notify_finances(&mut self) {
-        // TODO(realm-ui): sim::finance's notices should carry their severity, rather than
-        // being told apart by the out-of-debt message's text.
-        let out_of_debt = ui::text::get(UiTextCategory::Messages, "finance.out_of_debt");
         let notices = self.session.sim_mut().finance_mut().take_notices();
-        for message in notices {
-            let good_news = message == out_of_debt;
+        for notice in notices {
+            let good_news = notice.is_good_news();
             let sound = if good_news { UiSoundKey::Notification } else { UiSoundKey::Alert };
-            let kind = if good_news { crate::messages::MessageKind::Finance } else { crate::messages::MessageKind::Warning };
-            self.post_message(kind, message);
+            let kind = if good_news { MessageKind::Finance } else { MessageKind::Warning };
+            self.post_message(Message::new(kind, notice.text).with_target(MessageTarget::CityPage("finances")));
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
-        // TODO(realm-ui): M11's messages replace crate::messages with typed messages.
     }
 
     // An Alert for the minimap alerts raised since last frame.
@@ -809,31 +811,44 @@ impl GameLoop {
         }
     }
 
-    // A message for each fire, fire put out, building burnt down and collapse last frame
-    // (building::risks).
+    // A message for each fire, fire put out, building burnt down, collapse and outbreak last
+    // frame (building::risks), at its building or where it stood. A fire put out and an outbreak
+    // over are less pressing.
     fn notify_risks(&mut self) {
-        for message in building::risks::take_notices() {
-            self.post_message(crate::messages::MessageKind::Warning, message);
+        use building::risks::RiskNoticeKind;
+        for notice in building::risks::take_notices() {
+            let priority = match notice.kind {
+                RiskNoticeKind::FireOut => MessagePriority::Info,
+                RiskNoticeKind::OutbreakOver => MessagePriority::Notice,
+                RiskNoticeKind::Fire | RiskNoticeKind::BurntDown | RiskNoticeKind::Collapsed | RiskNoticeKind::Outbreak => {
+                    MessagePriority::Warning
+                }
+            };
+            self.post_message(
+                Message::new(MessageKind::Warning, notice.text).with_priority(priority).with_target(notice.target),
+            );
         }
     }
 
     // A message for each blessing and misfortune that came last frame (faith::events): a blessing
     // is a Faith message and plays Notification, a misfortune a Warning and plays Alert (a fire's,
-    // a collapse's and an outbreak's own notices and minimap alerts come from the risks).
+    // a collapse's and an outbreak's own notices and minimap alerts come from the risks). Each on
+    // the City book's Heritage page, where the patrons and festivals are.
     fn notify_faith(&mut self) {
         let notices = self.session.sim_mut().faith_mut().take_notices();
         for notice in notices {
             let (kind, sound) = if notice.is_good_news() {
-                (crate::messages::MessageKind::Faith, UiSoundKey::Notification)
+                (MessageKind::Faith, UiSoundKey::Notification)
             } else {
-                (crate::messages::MessageKind::Warning, UiSoundKey::Alert)
+                (MessageKind::Warning, UiSoundKey::Alert)
             };
-            self.post_message(kind, notice.text);
+            self.post_message(Message::new(kind, notice.text).with_target(MessageTarget::CityPage("heritage")));
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
 
-    // The month's harvests (crate::farms), as a Harvest message with the Notification sound.
+    // The month's harvests (crate::farms), as a Harvest message with the Notification sound, on the
+    // City book's Goods page.
     fn notify_farms(&mut self) {
         for notice in crate::farms::take_notices() {
             let good = notice.good.display_name().to_lowercase();
@@ -841,20 +856,19 @@ impl GameLoop {
                 ("amount", &notice.amount.to_string()),
                 ("good", &good),
             ]);
-            self.post_message(crate::messages::MessageKind::Harvest, text);
+            self.post_message(Message::new(MessageKind::Harvest, text).with_target(MessageTarget::CityPage("goods")));
             ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::Notification);
         }
     }
 
-    // The river (crate::floods): its rising with the wet season and the water going down are Season
-    // messages with the Notification sound; the flood is a Warning with Alert (its minimap pings
-    // come from the flood).
+    // Trade's notices (crate::trade): a caravan, a ship or envoys at their partner on the world
+    // map, a request on the Goods page.
     fn notify_trade(&mut self) {
         let notices = crate::trade::take_notices();
         for notice in notices {
             let name = crate::trade::partner_name(self.session.sim().trade(), notice.partner());
-            let (kind, sound, text) = crate::trade::notice_message(&notice, &name);
-            self.post_message(kind, text);
+            let (message, sound) = crate::trade::notice_message(&notice, &name);
+            self.post_message(message);
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
@@ -865,32 +879,37 @@ impl GameLoop {
         let notices = crate::ratings::failure::take_notices();
         let realm = self.session.sim().realm();
         for notice in notices {
-            let (kind, sound, text) = crate::ratings::failure::notice_message(&notice, realm);
-            self.post_message(kind, text);
+            let (message, sound) = crate::ratings::failure::notice_message(&notice, realm);
+            self.post_message(message);
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
 
+    // The river (crate::floods): its rising with the wet season and the water going down are Season
+    // messages with the Notification sound; the flood is a Warning with Alert (its minimap pings
+    // come from the flood). Each at its place on the river, where it has one.
     fn notify_floods(&mut self) {
         let notices = crate::floods::take_notices();
         if notices.is_empty() {
             return;
         }
-        let river = crate::floods::river_name(self.session.sim().floods().profile());
+        let profile = self.session.sim().floods().profile();
+        let river = crate::floods::river_name(profile);
+        let sources = profile.sources.clone();
         for notice in notices {
-            let (kind, sound, text) = crate::floods::notice_message(&notice, &river);
-            self.post_message(kind, text);
+            let (message, sound) = crate::floods::notice_message(&notice, &river, &sources);
+            self.post_message(message);
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }
 
-    // A notice for the HUD's message log; the developer editor, which draws no log, shows it as a
-    // toast as it always did.
-    fn post_message(&mut self, kind: crate::messages::MessageKind, message: String) {
+    // A notice for the HUD's message log, dated this month; the developer editor, which draws no
+    // log, shows it as a toast as it always did.
+    fn post_message(&mut self, message: Message) {
         if self.session.current_menus_mode() == Some(GameMenusMode::DevEditor) {
-            self.engine.ui_system().show_toast(message.clone());
+            self.engine.ui_system().show_toast(message.text.clone());
         }
-        crate::messages::push(kind, message);
+        crate::messages::post(message, self.session.sim().calendar().ordinal_month());
     }
 
     // Saves the current frame to screenshots/. A toast reports the result once it's written.

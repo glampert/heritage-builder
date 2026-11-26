@@ -715,9 +715,10 @@ fn test_a_year_of_low_legitimacy_recalls_the_governor() {
 
     // The warning's words, the realm's name for the rating.
     let notice = FailureNotice::LegitimacyLow { months_left: 11, started: true };
-    let (kind, _, text) = failure::notice_message(&notice, Realm::DaiLong);
-    assert_eq!(kind, game::messages::MessageKind::Warning);
-    assert_eq!(text, "The Mandate has fallen below 10. If it stays there for 11 months, the mission is lost.");
+    let (message, _) = failure::notice_message(&notice, Realm::DaiLong);
+    assert_eq!(message.kind, game::messages::MessageKind::Warning);
+    assert!(message.target == Some(game::messages::MessageTarget::CityPage("ratings")));
+    assert_eq!(message.text, "The Mandate has fallen below 10. If it stays there for 11 months, the mission is lost.");
 }
 
 // The goals unmet when the time limit's months have passed lose the mission; met, it isn't lost.
@@ -734,7 +735,7 @@ fn test_a_time_limit_runs_out() {
     let expected: Vec<FailureNotice> =
         failure::TIME_WARNINGS.iter().map(|&months_left| FailureNotice::TimeLeft { months_left }).collect();
     assert_eq!(warned, expected);
-    let (_, _, text) = failure::notice_message(&expected[3], Realm::DaiLong);
+    let text = failure::notice_message(&expected[3], Realm::DaiLong).0.text;
     assert_eq!(text, "1 month left to meet the mission's goals.");
 
     assert_eq!(check(&mut env, Some(MissionTerms { goals_met: true, ..terms(Some(limit)) })), None, "met in time");

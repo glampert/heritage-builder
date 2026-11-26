@@ -20,7 +20,13 @@ use engine::ui::{
 };
 
 use super::{FailureReason, RatingKind, rating_name};
-use crate::{campaign, config::GameConfigs, messages::MessageKind, realm::Realm, sim::SimContextMut};
+use crate::{
+    campaign,
+    config::GameConfigs,
+    messages::{Message, MessageKind, MessageTarget},
+    realm::Realm,
+    sim::SimContextMut,
+};
 
 // The months left of a time limit that are warned of.
 pub const TIME_WARNINGS: [u32; 4] = [12, 6, 3, 1];
@@ -141,7 +147,7 @@ pub fn take_notices() -> Vec<FailureNotice> {
 }
 
 // A warning's message, in `realm`'s words: a Warning with the Alert sound.
-pub fn notice_message(notice: &FailureNotice, realm: Realm) -> (MessageKind, UiSoundKey, String) {
+pub fn notice_message(notice: &FailureNotice, realm: Realm) -> (Message, UiSoundKey) {
     let months = |count: u32| text::format_count(UiTextCategory::Messages, "failure.months", i64::from(count), &[]);
     let rules = &GameConfigs::get().sim.ratings;
     let text = match notice {
@@ -157,5 +163,10 @@ pub fn notice_message(notice: &FailureNotice, realm: Realm) -> (MessageKind, UiS
             text::format(UiTextCategory::Messages, "failure.warning.time", &[("months", &months(*months_left))])
         }
     };
-    (MessageKind::Warning, UiSoundKey::Alert, text)
+    // Legitimacy's on the Ratings page; the time limit's on the Overview, with the goals.
+    let page = match notice {
+        FailureNotice::LegitimacyLow { .. } => "ratings",
+        FailureNotice::TimeLeft { .. } => "overview",
+    };
+    (Message::new(MessageKind::Warning, text).with_target(MessageTarget::CityPage(page)), UiSoundKey::Alert)
 }

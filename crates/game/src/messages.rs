@@ -1,18 +1,23 @@
-// The HUD's message log (docs/plans/realm-ui.md, Phase 5: P5d; hud-<realm>.jpg): the notices the
-// game raised lately (a building completed, a fire or collapse, debt and its warnings, a patron's
-// blessing or misfortune, the river, the harvests and trade), newest
-// first, which the HUD shows at the bottom of the screen. A small store until M11's messages
-// replace it with typed messages and their popups. Runtime only: a new or loaded game starts empty.
+// The game's messages (docs/plans/messages.md, M11 Phase 0; the HUD's log, realm-ui Phase 5's P5d,
+// hud-<realm>.jpg): the notices the game raised lately (a building completed, a fire or collapse,
+// debt and its warnings, a patron's blessing or misfortune, the river, the harvests, trade and
+// requests, the warnings that a mission may be lost), newest first. Each has a kind (its icon), a
+// priority, the month it came in and, where it has one, a place: a cell or building on the map, a
+// City book page or the world map, which the HUD's log lines take the player to
+// (menu::in_game::message_log::open). Runtime only: a new or loaded game starts empty.
 
 use std::collections::VecDeque;
 
-use common::mem::SingleThreadStatic;
+use common::{coords::Cell, mem::SingleThreadStatic};
+use serde_json::{Value, json};
+
+use crate::building::BuildingKindAndId;
 
 // How many messages the log keeps.
 pub const CAPACITY: usize = 32;
 
 // What a message is about: the HUD's icon for it.
-#[derive(Copy, Clone, PartialEq, Eq, Debug, serde::Serialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, strum::EnumIter)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageKind {
     Construction, // A building completed.
@@ -39,13 +44,93 @@ impl MessageKind {
             Self::Request => "request",
         }
     }
+
+    // A message's priority unless it says otherwise.
+    pub fn default_priority(self) -> MessagePriority {
+        match self {
+            Self::Construction | Self::Trade => MessagePriority::Info,
+            Self::Warning => MessagePriority::Warning,
+            Self::Finance | Self::Faith | Self::Season | Self::Harvest | Self::Request => MessagePriority::Notice,
+        }
+    }
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+// How much a message matters, least first.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, serde::Serialize, serde::Deserialize, strum::EnumIter)]
+#[serde(rename_all = "snake_case")]
+pub enum MessagePriority {
+    Info,    // A building done, a caravan.
+    Notice,  // A harvest, a festival held, the river rising, a request.
+    Warning, // A fire, debt, a breach.
+    Event,   // An important event: its popup (M11 Phase 1).
+}
+
+// Where a message takes the player.
+#[derive(Clone, PartialEq)]
+pub enum MessageTarget {
+    // A cell on the map: the camera goes there.
+    Cell(Cell),
+    // A building, and its base cell when the message came: the camera goes to it, or to that cell
+    // once it's gone.
+    Building(BuildingKindAndId, Cell),
+    // A City book page, by its id ("goods").
+    CityPage(&'static str),
+    // The world map, with a city picked if one is given (a trade partner).
+    WorldMap(Option<String>),
+}
+
+impl MessageTarget {
+    pub fn to_json(&self) -> Value {
+        match self {
+            Self::Cell(cell) => json!({ "kind": "cell", "cell": [cell.x, cell.y] }),
+            Self::Building(building, cell) => json!({
+                "kind": "building",
+                "building": building.kind.to_string(),
+                "cell": [cell.x, cell.y],
+            }),
+            Self::CityPage(page) => json!({ "kind": "page", "page": page }),
+            Self::WorldMap(city) => json!({ "kind": "world_map", "city": city }),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct Message {
+    pub id: u64, // Counts up from the first message of the run; 0 until it's posted.
     pub kind: MessageKind,
+    pub priority: MessagePriority,
     pub text: String,
-    pub id: u64, // Counts up from the first message of the run.
+    pub target: Option<MessageTarget>,
+    pub month: u32, // The ordinal month it came in (GameCalendar::ordinal_month).
+}
+
+impl Message {
+    // A message of `kind` at its default priority, with no place.
+    pub fn new(kind: MessageKind, text: impl Into<String>) -> Self {
+        Self { id: 0, kind, priority: kind.default_priority(), text: text.into(), target: None, month: 0 }
+    }
+
+    pub fn with_priority(mut self, priority: MessagePriority) -> Self {
+        self.priority = priority;
+        self
+    }
+
+    pub fn with_target(mut self, target: impl Into<Option<MessageTarget>>) -> Self {
+        self.target = target.into();
+        self
+    }
+
+    // What messages.state reports of it.
+    pub fn to_json(&self) -> Value {
+        json!({
+            "id": self.id,
+            "kind": self.kind,
+            "priority": self.priority,
+            "text": self.text,
+            "target": self.target.as_ref().map(MessageTarget::to_json),
+            "month": self.month,
+        })
+    }
 }
 
 struct MessageLog {
@@ -57,18 +142,25 @@ struct MessageLog {
 static LOG: SingleThreadStatic<MessageLog> =
     SingleThreadStatic::new(MessageLog { messages: VecDeque::new(), next_id: 1, dismissed: 0 });
 
-// A new message, the newest.
-pub fn push(kind: MessageKind, text: impl Into<String>) {
+// A new message, the newest, raised in the ordinal month `month`. Returns its id.
+pub fn post(mut message: Message, month: u32) -> u64 {
     let log = LOG.as_mut();
-    let id = log.next_id;
+    message.id = log.next_id;
+    message.month = month;
     log.next_id += 1;
-    log.messages.push_front(Message { kind, text: text.into(), id });
+    log.messages.push_front(message);
     log.messages.truncate(CAPACITY);
+    log.next_id - 1
 }
 
 // The latest `count` messages, newest first.
 pub fn latest(count: usize) -> Vec<Message> {
     LOG.as_ref().messages.iter().take(count).cloned().collect()
+}
+
+// The message with that id, while the log keeps it.
+pub fn find(id: u64) -> Option<Message> {
+    LOG.as_ref().messages.iter().find(|message| message.id == id).cloned()
 }
 
 // The newest message's id, 0 when there's none: the HUD watches it to draw again.

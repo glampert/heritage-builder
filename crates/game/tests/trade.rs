@@ -534,7 +534,7 @@ fn test_a_caravan_sells_and_buys_store_by_store() {
         paid: 140,
         earned: 120,
     });
-    let (_, _, text) = trade::notice_message(&notice, "the Clan camps");
+    let text = trade::notice_message(&notice, "the Clan camps").0.text;
     assert_eq!(text, "A caravan from the Clan camps brought 20 wood and took 20 rice: −20 gold.");
 }
 
@@ -606,7 +606,7 @@ fn test_a_caravan_without_a_store_leaves() {
     let notice = until_it_leaves(&mut map);
     let TradeNotice::Caravan { sold, bought, .. } = &notice else { panic!("{notice:?}") };
     assert!(sold.is_empty() && bought.is_empty(), "the granary takes no wood");
-    let (_, _, text) = trade::notice_message(&notice, "the Clan camps");
+    let text = trade::notice_message(&notice, "the Clan camps").0.text;
     assert_eq!(text, "A caravan from the Clan camps found nothing to trade and left.");
     assert!(map.env.sim.trade().partner("clan_camps").unwrap().sold.iter().all(|&count| count == 0));
 }
@@ -751,7 +751,7 @@ fn test_envoys_bring_gifts() {
         map.env.sim.trade().partner("clan_camps").unwrap().sold.iter().all(|&count| count == 0),
         "outside the year's amounts"
     );
-    let (_, _, text) = trade::notice_message(&notice, "the Clan camps");
+    let text = trade::notice_message(&notice, "the Clan camps").0.text;
     assert_eq!(text, "Envoys from the Clan camps brought gifts: 6 wood, 5 metal.");
 
     // No envoys without an open route by land.
@@ -951,7 +951,7 @@ fn test_a_ship_moors_and_its_dockers_trade() {
         earned: 296,
         turned_back: false,
     }]);
-    let (_, _, text) = trade::notice_message(&notices[0], "Vijara");
+    let text = trade::notice_message(&notices[0], "Vijara").0.text;
     assert_eq!(text, "A ship from Vijara brought 16 metal and took 16 rice: −80 gold.");
 
     // The berth is free again, and no docker is out.
@@ -1010,7 +1010,7 @@ fn test_a_ship_without_a_dock_in_reach_turns_back() {
     assert_eq!(notices.len(), 1);
     let TradeNotice::Ship { turned_back, sold, .. } = &notices[0] else { panic!("{notices:?}") };
     assert!(*turned_back && sold.is_empty());
-    let (_, _, text) = trade::notice_message(&notices[0], "Vijara");
+    let text = trade::notice_message(&notices[0], "Vijara").0.text;
     assert_eq!(text, "A ship from Vijara found no dock to moor at and turned back.");
     assert_eq!(stock(&port.map, port.map.yard, ResourceKind::Metal), 0);
     assert!(ships::berth_of(find_building(&port.map.env, pond_dock)).unwrap().ship.is_none());
@@ -1252,7 +1252,7 @@ fn request_notices(map: &TradeMap) -> Vec<(RequestEvent, String, String)> {
         .filter_map(|notice| match &notice {
             TradeNotice::Request { event, request, .. } => {
                 let name = trade::partner_name(map.env.sim.trade(), &request.from);
-                Some((*event, request.id.clone(), trade::notice_message(&notice, &name).2))
+                Some((*event, request.id.clone(), trade::notice_message(&notice, &name).0.text))
             }
             _ => None,
         })
@@ -1326,8 +1326,12 @@ fn test_a_mission_schedules_its_requests() {
     month_starts(&mut map, 28);
     let notices = trade::take_notices();
     assert_eq!(notices.len(), 1);
-    let (kind, _, text) = trade::notice_message(&notices[0], "Vijara");
-    assert_eq!((kind, text.as_str()), (game::messages::MessageKind::Warning, "Vijara's request for 10 rice went unmet."));
+    let (message, _) = trade::notice_message(&notices[0], "Vijara");
+    assert_eq!(
+        (message.kind, message.text.as_str()),
+        (game::messages::MessageKind::Warning, "Vijara's request for 10 rice went unmet.")
+    );
+    assert!(message.target == Some(game::messages::MessageTarget::CityPage("goods")));
     let trade_state = map.env.sim.trade();
     assert_eq!((trade_state.requests().len(), trade_state.requests_met(), trade_state.requests_failed()), (1, 0, 1));
     assert_eq!(trade_state.request_log()[0].closed, 28);

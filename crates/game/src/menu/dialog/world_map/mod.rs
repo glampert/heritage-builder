@@ -1041,8 +1041,11 @@ fn open_route_popup(context: &mut GameUiContext, city: String, cost: u32) {
                     let game = context_as_mut::<GameUiContext>(context);
                     let opened = crate::trade::open_route(&game.new_sim_context(), &city);
                     if opened.is_ok() {
+                        use crate::messages::{Message, MessageKind, MessageTarget};
                         let text = ui::text::format(UiTextCategory::Messages, "trade.route_opened", &[("partner", &name)]);
-                        crate::messages::push(crate::messages::MessageKind::Trade, text);
+                        let message =
+                            Message::new(MessageKind::Trade, text).with_target(MessageTarget::WorldMap(Some(city.clone())));
+                        crate::messages::post(message, game.sim.calendar().ordinal_month());
                     }
                     super::find::<WorldMap>().menu.close_message_box(context);
                 },

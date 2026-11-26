@@ -22,7 +22,7 @@ use crate::{
 
 mod inspector;
 pub(crate) mod layout;
-mod message_log;
+pub(crate) mod message_log;
 mod palette;
 mod top_bar;
 
