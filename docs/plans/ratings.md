@@ -1,6 +1,6 @@
 # Ratings, goals and failure
 
-**Status (2026-11-26): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17), Phase 1 (the ratings on screen) and Phase 2 (goals and requests, save v18), Phase 3 (failure), Phase 4 (distinctions) and Phase 5 (custom games); Phase 6 (documentation) next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-26): done. The open decisions confirmed; Phase 0 (the ratings, their data and save v17), Phase 1 (the ratings on screen), Phase 2 (goals and requests, save v18), Phase 3 (failure), Phase 4 (distinctions), Phase 5 (custom games) and Phase 6 (documentation).** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
 - GDD 5.17: the four ratings, Prosperity, Culture, Security and Legitimacy, each with its own name for Legitimacy in each realm (the Mandate, Divine Favour, Merit);
 - GDD 7's goals that are still missing, its failure conditions and its optional distinctions;
 - the Legitimacy half of the court requests (GDD 5.14), which M10 left logged and not applied.
@@ -627,9 +627,15 @@ It was researched against `853baf3d` on `claude`. File and line references point
 
 ### Phase 6: Documentation (small)
 
-- [ ] AGENTS.md: a Ratings section (data, state, drivers, failure, distinctions, commands); the scenario list; the plan list.
-- [ ] known-issues.md: what the ratings leave out (defence, crime and unrest, monuments, the realms' own systems), unbalanced numbers, the failure screen without a mockup.
-- [ ] The roadmap's M9 row and save log; GDD 7 if the goal names changed.
+- [x] AGENTS.md: a Ratings section (data, state, drivers, failure, distinctions, commands); the scenario list; the plan list.
+- [x] known-issues.md: what the ratings leave out (defence, crime and unrest, monuments, the realms' own systems), unbalanced numbers, the failure screen without a mockup.
+- [x] The roadmap's M9 row and save log; GDD 7 if the goal names changed.
+
+**Notes (2026-11-26):**
+- **AGENTS.md:** each phase had added its part to the Ratings entry; it's now one entry in parts (data, drivers, state, goals, failure, distinctions, custom games, screens, automation, tests), with the phases' "until Phase N" asides that had come true taken out (the failure switches in custom games, the goals the rings read, failure outside a mission). The scenario list (`ratings.jsonl`, `ui_intermission.jsonl`, `ui_menus.jsonl`) and the dialogs (the failure screen, the debrief's distinctions, the campaign-complete marks, the custom game's debrief) were kept up to date phase by phase; the plan list and the roadmap line say M9 is done.
+- **known-issues.md:** a line for what waits for game Phase 2 (defence, attacks, crime and unrest, monuments, tribute, elite housing, and the `MonumentComplete`, `SurviveAttacks` and `SurviveUntil` goals); the difficulty's line points at Q10 and M13. The rest (no Campaign I mission sets a goal, failure or distinction until M13; the failure screen and the custom game's debrief without mockups; Security's stand-ins; the realms' own systems; unbalanced numbers) was written with the phases.
+- **Roadmap:** the status line, the M9 row (done, with what changed from the first outline) and an "As built" line under M9; the save log's v18 row says Phases 3 to 5 needed no bump; the plans list gained the plans written since it was last updated (finance, goods, seasons-floods, faith, ratings).
+- **GDD 7:** `Rating` and `HousesAtLevel` exist, the code's `Rating { rating, min }`, a mission's time limit, and a custom game lost only with failure turned on.
 
 ## Risks
 

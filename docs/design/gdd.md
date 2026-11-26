@@ -271,14 +271,14 @@ Each mission draws its goals from three families:
 2. **Heritage:** finish a monument, or certain stages of it.
 3. **Survival:** survive N attack waves, or hold out until a given year, without losing the palace or citadel.
 
-Many missions mix families. Planned goal types (`Population`, `Employment`, `Treasury`, `TradeIncome` and `RequestsFulfilled` exist today, and so do `FestivalsHeld` and the code's forms of `Stockpile` and `SeasonsSurvived`, `Resource` and `FloodsSurvived`):
+Many missions mix families. Planned goal types (`Population`, `Employment`, `Treasury`, `Rating`, `HousesAtLevel`, `TradeIncome` and `RequestsFulfilled` exist today, and so do `FestivalsHeld` and the code's forms of `Stockpile` and `SeasonsSurvived`, `Resource` and `FloodsSurvived`; a mission can also set a time limit):
 
 | Goal | Example |
 |---|---|
 | `Population { min }` | 1,500 citizens |
 | `Employment { min_employed }` | 600 people employed |
 | `Treasury { min_gold }` | 5,000 gold |
-| `Rating { kind, min }` | Culture ≥ 40 |
+| `Rating { rating, min }` | Culture ≥ 40 |
 | `HousesAtLevel { level, count }` | 30 houses at level 4 or above |
 | `TradeIncome { per_year }` | 2,000 gold a year from exports |
 | `Stockpile { good, amount }` | 400 bricks in storage |
@@ -288,7 +288,7 @@ Many missions mix families. Planned goal types (`Population`, `Employment`, `Tre
 | `SurviveAttacks { waves }` | 4 waves repelled |
 | `SurviveUntil { year }` | Hold out until the end of WY 125 |
 
-**Failure:** the palace or citadel is destroyed in a survival mission; the city stays in debt too long; Legitimacy stays near zero for a year (the court recalls the governor); or a time limit runs out on the few timed missions.
+**Failure:** the palace or citadel is destroyed in a survival mission; the city stays in debt too long; Legitimacy stays near zero for a year (the court recalls the governor); or a time limit runs out on the few timed missions. A custom game can be lost the same ways only when the player turns failure on.
 
 **Difficulty:** five levels, as in Pharaoh. They scale costs, request sizes, attack strength and how fast favour fades.
 

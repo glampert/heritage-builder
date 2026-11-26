@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-23): Phase 1 in progress: M1, M3, M4, M5, M6, M7, M8, M10 and T done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-26): Phase 1 in progress: M1, M3, M4, M5, M6, M7, M8, M9, M10 and T done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -14,6 +14,11 @@
   - [minimap.md](minimap.md) (MM);
   - [realm-ui.md](realm-ui.md) (UI);
   - [city-risks.md](city-risks.md) (M6);
+  - [finance.md](finance.md) (M4);
+  - [goods.md](goods.md) (M5);
+  - [seasons-floods.md](seasons-floods.md) (M7);
+  - [faith.md](faith.md) (M8);
+  - [ratings.md](ratings.md) (M9);
   - [trade.md](trade.md) (M10).
 - When a milestone starts, finishes or changes scope, update its row in the [Phase 1 table](#phase-1-campaign-i-missions-15-the-vertical-slice) and its entry in the [save-version log](#save-version-log).
 - Follow [AGENTS.md](../../AGENTS.md) throughout:
@@ -55,7 +60,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | Done: risk state (save v7); fire, collapse, rubble; fire watch, builders' guild; disease and hospital dispatch (save v8); the Risk lens, the info panel's risk lines and the World Debug Risks tab |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | [seasons-floods.md](seasons-floods.md) | Done: the floods' data and state (save v11); farmsteads with rice fields the player lays around them, replacing the rice farm, sown and reaped in harvests; the flood (its damage, the crops it takes, silt, the water drawn on the map, its messages, faith's flood events and the Flood lens); dykes drawn like roads, their wear and the builders who keep them, breaches and the `FloodsSurvived` goal; fertility, sluice gates (a dry-season harvest, the silt without the water) and the Fertility lens; irrigation as connected water (canals from the river or a gate's outlet, water flowing from field to field; Phase 6, at the user's request). Its balance is M13's |
 | M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | Done: data, state and save v10; the patrons' shrines and temples, picked from the palette's variation submenu; favour, the Patrons tab and the Faith lens; blessings and misfortunes; festivals and the festival square (floods' events came with M7 Phase 2; Culture and Legitimacy wait for M9) |
-| M9 | Ratings, goals and failure | Medium | M4, M7, M8 | [ratings.md](ratings.md) | In progress: Phases 0 to 5 done (2026-11-26: the ratings, their data, save v17; the HUD's rings and the City book's Ratings page; the rating, houses and time-limit goals, requests' Legitimacy and the court asking again, save v18; failure by debt, Legitimacy or time and the failure screen; distinctions on the debrief, the stele, the campaign-complete screen and the picker; custom games' goal sets, their short debrief and the Failure switch); Phase 6 (documentation) next |
+| M9 | Ratings, goals and failure | Medium | M4, M7, M8 | [ratings.md](ratings.md) | Done (2026-11-26: the ratings, their data, save v17; the HUD's rings and the City book's Ratings page; the rating, houses and time-limit goals, requests' Legitimacy and the court asking again, save v18; failure by debt, Legitimacy or time and the failure screen; distinctions on the debrief, the stele, the campaign-complete screen and the picker; custom games' goal sets, their short debrief and the Failure switch; the docs). No `Stockpile`: `Resource` counts what's in storage (Q6); the survival and monument goals wait for game Phase 2; the difficulty isn't applied yet (Q10, M13) |
 | M10 | Trade v1 and court requests | Large | M1, M4, M5 | [trade.md](trade.md) | Done (2026-11-22: the data, the state, save v12; land routes, the trade limits dialog, caravans; docks, trade ships and their dockers, save v13; prices that move with trade and drift back; court requests and the `TradeIncome` and `RequestsFulfilled` goals, save v14; the docs). No trade post: caravans trade at the storage yards and granaries (Q1); docks and trade ships brought forward from Phase 2; the `TradeIncome` and `RequestsFulfilled` goals brought forward from M9 (Q10) |
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
 | M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3, the comic viewer (I-A and I-B as data) with Phase 4; the other sequences wait for their missions |
@@ -184,6 +189,7 @@ See [ratings.md](ratings.md). GDD 5.17 and 7:
 - **Optional distinctions** for the stele.
 - **Goals panel** in the HUD, live; a ratings dialog.
 - **Tests:** extend `tests/campaign.rs`.
+- **As built** ([ratings.md](ratings.md)): each rating is the sum of its drivers, read at each month's start from per-realm data files, events fading over a year (requests two); the goals added are `Rating` and `HousesAtLevel`, with `Resource` as `Stockpile` (what's in storage) and a mission time limit, while `SurviveUntil`, `SurviveAttacks` and `MonumentComplete` wait for game Phase 2; the ratings page is the City book's Ratings page; a mission's `failure` block turns debt's or Legitimacy's failure off; custom games got goal sets, a short debrief and a Failure switch, off by default.
 
 ### M10: Trade v1 and court requests (large)
 
@@ -315,7 +321,7 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 15 | Each cell's level and shape (`tile_map.elevation`, saved as runs) | T | Done (Stage 1) |
 | 16 | The flood's level, the highest ground it rises over (`sim.floods.profile.flood_level`) | T | Done (Stage 6) |
 | 17 | The four ratings, the failure switches and clocks, the distinctions out of reach (`sim.ratings`), and the months' disasters (`sim.risks.disasters`) | M9 | Done (Phase 0) |
-| 18 | How many times the court has asked again for each request (`again` on `sim.trade`'s requests) | M9 | Done (Phase 2) |
+| 18 | How many times the court has asked again for each request (`again` on `sim.trade`'s requests) | M9 | Done (Phase 2; Phases 3 to 5 needed no bump: a custom game's goal set and Failure switch are in the save header) |
 
 ## Conventions for every milestone
 
