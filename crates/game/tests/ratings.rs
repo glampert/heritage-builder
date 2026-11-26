@@ -5,8 +5,13 @@ use game::{
         BuildingKindAndId,
         destruction::{self, Destruction},
     },
-    campaign::config::{DistinctionCondition, MissionDistinctionDef, MissionGoal},
+    campaign::{
+        self,
+        CampaignPrompt,
+        config::{DistinctionCondition, MissionDistinctionDef, MissionGoal, MissionRequirements},
+    },
     config::GameConfigs,
+    custom_game::{self, ActiveCustomGame, ChosenMap, CustomGameSettings, Difficulty, GoalSetDef, MapConfigs},
     debug::game_object_debug::GameObjectDebugVarRef,
     ratings::{
         self,
@@ -79,6 +84,9 @@ fn main() {
         // Distinctions:
         test_utils::test_fn!(test_each_distinction_condition),
         test_utils::test_fn!(test_distinctions_spoil_month_by_month),
+        // Custom games:
+        test_utils::test_fn!(test_the_shipped_goal_sets_load),
+        test_utils::test_fn!(test_a_custom_games_goals_and_failure),
     ]);
 }
 
@@ -882,4 +890,137 @@ fn test_distinctions_spoil_month_by_month() {
     assert_eq!(state(&env, 0, true, &earned), DistinctionState::Earned);
     assert_eq!(state(&env, 1, true, &earned), DistinctionState::Missed);
     assert_eq!(DistinctionState::Spoiled.to_string(), "spoiled");
+}
+
+// ----------------------------------------------
+// Custom games (Phase 5)
+// ----------------------------------------------
+
+fn map_configs() -> &'static MapConfigs {
+    if !MapConfigs::is_initialized() {
+        MapConfigs::load();
+    }
+    MapConfigs::get()
+}
+
+// maps.json's goal sets all pass their checks (MapConfigs::post_load leaves out any that don't).
+fn test_the_shipped_goal_sets_load() {
+    let configs = map_configs();
+    let ids: Vec<&str> = configs.goal_sets.iter().map(|set| set.id.as_str()).collect();
+    assert_eq!(ids, ["thriving_town", "city_of_culture"]);
+    let town = configs.goal_set("thriving_town").unwrap();
+    assert_eq!(town.display_name(), "A thriving town");
+    assert_eq!(town.requirements.rating_goal(RatingKind::Prosperity), Some(40));
+    assert!(town.requirements.problems().is_empty());
+}
+
+// A blank custom game in Đại Long on the goal set `goal_set`, with the Failure switch `failure`.
+fn custom_settings(goal_set: Option<&str>, failure: bool) -> CustomGameSettings {
+    CustomGameSettings {
+        realm: Realm::DaiLong,
+        map_id: "blank".into(),
+        map: ChosenMap::Blank { width: 64, height: 96, terrain: game::tile::sets::PresetTiles::Dirt },
+        calendar: custom_game::starting_dates(Realm::DaiLong).into_iter().next().unwrap(),
+        starting_gold: 2500,
+        difficulty: Difficulty::Hard,
+        fires_and_collapses: false,
+        fast_construction: true,
+        seasons_and_floods: false,
+        raids: false,
+        goal_set: goal_set.map(str::to_string),
+        failure,
+    }
+}
+
+// A custom game's goal set is the game's goals (the HUD's, the rings' ticks); once they're met it's
+// completed, once, with its debrief asked for, and can't be lost any more. With its Failure switch
+// on it's lost as a mission is; off, never. Its record keeps how it started, so Try again starts it
+// the same way, and a save's header keeps it all.
+fn test_a_custom_games_goals_and_failure() {
+    map_configs();
+    campaign::initialize();
+    campaign::reset();
+    MapConfigs::get_mut().goal_sets.push(GoalSetDef {
+        id: "test_culture".into(),
+        name: "Test culture".into(),
+        requirements: MissionRequirements {
+            goals: vec![MissionGoal::Rating { rating: RatingKind::Culture, min: 30 }],
+            time_limit_months: None,
+        },
+    });
+
+    let mut env = mission_env();
+    let settings = custom_settings(Some("test_culture"), true);
+    custom_game::set_active(Some(ActiveCustomGame::from_settings(&settings)));
+    assert_eq!(campaign::game_requirements().map(|requirements| requirements.goals.len()), Some(1));
+    assert_eq!(ratings::mission_goal(RatingKind::Culture), Some(30));
+
+    // Its terms: lost to debt as a mission is.
+    {
+        let context = env.new_sim_context(0.0);
+        let terms = failure::mission_terms(&context).expect("a custom game with its Failure switch on has terms");
+        assert_eq!(terms, MissionTerms { completed: false, time_limit_months: None, goals_met: false });
+        assert!(!custom_game::tick(&context), "Culture is below 30");
+    }
+
+    // Met: completed once, its debrief asked for.
+    env.sim.ratings_mut().set_value(RatingKind::Culture, 30);
+    env.world.refresh_stats(env.sim.stats_sources());
+    {
+        let context = env.new_sim_context(0.0);
+        assert!(custom_game::tick(&context));
+        assert!(!custom_game::tick(&context), "once");
+        assert!(failure::mission_terms(&context).unwrap().completed);
+    }
+    assert!(custom_game::active().unwrap().record.completed);
+    assert_eq!(campaign::take_pending_prompt(), Some(CampaignPrompt::CustomGameComplete));
+    let limit = GameConfigs::get().sim.finance.debt_limit_months;
+    env.sim.finance_mut().set_balance_unrecorded(-100);
+    env.sim.finance_mut().set_months_in_debt(limit);
+    {
+        let context = env.new_sim_context(0.0);
+        let terms = failure::mission_terms(&context);
+        assert_eq!(failure::check_failure(&context, terms.as_ref()), None, "its goals met, it can't be lost");
+    }
+
+    // Unmet, the same debt loses it; a lost game's goals met don't complete it.
+    custom_game::set_active(Some(ActiveCustomGame::from_settings(&settings)));
+    {
+        let context = env.new_sim_context(0.0);
+        let terms = failure::mission_terms(&context);
+        assert_eq!(failure::check_failure(&context, terms.as_ref()), Some(FailureReason::Debt));
+        assert!(!custom_game::tick(&context), "lost");
+    }
+    assert!(!custom_game::active().unwrap().record.completed);
+
+    // With the Failure switch off it has no terms, and a Sandbox has no goals.
+    custom_game::set_active(Some(ActiveCustomGame::from_settings(&custom_settings(None, false))));
+    {
+        let context = env.new_sim_context(0.0);
+        assert_eq!(failure::mission_terms(&context), None);
+        assert!(!custom_game::tick(&context));
+    }
+    assert!(campaign::game_requirements().is_none());
+    assert_eq!(ratings::mission_goal(RatingKind::Culture), None);
+
+    // Try again starts it as it started, from its record; so does a save's header's.
+    let game = ActiveCustomGame::from_settings(&settings);
+    assert_eq!(game.settings(), Some(settings.clone()));
+    let record = serde_json::to_value(&game.record).unwrap();
+    assert_eq!(record["goal_set"], "test_culture");
+    assert_eq!(record["start"]["blank"]["terrain"], "dirt");
+    let header = game::save_header::SaveHeader {
+        realm: Some(Realm::DaiLong),
+        custom_game: Some(serde_json::from_value(record).unwrap()),
+        ..Default::default()
+    };
+    let loaded = ActiveCustomGame::from_header(&header).unwrap();
+    assert_eq!(loaded.settings(), Some(settings));
+    // A record from before goal sets keeps no start: Try again can't start it.
+    let old = ActiveCustomGame { realm: Realm::DaiLong, record: Default::default() };
+    assert_eq!(old.settings(), None);
+
+    custom_game::end();
+    campaign::reset();
+    MapConfigs::get_mut().goal_sets.retain(|set| set.id != "test_culture");
 }

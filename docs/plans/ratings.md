@@ -1,6 +1,6 @@
 # Ratings, goals and failure
 
-**Status (2026-11-25): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17), Phase 1 (the ratings on screen) and Phase 2 (goals and requests, save v18), Phase 3 (failure) and Phase 4 (distinctions); Phase 5 next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-26): the open decisions confirmed; Phase 0 done (the ratings, their data and save v17), Phase 1 (the ratings on screen) and Phase 2 (goals and requests, save v18), Phase 3 (failure), Phase 4 (distinctions) and Phase 5 (custom games); Phase 6 (documentation) next.** This plan is milestone M9 of the [roadmap](roadmap.md). It covers:
 - GDD 5.17: the four ratings, Prosperity, Culture, Security and Legitimacy, each with its own name for Legitimacy in each realm (the Mandate, Divine Favour, Merit);
 - GDD 7's goals that are still missing, its failure conditions and its optional distinctions;
 - the Legitimacy half of the court requests (GDD 5.14), which M10 left logged and not applied.
@@ -596,10 +596,34 @@ It was researched against `853baf3d` on `claude`. File and line references point
 
 ### Phase 5: Custom games (small)
 
-- [ ] `maps.json`'s `goal_sets` and the Goals dropdown; the custom game's goals checked as a mission's.
-- [ ] The short custom-game debrief.
-- [ ] The Failure switch and Try again for a custom game.
-- [ ] `ui_menus.jsonl`'s Custom Game checks extended.
+- [x] `maps.json`'s `goal_sets` and the Goals dropdown; the custom game's goals checked as a mission's.
+- [x] The short custom-game debrief.
+- [x] The Failure switch and Try again for a custom game.
+- [x] `ui_menus.jsonl`'s Custom Game checks extended.
+
+**Notes (2026-11-26):**
+- **What was built:**
+  - **The data:** `maps.json`'s `goal_sets` (`custom_game::GoalSetDef`: an `id`, a `name`, the Menu key `goal_set.<id>` winning, and `requirements`, a `MissionRequirements`): "A thriving town" (population 1,000, Prosperity 40) and "A city of culture" (Culture 50, two festivals held). `MapConfigs::post_load` leaves out a set with an empty or repeated id, no goals (the Sandbox is the game without them) or a problem its requirements report (`MissionRequirements::problems`, as a mission's).
+  - **The custom game's state:** `CustomGameSettings` and `CustomGameRecord` gain `goal_set` and `failure`; the record also keeps `completed` (its goals met) and `start` (`CustomGameStart`: a blank map's size and terrain, the starting year and month, the gold and the fires switch). The record is the save header's, so a save keeps them all with no save-version bump.
+  - **Goals:** `campaign::game_requirements()` is the game's goals, a mission's or the custom game's goal set's (`custom_game::active_requirements`): the HUD's goals button and panel, the rings' goal ticks (`ratings::mission_goal`), the City book's Overview (the goal set's name over its rows) and `goals.state` read it. `custom_game::tick`, each step after `campaign::tick` (`CampaignSystem`), completes the game once its goals are met, unless it's lost, and asks for its debrief (`CampaignPrompt::CustomGameComplete`, `campaign::request_custom_game_complete`).
+  - **The short debrief** (`CustomGameComplete`, [dialog/custom_game_complete.rs](../../crates/game/src/menu/dialog/custom_game_complete.rs); no mockup): the failure screen's centred panel on the intermission backdrop: "GOALS MET", the goal set's name, the map and the year, the goals' table, the ratings' bars and the stats; Return to the menu and Keep playing (Escape keeps playing). The record's `completed` keeps it from opening again. The failure screen's panel fitting moved to `screen::fitted_panel`, which both use.
+  - **Failure:** a custom game with its Failure switch on starts with `FailureSwitches::ON` (off: `OFF`), and `failure::mission_terms` gives it terms (its goal set's time limit, if one had one; completed once its goals are met), so debt and Legitimacy lose it as they lose a mission, and a save of it loads lost. The failure screen reads "CUSTOM GAME LOST", the goal set's name (the map's for a Sandbox), the map and the year, and its goals; Escape's popup says Custom Game can start another; Try again starts the game afresh from its record (`ActiveCustomGame::settings`; disabled when the record has no start, as a header from before this phase, or its map is gone).
+  - **The Custom Game dialog:** the Goals dropdown offers the Sandbox, then the goal sets by name; the details list the goals picked ("Population 1,000 · Prosperity 40", or None); a fifth switch, "The city can be lost", off by default, its tooltip the limits in the realm's words ("The Mandate below 10 for 12 months, or 12 months in debt, ends the game, as in a campaign.").
+  - **Automation:** `goals.state` reports a custom game's goals with `custom_game` and `goal_set`, and `completed` from its record; `session.state`'s `custom_game` adds `goal_set`, `failure`, `completed` and `can_restart`; `campaign.fail` loses a custom game with its Failure switch on.
+  - **Tests:** `tests/ratings.rs`: the shipped goal sets load; a custom game's goals (the game's requirements, the ring's goal, completed once with its prompt, not lost then), its loss with the switch on and none with it off, a Sandbox's lack of goals, and Try again's settings from the record and from a save header's. `custom_game::config`'s unit test: the goal sets' checks.
+  - **Scenario:** `ui_menus.jsonl`: the switch and the details' Goals for a new player; in Tampadesa's custom game, a goal set and the switch picked, the details, `session.state`, `goals.state`, the rings' goal, the HUD's goals badge, the save header's goal set and the load; then the debrief (opened by hand: a population of 1,000 is out of a scenario's reach; `tests/ratings.rs` meets the goals), Keep playing, a loss to debt (`campaign.fail`): the failure screen's words, its popup, and Try again starting the same game afresh.
+- **Deviations:**
+  - **The goal sets' goals are listed in the dialog's details,** not in the dropdown: a sixth row under Hazards, so the preview is a little shorter.
+  - **The switch's label is "The city can be lost",** and its tooltip carries the plan's sentence with the limits, since the full sentence doesn't fit a switch's row.
+  - **A goal set's time limit fails the game only with the switch on,** as debt and Legitimacy do; no shipped set has one.
+  - **The debrief has no screen in the Screens menu,** which previews campaign screens only.
+- **UI changes:** Custom Game's Goals dropdown, its details' Goals row and the "The city can be lost" switch; the new `CustomGameComplete` screen; the failure screen's custom game heading, popup text and Try again; the City book Overview's goals card for a goal set.
+- **Verified:**
+  - `cargo test --workspace`;
+  - both clippy runs;
+  - every scenario on a release build (macOS), `determinism.jsonl` twice;
+  - in the running game: a goal set met (a throwaway set, Culture 5, with `ratings.set`) opened the debrief paused, Escape kept playing, it didn't open again a month later nor after a save and load;
+  - the screenshots: Custom Game in Đại Long's and Tampadesa's looks (and at 75%), the debrief and the failure screen in both.
 
 ### Phase 6: Documentation (small)
 

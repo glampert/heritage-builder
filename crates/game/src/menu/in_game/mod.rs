@@ -179,6 +179,9 @@ impl GameMenusSystem for InGameMenus {
                 Some(CampaignPrompt::MissionFailed) => {
                     dialog::open(dialog::DialogMenuKind::MissionFailed, true, context);
                 }
+                Some(CampaignPrompt::CustomGameComplete) => {
+                    dialog::open(dialog::DialogMenuKind::CustomGameComplete, false, context);
+                }
                 None => {}
             }
         }

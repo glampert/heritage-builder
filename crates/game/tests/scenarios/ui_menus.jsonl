@@ -122,6 +122,9 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Raids and invasions", "kind": "toggle"}, "path": "/widgets/0/tooltip", "value": "Coming later"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Fires and collapses", "kind": "toggle"}, "path": "/widgets/0/value", "value": true}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Fast construction", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/The city can be lost", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/The city can be lost", "kind": "toggle"}, "path": "/widgets/0/tooltip", "value": "The Mandate below 10 for 12 months, or 12 months in debt, ends the game, as in a campaign."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/5", "value": ["Goals", "None"]}}
 # The maps: the Blank map first, picked, with its own size and terrain under the preview; then the
 # sample saves' maps (extracted, as CI does) and the presets.
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Map", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Blank map"}}
@@ -604,7 +607,12 @@
 {"method": "ui.set", "params": {"path": "CustomGame/Difficulty", "value": "Hard"}}
 {"method": "ui.set", "params": {"path": "CustomGame/Fires and collapses", "value": false}}
 {"method": "ui.set", "params": {"path": "CustomGame/Fast construction", "value": true}}
+# A goal set, its goals in the details, and the city can be lost (docs/plans/ratings.md, §7).
+{"method": "ui.set", "params": {"path": "CustomGame/Goals", "value": "A thriving town"}}
+{"method": "ui.set", "params": {"path": "CustomGame/The city can be lost", "value": true}}
 {"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/5", "value": ["Goals", "Population 1,000 · Prosperity 40"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/The city can be lost", "kind": "toggle"}, "path": "/widgets/0/tooltip", "value": "Merit below 10 for 12 months, or 12 months in debt, ends the game, as in a campaign."}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_tampadesa_options.png"}}
@@ -622,10 +630,22 @@
 {"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
 {"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "custom_game"}}
 {"method": "assert.eq", "params": {"query": "risks.state", "path": "/enabled", "value": false}}
+# Its goals: the goal set's, in the HUD's goals panel and goals.state; debt and Merit can lose it.
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/goal_set", "value": "thriving_town"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/failure", "value": true}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/completed", "value": false}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/can_restart", "value": true}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/custom_game", "value": true}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/goals/0/goal", "value": "Population"}}
+{"method": "assert.eq", "params": {"query": "goals.state", "path": "/goals/1/def", "value": {"Rating": {"rating": "prosperity", "min": 40}}}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/ratings/prosperity/goal", "value": 40}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/fails_on", "value": {"debt": true, "legitimacy": true}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Goals", "kind": "icon_button"}, "path": "/widgets/0/value/badge", "value": "0/2"}}
 # A save keeps the custom game in its header, and a load goes on with it: its realm and options.
 {"method": "session.save", "params": {"name": "ui_menus_custom"}}
 {"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_custom"}, "path": "/header/realm", "value": "tampadesa"}}
 {"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_custom"}, "path": "/header/custom_game/map", "value": "blank"}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_custom"}, "path": "/header/custom_game/goal_set", "value": "thriving_town"}}
 {"method": "session.quit_to_menu"}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
 {"method": "session.load_save", "params": {"name": "ui_menus_custom"}}
@@ -633,12 +653,58 @@
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/construction_time_scale", "value": 0.25}}
 {"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "custom_game"}}
 {"method": "assert.eq", "params": {"query": "risks.state", "path": "/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/goal_set", "value": "thriving_town"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/can_restart", "value": true}}
 # Load / Save names a custom game's map.
 {"method": "dialog.open", "params": {"name": "LoadGame"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_custom", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Custom game · Blank map"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 2}}
+# The short debrief its goals met open (here by hand: tests/ratings.rs meets them): the goal set,
+# its goals, the ratings and stats; Keep playing closes it.
+{"method": "dialog.open", "params": {"name": "CustomGameComplete"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGameComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "GOALS MET"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGameComplete/panel/name"}, "path": "/widgets/0/value", "value": "A thriving town"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGameComplete/panel/place"}, "path": "/widgets/0/value", "value": "Blank map · Year 1 of the Pugara Era"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGameComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Population", "1,000", "0"], ["Prosperity", "40", "15"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGameComplete/panel/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names", "value": ["Prosperity", "Culture", "Security", "Merit"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGameComplete/panel/stats", "kind": "key_values"}, "path": "/widgets/0/value/1", "value": ["Treasury", "10,000"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_complete.png"}}
+{"method": "ui.click", "params": {"path": "CustomGameComplete/panel/Keep playing"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+# Lost to debt: the failure screen in the custom game's words; Escape's popup; Try again starts it
+# afresh with the same options.
+{"method": "campaign.fail", "params": {"reason": "debt"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionFailed", "timeout_frames": 30}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/kicker"}, "path": "/widgets/0/value", "value": "CUSTOM GAME LOST"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/name"}, "path": "/widgets/0/value", "value": "A thriving town"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/why"}, "path": "/widgets/0/value", "value": "The treasury stayed in debt for 12 months in a row."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/goals", "kind": "table"}, "path": "/widgets/0/value/rows/0", "value": ["Population", "1,000", "0"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionFailed/panel/Try again"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_failed.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Return to Menu Popup/Cancel"}, "path": "/widgets/0"}}
+{"method": "ui.click", "params": {"path": "Return to Menu Popup/Cancel"}}
+{"method": "ui.click", "params": {"path": "MissionFailed/panel/Try again"}}
+{"method": "wait.until", "params": {"query": "goals.state", "path": "/failure", "op": "ne", "value": "debt", "timeout_frames": 120}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [64, 96]}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/gold", "value": 10000}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/goal_set", "value": "thriving_town"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/construction_time_scale", "value": 0.25}}
+{"method": "assert.eq", "params": {"query": "ratings.state", "path": "/fails_on", "value": {"debt": true, "legitimacy": true}}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/enabled", "value": false}}
 {"method": "session.quit_to_menu"}
 {"method": "session.delete_save", "params": {"name": "ui_menus_custom"}}
 # A game outside a campaign and a custom game (a new map) saves its realm, and loads as neither.

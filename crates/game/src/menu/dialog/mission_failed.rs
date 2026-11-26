@@ -1,12 +1,15 @@
 // The failure screen (docs/plans/ratings.md, §4, Phase 3; no mockup: decision Q8, the debrief's
 // layout without the stele): a full-screen dialog on the skin's intermission backdrop, its panel in
 // the middle:
-// - "MISSION N FAILED", the mission's name, its city and the year in the realm's era;
+// - "MISSION N FAILED", the mission's name, its city and the year in the realm's era; for a custom
+//   game lost with its Failure switch on (docs/plans/ratings.md, §7), "CUSTOM GAME LOST", its goal
+//   set's name (or its map's), its map and the year;
 // - why it was lost, in the realm's words ("The court has recalled you": `failure.<realm>.<reason>`)
 //   and plainly under it ("The Mandate stayed below 10 for 12 months.");
 // - the goals as they stood (the debrief's table) and the stats (population, treasury, years taken);
 // - Return to the menu, Load a save and Try again (the mission from its start: its briefing opens,
-//   the story the profile has seen doesn't play again).
+//   the story the profile has seen doesn't play again; a custom game afresh, with the options it
+//   started with, disabled where its record doesn't keep them or its map is gone).
 //
 // There's no Keep playing (decision Q7): Escape asks in `Return to Menu Popup` (Cancel, Return to
 // the menu) instead of closing it. Nothing is recorded in the profile. campaign::request_failure_screen
@@ -28,6 +31,7 @@ use crate::{
     GameLoop,
     campaign::{self, config::CampaignConfigs},
     config::GameConfigs,
+    custom_game,
     ratings::{self, FailureReason, RatingKind},
     realm,
 };
@@ -182,7 +186,11 @@ impl Failure {
                 ("months", &months(rules.ratings.recall_months)),
             ]),
             FailureReason::Time => {
-                let limit = mission.and_then(|mission| mission.requirements.time_limit_months).unwrap_or_default();
+                let limit = mission
+                    .map(|mission| &mission.requirements)
+                    .or_else(custom_game::active_requirements)
+                    .and_then(|requirements| requirements.time_limit_months)
+                    .unwrap_or_default();
                 ui::text::format(UiTextCategory::Menu, "failed.why.time", &[("months", &months(limit))])
             }
         };
@@ -190,6 +198,21 @@ impl Failure {
 
         let campaign = active.as_ref().and_then(|active| configs.campaign(active.campaign_id));
         let (Some(active), Some(campaign), Some(mission)) = (active.as_ref(), campaign, mission) else {
+            // A custom game with its Failure switch on: its goal set's name (or its map's), and its
+            // goals.
+            if let Some((name, place)) = super::custom_game_complete::heading(context, realm) {
+                return Self {
+                    kicker: ui::text::get(UiTextCategory::Menu, "failed.kicker.custom").to_uppercase(),
+                    name: Some(name),
+                    place: Some(place),
+                    reason: reason_text,
+                    why,
+                    goals: custom_game::active_requirements()
+                        .map(|requirements| mission_complete::goal_rows(requirements, context.world.stats(), realm))
+                        .unwrap_or_default(),
+                    stats: mission_complete::stat_rows(context),
+                };
+            }
             return Self {
                 kicker: ui::text::get(UiTextCategory::Menu, "failed.kicker.plain").to_uppercase(),
                 name: None,
@@ -258,7 +281,8 @@ impl MissionFailed {
         Self { menu: menu.into_rc() }
     }
 
-    // The mission again from its start: its map loads, and its briefing opens.
+    // The mission again from its start: its map loads, and its briefing opens. A custom game starts
+    // afresh with the options it started with.
     fn on_try_again(context: &mut GameUiContext) {
         if campaign::preview::is_active() {
             super::close(DialogMenuKind::MissionFailed, context);
@@ -266,7 +290,17 @@ impl MissionFailed {
         }
         if let Some(active) = campaign::active_mission() {
             super::home::start_campaign_mission(active.campaign_id, active.mission_index);
+        } else if let Some(settings) = custom_game::active().and_then(|game| game.settings()) {
+            custom_game::start(settings);
         }
+    }
+
+    // Whether Try again can start the game again: a mission can (a preview's only closes), and a
+    // custom game whose start the record keeps, on a map that's still there.
+    fn can_try_again() -> bool {
+        campaign::preview::is_active()
+            || campaign::active_mission().is_some()
+            || custom_game::active().and_then(|game| game.settings()).is_some()
     }
 
     // Load / Save in load mode, over the screen: Cancel comes back to it.
@@ -297,7 +331,13 @@ fn open_return_popup(context: &mut GameUiContext, mut menu: UiMenuRcMut) {
     menu.open_message_box(context, move |context| {
         let window = ui::screen_size(context.ui_sys());
         let sized = |button: UiTextButton| skin::size_popup_button(button, window);
-        let body = [(UiString::key(UiTextCategory::Menu, "failed.popup.body"), "ink")];
+        // A mission can be tried again from the campaign; a custom game from Custom Game.
+        let body_key = if campaign::active_mission().is_none() && custom_game::active().is_some() {
+            "failed.popup.body.custom"
+        } else {
+            "failed.popup.body"
+        };
+        let body = [(UiString::key(UiTextCategory::Menu, body_key), "ink")];
         skin::popup_with_colored_body(
             context,
             RETURN_POPUP_LABEL,
@@ -331,42 +371,14 @@ fn open_return_popup(context: &mut GameUiContext, mut menu: UiMenuRcMut) {
 
 fn panel(context: &mut GameUiContext, scales: Scales, failure: &Failure) -> UiFrame {
     let size = Vec2::new(scales.pt(PANEL_RECT[2]), scales.pt(PANEL_RECT[3]));
-    let (panel, padding) = super::screen::intermission_panel(context, scales, PANEL_PADDING);
-    let inner = Vec2::new(size.x - padding[0] - padding[2], size.y - padding[1] - padding[3]);
-
-    let buttons = buttons(context, scales, inner.x);
-    let buttons_height = buttons.measure(context).y;
-
-    // Closer together where the realm's font's tall lines would push the buttons off the panel.
-    let room_for_parts = inner.y - buttons_height - scales.pt(6.0);
-    let (mut top, mut bottom) = (Vec::new(), Vec::new());
-    let mut parts_height = 0.0;
-    for tightness in [1.0, 0.6, 0.3, 0.0] {
-        (top, bottom) = panel_parts(context, scales, failure, inner.x, tightness);
-        parts_height = top.iter().chain(&bottom).map(|part| part.measure(context).y).sum();
-        if parts_height <= room_for_parts {
-            break;
-        }
-    }
-    let room = (room_for_parts - parts_height).floor();
-
-    let mut group = left_group().with_widget_spacing(Vec2::zero());
-    for part in top {
-        group.add_widget(part);
-    }
-    if room > 0.0 {
-        group.add_widget(spacer(room));
-    }
-    for part in bottom {
-        group.add_widget(part);
-    }
-    group.add_widget(buttons);
-
-    let mut frame = UiFrame::new(group, size).with_label("panel").with_padding(padding);
-    if let Some(panel) = panel {
-        frame = frame.with_panel(panel);
-    }
-    frame
+    super::screen::fitted_panel(
+        context,
+        scales,
+        size,
+        PANEL_PADDING,
+        |context, width| buttons(context, scales, width),
+        |context, width, tightness| panel_parts(context, scales, failure, width, tightness),
+    )
 }
 
 // The heading, the reason and the goals (top), and the stats (bottom, kept to the buttons).
@@ -450,7 +462,8 @@ fn buttons(context: &mut GameUiContext, scales: Scales, width: f32) -> UiColumns
     let try_again =
         skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "failed.try_again"), |_, context| {
             MissionFailed::on_try_again(context_as_mut::<GameUiContext>(context))
-        });
+        })
+        .with_enabled(MissionFailed::can_try_again());
     let mut columns = UiColumns::new().with_spacing(0.0).with_width(width);
     columns.add_column(UiColumnWidth::Fixed(scales.pt(MENU_WIDTH)), left_group().with_widget(sized(menu, MENU_WIDTH)));
     columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());

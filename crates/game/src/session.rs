@@ -745,8 +745,10 @@ impl GameSession {
         // TODO(realm-ui): the difficulty, once M4 and M9 read it; raids (game Phase 2) once they
         // exist. Stored with the game until then (CustomGameRecord).
         custom_game::set_active(Some(ActiveCustomGame::from_settings(settings)));
-        // A new city, rated from its start; a custom game can't be lost.
-        self.sim.ratings_mut().start(FailureSwitches::OFF);
+        // A new city, rated from its start. With its Failure switch on, debt and Legitimacy can
+        // lose it as they lose a mission (docs/plans/ratings.md, §7); off, it can't be lost.
+        let fails_on = if settings.failure { FailureSwitches::ON } else { FailureSwitches::OFF };
+        self.sim.ratings_mut().start(fails_on);
         self.rate_city();
     }
 
@@ -1219,8 +1221,11 @@ impl GameSession {
         self.refresh_world_stats();
         self.rate_city_if_unrated();
 
-        // A save of a lost mission loads lost: its failure screen opens again, paused.
-        if self.sim.ratings().failure().is_some() && campaign::active_mission().is_some() {
+        // A save of a lost mission (or custom game) loads lost: its failure screen opens again,
+        // paused.
+        if self.sim.ratings().failure().is_some()
+            && (campaign::active_mission().is_some() || custom_game::active().is_some())
+        {
             self.sim.pause();
             campaign::request_failure_screen();
         }

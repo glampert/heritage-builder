@@ -3,6 +3,8 @@
 // governor: RatingRules::recall_below for recall_months month-ends in a row), or its time limit
 // (MissionRequirements::time_limit_months) runs out with the goals unmet. A mission's `failure`
 // block turns the first two off (CityRatings::fails_on); a mission already finished can't be lost.
+// A custom game with its Failure switch on (docs/plans/ratings.md, §7) is lost the same ways, its
+// goal set's time limit included, until its goals are met; with it off, it can't be lost.
 //
 // Checked at each month's start, once the ratings are recomputed (ratings::on_new_month). The
 // failure is kept on CityRatings, so a save of a lost game loads lost; campaign::request_failure_screen
@@ -38,14 +40,24 @@ pub struct MissionTerms {
     pub goals_met: bool,
 }
 
-// The active campaign mission's terms; None outside a mission, where nothing is lost.
+// The active campaign mission's terms, or a custom game's with its Failure switch on; None for any
+// other game, where nothing is lost.
 pub fn mission_terms(context: &SimContextMut) -> Option<MissionTerms> {
-    let active = campaign::active_mission()?;
-    let requirements = campaign::active_requirements()?;
+    let stats = context.world().stats();
+    if let Some(active) = campaign::active_mission() {
+        let requirements = campaign::active_requirements()?;
+        return Some(MissionTerms {
+            completed: active.completed,
+            time_limit_months: requirements.time_limit_months,
+            goals_met: requirements.all_met(stats),
+        });
+    }
+    let game = crate::custom_game::active().filter(|game| game.record.failure)?;
+    let requirements = game.requirements();
     Some(MissionTerms {
-        completed: active.completed,
-        time_limit_months: requirements.time_limit_months,
-        goals_met: requirements.all_met(context.world().stats()),
+        completed: game.record.completed,
+        time_limit_months: requirements.and_then(|requirements| requirements.time_limit_months),
+        goals_met: requirements.is_some_and(|requirements| requirements.all_met(stats)),
     })
 }
 

@@ -68,7 +68,10 @@ pub enum CampaignPrompt {
     MissionComplete,
     CampaignComplete,
     // The mission was lost (CityRatings::failure; ratings::check_failure): the failure screen.
+    // A custom game with its Failure switch on is lost the same way.
     MissionFailed,
+    // A custom game's goals were met (custom_game::tick): its short debrief.
+    CustomGameComplete,
 }
 
 // ----------------------------------------------
@@ -168,6 +171,13 @@ pub fn active_requirements() -> Option<&'static config::MissionRequirements> {
     }
     let active = CampaignManager::get().progress.active.as_ref()?;
     Some(&CampaignConfigs::get().mission(active.campaign_id, active.mission_index)?.requirements)
+}
+
+// The goals of the game being played: a campaign mission's (active_requirements), else a custom
+// game's goal set's (custom_game::active_requirements). None for a game without goals: outside both,
+// or a custom game's Sandbox.
+pub fn game_requirements() -> Option<&'static config::MissionRequirements> {
+    active_requirements().or_else(crate::custom_game::active_requirements)
 }
 
 // The distinctions of the mission being played; None outside a campaign mission.
@@ -312,6 +322,12 @@ pub fn pending_prompt() -> Option<CampaignPrompt> {
 // menus open the failure screen, over whatever dialogs are open. Nothing is recorded in the profile.
 pub fn request_failure_screen() {
     CampaignManager::get_mut().pending_prompt = Some(CampaignPrompt::MissionFailed);
+}
+
+// A custom game's goals were met (custom_game::tick): the in-game menus open its short debrief
+// (CustomGameComplete) once no other dialog is open.
+pub fn request_custom_game_complete() {
+    CampaignManager::get_mut().pending_prompt = Some(CampaignPrompt::CustomGameComplete);
 }
 
 // The active mission's map has loaded and it starts (GameSession::start_mission): its briefing is

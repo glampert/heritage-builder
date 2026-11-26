@@ -56,12 +56,15 @@ use campaign_complete::*;
 mod mission_failed;
 use mission_failed::MissionFailed;
 
+mod custom_game_complete;
+use custom_game_complete::CustomGameComplete;
+
 mod mission_briefing;
 use mission_briefing::*;
 
 mod story_comic;
 pub(crate) use load_save::group_digits;
-pub(crate) use mission_complete::{distinction_line, goal_line};
+pub(crate) use mission_complete::{distinction_line, goal_line, goal_text};
 use story_comic::*;
 pub use story_comic::{StoryEnd, StoryRequest};
 
@@ -126,6 +129,9 @@ pub enum DialogMenuImpl {
     MissionBriefing,
     MissionFailed,
 
+    // A custom game's goals met (docs/plans/ratings.md, §7):
+    CustomGameComplete,
+
     // The world map:
     WorldMap,
 
@@ -157,6 +163,7 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     CampaignComplete,
     MissionBriefing,
     MissionFailed,
+    CustomGameComplete,
     WorldMap,
     StoryComic,
     TradeLimits,
@@ -273,6 +280,11 @@ pub fn sync(context: &mut GameUiContext) {
     {
         // The window's size changed: the failure screen's layout follows it.
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::MissionFailed);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::CustomGameComplete)
+        && custom_game_complete::needs_rebuild(context)
+    {
+        // The window's size changed: the custom game's debrief's layout follows it.
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::CustomGameComplete);
     } else if dialogs.menu_stack.contains(&DialogMenuKind::CampaignComplete) && campaign_complete::needs_rebuild(context) {
         // The window's size changed: the campaign-complete screen's layout follows it.
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::CampaignComplete);
@@ -839,14 +851,16 @@ impl DialogMenusSingleton {
         // The dialogs built afresh each time they open, prepared first: Custom Game (from the maps
         // and the profile), the debrief (from the mission just finished and the city's stats), the
         // campaign-complete screen (from the campaign just finished), the briefing (from the
-        // mission being played), the failure screen (from the mission lost) and the world map (for the UI realm's campaign, its default city
-        // selected).
+        // mission being played), the failure screen (from the mission lost), the custom game's
+        // debrief (from its goals met) and the world map (for the UI realm's campaign, its default
+        // city selected).
         let prepare_on_open: Option<fn()> = match dialog_menu_kind {
             DialogMenuKind::CustomGame => Some(|| custom_game::prepare(in_home_menu())),
             DialogMenuKind::MissionComplete => Some(mission_complete::prepare),
             DialogMenuKind::CampaignComplete => Some(campaign_complete::prepare),
             DialogMenuKind::MissionBriefing => Some(mission_briefing::prepare),
             DialogMenuKind::MissionFailed => Some(mission_failed::prepare),
+            DialogMenuKind::CustomGameComplete => Some(custom_game_complete::prepare),
             DialogMenuKind::WorldMap => Some(world_map::prepare),
             DialogMenuKind::StoryComic => Some(story_comic::prepare),
             DialogMenuKind::TradeLimits => Some(trade_limits::prepare),

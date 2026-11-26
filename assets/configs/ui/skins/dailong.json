@@ -362,6 +362,7 @@
     "WorldMap": {"size": "fullscreen"},
     "MissionComplete": {"size": "fullscreen"},
     "MissionFailed": {"size": "fullscreen"},
+    "CustomGameComplete": {"size": "fullscreen"},
     "CampaignComplete": {"size": "fullscreen"},
     "StoryComic": {"size": "fullscreen"},
     "MissionBriefing": {"size": [1520, 980]},

@@ -9,6 +9,10 @@
 //   debug presets (which turn on their cheats, as session.load_preset does).
 //   A map may name the partners a game on it trades with (`trade`, as a mission's block).
 // - `starting_treasury`: the gold choices, and the one picked at first.
+// - `goal_sets`: what a custom game can aim for besides the Sandbox, which has no goals
+//   (docs/plans/ratings.md, §7): each an `id` (saves name the set by it), a `name` (the Menu string
+//   `goal_set.<id>`, if en.json has one, wins: GoalSetDef::display_name) and its `requirements`, as
+//   a mission's: goals and an optional time limit. Checked as they load (MapConfigs::post_load).
 
 use common::hash;
 use engine::{
@@ -19,12 +23,32 @@ use engine::{
 use serde::{Deserialize, Serialize};
 
 use super::{BLANK_MAP_SIZES, blank_terrain};
+use crate::campaign::config::MissionRequirements;
 
 #[derive(Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MapConfigs {
     pub maps: Vec<MapDef>,
     pub starting_treasury: TreasuryDef,
+    pub goal_sets: Vec<GoalSetDef>,
+}
+
+// A custom game's goals (docs/plans/ratings.md, §7): met, they open its short debrief
+// (CustomGameComplete).
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GoalSetDef {
+    pub id: String,
+    pub name: String,
+    pub requirements: MissionRequirements,
+}
+
+impl GoalSetDef {
+    // Its name as the player reads it: the Menu string `goal_set.<id>` (en.json), else its `name`.
+    pub fn display_name(&self) -> &str {
+        let key = format!("goal_set.{}", self.id);
+        text::find_str(UiTextCategory::Menu, hash::fnv1a_from_str(&key)).unwrap_or(&self.name)
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -119,6 +143,27 @@ impl MapConfigs {
         if self.starting_treasury.choices.is_empty() {
             self.starting_treasury = TreasuryDef::default();
         }
+        let mut seen: Vec<String> = Vec::new();
+        self.goal_sets.retain(|set| {
+            let mut problems = set.requirements.problems();
+            if set.id.is_empty() || seen.contains(&set.id) {
+                problems.push("an empty or repeated id".to_string());
+            }
+            if set.requirements.goals.is_empty() {
+                problems.push("no goals (the Sandbox is the game without them)".to_string());
+            }
+            if !problems.is_empty() {
+                log::error!(
+                    log::channel!("game"),
+                    "maps.json: the goal set '{}' is left out: {}.",
+                    set.id,
+                    problems.join("; ")
+                );
+                return false;
+            }
+            seen.push(set.id.clone());
+            true
+        });
     }
 
     // The maps a custom game can start on now, in the file's order.
@@ -130,6 +175,11 @@ impl MapConfigs {
     // The map with that id, if the file has one.
     pub fn map(&self, id: &str) -> Option<&MapDef> {
         self.maps.iter().find(|map| map.id == id)
+    }
+
+    // The goal set with that id, if the file has one.
+    pub fn goal_set(&self, id: &str) -> Option<&GoalSetDef> {
+        self.goal_sets.iter().find(|set| set.id == id)
     }
 
     // The index in the treasury choices of the default one.
@@ -189,5 +239,32 @@ mod tests {
         configs.post_load();
         let ids: Vec<&str> = configs.maps.iter().map(|map| map.id.as_str()).collect();
         assert_eq!(ids, ["farm"]);
+    }
+
+    #[test]
+    fn goal_sets_are_checked() {
+        let set = |id: &str, json: &str| GoalSetDef {
+            id: id.into(),
+            name: id.into(),
+            requirements: serde_json::from_str(json).unwrap(),
+        };
+        let population = r#"{"goals": [{"Population": {"min": 100}}]}"#;
+        let mut configs = MapConfigs {
+            goal_sets: vec![
+                set("town", population),
+                set("town", population),                                   // Repeated.
+                set("", population),                                       // No id.
+                set("idle", r#"{"goals": []}"#),                           // No goals.
+                set("quick", r#"{"goals": [], "time_limit_months": 12}"#), // A limit alone.
+                set("high", r#"{"goals": [{"Rating": {"rating": "culture", "min": 150}}]}"#), // Past 100.
+                set("timed", r#"{"goals": [{"Population": {"min": 50}}], "time_limit_months": 24}"#),
+            ],
+            ..Default::default()
+        };
+        configs.post_load();
+        let ids: Vec<&str> = configs.goal_sets.iter().map(|set| set.id.as_str()).collect();
+        assert_eq!(ids, ["town", "timed"]);
+        assert_eq!(configs.goal_set("timed").and_then(|set| set.requirements.time_limit_months), Some(24));
+        assert!(configs.goal_set("idle").is_none());
     }
 }

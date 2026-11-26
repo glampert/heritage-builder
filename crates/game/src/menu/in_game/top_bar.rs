@@ -69,9 +69,10 @@ pub struct GoalRow {
     pub met: bool,
 }
 
-// The goals of the mission being played, read against the world's stats (the debrief's lines).
+// The goals of the game being played (a mission's, or a custom game's goal set's), read against
+// the world's stats (the debrief's lines).
 fn goal_rows(context: &GameUiContext, realm: Realm) -> Vec<GoalRow> {
-    let Some(requirements) = campaign::active_requirements() else {
+    let Some(requirements) = campaign::game_requirements() else {
         return Vec::new();
     };
     let stats = context.world.stats();
@@ -92,9 +93,9 @@ pub struct TimeLeft {
     pub limit: u32,
 }
 
-// The mission's time limit, if it has one, and its months left.
+// The game's time limit, if its goals have one, and its months left.
 fn time_left(context: &GameUiContext) -> Option<TimeLeft> {
-    let requirements = campaign::active_requirements()?;
+    let requirements = campaign::game_requirements()?;
     let limit = requirements.time_limit_months?;
     let months_left = requirements.months_left(context.sim.calendar().months_elapsed())?;
     Some(TimeLeft { months_left, limit })

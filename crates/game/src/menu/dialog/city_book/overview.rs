@@ -217,22 +217,29 @@ impl CityPage for Overview {
 // A goal's row: its name, target, what the city has and whether it's met.
 type GoalRow = (String, i64, i64, bool);
 
-// The mission's goals ("Mission 2" and a row per goal), or none outside a mission.
+// The game's goals: a mission's ("Mission 2" and a row per goal), a custom game's goal set's (its
+// name and a row per goal), or none in a game without goals.
 fn goals(context: &GameUiContext, realm: crate::realm::Realm) -> (Option<String>, Vec<GoalRow>) {
-    let Some(active) = campaign::active_mission() else {
-        return (None, Vec::new());
+    let (note, requirements) = match campaign::active_mission() {
+        Some(active) => {
+            let configs = CampaignConfigs::get();
+            let (Some(campaign), Some(mission)) =
+                (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index))
+            else {
+                return (None, Vec::new());
+            };
+            let number = campaign.mission_number(active.mission_index).to_string();
+            (ui::text::format(UiTextCategory::City, "book.goals.mission", &[("number", &number)]), &mission.requirements)
+        }
+        None => {
+            let Some(set) = crate::custom_game::active().and_then(|game| game.goal_set()) else {
+                return (None, Vec::new());
+            };
+            (set.display_name().to_string(), &set.requirements)
+        }
     };
-    let configs = CampaignConfigs::get();
-    let (Some(campaign), Some(mission)) =
-        (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index))
-    else {
-        return (None, Vec::new());
-    };
-    let number = campaign.mission_number(active.mission_index).to_string();
-    let note = ui::text::format(UiTextCategory::City, "book.goals.mission", &[("number", &number)]);
     let stats = context.world.stats();
-    let rows = mission
-        .requirements
+    let rows = requirements
         .goals
         .iter()
         .map(|goal| {

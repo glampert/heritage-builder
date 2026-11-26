@@ -8,9 +8,11 @@
 //   saves/), with its size. The Blank map takes a width, a height and a terrain, under the preview.
 // - Preview: the minimap's bake of the map (custom_game::preview; a save's map shows the realm's
 //   emblem instead), and its size, water, woodland, trade partners and hazards.
-// - Options: the starting date (the realm's eras), goals (Sandbox only for now), the starting
-//   treasury, the difficulty in five steps, and the switches: seasons and floods (disabled until
-//   M7), fires and collapses (the session's CityRisks), raids (disabled) and fast construction.
+// - Options: the starting date (the realm's eras), goals (the Sandbox, or one of maps.json's goal
+//   sets: docs/plans/ratings.md, §7; the details list its goals), the starting treasury, the
+//   difficulty in five steps, and the switches: seasons and floods, fires and collapses (the
+//   session's CityRisks), raids (disabled), fast construction and whether the city can be lost
+//   (debt and Legitimacy's recall, as a mission is: off by default).
 // - Cancel and Start: Start replaces the session with the game (custom_game::start).
 //
 // What the player picked is kept outside the dialog (STATE): the dialog is built again when the
@@ -21,7 +23,7 @@
 // CustomGame/Map/<map>, CustomGame/Width|Height|Terrain (the Blank map's), CustomGame/preview,
 // CustomGame/details, CustomGame/Starting date|Goals|Starting treasury (dropdowns),
 // CustomGame/Difficulty, CustomGame/Seasons and floods|Fires and collapses|Raids and invasions|Fast
-// construction (toggles), CustomGame/Cancel|Start.
+// construction|The city can be lost (toggles), CustomGame/Cancel|Start.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -40,6 +42,7 @@ use crate::{
         ChosenMap,
         CustomGameSettings,
         Difficulty,
+        GoalSetDef,
         MapConfigs,
         MapDef,
         MapSource,
@@ -78,7 +81,7 @@ const BUTTON_SPACING: f32 = 20.0;
 const COLUMNS_SLACK: f32 = 24.0; // Room left under the columns for what measuring misses.
 const STEP_SEGMENT_HEIGHT: f32 = 16.0;
 const OPTION_GAPS: usize = 5; // Above the options' parts: date, goals, treasury, difficulty, switches.
-const OPTION_TOGGLES: usize = 4;
+const OPTION_TOGGLES: usize = 5;
 // Sizes on the reference window and on the smallest (1280 × 720), in proportion between them
 // (by_window): the text size over the body font, the buttons' height and the toggles' sprites.
 const TEXT_SCALES: (f32, f32) = (1.1, 0.8);
@@ -121,12 +124,13 @@ struct CustomGameDialogState {
     blank_height: i32,
     blank_terrain: usize, // In BLANK_MAP_TERRAINS.
     date: usize,          // In custom_game::starting_dates(realm).
-    goals: usize,
-    treasury: usize, // In the starting treasury choices.
+    goals: usize,         // 0: the Sandbox; else the goal set before it in maps.json's goal_sets.
+    treasury: usize,      // In the starting treasury choices.
     difficulty: Difficulty,
     seasons_and_floods: bool,
     fires_and_collapses: bool,
     fast_construction: bool,
+    failure: bool,
     built: (u32, bool, Realm),  // build_key() when the dialog was built.
     preview_pixels: (u32, u32), // The bake's size for the well as built (preview::preview_pixels).
     preview: Option<Preview>,
@@ -177,6 +181,7 @@ static STATE: UiStaticVar<CustomGameDialogState> = UiStaticVar::new(CustomGameDi
     seasons_and_floods: true,
     fires_and_collapses: true,
     fast_construction: false,
+    failure: false,
     built: (0, false, Realm::DaiLong),
     preview_pixels: preview::PREVIEW_PIXELS,
     preview: None,
@@ -246,6 +251,7 @@ pub(super) fn prepare(in_home_menu: bool) {
     state.seasons_and_floods = true;
     state.fires_and_collapses = GameConfigs::get().sim.risks.enabled;
     state.fast_construction = false;
+    state.failure = false;
     state.synced = false;
 }
 
@@ -286,7 +292,46 @@ fn chosen_settings() -> Option<CustomGameSettings> {
         fast_construction: state.fast_construction,
         seasons_and_floods: state.seasons_and_floods,
         raids: false,
+        goal_set: chosen_goal_set(state.goals).map(|set| set.id.clone()),
+        failure: state.failure,
     })
+}
+
+// The goal sets the Goals dropdown offers after the Sandbox, in maps.json's order.
+fn goal_sets() -> &'static [GoalSetDef] {
+    if MapConfigs::is_initialized() { &MapConfigs::get().goal_sets } else { &[] }
+}
+
+// The goal set at the Goals dropdown's `index`: None for the Sandbox.
+fn chosen_goal_set(index: usize) -> Option<&'static GoalSetDef> {
+    index.checked_sub(1).and_then(|index| goal_sets().get(index))
+}
+
+// The Goals dropdown's items: the Sandbox, then each goal set by name.
+fn goal_texts() -> Vec<String> {
+    std::iter::once(ui::text::get(UiTextCategory::Menu, "custom_game.goals.sandbox").to_string())
+        .chain(goal_sets().iter().map(|set| set.display_name().to_string()))
+        .collect()
+}
+
+// The goals the details list for the goal set picked: "Population 1,000 · Prosperity 40", in the
+// realm's words; "None" for the Sandbox.
+fn goals_text(state: &CustomGameDialogState) -> String {
+    let Some(set) = chosen_goal_set(state.goals) else {
+        return ui::text::get(UiTextCategory::Menu, "custom_game.goals.none").to_string();
+    };
+    let goals: Vec<String> = set
+        .requirements
+        .goals
+        .iter()
+        .map(|goal| {
+            ui::text::format(UiTextCategory::Menu, "custom_game.goals.item", &[
+                ("goal", &super::goal_text(goal, state.realm)),
+                ("target", &super::group_digits(goal.target())),
+            ])
+        })
+        .collect();
+    goals.join(ui::text::get(UiTextCategory::Menu, "custom_game.goals.separator"))
 }
 
 // ----------------------------------------------
@@ -389,6 +434,7 @@ fn details(state: &CustomGameDialogState) -> Vec<(UiString, UiString)> {
         ),
         (UiString::key(UiTextCategory::Menu, "custom_game.details.trade_partners"), UiString::from(trade_partners(state))),
         (UiString::key(UiTextCategory::Menu, "custom_game.details.hazards"), UiString::from(hazards)),
+        (UiString::key(UiTextCategory::Menu, "custom_game.details.goals"), UiString::from(goals_text(state))),
     ]
 }
 
@@ -888,17 +934,20 @@ fn options(
             .on_selection_changed(|dropdown, _| STATE.as_mut().date = dropdown.current_selection_index()),
     );
 
-    // Goals: a sandbox only.
-    // TODO(realm-ui): goal sets (population, treasury, monuments) once M9 defines them in config.
+    // Goals: the Sandbox, or a goal set (its goals in the details).
     group.add_widget(gap());
     group.add_widget(caption(UiString::key(UiTextCategory::Menu, "custom_game.goals"), text_scale, "goals_caption"));
     group.add_widget(
-        skin::dropdown(context, "", [ui::text::get(UiTextCategory::Menu, "custom_game.goals.sandbox")])
+        skin::dropdown(context, "", goal_texts())
             .with_hidden_label(UiString::key(UiTextCategory::Menu, "custom_game.goals"))
             .with_width(width)
             .with_font_scale(font_scale)
             .on_get_current_selection(|_, _| STATE.as_ref().goals)
-            .on_selection_changed(|dropdown, _| STATE.as_mut().goals = dropdown.current_selection_index()),
+            .on_selection_changed(|dropdown, _| {
+                let state = STATE.as_mut();
+                state.goals = dropdown.current_selection_index();
+                state.synced = false; // The goals in the details.
+            }),
     );
 
     group.add_widget(gap());
@@ -971,6 +1020,22 @@ fn options(
         toggle(context, "custom_game.fast_construction")
             .on_read_value(|_, _| STATE.as_ref().fast_construction)
             .on_update_value(|_, _, value| STATE.as_mut().fast_construction = value),
+    );
+    // Whether the city can be lost: Legitimacy (in the realm's words) too low for its months, or the
+    // debt's months run out.
+    let rules = &GameConfigs::get().sim;
+    let months = |count: u32| ui::text::format_count(UiTextCategory::Menu, "failed.months", i64::from(count), &[]);
+    let failure_tooltip = ui::text::format(UiTextCategory::Menu, "custom_game.failure.tooltip", &[
+        ("rating", &crate::ratings::rating_name(state.realm, crate::ratings::RatingKind::Legitimacy)),
+        ("below", &rules.ratings.recall_below.to_string()),
+        ("months", &months(rules.ratings.recall_months)),
+        ("debt_months", &months(rules.finance.debt_limit_months)),
+    ]);
+    group.add_widget(
+        toggle(context, "custom_game.failure")
+            .with_tooltip(skin::tooltip(context, UiString::from(failure_tooltip)))
+            .on_read_value(|_, _| STATE.as_ref().failure)
+            .on_update_value(|_, _, value| STATE.as_mut().failure = value),
     );
     group
 }

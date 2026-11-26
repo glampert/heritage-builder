@@ -48,6 +48,57 @@ pub fn intermission_panel(
     (Some(UiDecoratedPanel::new(slice).with_decorations(decorations)), padding)
 }
 
+// A panel `size` points large (window points) on the intermission panel, keeping the mockup's
+// `padding` (generator points): `buttons(context, width)` at its foot, and above them the parts
+// `parts(context, width, tightness)` gives, the top ones and then the bottom ones, which keep to the
+// buttons, the room left over between the two. Where they don't fit, they're set closer together
+// (tightness 1, 0.6, 0.3, then 0: the realm font's tall lines). Labeled `panel`. The failure screen's
+// and the custom game's debrief's, their panels in the middle of the screen.
+pub fn fitted_panel(
+    context: &mut GameUiContext,
+    scales: Scales,
+    size: Vec2,
+    padding: [f32; 4],
+    buttons: impl FnOnce(&mut GameUiContext, f32) -> UiColumns,
+    mut parts: impl FnMut(&mut GameUiContext, f32, f32) -> (Vec<UiWidgetImpl>, Vec<UiWidgetImpl>),
+) -> UiFrame {
+    let (panel, padding) = intermission_panel(context, scales, padding);
+    let inner = Vec2::new(size.x - padding[0] - padding[2], size.y - padding[1] - padding[3]);
+
+    let buttons = buttons(context, inner.x);
+    let buttons_height = buttons.measure(context).y;
+
+    let room_for_parts = inner.y - buttons_height - scales.pt(6.0);
+    let (mut top, mut bottom) = (Vec::new(), Vec::new());
+    let mut parts_height = 0.0;
+    for tightness in [1.0, 0.6, 0.3, 0.0] {
+        (top, bottom) = parts(context, inner.x, tightness);
+        parts_height = top.iter().chain(&bottom).map(|part| part.measure(context).y).sum();
+        if parts_height <= room_for_parts {
+            break;
+        }
+    }
+    let room = (room_for_parts - parts_height).floor();
+
+    let mut group = left_group().with_widget_spacing(Vec2::zero());
+    for part in top {
+        group.add_widget(part);
+    }
+    if room > 0.0 {
+        group.add_widget(spacer(room));
+    }
+    for part in bottom {
+        group.add_widget(part);
+    }
+    group.add_widget(buttons);
+
+    let mut frame = UiFrame::new(group, size).with_label("panel").with_padding(padding);
+    if let Some(panel) = panel {
+        frame = frame.with_panel(panel);
+    }
+    frame
+}
+
 // The tallest row of text the screens keep, in ems (tight).
 const TIGHT_LINE: f32 = 1.3;
 

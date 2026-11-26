@@ -10,6 +10,7 @@ use strum::IntoEnumIterator;
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     campaign,
+    custom_game,
     menu::dialog,
     ratings::{self, FailureReason, MAX_RATING, RatingKind, distinctions},
 };
@@ -54,16 +55,19 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                its `distinctions` (docs/plans/ratings.md, §5: each one's `id`, `def`, its line as the player reads it \
                (`distinction`) and `state`: open or spoiled while the mission goes on, earned (in this play or an \
                earlier one) or missed once it's finished) and the game's `failure`. Outside a mission: \
-               `in_mission` false and no goals.",
+               `in_mission` false; a custom game reports its goal set's goals (`goal_set`, its id, null for \
+               the Sandbox) and `completed` once they were met, and has no distinctions; any other game has no \
+               goals.",
         params: &[],
         run: cmd_goals_state,
     },
     CommandDef {
         name: "campaign.fail",
         help: "Loses the campaign mission being played now for `reason`, as a month's start would \
-               (docs/plans/ratings.md, §4): the failure is kept with the game (a save of it loads lost), the \
-               simulation pauses and the failure screen (MissionFailed) opens. Fails outside a campaign mission, \
-               and for a mission finished or lost already. Reports goals.state.",
+               (docs/plans/ratings.md, §4), or a custom game with its Failure switch on (§7): the failure is kept \
+               with the game (a save of it loads lost), the simulation pauses and the failure screen \
+               (MissionFailed) opens. Fails in any other game, and for one whose goals were met or that's lost \
+               already. Reports goals.state.",
         params: &[ParamDef { name: "reason", kind: "string", required: true, help: "debt, legitimacy or time." }],
         run: cmd_campaign_fail,
     },
@@ -110,11 +114,18 @@ fn cmd_campaign_fail(context: &mut CommandContext, params: Value) -> CommandResu
     let reason = FailureReason::from_str(&params.reason).map_err(|_| {
         CommandError::invalid_params(format!("Unknown reason '{}': use debt, legitimacy or time.", params.reason))
     })?;
-    let Some(active) = campaign::active_mission() else {
-        return Err(CommandError::invalid_params("No campaign mission is being played."));
+    let completed = match (campaign::active_mission(), custom_game::active()) {
+        (Some(active), _) => active.completed,
+        (None, Some(game)) if game.record.failure => game.record.completed,
+        (None, Some(_)) => {
+            return Err(CommandError::invalid_params("The custom game's Failure switch is off: it can't be lost."));
+        }
+        (None, None) => {
+            return Err(CommandError::invalid_params("No campaign mission or custom game is being played."));
+        }
     };
-    if active.completed {
-        return Err(CommandError::invalid_params("The mission is finished: it can't be lost."));
+    if completed {
+        return Err(CommandError::invalid_params("The game's goals were met: it can't be lost."));
     }
     if let Some(failure) = context.session.sim().ratings().failure() {
         return Err(CommandError::invalid_params(format!("The mission is lost already ({failure}).")));
@@ -134,12 +145,14 @@ fn cmd_goals_state(context: &mut CommandContext, _params: Value) -> CommandResul
     let stats = context.session.world().stats();
     let months_elapsed = sim.calendar().months_elapsed();
     let active = campaign::active_mission();
-    let requirements = campaign::active_requirements();
+    let custom = custom_game::active().filter(|_| active.is_none());
+    let requirements = campaign::game_requirements();
     let earned = active
         .as_ref()
         .map(|active| campaign::earned_distinctions(active.campaign_id, active.mission_index))
         .unwrap_or_default();
-    let completed = active.as_ref().is_some_and(|active| active.completed);
+    let completed =
+        active.as_ref().map_or_else(|| custom.is_some_and(|game| game.record.completed), |active| active.completed);
     let distinctions: Vec<Value> = campaign::active_distinctions()
         .unwrap_or_default()
         .iter()
@@ -172,6 +185,8 @@ fn cmd_goals_state(context: &mut CommandContext, _params: Value) -> CommandResul
         .unwrap_or_default();
     done(json!({
         "in_mission": active.is_some(),
+        "custom_game": custom.is_some(),
+        "goal_set": custom.and_then(|game| game.record.goal_set.clone()),
         "campaign": active.as_ref().map(|active| active.campaign_id),
         "mission": active.as_ref().map(|active| active.mission_index),
         "goals": goals,

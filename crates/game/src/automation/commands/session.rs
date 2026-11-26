@@ -201,8 +201,10 @@ fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
     }))
 }
 
-// The custom game being played, if any: its realm, map and options, and the construction time
-// scale its fast construction gives (SimConfigs::construction.time_scale times its own).
+// The custom game being played, if any: its realm, map and options, the construction time scale its
+// fast construction gives (SimConfigs::construction.time_scale times its own), its goal set (null:
+// the Sandbox), Failure switch and whether its goals were met, and whether Try again can start it
+// again (its start is kept and its map is there).
 fn custom_game_json() -> Value {
     let Some(game) = custom_game::active() else {
         return Value::Null;
@@ -217,6 +219,10 @@ fn custom_game_json() -> Value {
         "construction_time_scale": construction.time_scale * custom_game::construction_time_scale(),
         "seasons_and_floods": record.seasons_and_floods,
         "raids": record.raids,
+        "goal_set": record.goal_set,
+        "failure": record.failure,
+        "completed": record.completed,
+        "can_restart": game.settings().is_some(),
     })
 }
 

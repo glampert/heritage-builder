@@ -13,5 +13,17 @@
   "starting_treasury": {
     "choices": [1000, 2500, 5000, 10000, 25000],
     "default": 5000
-  }
+  },
+  "goal_sets": [
+    {
+      "id": "thriving_town",
+      "name": "A thriving town",
+      "requirements": { "goals": [ { "Population": { "min": 1000 } }, { "Rating": { "rating": "prosperity", "min": 40 } } ] }
+    },
+    {
+      "id": "city_of_culture",
+      "name": "A city of culture",
+      "requirements": { "goals": [ { "Rating": { "rating": "culture", "min": 50 } }, { "FestivalsHeld": { "min": 2 } } ] }
+    }
+  ]
 }

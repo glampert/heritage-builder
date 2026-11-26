@@ -13,7 +13,7 @@ use crate::{
 // CampaignSystem
 // ----------------------------------------------
 
-// Per-tick hook that drives campaign mission-completion checks. The system is
+// Per-tick hook that drives campaign mission-completion checks, and a custom game's goals'. The system is
 // stateless: all campaign progress lives in the `crate::campaign` manager
 // singleton, which survives the mission map loads that replace the GameSession.
 #[derive(Default, Serialize, Deserialize)]
@@ -26,5 +26,6 @@ impl GameSystem for CampaignSystem {
 
     fn update(&mut self, _engine: &mut Engine, _cmds: &mut SimCmds, context: &SimContext) {
         campaign::tick(context);
+        crate::custom_game::tick(context);
     }
 }

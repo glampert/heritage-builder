@@ -331,7 +331,7 @@ pub(crate) fn goal_line(goal: &MissionGoal, stats: &WorldStats, realm: realm::Re
 }
 
 // A goal's name as the player reads it, in `realm`'s words.
-fn goal_text(goal: &MissionGoal, realm: realm::Realm) -> String {
+pub(crate) fn goal_text(goal: &MissionGoal, realm: realm::Realm) -> String {
     let get = |key: &str| ui::text::get(UiTextCategory::Menu, key).to_string();
     match goal {
         MissionGoal::Population { .. } => get("debrief.goal.population"),
@@ -763,7 +763,7 @@ pub(super) fn goals_table(
 
 // A section's title ("DISTINCTIONS", the Menu key `key`'s text) in the goals' header look at the
 // left, labeled `<label>_title`, and its note in italics at the right (`<label>_note`).
-fn section_title(
+pub(super) fn section_title(
     context: &GameUiContext,
     scales: Scales,
     label: &str,
@@ -844,7 +844,7 @@ fn distinctions_table(
 
 // The four ratings side by side: each its name and value over a bar filled to it, painted as the
 // mockup lays them out. Labeled `ratings` (value: names, values).
-fn ratings_bars(scales: Scales, ratings: &[(String, u32)], width: f32, tightness: f32) -> UiCanvas {
+pub(super) fn ratings_bars(scales: Scales, ratings: &[(String, u32)], width: f32, tightness: f32) -> UiCanvas {
     let color = skin::intermission_color;
     let (name_color, value_color, fill) = (color("sub", "sub"), color("text", "ink"), color("accent", "accent"));
     let rule = color("rule", "sub");

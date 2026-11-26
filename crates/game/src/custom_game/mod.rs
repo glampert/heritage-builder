@@ -11,22 +11,37 @@
 //   reads it back from there (from_header). So it needs no save-version bump.
 // - Any other session (the home menu, a campaign mission, a preset or a new map from automation or
 //   the developer editor) ends it.
+// - Its goals (docs/plans/ratings.md, §7): a goal set from maps.json, or none (the Sandbox).
+//   tick() checks them as campaign::tick checks a mission's, and once they're met the game is
+//   completed (kept in its record, so a save remembers) and its short debrief opens
+//   (CustomGameComplete). With its Failure switch on, it can be lost as a mission is (debt, or
+//   Legitimacy's recall; its goal set's time limit, if it has one): the failure screen's Try again
+//   starts it afresh with the same options (ActiveCustomGame::settings).
 
 pub mod config;
 pub mod preview;
 
-pub use config::{MapConfigs, MapDef, MapSource};
-use engine::ui::text::{self, UiTextCategory};
+pub use config::{GoalSetDef, MapConfigs, MapDef, MapSource};
+use engine::{
+    log,
+    ui::text::{self, UiTextCategory},
+};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, IntoEnumIterator};
 
 use crate::{
     GameLoop,
-    campaign::config::CampaignConfigs,
+    campaign::{
+        self,
+        config::{CampaignConfigs, MissionRequirements},
+    },
     config::{GameConfigs, LoadMapSetting},
     realm::Realm,
     save_header::SaveHeader,
-    sim::calendar::{CalendarSettings, EraDef},
+    sim::{
+        SimContext,
+        calendar::{CalendarSettings, EraDef},
+    },
     tile::sets::{PresetTiles, TERRAIN_LAND_CATEGORY, TERRAIN_WATER_CATEGORY},
 };
 
@@ -121,6 +136,10 @@ pub struct CustomGameSettings {
     // Stored for the systems that will read them: seasons and floods (M7), raids (game Phase 2).
     pub seasons_and_floods: bool,
     pub raids: bool,
+    // The goal set's id in maps.json; None: the Sandbox, no goals.
+    pub goal_set: Option<String>,
+    // Debt and Legitimacy can lose the game (FailureSwitches::ON), and its goal set's time limit.
+    pub failure: bool,
 }
 
 // Starts the game: the session is replaced with it at the start of the next frame
@@ -183,6 +202,37 @@ pub struct CustomGameRecord {
     // TODO(realm-ui): read by M7 (seasons and floods) and game Phase 2 (raids); stored until then.
     pub seasons_and_floods: bool,
     pub raids: bool,
+    // Its goal set's id in maps.json; None: the Sandbox.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub goal_set: Option<String>,
+    // Its Failure switch, and whether its goals were met (it can't be lost then).
+    pub failure: bool,
+    pub completed: bool,
+    // How it started, for Try again; None in a header written before goal sets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start: Option<CustomGameStart>,
+}
+
+// What a custom game started with that its record doesn't hold otherwise: enough, with its realm and
+// map, to start it again (ActiveCustomGame::settings).
+#[derive(Clone, Default, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CustomGameStart {
+    // A blank map's size and terrain; None for a preset's or a save's map, which maps.json names.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blank: Option<BlankMapStart>,
+    pub start_year: u32,
+    pub start_month: u32,
+    pub starting_gold: u32,
+    pub fires_and_collapses: bool,
+}
+
+#[derive(Clone, Default, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BlankMapStart {
+    pub width: i32,
+    pub height: i32,
+    pub terrain: String, // Its tile name: grass, dirt or water.
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -193,6 +243,12 @@ pub struct ActiveCustomGame {
 
 impl ActiveCustomGame {
     pub fn from_settings(settings: &CustomGameSettings) -> Self {
+        let blank = match &settings.map {
+            ChosenMap::Blank { width, height, terrain } => {
+                Some(BlankMapStart { width: *width, height: *height, terrain: terrain.to_string().to_lowercase() })
+            }
+            _ => None,
+        };
         Self {
             realm: settings.realm,
             record: CustomGameRecord {
@@ -201,8 +257,73 @@ impl ActiveCustomGame {
                 fast_construction: settings.fast_construction,
                 seasons_and_floods: settings.seasons_and_floods,
                 raids: settings.raids,
+                goal_set: settings.goal_set.clone(),
+                failure: settings.failure,
+                completed: false,
+                start: Some(CustomGameStart {
+                    blank,
+                    start_year: settings.calendar.start_year,
+                    start_month: settings.calendar.start_month,
+                    starting_gold: settings.starting_gold,
+                    fires_and_collapses: settings.fires_and_collapses,
+                }),
             },
         }
+    }
+
+    // The settings it started with, to start it again (the failure screen's Try again): None when
+    // its record doesn't say how it started, or maps.json no longer has its map (or, for a save's
+    // map, the save is gone).
+    pub fn settings(&self) -> Option<CustomGameSettings> {
+        let record = &self.record;
+        let start = record.start.as_ref()?;
+        let map_id = record.map.clone()?;
+        if !MapConfigs::is_initialized() {
+            return None;
+        }
+        let configs = MapConfigs::get();
+        let map_def = configs.available_maps().into_iter().find(|map| map.id == map_id)?;
+        let map = match (&map_def.source, &start.blank) {
+            (MapSource::Blank { .. }, Some(blank)) => ChosenMap::Blank {
+                width: config::nearest_blank_size(blank.width),
+                height: config::nearest_blank_size(blank.height),
+                terrain: blank_terrain(&blank.terrain),
+            },
+            (MapSource::Blank { width, height, terrain }, None) => {
+                ChosenMap::Blank { width: *width, height: *height, terrain: blank_terrain(terrain) }
+            }
+            (MapSource::Preset { preset_number }, _) => ChosenMap::Preset { preset_number: *preset_number },
+            (MapSource::SaveGame { save_file }, _) => ChosenMap::SaveGame { save_file: save_file.clone() },
+        };
+        Some(CustomGameSettings {
+            realm: self.realm,
+            map_id,
+            map,
+            calendar: start_calendar(self.realm, start.start_year, start.start_month),
+            starting_gold: start.starting_gold,
+            difficulty: record.difficulty,
+            fires_and_collapses: start.fires_and_collapses,
+            fast_construction: record.fast_construction,
+            seasons_and_floods: record.seasons_and_floods,
+            raids: record.raids,
+            goal_set: record.goal_set.clone(),
+            failure: record.failure,
+        })
+    }
+
+    // Its goals: its goal set's, None for the Sandbox (or a set maps.json no longer has).
+    pub fn requirements(&self) -> Option<&'static MissionRequirements> {
+        let id = self.record.goal_set.as_deref()?;
+        if !MapConfigs::is_initialized() {
+            return None;
+        }
+        MapConfigs::get().goal_set(id).map(|set| &set.requirements)
+    }
+
+    // Its goal set, None for the Sandbox.
+    pub fn goal_set(&self) -> Option<&'static GoalSetDef> {
+        let id = self.record.goal_set.as_deref()?;
+        MapConfigs::is_initialized().then(|| MapConfigs::get().goal_set(id)).flatten()
     }
 
     // The custom game a save's header names: a game outside a campaign with a custom game record.
@@ -246,6 +367,47 @@ pub fn end() {
 // The realm of the custom game being played, if any.
 pub fn active_realm() -> Option<Realm> {
     active().map(|game| game.realm)
+}
+
+// The goals of the custom game being played: its goal set's. None outside a custom game and in a
+// Sandbox.
+pub fn active_requirements() -> Option<&'static MissionRequirements> {
+    active()?.requirements()
+}
+
+// The calendar a custom game in `realm` starts with from a year and month: the realm's eras over
+// the calendar's defaults, else its first starting date if they don't make a valid calendar.
+fn start_calendar(realm: Realm, start_year: u32, start_month: u32) -> CalendarSettings {
+    let defaults = &GameConfigs::get().sim.calendar;
+    let settings = CalendarSettings { start_year, start_month, eras: realm_eras(realm), ..defaults.clone() };
+    if settings.validate().is_ok() {
+        return settings;
+    }
+    starting_dates(realm).into_iter().next().unwrap_or_else(|| defaults.clone())
+}
+
+// Each simulation step (CampaignSystem, after campaign::tick): a custom game with goals is completed
+// once they're all met, unless it's lost; its short debrief opens then (campaign's
+// CustomGameComplete prompt). Returns whether it was completed now.
+pub fn tick(context: &SimContext) -> bool {
+    let Some(game) = active() else {
+        return false;
+    };
+    if game.record.completed || context.ratings().failure().is_some() {
+        return false;
+    }
+    let Some(requirements) = game.requirements() else {
+        return false;
+    };
+    if !requirements.all_met(context.world().stats()) {
+        return false;
+    }
+    if let Some(game) = CustomGameState::get_mut().active.as_mut() {
+        game.record.completed = true;
+    }
+    log::info!(log::channel!("campaign"), "The custom game's goals are met.");
+    campaign::request_custom_game_complete();
+    true
 }
 
 // What every construction time is multiplied by on top of SimConfigs::construction.time_scale: the
