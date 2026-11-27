@@ -339,6 +339,12 @@ impl Simulation {
             crate::faith::festivals::run_requests(&context);
         }
 
+        // Priorities the City book's Labour page set.
+        if crate::labour::has_requests() {
+            let context = self.new_sim_context(0.0, tile_map, world);
+            crate::labour::run_requests(&context);
+        }
+
         // Requests the City book's Goods page sent.
         if crate::trade::requests::has_requests() {
             let context = self.new_sim_context(0.0, tile_map, world);

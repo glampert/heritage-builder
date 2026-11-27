@@ -282,9 +282,12 @@ fn test_a_field_is_sown_in_its_season_and_reaped() {
     assert_eq!(stage_at(&env, Cell::new(12, 10)), FieldStage::Ripe.variation());
     assert_eq!(held(&env, farmstead), 0);
 
+    game::city::history::clear();
     new_month(&mut env, 9);
     // 8 fields x 4 rice x fertility 50 (x1) x tended every month.
     assert_eq!(held(&env, farmstead), 32);
+    // The City book's Food page counts it grown (city::history).
+    assert_eq!(game::city::CityHistory::get().this_month_flow().made(ResourceKind::Rice), 32);
     assert_eq!(stage_at(&env, Cell::new(12, 10)), FieldStage::Fallow.variation());
     let notices = farms::take_notices();
     assert_eq!(notices.len(), 1);

@@ -14,8 +14,11 @@ pub(super) const COMMANDS: &[CommandDef] = &[CommandDef {
     help: "What the City book shows of the city: population and workforce (jobs_not_filled, not_working_age), housing by \
            level (houses, residents, next_needs), goods by group (stored, room, change since the month began), \
            storage_yards and granaries (buildings, stored, capacity), food (stored, a month, months), balance, \
-           net_this_year, taxes_owed, warnings; and history: a sample at the start of each month kept (ordinal_month, \
-           population, employed, balance). A new or loaded game starts the history at its month.",
+           net_this_year, taxes_owed, warnings; the Food page's `food` (the granaries' food, what was grown and eaten \
+           last month, its `period`, how long it lasts, a row per food and the twelve months' trend); the Labour \
+           page's `labour` (labour.state's sectors and workforce); and history: a sample at the start of each month \
+           kept (ordinal_month, population, employed, balance, granary_food). A new or loaded game starts the \
+           history at its month.",
     params: &[],
     run: cmd_state,
 }];
@@ -26,9 +29,11 @@ fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
     crate::city::history::sample_if_new_month(context.session.world(), context.session.sim());
     let report = CityReport::read(context.session.world(), context.session.sim());
     let history: Vec<_> = CityHistory::get().months().collect();
+    let labour = context.session.with_sim_context(0.0, |sim| crate::labour::report(sim));
     let mut value = serde_json::to_value(&report).unwrap_or(Value::Null);
     if let Some(object) = value.as_object_mut() {
         object.insert("history".to_string(), json!(history));
+        object.insert("labour".to_string(), serde_json::to_value(&labour).unwrap_or(Value::Null));
     }
     done(value)
 }

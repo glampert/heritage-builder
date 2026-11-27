@@ -15,6 +15,7 @@
 
 use std::collections::BTreeMap;
 
+use common::mem::SingleThreadStatic;
 use serde::Serialize;
 use strum::IntoEnumIterator;
 
@@ -231,6 +232,26 @@ pub fn set_paused(context: &SimContextMut, handle: BuildingKindAndId, paused: bo
         allocate(context);
     }
     Some(paused)
+}
+
+// Priority changes the City book's Labour page asks for, run at the start of the next frame
+// (Simulation::update), where the world can be changed: the page's controls draw inside the UI.
+static REQUESTS: SingleThreadStatic<Vec<(LabourSector, usize)>> = SingleThreadStatic::new(Vec::new());
+
+// Moves `sector` to `priority` at the start of the next frame (set_priority).
+pub fn request_priority(sector: LabourSector, priority: usize) {
+    REQUESTS.as_mut().push((sector, priority));
+}
+
+#[inline]
+pub fn has_requests() -> bool {
+    !REQUESTS.as_ref().is_empty()
+}
+
+pub fn run_requests(context: &SimContextMut) {
+    for (sector, priority) in std::mem::take(REQUESTS.as_mut()) {
+        set_priority(context, sector, priority);
+    }
 }
 
 // Moves a sector to a priority (from 1) and hands the workers out again at once. Returns whether

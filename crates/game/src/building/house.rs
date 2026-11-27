@@ -629,6 +629,8 @@ impl HouseBuilding {
             if whole_units >= 1.0 {
                 let removed = self.remove_resources(member, whole_units as u32);
                 self.consumption_accumulator[index] -= removed as f32;
+                // The City book's eaten this month (city::history).
+                crate::city::history::record_used(member, removed);
             }
 
             // Cap carried-over debt at ~one day's worth so a long shortage can't

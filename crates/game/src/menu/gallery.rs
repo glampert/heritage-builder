@@ -347,6 +347,10 @@ fn controls(context: &mut GameUiContext) -> UiWidgetGroup {
     let arrows = skin::step_selector("Arrows", ["Slow", "Normal", "Fast"].map(UiString::from))
         .with_style(UiStepSelectorStyle::Arrows)
         .with_wrap(true);
+    // The City book's labour priorities: a value between a boxed − and +.
+    let plus_minus = skin::step_selector("Priority", (1..=6).map(|step| UiString::literal(step.to_string())))
+        .with_style(UiStepSelectorStyle::PlusMinus)
+        .with_current(1);
 
     let list_rows = (1..=8)
         .map(|index| {
@@ -400,6 +404,7 @@ fn controls(context: &mut GameUiContext) -> UiWidgetGroup {
         .with_widget(labeled)
         .with_widget(steps)
         .with_widget(arrows)
+        .with_widget(plus_minus)
         .with_widget(list)
         .with_widget(realm_list)
 }

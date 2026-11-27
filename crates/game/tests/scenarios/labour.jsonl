@@ -1,0 +1,104 @@
+# Labour priorities (docs/plans/messages.md, M11 Phases 2 and 3): a city short of workers, 4 of them
+# for a farmstead (food, 2 to 6 jobs) and a pottery kiln (industry, 2 to 4): food is first, so the
+# farmstead takes all 4. The Labour page's − raises Industry over food and the kiln takes them; the
+# inspector says where a short building's sector stands; Pause work on the kiln sends its workers to
+# the farmstead and Resume work brings them back; labour.set and building.pause do the same from
+# automation; a house that fills is staffed by the allocation's next pass. Saves screenshots to
+# out/labour/.
+# From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/labour.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [32, 32]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "no_city_risks", "value": true}}
+{"method": "finance.set", "params": {"balance": 3000}}
+{"method": "world.road", "params": {"from": [3, 10], "to": [28, 10]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [8, 9]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [9, 9]}}
+{"method": "world.add_population", "params": {"cell": [8, 9], "count": 2}}
+{"method": "world.add_population", "params": {"cell": [9, 9], "count": 2}}
+{"method": "world.place", "params": {"tile": "farmstead", "cell": [4, 11]}}
+{"method": "world.place", "params": {"tile": "pottery_kiln", "cell": [12, 11]}}
+{"method": "sim.pause"}
+
+# ---- Food first: the farmstead takes the 4 ----
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/order", "value": ["food_and_farming", "industry", "services", "culture_and_religion", "infrastructure", "trade"]}}
+{"method": "labour.allocate"}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/workforce", "value": 4}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 11]}, "path": "/workers/employees", "value": 4}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 11]}, "path": "/workers/employees", "value": 0}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/sectors/1/short", "value": 4}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/jobs_not_filled", "value": 6}}
+# The kiln's panel: short of its minimum, its sector second.
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [12, 11]}, "path": "/sections/0/note", "value": "Needs at least 2 to work · Industry is priority 2"}}
+{"method": "ui.tree", "params": {"fields": ["path"]}}
+{"method": "camera.teleport", "params": {"cell": [12, 11]}}
+{"method": "input.click", "params": {"cell": [12, 11]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/labour/kiln_short.png"}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
+{"method": "sim.pause"}
+
+# ---- The Labour page: Industry over food ----
+{"method": "ui.click", "params": {"path": "TopBar/City book"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Labour"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/labour/food_first.png"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Labour/sectors", "kind": "canvas"}, "path": "/widgets/0/value/1", "value": {"sector": "industry", "name": "Industry", "priority": 2, "needed": 4, "employed": 0, "short": 4, "paused": 0}}}
+{"method": "ui.click", "params": {"path": "CityManagement/Labour/Industry/-"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/order/0", "value": "industry"}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 11]}, "path": "/workers/employees", "value": 4}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 11]}, "path": "/workers/employees", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Labour/sectors", "kind": "canvas"}, "path": "/widgets/0/value/0", "value": {"sector": "industry", "name": "Industry", "priority": 1, "needed": 4, "employed": 4, "short": 0, "paused": 0}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/labour/industry_first.png"}}
+{"method": "ui.click", "params": {"path": "CityManagement/Close"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [4, 11]}, "path": "/sections/0/note", "value": "Needs at least 2 to work · Food and farming is priority 2"}}
+
+# ---- Pause work on the kiln: its workers go to the farmstead; Resume work brings them back ----
+{"method": "camera.teleport", "params": {"cell": [12, 11]}}
+{"method": "input.click", "params": {"cell": [12, 11]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Pause work"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 11]}, "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 11]}, "path": "/workers/employees", "value": 0}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 11]}, "path": "/workers/employees", "value": 4}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [12, 11]}, "path": "/status/word", "value": "Paused"}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/sectors/0", "value": {"sector": "industry", "priority": 1, "needed": 0, "employed": 0, "short": 0, "paused": 1, "name": "Industry", "buildings": [{"building": "Factory", "cell": {"x": 12, "y": 11}, "name": "Pottery Kiln", "min": 2, "needed": 4, "employed": 0, "paused": true, "working": false}]}}}
+{"method": "screenshot", "params": {"path": "out/labour/kiln_paused.png"}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Resume work"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 11]}, "path": "/workers/employees", "value": 4}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 11]}, "path": "/workers/employees", "value": 0}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
+{"method": "sim.pause"}
+
+# ---- The same from automation ----
+{"method": "building.pause", "params": {"cell": [12, 11], "paused": true}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 11]}, "path": "/workers/employees", "value": 4}}
+{"method": "building.pause", "params": {"cell": [12, 11]}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 11]}, "path": "/paused", "value": false}}
+{"method": "labour.set", "params": {"sector": "food_and_farming", "priority": 1}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/order/1", "value": "industry"}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 11]}, "path": "/workers/employees", "value": 4}}
+
+# ---- A house that fills: the next pass staffs the kiln with its workers ----
+{"method": "world.place", "params": {"tile": "house0", "cell": [14, 9]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [15, 9]}}
+{"method": "world.add_population", "params": {"cell": [14, 9], "count": 2}}
+{"method": "world.add_population", "params": {"cell": [15, 9], "count": 2}}
+{"method": "time.fast_forward", "params": {"sim_secs": 12, "resume": true}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/workforce", "value": 8}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 11]}, "path": "/workers/employees", "value": 6}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 11]}, "path": "/workers/employees", "value": 2}}
+{"method": "assert.eq", "params": {"query": "text.missing", "path": "/count", "value": 0}}

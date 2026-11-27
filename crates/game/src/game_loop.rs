@@ -863,7 +863,7 @@ impl GameLoop {
     }
 
     // The month's harvests (crate::farms), as a Harvest message with the Notification sound, on the
-    // City book's Goods page.
+    // City book's Food page.
     fn notify_farms(&mut self) {
         for notice in crate::farms::take_notices() {
             let good = notice.good.display_name().to_lowercase();
@@ -871,7 +871,7 @@ impl GameLoop {
                 ("amount", &notice.amount.to_string()),
                 ("good", &good),
             ]);
-            self.post_message(Message::new(MessageKind::Harvest, text).with_target(MessageTarget::CityPage("goods")));
+            self.post_message(Message::new(MessageKind::Harvest, text).with_target(MessageTarget::CityPage("food")));
             ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::Notification);
         }
     }

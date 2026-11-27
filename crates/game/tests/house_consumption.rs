@@ -23,6 +23,7 @@ fn main() {
         test_utils::test_fn!(test_house_downgrades_when_requirements_unmet),
         test_utils::test_fn!(test_deprived_level0_house_loses_population_to_emigration),
         test_utils::test_fn!(test_houses_need_pottery_from_level_2),
+        test_utils::test_fn!(test_a_months_flow_goes_to_its_sample),
     ]);
 }
 
@@ -139,6 +140,7 @@ fn test_house_consumption_scales_with_occupancy() {
         let received = give_rice(&mut env, house, STARTING_RICE);
         assert_eq!(received, STARTING_RICE, "house should accept a full stock of rice");
     }
+    game::city::history::clear();
 
     add_house_population(&mut env, crowded, 8);
     add_house_population(&mut env, sparse, 2);
@@ -152,6 +154,9 @@ fn test_house_consumption_scales_with_occupancy() {
     let consumed_empty = STARTING_RICE - rice_in_stock(&env, empty);
 
     assert_eq!(consumed_empty, 0, "an unoccupied house should consume nothing");
+    // The City book's Food page counts what they ate (city::history).
+    let eaten = game::city::CityHistory::get().this_month_flow().used(ResourceKind::Rice);
+    assert_eq!(eaten, consumed_crowded + consumed_sparse);
     assert!(consumed_sparse > 0, "an occupied house should consume food over time");
     assert!(
         consumed_crowded > consumed_sparse,
@@ -234,4 +239,58 @@ fn test_houses_need_pottery_from_level_2() {
             configs.find_house_level_config(level).resources_required.iter().any(|kinds| *kinds == ResourceKind::Pottery);
         assert_eq!(needs_pottery, level != HouseLevel::Level1, "{level}");
     }
+}
+
+// ----------------------------------------------
+// The City book's month counts (city::history, the Food page)
+// ----------------------------------------------
+
+// What's made and used counts toward the month under way; a new month's sample gives it to the month
+// that ended, and the Food page reads it as last month's, whole once the month's own sample was taken
+// at its start.
+fn test_a_months_flow_goes_to_its_sample() {
+    use game::city::{CityHistory, food, history};
+
+    let mut env = TestEnvironment::with_map_size(Size::new(20, 20));
+    test_utils::fill_terrain(&mut env, "grass");
+    let granary = test_utils::spawn_building(&mut env, Cell::new(2, 2), "granary");
+    assert_eq!(test_utils::find_building_mut(&mut env, granary).receive_resources(ResourceKind::Rice, 40), 40);
+    env.world.refresh_stats(env.sim.stats_sources());
+    let configs = &game::config::GameConfigs::get().sim;
+    let set_month = |env: &mut TestEnvironment, month: u32| {
+        let date = game::sim::calendar::CalendarDate { year: month / 12, month: month % 12 + 1, day: 1 };
+        env.sim.calendar_mut().set_date(date, configs.days_per_month, configs.seconds_per_month).unwrap();
+    };
+
+    history::clear();
+    let start = history::current_month(&env.sim);
+    history::sample_if_new_month(&env.world, &env.sim);
+    history::record_made(ResourceKind::Rice, 12);
+    history::record_used(ResourceKind::Rice, 4);
+    assert_eq!(CityHistory::get().this_month_flow().made(ResourceKind::Rice), 12);
+    let report = food::read(&env.world, &env.sim, 0.0);
+    assert_eq!(report.period, "this_month", "no month is over yet");
+    assert_eq!((report.grown, report.eaten), (12, 4));
+
+    // The next month: the first one's counts are its sample's, a part of a month (the game began in it).
+    set_month(&mut env, start + 1);
+    history::sample_if_new_month(&env.world, &env.sim);
+    assert_eq!(CityHistory::get().this_month_flow().made(ResourceKind::Rice), 0, "a new month counts afresh");
+    history::record_used(ResourceKind::Rice, 8);
+    let report = food::read(&env.world, &env.sim, 0.0);
+    assert_eq!(report.period, "last_month_part");
+    assert_eq!((report.stored, report.grown, report.eaten), (40, 12, 4));
+    let rice = &report.rows[0];
+    assert_eq!((rice.good, rice.change), ("Rice", 8));
+    assert_eq!(rice.lasts_months, Some(10.0), "40 stored at 4 a month");
+    assert!(!rice.short);
+
+    // A month later, a whole month: 8 eaten, 40 lasts 5 months.
+    set_month(&mut env, start + 2);
+    history::sample_if_new_month(&env.world, &env.sim);
+    let report = food::read(&env.world, &env.sim, 0.0);
+    assert_eq!(report.period, "last_month");
+    assert_eq!((report.grown, report.eaten, report.lasts_months), (0, 8, Some(5.0)));
+    assert_eq!(report.trend, vec![40.0, 40.0, 40.0], "the granaries' food at each month's start, then now");
+    history::clear();
 }

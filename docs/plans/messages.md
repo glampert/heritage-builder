@@ -1,6 +1,6 @@
 # Messages and advisors
 
-**Status (2026-11-27): accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phases 0 to 2 done; Phase 3 next.** This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-27): accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phases 0 to 3 done; Phase 4, the docs, next.** This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
 - GDD 5.18's advisor messages and events: typed messages with a priority, a place on the map or a page, and a popup for the important ones (the mockups' `event-<realm>.jpg`);
 - GDD 5.3's labour priorities per sector, as in Pharaoh, and the advisor pages the roadmap asks for: the City book's Labour and Food pages (`city-labour-<realm>.jpg`, `city-food-<realm>.jpg`). Finances (M4) and Ratings (M9) are pages already;
 - the two inspector actions realm-ui Phase 8 left disabled: Pause work, and a store's Get and Empty orders.
@@ -212,10 +212,20 @@ Notes (2026-11-27):
 
 ### Phase 3: The Labour and Food pages (medium)
 
-- [ ] The month's production and consumption counters.
-- [ ] The Labour page, its order set from it; the inspector's workers note.
-- [ ] The Food page and its chart.
-- [ ] `ui_city.jsonl` and `labour.jsonl`.
+- [x] The month's production and consumption counters.
+- [x] The Labour page, its order set from it; the inspector's workers note.
+- [x] The Food page and its chart.
+- [x] `ui_city.jsonl` and `labour.jsonl`.
+
+Notes (2026-11-27):
+- **As built.** `city::history` counts what's made (`record_made`: a workshop's batch, a farmstead's harvest, a gatherer's load) and used (`record_used`: what a house eats or uses) in the month under way, and gives it to the month's sample when the next is taken (`MonthSample::flow`); a sample also keeps the granaries' food for the chart. `city::food::read` (`FoodReport`, in `CityReport::food`) reads last month's grown and eaten per food (`CityHistory::last_month_flow`, its `period`), the granaries' stock, how long each food lasts at that rate and the trend. The City book has eight pages: the Labour page (`city_book/labour.rs`, the `industry` icon) and the Food page (`city_book/food.rs`, the `food` icon) after Ratings, as the mockups place them. The Labour page's − and + are a step selector in a new engine style, `UiStepSelectorStyle::PlusMinus` (the boxed − and + of the mockup, recorded as `-` and `+`); a change queues `labour::request_priority`, run at the start of the next frame, and the book's rebuild key holds the order, so it's built again with the new allocation. The inspector's workers note adds the sector's priority when the building is short ("2 short · Industry is priority 2", "Needs at least 2 to work · …"). Harvest messages go to the Food page. `city.state` reports `food` and `labour`.
+- **Deviations.**
+  - **The cards and the table read crate::labour's report,** not `CityReport`'s workforce: the jobs not filled count only buildings that can work, so the cards and the sectors add up.
+  - **Change** in By food is grown less eaten last month (the mockup's figures), not what the granaries gained, which trade, requests and markets also move.
+  - **Last month's counts.** "Grown a month" and "Eaten a month" are the last month that's over; before one is (a new or loaded game), the cards say "this month" or "last month" for the part seen. Before anything was eaten, "Lasts without harvests" reads the houses' rates (the Overview's estimate).
+  - **A sector without jobs** shows "—" where the mockup would say Full; the selected row's frame in the mockup (a hover) isn't drawn.
+  - **The chart's months** are numbers, as the Population page's.
+- **Verified.** `cargo test --workspace` (`tests/house_consumption.rs`: what houses eat counted, and a month's counts moving onto its sample with the Food report's period, rows, months and trend; `tests/farms.rs`: a harvest counted grown; `tests/labour.rs`: the page's queued priority), both clippy runs, all 32 CI scenarios on a release build (`ui_city.jsonl` gains the Labour and Food pages in each realm and at 200% and 75% UI scale, and the − and + moving Industry; the new `labour.jsonl`, in CI's list; `ui_skins.jsonl` clicks the gallery's new plus-minus control), `determinism.jsonl` twice with the same outputs and save, and `ui_build` and `determinism` recorded and replayed. Screenshots of both pages in each realm and at 200%, the reordered Labour page, and the kiln's panel with its sector's priority.
 
 ### Phase 4: Documentation (small)
 

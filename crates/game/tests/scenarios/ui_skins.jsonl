@@ -61,6 +61,8 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Steps", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Very Hard"}}
 {"method": "ui.click", "params": {"path": "Skin Gallery/Arrows/Previous"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Arrows", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Fast"}}
+{"method": "ui.click", "params": {"path": "Skin Gallery/Priority/+"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Priority", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "3"}}
 # Tab bars: ui.set by label or index; the selected tab's label is in its contents' paths.
 {"method": "ui.set", "params": {"path": "Skin Gallery/Tabs", "value": "Second"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Tabs", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Second"}}

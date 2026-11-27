@@ -353,6 +353,10 @@ pub enum UiStepSelectorStyle {
     // A row of buttons, one per step with its text, the current one filled; no label drawn (the
     // City book's tax level).
     Buttons,
+    // The current step's text between a boxed − and +, right of the label (the City book's labour
+    // priorities); the boxes `segment_height` points square (at least a line), their fill the
+    // look's track and outline its outline, the accent (fill) while hovered.
+    PlusMinus,
 }
 
 // The segments' and arrows' colours.
@@ -385,7 +389,8 @@ pub type UiStepSelectorChanged = UiWidgetCallback<dyn Fn(&UiStepSelector, &mut d
 // one) or arrows (click previous or next; with_wrap goes round the ends). Recorded as kind
 // "step_selector", its value the current step's label, which ui.set takes a step's label or index
 // on; its parts are recorded under its label: segments as kind "step" (value: whether current),
-// arrows as buttons "Previous" and "Next". Plays SliderChanged when the step changes.
+// arrows as buttons "Previous" and "Next", the plus-minus style's boxes as buttons "-" and "+".
+// Plays SliderChanged when the step changes.
 pub struct UiStepSelector {
     label: UiString,
     steps: Vec<UiString>,
@@ -545,6 +550,56 @@ impl UiWidget for UiStepSelector {
                         }
                     }
                 }
+                UiStepSelectorStyle::PlusMinus => {
+                    let side = self.look.segment_height.max(line);
+                    let value_width = self.value_width(ui_sys);
+                    // At the right of the label; spread over the whole width when it's hidden.
+                    let controls =
+                        if self.hide_label { width } else { (side * 2.0 + CONTROL_GAP * 2.0 + value_width).min(width) };
+                    let left = rect.right() - controls;
+                    let minus = egui::Rect::from_min_size(pos2(left, rect.top()), vec2(side, side));
+                    let plus = egui::Rect::from_min_size(pos2(rect.right() - side, rect.top()), vec2(side, side));
+                    let middle = pos2((minus.right() + plus.left()) * 0.5, rect.top() + side * 0.5);
+                    ui.painter().text(middle, Align2::CENTER_CENTER, current_label, font.clone(), value_color);
+
+                    for (box_rect, delta, name) in [(minus, -1, "-"), (plus, 1, "+")] {
+                        let target = step_index(current, delta, labels.len(), self.wrap);
+                        let enabled = target != current;
+                        let response =
+                            ui.interact(box_rect, id.with(name), if enabled { Sense::click() } else { Sense::hover() });
+                        let hovered = response.hovered() && enabled;
+                        let outline = self.look.outline.unwrap_or(self.look.fill);
+                        let mut stroke = if hovered { self.look.fill } else { outline };
+                        let mut glyph = if hovered { color32(self.look.fill) } else { value_color };
+                        let mut fill = self.look.track;
+                        if !enabled {
+                            stroke.a *= 0.35;
+                            fill.a *= 0.5;
+                            glyph = glyph.gamma_multiply(0.35);
+                        }
+                        let rounding = self.look.rounding.min(side * 0.3);
+                        ui.painter().rect_filled(box_rect, rounding, color32(fill));
+                        let outline_width = (side * 0.04).max(1.0);
+                        ui.painter().rect_stroke(
+                            box_rect,
+                            rounding,
+                            Stroke::new(outline_width, color32(stroke)),
+                            StrokeKind::Inside,
+                        );
+                        // The − and + as strokes, whatever the font has.
+                        let center = box_rect.center();
+                        let arm = side * 0.22;
+                        let glyph_stroke = Stroke::new((side * 0.075).max(1.5), glyph);
+                        ui.painter().line_segment([center - vec2(arm, 0.0), center + vec2(arm, 0.0)], glyph_stroke);
+                        if delta > 0 {
+                            ui.painter().line_segment([center - vec2(0.0, arm), center + vec2(0.0, arm)], glyph_stroke);
+                        }
+                        immediate::record(ui_sys, ui, &response, "button", name, None, enabled, None);
+                        if response.clicked() && enabled {
+                            picked = Some(target);
+                        }
+                    }
+                }
                 UiStepSelectorStyle::Arrows => {
                     let arrow = vec2(line, line);
                     let value_width = self.value_width(ui_sys);
@@ -605,6 +660,11 @@ impl UiWidget for UiStepSelector {
                 Vec2::new(width.max(min_width), line)
             }
             UiStepSelectorStyle::Buttons => Vec2::new(width, self.look.segment_height.max(line)),
+            UiStepSelectorStyle::PlusMinus => {
+                let side = self.look.segment_height.max(line);
+                let min_width = label + CONTROL_GAP * 3.0 + side * 2.0 + self.value_width(ui_sys);
+                Vec2::new(width.max(min_width), side)
+            }
         }
     }
 

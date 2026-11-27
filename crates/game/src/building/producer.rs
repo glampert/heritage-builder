@@ -585,6 +585,8 @@ impl ProducerBuilding {
         self.production_output_stock.store_resources(count);
         let stored = self.production_output_stock.item.count - before;
         self.debug.log_resources_gained(self.production_output_stock.resource_kind(), stored);
+        // The City book's grown this month (city::history).
+        crate::city::history::record_made(self.production_output_stock.resource_kind(), stored);
         stored
     }
 
@@ -670,8 +672,12 @@ impl ProducerBuilding {
             // Produce items and store locally:
             if produce_items {
                 let count = self.config.unwrap().production_output_amount;
+                let before = self.production_output_stock.item.count;
                 self.production_output_stock.store_resources(count);
                 self.debug.log_resources_gained(self.production_output_stock.resource_kind(), count);
+                // What the city made this month (city::history).
+                let made = self.production_output_stock.item.count - before;
+                crate::city::history::record_made(self.production_output_stock.resource_kind(), made);
             }
         }
     }
@@ -800,7 +806,10 @@ impl ProducerBuilding {
         if let Some(item) = harvester_unit.peek_inventory() {
             debug_assert!(item.count != 0, "{item}");
             debug_assert!(item.kind == ResourceKind::Wood, "Expected wood, got {} instead", item.kind);
+            let before = this_producer.production_output_stock.item.count;
             this_producer.production_output_stock.store_resources(item.count);
+            let made = this_producer.production_output_stock.item.count - before;
+            crate::city::history::record_made(item.kind, made);
             harvester_unit.clear_inventory();
         } else {
             log::error!(

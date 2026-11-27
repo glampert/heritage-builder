@@ -238,7 +238,9 @@ fn workplace_status(building: &Building, needs_road: bool) -> Option<Status> {
     None
 }
 
-fn workers_section(building: &Building, compact: bool) -> Option<Section> {
+// The workers a building has against its jobs, and a note: paused, short of its minimum or of its
+// jobs (with its sector's labour priority: "2 short · Industry is priority 2"), or fully staffed.
+fn workers_section(context: &SimContext, building: &Building, compact: bool) -> Option<Section> {
     let employer = building.workers()?.as_employer()?;
     let need = employer.max_employees();
     if need == 0 {
@@ -246,12 +248,20 @@ fn workers_section(building: &Building, compact: bool) -> Option<Section> {
     }
     let have = employer.employee_count();
     let short = need.saturating_sub(have);
+    let with_priority = |note: String| {
+        let sector = crate::labour::sector_of(context, building);
+        tf("workers.with_priority", &[
+            ("note", &note),
+            ("sector", ui_text::get(UiTextCategory::Hud, &sector.name_key())),
+            ("priority", &context.labour().priority(sector).to_string()),
+        ])
+    };
     let note = if building.is_paused() {
         t("workers.paused")
     } else if have < employer.min_employees() {
-        tf("workers.needs_min", &[("min", &employer.min_employees().to_string())])
+        with_priority(tf("workers.needs_min", &[("min", &employer.min_employees().to_string())]))
     } else if short > 0 {
-        tc("workers.short", i64::from(short), &[])
+        with_priority(tc("workers.short", i64::from(short), &[]))
     } else {
         t("workers.full")
     };
@@ -371,7 +381,7 @@ fn read_producer(
         Status { word: t("status.working"), tone: Tone::Good, summary: tf(summary_key, &[("good", &output_name)]) }
     }));
 
-    report.sections.extend(workers_section(building, false));
+    report.sections.extend(workers_section(context, building, false));
 
     if let (Some(farmstead), Some(crop)) = (&farmstead, crate::farms::crop_of(building)) {
         report.sections.push(fields_section(farmstead, crop, output));
@@ -456,7 +466,7 @@ fn read_storage(
     let wide = rows.len() > WIDE_STORE_ROWS;
     report.wide = wide;
 
-    report.sections.extend(workers_section(building, true));
+    report.sections.extend(workers_section(context, building, true));
     let title = if building.is(BuildingKind::Granary) { t("storage.food") } else { t("storage.goods") };
     let footer = match free {
         0 => t("storage.no_free_slots"),
@@ -556,7 +566,7 @@ fn read_service(
         Status { word: t("status.working"), tone: Tone::Good, summary }
     }));
 
-    report.sections.extend(workers_section(building, false));
+    report.sections.extend(workers_section(context, building, false));
 
     if let Some((supply, watered)) = &gate {
         report.sections.push(sluice_section(supply, *watered));

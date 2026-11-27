@@ -1,6 +1,7 @@
 # The City book (docs/plans/realm-ui.md, Phase 6): a small city's pages in each realm, their figures
-# against the world's stats, the kinds that open it on a page, the Finances page's tax level and
-# wage, a month's refresh and the UI scale. Saves screenshots to out/ui_city/. From the repository root:
+# against the world's stats, the Labour page's priorities and the Food page (docs/plans/messages.md,
+# Phase 3), the kinds that open it on a page, the Finances page's tax level and wage, a month's
+# refresh and the UI scale. Saves screenshots to out/ui_city/. From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --default-configs --window-size 1920x1080 --script crates/game/tests/scenarios/ui_city.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [24, 24]}}
@@ -78,6 +79,41 @@
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_city/dailong-ratings.png"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Ratings/legitimacy", "kind": "canvas"}, "path": "/widgets/0/value/name", "value": "The Mandate"}}
+# The Labour page: the workforce's cards and the sectors in priority order (docs/plans/messages.md,
+# Phase 3); its − on Industry moves it first, the workers going to the storage yard, and its +
+# moves it back.
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Labour"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-labour.png"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Labour/cards", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"workers": 3, "employed": 3, "looking_for_work": 0, "jobs_not_filled": 12}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Labour/sectors", "kind": "canvas"}, "path": "/widgets/0/value/0", "value": {"sector": "food_and_farming", "name": "Food and farming", "priority": 1, "needed": 6, "employed": 3, "short": 3, "paused": 0}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Labour/Industry", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "2"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"fields": ["path", "enabled"], "filter": "CityManagement/Labour/Food and farming/-"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "ui.click", "params": {"path": "CityManagement/Labour/Industry/-"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/order/0", "value": "industry"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Labour/sectors", "kind": "canvas"}, "path": "/widgets/0/value/0/sector", "value": "industry"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Labour/sectors", "kind": "canvas"}, "path": "/widgets/0/value/0/employed", "value": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Labour/Industry", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Labour"}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-labour-industry.png"}}
+{"method": "ui.click", "params": {"path": "CityManagement/Labour/Industry/+"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/order/0", "value": "food_and_farming"}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/sectors/0/employed", "value": 3}}
+# The Food page: the granaries' rice, its row and the chart.
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Food"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-food.png"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Food/cards", "kind": "canvas"}, "path": "/widgets/0/value/in_granaries", "value": 20}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Food/foods", "kind": "canvas"}, "path": "/widgets/0/value/0/good", "value": "Rice"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Food/foods", "kind": "canvas"}, "path": "/widgets/0/value/0/stored", "value": 20}}
+{"method": "assert.eq", "params": {"query": "city.state", "path": "/food/stored", "value": 20}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Food/chart", "kind": "canvas"}, "path": "/widgets/0/value/values/3", "value": 20.0}}
 {"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Heritage"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
@@ -149,6 +185,14 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_city/kambara-ratings.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Labour"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/kambara-labour.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Food"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/kambara-food.png"}}
 {"method": "ui.realm", "params": {"realm": "tampadesa"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
@@ -169,6 +213,14 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_city/tampadesa-ratings.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Labour"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/tampadesa-labour.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Food"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/tampadesa-food.png"}}
 {"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Heritage"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
@@ -194,6 +246,14 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_city/dailong-ratings-200.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Labour"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-labour-200.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Food"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-food-200.png"}}
 {"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Finances"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
@@ -204,6 +264,13 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_city/dailong-ratings-75.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Labour"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-labour-75.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Food"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Finances"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}

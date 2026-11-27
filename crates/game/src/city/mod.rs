@@ -2,10 +2,12 @@
 // world, the simulation and the configs when the book is built (report.rs), and a short history
 // sampled once a game month (history.rs) for its trend lines and monthly changes.
 
+pub mod food;
 pub mod history;
 pub mod report;
 
-pub use history::{CityHistory, MonthSample};
+pub use food::FoodReport;
+pub use history::{CityHistory, MonthFlow, MonthSample};
 pub use report::CityReport;
 
 // A name the configs spell in camel case ("SmallWell", "RoofTiles"), as the player reads it:

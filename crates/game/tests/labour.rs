@@ -27,6 +27,7 @@ fn main() {
         test_utils::test_fn!(test_priority_order),
         test_utils::test_fn!(test_higher_priority_fills_first),
         test_utils::test_fn!(test_raising_a_sector_moves_the_workers),
+        test_utils::test_fn!(test_the_labour_page_queues_its_changes),
         test_utils::test_fn!(test_minimums_first),
         test_utils::test_fn!(test_building_short_of_its_minimum_gets_none),
         test_utils::test_fn!(test_houses_beyond_reach_send_no_one),
@@ -227,6 +228,28 @@ fn test_raising_a_sector_moves_the_workers() {
     assert_eq!(env.sim.labour().priority(LabourSector::FoodAndFarming), 2);
     assert_eq!(employees(&env, kiln), 4);
     assert_eq!(employees(&env, farmstead), 0);
+    done(env);
+}
+
+fn test_the_labour_page_queues_its_changes() {
+    let mut env = city(30);
+    house(&mut env, 8);
+    let farmstead = workplace(&mut env, 4, "farmstead");
+    let kiln = workplace(&mut env, 12, "pottery_kiln");
+    allocate(&mut env);
+    assert_eq!(employees(&env, farmstead), 2);
+
+    // The page's + and − queue a move, run at the start of the next frame (Simulation::update).
+    labour::request_priority(LabourSector::Industry, 1);
+    assert!(labour::has_requests());
+    assert_eq!(env.sim.labour().priority(LabourSector::Industry), 2, "nothing moves until it runs");
+    {
+        let context = env.new_sim_context(0.0);
+        labour::run_requests(&context);
+    }
+    assert!(!labour::has_requests());
+    assert_eq!(env.sim.labour().priority(LabourSector::Industry), 1);
+    assert_eq!((employees(&env, kiln), employees(&env, farmstead)), (2, 0), "handed out again at once");
     done(env);
 }
 

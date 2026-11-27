@@ -107,6 +107,7 @@ pub struct CityReport {
     pub food_a_month: f32,        // What the houses eat in a month at their levels.
     pub food_months: Option<f32>, // None while nobody eats.
     pub granary_food: u32,
+    pub food: super::food::FoodReport, // The Food page's figures.
     pub balance: i64,
     pub net_this_year: i64,
     pub taxes_owed: u32,
@@ -246,6 +247,7 @@ impl CityReport {
             food_a_month,
             food_months,
             granary_food,
+            food: super::food::read(world, sim, food_a_month),
             balance: finance.balance(),
             net_this_year: finance.this_year().net(),
             taxes_owed: stats.treasury.tax_available,

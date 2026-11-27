@@ -5,10 +5,9 @@
 //   side tabs (an icon and a title each), and Close at the foot;
 // - right, the page: its title, a note and a rule, then its cards.
 //
-// The pages (CityPage, each its own module): Overview, Population, Goods, Finances, Ratings and
-// Heritage. A milestone adds its page (M11's Labour and Food) by writing a CityPage and listing it
-// in PAGES, the order the tabs show them (the mockups': Ratings after Finances, then Labour and
-// Food, then Heritage).
+// The pages (CityPage, each its own module): Overview, Population, Goods, Finances, Ratings,
+// Labour, Food and Heritage (the mockups' order). A milestone adds its page by writing a CityPage
+// and listing it in PAGES, the order the tabs show them.
 //
 // It's built afresh when it opens, and again while open once a game month passes, the window's
 // size changes or the tax level or wage do (the Finances page's figures follow them): a page
@@ -36,8 +35,10 @@ use crate::{
 };
 
 mod finances;
+mod food;
 mod goods;
 mod heritage;
+mod labour;
 mod overview;
 mod population;
 mod ratings;
@@ -88,7 +89,7 @@ static STATE: UiStaticVar<BookState> =
 
 // What the open book is built from: the window's size, the game's month, the tax level and wage,
 // the festivals' plans, log and planner (heritage::festivals_key), the requests under way and
-// logged (one sent from the Goods page), and the ratings' values.
+// logged (one sent from the Goods page), the ratings' values and the labour priorities.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 struct BuildKey {
     window: (u32, u32),
@@ -98,6 +99,7 @@ struct BuildKey {
     festivals: u64,
     requests: (usize, usize),
     ratings: [u32; crate::ratings::RATING_COUNT],
+    labour: [crate::sim::labour::LabourSector; crate::sim::labour::LABOUR_SECTOR_COUNT], // The priorities.
 }
 
 fn build_key(context: &GameUiContext) -> BuildKey {
@@ -111,12 +113,14 @@ fn build_key(context: &GameUiContext) -> BuildKey {
         festivals: heritage::festivals_key(context),
         requests: (context.sim.trade().requests().len(), context.sim.trade().request_log().len()),
         ratings: crate::ratings::values(context.sim.ratings()),
+        labour: std::array::from_fn(|index| context.sim.labour().order()[index]),
     }
 }
 
 // Whether the open book must be built again: a month passed, the window's size changed, the tax
-// level or wage, the festivals (one planned or held, the planner's pick), the requests (one sent) or
-// the ratings (ratings.recompute, ratings.set); the page shown and the Heritage tab are kept.
+// level or wage, the festivals (one planned or held, the planner's pick), the requests (one sent),
+// the ratings (ratings.recompute, ratings.set) or the labour priorities (the Labour page's − and +);
+// the page shown and the Heritage tab are kept.
 pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
     !in_home_menu() && STATE.as_ref().built != Some(build_key(context))
 }
@@ -192,12 +196,14 @@ pub(super) trait CityPage: Sync {
 }
 
 // The pages, in the order the tabs show them.
-static PAGES: [&dyn CityPage; 6] = [
+static PAGES: [&dyn CityPage; 8] = [
     &overview::Overview,
     &population::Population,
     &goods::Goods,
     &finances::Finances,
     &ratings::Ratings,
+    &labour::Labour,
+    &food::Food,
     &heritage::Heritage,
 ];
 
