@@ -5,6 +5,7 @@ use game::{
     cheats,
     config::{GameConfigs, TradeRules},
     sim::{
+        SimContext,
         calendar::CalendarDate,
         finance::LedgerCategory,
         resources::ResourceKind,
@@ -73,6 +74,10 @@ fn main() {
         test_utils::test_fn!(test_ships_keep_out_of_canals),
         test_utils::test_fn!(test_a_busy_dock_keeps_a_ship_waiting),
         test_utils::test_fn!(test_the_monthly_schedule_sends_ships),
+        // Ships' paths (docs/plans/unit-movement.md, Phase 2):
+        test_utils::test_fn!(test_ships_sail_diagonally_off_the_shore),
+        test_utils::test_fn!(test_ships_sail_a_narrow_river),
+        test_utils::test_fn!(test_ships_find_the_nearest_berth_and_edge),
         // Prices (Phase 3):
         test_utils::test_fn!(test_trade_moves_prices_and_they_drift_back),
         test_utils::test_fn!(test_relations_scale_the_prices),
@@ -1085,6 +1090,122 @@ fn test_the_monthly_schedule_sends_ships() {
     new_month(&mut port.map, due / 12, due % 12 + 1);
     assert!(ship(&port).is_none());
     assert_eq!(port.map.env.sim.trade().partner("vijara").unwrap().next_arrival, Some(due + 1));
+}
+
+// ----------------------------------------------
+// Ships' paths
+// ----------------------------------------------
+
+// Grass with a river along x 10 to 37 over `rows`, land beyond it.
+fn river_env(rows: std::ops::RangeInclusive<i32>) -> TestEnvironment {
+    let mut env = TestEnvironment::with_terrain(Size::new(48, 48), test_utils::find_terrain_def("grass"));
+    lay_water(&mut env, 10..=37, rows);
+    env
+}
+
+fn water_path(context: &SimContext, from: (i32, i32), to: (i32, i32)) -> Vec<Cell> {
+    let goal = Cell::new(to.0, to.1);
+    let path = ships::find_water_path(context, Cell::new(from.0, from.1), |cell| cell == goal)
+        .unwrap_or_else(|| panic!("no water path from {from:?} to {to:?}"));
+    path.iter().map(|node| node.cell).collect()
+}
+
+fn shore_cells(context: &SimContext, path: &[Cell]) -> Vec<Cell> {
+    path.iter().copied().filter(|cell| ships::is_shore(context, *cell)).collect()
+}
+
+fn diagonals(path: &[Cell]) -> usize {
+    path.windows(2).filter(|step| step[0].x != step[1].x && step[0].y != step[1].y).count()
+}
+
+// Every step of a ship's path is to a cell beside it or diagonal to it, over open water, and a
+// diagonal one passes between two cells of open water: it never cuts past a point of land.
+fn assert_sails_open_water(context: &SimContext, path: &[Cell]) {
+    let water = |cell: Cell| game::tile::water::is_open_water(context.tile_map(), cell);
+    for step in path.windows(2) {
+        let (a, b) = (step[0], step[1]);
+        assert!((a.x - b.x).abs() <= 1 && (a.y - b.y).abs() <= 1 && a != b, "a step from {a} to {b}");
+        assert!(water(b), "onto land at {b}");
+        if a.x != b.x && a.y != b.y {
+            assert!(water(Cell::new(b.x, a.y)) && water(Cell::new(a.x, b.y)), "past a point of land from {a} to {b}");
+        }
+    }
+}
+
+// Over a wide river a ship sails diagonally (Q6), keeping to the water with no land beside it (Q8),
+// round a headland's shore rather than along it, and onto the shore only for its last cell.
+fn test_ships_sail_diagonally_off_the_shore() {
+    let mut env = river_env(18..=25);
+    {
+        let context = env.new_sim_context(0.0);
+        let shore = |x: i32, y: i32| ships::is_shore(&context, Cell::new(x, y));
+        assert!(shore(20, 18) && shore(20, 25), "its banks");
+        assert!(shore(10, 21), "and its end");
+        assert!(!shore(20, 19) && !shore(11, 24), "not a cell in from them");
+
+        let path = water_path(&context, (12, 19), (30, 24));
+        assert_eq!(path.len(), 19, "{path:?}");
+        assert_eq!(diagonals(&path), 5, "{path:?}");
+        assert!(shore_cells(&context, &path).is_empty(), "{path:?}");
+        assert_sails_open_water(&context, &path);
+
+        // To a cell on the bank: the shore only at the end.
+        let path = water_path(&context, (12, 22), (30, 18));
+        assert_eq!(shore_cells(&context, &path), [Cell::new(30, 18)], "{path:?}");
+    }
+
+    // A headland from the north bank, x 24 over y 18 to 21: round its shore, through y 23 or 24.
+    for y in 18..=21 {
+        test_utils::place_terrain_by_def(&mut env, Cell::new(24, y), test_utils::find_terrain_def("grass"));
+    }
+    let context = env.new_sim_context(0.0);
+    let path = water_path(&context, (12, 20), (35, 20));
+    assert!(shore_cells(&context, &path).is_empty(), "{path:?}");
+    assert!(path.iter().any(|cell| cell.x == 24 && cell.y >= 23), "round the headland: {path:?}");
+    assert_sails_open_water(&context, &path);
+}
+
+// A river two cells wide is shore from bank to bank: a ship still sails it, by the fewest cells.
+fn test_ships_sail_a_narrow_river() {
+    let mut env = river_env(20..=21);
+    let context = env.new_sim_context(0.0);
+    let path = water_path(&context, (11, 20), (36, 21));
+    assert_eq!(path.len(), 26, "{path:?}");
+    assert_sails_open_water(&context, &path);
+}
+
+// The search still goes to the nearest berth and the nearest open water at the map's edge.
+fn test_ships_find_the_nearest_berth_and_edge() {
+    let mut port = port_map(true);
+    let far_dock = spawn_building(&mut port.map.env, Cell::new(16, 30), "dock");
+    tick(&mut port.map.env, STEP_SECS);
+    {
+        let context = port.map.env.new_sim_context(0.0);
+        let berth = |start: Cell| match ships::find_berth(&context, start, game::unit::UnitId::invalid()) {
+            ships::BerthSearch::Free { dock, path, .. } => {
+                let cells: Vec<Cell> = path.iter().map(|node| node.cell).collect();
+                assert_sails_open_water(&context, &cells);
+                let shore = shore_cells(&context, &cells);
+                assert!(cells.ends_with(&shore), "the shore only on its way into the berth: {cells:?}");
+                dock
+            }
+            _ => panic!("no free berth from {start}"),
+        };
+        assert!(berth(SEA_ENTRY) == port.dock.unwrap(), "from the east, the dock at x 24");
+        assert!(berth(Cell::new(15, 33)) == far_dock, "from the west, the one at x 16");
+    }
+
+    // Ships come in at the map's edge nearest a working dock when their partner names no entry: a
+    // channel from the sea to the playable area's edge.
+    let mut x = 32;
+    while port.map.env.tile_map.is_cell_within_playable_area(Cell::new(x + 1, 32)) {
+        x += 1;
+        test_utils::place_terrain_by_def(&mut port.map.env, Cell::new(x, 32), test_utils::find_water_def());
+    }
+    port.map.env.sim.trade_mut().partner_mut("vijara").unwrap().def.entry = None;
+    let context = port.map.env.new_sim_context(0.0);
+    let entry = ships::ship_entry(&context, "vijara").expect("an entry at the edge");
+    assert_eq!(entry, Cell::new(x, 32), "the channel's end");
 }
 
 // ----------------------------------------------

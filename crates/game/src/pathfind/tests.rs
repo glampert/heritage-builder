@@ -490,14 +490,29 @@ fn test_find_path_boundary_hugging() {
         }
     }
 
-    // Opposite corners — just verify length and endpoints (many equal-cost routes).
+    // Opposite corners over open land: the diagonal straight across them, 8 nodes.
     {
         let start = Node::new(Cell::new(0, 0));
         let goal = Node::new(Cell::new(7, 7));
         let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
         match path {
             SearchResult::PathFound(path) => {
-                // Manhattan distance = 14, so optimal path = 15 nodes.
+                let expected: Vec<Node> = (0..8).map(|i| Node::new(Cell::new(i, i))).collect();
+                assert_eq!(path, &expected);
+            }
+            _ => panic!("Expected a path!"),
+        }
+    }
+
+    // Over roads only (four neighbours), many equal-cost routes: Manhattan distance = 14, so optimal
+    // path = 15 nodes.
+    {
+        let graph = Graph::with_node_kind(Size::new(8, 8), NodeKind::Road);
+        let start = Node::new(Cell::new(0, 0));
+        let goal = Node::new(Cell::new(7, 7));
+        let path = search.find_path(&graph, &heuristic, NodeKind::Road, start, goal);
+        match path {
+            SearchResult::PathFound(path) => {
                 assert_eq!(path.len(), 15);
                 assert_eq!(*path.first().unwrap(), start);
                 assert_eq!(*path.last().unwrap(), goal);
@@ -510,19 +525,34 @@ fn test_find_path_boundary_hugging() {
 #[test]
 fn test_find_path_optimality() {
     // Fully open grid: many equal-cost paths exist between start and goal.
-    // Whichever one the tie-breaker picks, its length must equal the
-    // optimal Manhattan distance + 1.
-    let graph = Graph::with_node_kind(Size::new(8, 8), NodeKind::EmptyLand);
     let heuristic = AStarUniformCostHeuristic::new();
-    let mut search = Search::with_graph(&graph);
-
     let start = Node::new(Cell::new(1, 2));
     let goal = Node::new(Cell::new(6, 5));
-    let path = search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal);
-    match path {
+
+    // Over roads (four neighbours): whichever one the tie-breaker picks, its length must equal the
+    // optimal Manhattan distance + 1.
+    let graph = Graph::with_node_kind(Size::new(8, 8), NodeKind::Road);
+    let mut search = Search::with_graph(&graph);
+    match search.find_path(&graph, &heuristic, NodeKind::Road, start, goal) {
         SearchResult::PathFound(path) => {
             let manhattan = start.manhattan_distance(goal);
             assert_eq!(path.len() as i32, manhattan + 1);
+            assert_eq!(*path.first().unwrap(), start);
+            assert_eq!(*path.last().unwrap(), goal);
+        }
+        _ => panic!("Expected a path!"),
+    }
+
+    // Over open land (eight): the larger difference + 1 nodes, 3 diagonal steps and 2 straight, and
+    // of those equally short the straightest, turning once (the cost for turning).
+    let graph = Graph::with_node_kind(Size::new(8, 8), NodeKind::EmptyLand);
+    match search.find_path(&graph, &heuristic, NodeKind::EmptyLand, start, goal) {
+        SearchResult::PathFound(path) => {
+            assert_eq!(path.len(), 6, "{path:?}");
+            let steps: Vec<(i32, i32)> =
+                path.windows(2).map(|step| (step[1].cell.x - step[0].cell.x, step[1].cell.y - step[0].cell.y)).collect();
+            assert_eq!(steps.iter().filter(|(dx, dy)| *dx != 0 && *dy != 0).count(), 3, "{steps:?}");
+            assert_eq!(steps.windows(2).filter(|pair| pair[0] != pair[1]).count(), 1, "one turn: {steps:?}");
             assert_eq!(*path.first().unwrap(), start);
             assert_eq!(*path.last().unwrap(), goal);
         }
@@ -1097,7 +1127,10 @@ fn test_find_path_next_to() {
                 node.cell
             );
         }
-        assert_eq!(path.len(), 1 + 5 + 4, "four cells north and five or six east: {path:?}");
+        // Two diagonals up from the road, then north past the water's corner (no cutting it) and
+        // east along the building: 8 nodes, where four neighbours took 10.
+        assert_eq!(path.len(), 8, "{path:?}");
+        assert!(path.windows(2).all(|step| !step[0].is_diagonal_to(step[1]) || graph.steps_past(step[0], step[1], land)));
     }
 
     // Already next to it: the path is just the start.
@@ -1122,4 +1155,128 @@ fn test_find_path_next_to() {
             search.find_path_next_to(&graph, &heuristic, NodeKind::Road, start, 32, |node| building.contains(node.cell));
         assert!(path.not_found());
     }
+}
+
+// ----------------------------------------------
+// Road-only searches stay as they were
+// ----------------------------------------------
+
+// A 40 × 40 road network with water holes, vacant lots and building road links at hashed cells; on
+// raised ground also the hills' levels and some ramps (walkers step only where the ground joins).
+fn road_network(raised: bool) -> Graph {
+    use crate::tile::elevation::{self, Dir, Half, Shape};
+
+    let size = Size::new(40, 40);
+    let hash = |x: i32, y: i32, salt: u64| common::hash::splitmix64(((x as u64) << 32) ^ (y as u64) ^ (salt << 48)) % 100;
+    let mut graph = Graph::with_node_kind(size, NodeKind::Road);
+    for y in 0..size.height {
+        for x in 0..size.width {
+            let node = Node::new(Cell::new(x, y));
+            match hash(x, y, 1) {
+                0..=17 => graph.set_node_kind(node, NodeKind::Water),
+                18..=19 => graph.set_node_kind(node, NodeKind::VacantLot),
+                20..=22 => graph.set_node_kind(node, NodeKind::Road | NodeKind::BuildingRoadLink),
+                _ => {}
+            }
+        }
+    }
+    if raised {
+        let mut heights = elevation::ElevationMap::new(size);
+        let levels = elevation::hills(size, 7, 0.5, 2, 6.0);
+        let dirs = [Dir::N, Dir::E, Dir::S, Dir::W];
+        for y in 0..size.height {
+            for x in 0..size.width {
+                let level = levels[(x + y * size.width) as usize];
+                let shape = match hash(x, y, 2) {
+                    0..=9 => Shape::Ramp(
+                        dirs[(hash(x, y, 3) % 4) as usize],
+                        if hash(x, y, 4) < 50 { Half::Low } else { Half::High },
+                    ),
+                    _ => Shape::Flat,
+                };
+                heights.set_byte(Cell::new(x, y), elevation::encode(level, shape));
+            }
+        }
+        graph.set_elevation(heights);
+    }
+    graph
+}
+
+// Shuffles each node's neighbours from its own RNG, as a patrol's filter does.
+struct ShufflingFilter {
+    rng: rand_pcg::Pcg64,
+    reject: usize,
+}
+
+impl PathFilter for ShufflingFilter {
+    fn accepts(&mut self, index: usize, _path: &Path, _goal: Node) -> bool {
+        index >= self.reject
+    }
+
+    fn shuffle(&mut self, nodes: &mut [Node]) {
+        use rand::seq::SliceRandom;
+        nodes.shuffle(&mut self.rng);
+    }
+}
+
+// What each kind of search finds over the road network, as a hash of every path's cells, and how
+// many of its 360 searches found a path.
+fn hash_road_searches(graph: &Graph) -> (u64, usize) {
+    use rand::SeedableRng;
+
+    let heuristic = AStarUniformCostHeuristic::new();
+    let mut search = Search::with_graph(graph);
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut found = 0;
+    let mut add = |result: SearchResult<'_>| {
+        let cells: Vec<Cell> = match result {
+            SearchResult::PathFound(path) => {
+                found += 1;
+                path.iter().map(|node| node.cell).collect()
+            }
+            SearchResult::PathNotFound => vec![Cell::invalid()],
+        };
+        for cell in cells {
+            for value in [cell.x, cell.y] {
+                hash = (hash ^ value as u32 as u64).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+    };
+    let road = NodeKind::Road;
+    let point = |i: i32, salt: i32| Node::new(Cell::new((i * 7 + salt * 13) % 40, (i * 11 + salt * 5) % 40));
+    for i in 0..60 {
+        let (start, goal) = (point(i, 1), point(i, 2));
+        add(search.find_path(graph, &heuristic, road, start, goal));
+        let mut filter = ShufflingFilter { rng: rand_pcg::Pcg64::seed_from_u64(i as u64), reject: 2 };
+        add(search.find_paths(graph, &heuristic, &mut filter, 4, road, start, goal));
+        let mut rng = rand_pcg::Pcg64::seed_from_u64(100 + i as u64);
+        let bias = RandomDirectionalBias::new(&mut rng, 0.1, 0.5);
+        let mut filter = ShufflingFilter { rng: rand_pcg::Pcg64::seed_from_u64(200 + i as u64), reject: 0 };
+        add(search.find_waypoints(graph, &heuristic, &bias, &mut filter, road, start, 12));
+        let mut filter = ShufflingFilter { rng: rand_pcg::Pcg64::seed_from_u64(300 + i as u64), reject: 1 };
+        add(search.find_path_to_node(
+            graph,
+            &heuristic,
+            &bias,
+            &mut filter,
+            road | NodeKind::VacantLot,
+            start,
+            NodeKind::VacantLot,
+        ));
+        let mut filter = ShufflingFilter { rng: rand_pcg::Pcg64::seed_from_u64(400 + i as u64), reject: 3 };
+        add(search.find_buildings(graph, &heuristic, &Unbiased::new(), &mut filter, road, start, 20));
+        add(search.find_path_next_to(graph, &heuristic, road, start, 15, |node| {
+            graph.node_kind(node).is_some_and(|kind| kind.intersects(NodeKind::Water))
+        }));
+    }
+    (hash, found)
+}
+
+// Goal 2 of docs/plans/unit-movement.md: searches over roads only keep their four neighbours and
+// their costs, so they find exactly the paths they found before eight-direction movement, on a flat
+// map and on raised ground (the hashes were recorded with the code before it).
+#[test]
+fn test_road_only_searches_are_unchanged() {
+    assert_eq!(hash_road_searches(&road_network(false)), (0xf703_3beb_d66e_941d, 285), "on a flat map");
+    assert_eq!(hash_road_searches(&road_network(true)), (0x10f8_9d09_4fa1_2856, 116), "on raised ground");
 }

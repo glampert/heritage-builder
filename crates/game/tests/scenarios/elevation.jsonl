@@ -71,10 +71,11 @@
 {"method": "screenshot", "params": {"path": "out/elevation/terraces.png", "include_ui": false}}
 
 # Paths follow heights (Stage 5): the walker on the ramp's head goes on over the terrace, on its
-# level; to the ground at the foot of the terrace's cliff he goes back down the ramp and round, 13
-# cells where straight down the cliff would be 7, and gets there.
+# level; to the ground at the foot of the terrace's cliff he goes back down the ramp and round, 12
+# cells (over open land he steps diagonally, but never past the terrace's corner) where straight down
+# the cliff would be 6, and gets there.
 {"method": "assert.eq", "params": {"query": "world.walk", "args": {"id": "unit:0:1", "to": [16, 17]}, "path": "/path_cells", "value": 7}}
-{"method": "assert.eq", "params": {"query": "world.walk", "args": {"id": "unit:0:1", "to": [17, 14]}, "path": "/path_cells", "value": 13}}
+{"method": "assert.eq", "params": {"query": "world.walk", "args": {"id": "unit:0:1", "to": [17, 14]}, "path": "/path_cells", "value": 12}}
 {"method": "assert.eq", "params": {"query": "world.inspect", "args": {"id": "unit:0:1"}, "path": "/state/navigation/path/1/cell", "value": {"x": 11, "y": 15}}}
 {"method": "time.fast_forward", "params": {"sim_secs": 20}}
 {"method": "assert.eq", "params": {"query": "world.list", "args": {"type": "unit"}, "path": "/items/0/cell", "value": [17, 14]}}

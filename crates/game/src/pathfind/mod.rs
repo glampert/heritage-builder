@@ -174,7 +174,7 @@ impl NodeKind {
 // Node
 // ----------------------------------------------
 
-type NodeCost = i32;
+pub type NodeCost = i32;
 const NODE_COST_ZERO: NodeCost = 0;
 const NODE_COST_INFINITE: NodeCost = NodeCost::MAX;
 
@@ -210,9 +210,62 @@ impl Node {
         ]
     }
 
+    // The 4 cells diagonal to this node's cell, which share only a corner with it: N (+x +y), S, E
+    // (+x -y) and W, the screen directions of those steps (unit::navigation::UnitDirection).
+    #[inline]
+    pub fn diagonals(self) -> [Node; 4] {
+        [
+            Node::new(Cell::new(self.cell.x + 1, self.cell.y + 1)), // N
+            Node::new(Cell::new(self.cell.x - 1, self.cell.y - 1)), // S
+            Node::new(Cell::new(self.cell.x + 1, self.cell.y - 1)), // E
+            Node::new(Cell::new(self.cell.x - 1, self.cell.y + 1)), // W
+        ]
+    }
+
+    // All 8 neighbour cells: the 4 beside it (`neighbors`), then the 4 diagonal to it.
+    #[inline]
+    pub fn neighbors8(self) -> [Node; 8] {
+        let [a, b, c, d] = self.neighbors();
+        let [e, f, g, h] = self.diagonals();
+        [a, b, c, d, e, f, g, h]
+    }
+
+    // Whether `other` shares only a corner with this node.
+    #[inline]
+    pub fn is_diagonal_to(self, other: Node) -> bool {
+        (self.cell.x - other.cell.x).abs() == 1 && (self.cell.y - other.cell.y).abs() == 1
+    }
+
+    // The two cells beside a diagonal step from this node to `to`, which it passes between.
+    #[inline]
+    pub fn diagonal_sides(self, to: Node) -> [Node; 2] {
+        [Node::new(Cell::new(to.cell.x, self.cell.y)), Node::new(Cell::new(self.cell.x, to.cell.y))]
+    }
+
     #[inline]
     pub fn manhattan_distance(self, other: Node) -> i32 {
         (self.cell.x - other.cell.x).abs() + (self.cell.y - other.cell.y).abs()
+    }
+}
+
+// ----------------------------------------------
+// Connectivity
+// ----------------------------------------------
+
+// Which neighbours a search steps to (docs/plans/unit-movement.md, Q1): the four beside a cell, or
+// all eight, diagonals too, for a search over open land. The tasks that send walkers off the road
+// widen their kinds to EmptyLand, so they get diagonals; a road-only search keeps its four, and its
+// costs, so its paths are exactly as they were.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Connectivity {
+    Four,
+    Eight,
+}
+
+impl Connectivity {
+    #[inline]
+    pub fn for_kinds(traversable_node_kinds: NodeKind) -> Self {
+        if traversable_node_kinds.intersects(NodeKind::EmptyLand) { Self::Eight } else { Self::Four }
     }
 }
 
@@ -313,8 +366,9 @@ pub enum GraphUpdateAction {
 //
 // It keeps a copy of the tile map's heights (docs/plans/terrain-height.md, §6), so a walker steps
 // only between cells whose ground joins (ElevationMap::joins): up a ramp along its way, never over a
-// cliff or a ramp's side. Every search goes through `neighbors`, so every land walker follows it. On
-// a flat map every step is allowed and costs 1, as before heights.
+// cliff or a ramp's side. Every search goes through `neighbors` (or `neighbors_with`, which adds the
+// diagonals for a search over open land), so every land walker follows it. On a flat map every step
+// is allowed, and a road-only search's steps cost 1, as before heights.
 #[derive(Default)]
 pub struct Graph {
     grid: Grid<NodeKind>,               // WxH nodes grid.
@@ -323,12 +377,23 @@ pub struct Graph {
     elevation: ElevationMap,            // The tile map's heights, kept in step by TileMap::set_elevation_byte.
 }
 
-// What a step costs a search (Q7): on a map with raised ground a flat step costs FLAT_STEP_COST and
-// a step onto, along or off a ramp RAMP_STEP_COST, half as much again, so paths prefer flat ways
-// about as short; walkers also take that much longer over it (`step_time_scale`). A flat map's steps
-// cost 1, so its searches are exactly as they were.
+// What a step costs a four-way search (terrain height's Q7): on a map with raised ground a flat step
+// costs FLAT_STEP_COST and a step onto, along or off a ramp RAMP_STEP_COST, half as much again, so
+// paths prefer flat ways about as short; walkers also take that much longer over it
+// (`step_time_scale`). A flat map's steps cost 1, so its searches are exactly as they were.
 const FLAT_STEP_COST: NodeCost = 2;
 const RAMP_STEP_COST: NodeCost = 3;
+
+// What a step costs an eight-way search (docs/plans/unit-movement.md, Q4), on every map: a straight
+// flat step STRAIGHT_STEP_COST, a diagonal DIAGONAL_STEP_COST (about √2 times as much), a straight
+// step onto, along or off a ramp EIGHT_WAY_RAMP_STEP_COST (half as much again, as above; a diagonal
+// never touches a ramp), and TURN_COST more for a step that turns from the one before, so of the paths
+// as short the one with fewest turns wins rather than a zigzag.
+// Ships' own water search (trade::ships) counts its distance in the same steps.
+pub const STRAIGHT_STEP_COST: NodeCost = 10;
+pub const DIAGONAL_STEP_COST: NodeCost = 14;
+const EIGHT_WAY_RAMP_STEP_COST: NodeCost = 15;
+pub const TURN_COST: NodeCost = 1;
 
 impl Graph {
     pub fn with_empty_grid(grid_size: Size) -> Self {
@@ -559,6 +624,31 @@ impl Graph {
         nodes
     }
 
+    // The neighbours of `node` a search with this connectivity steps to: `neighbors`, then for an
+    // eight-way search the diagonal ones it can step to without cutting a corner (`steps_past`).
+    #[inline]
+    pub fn neighbors_with(&self, node: Node, wanted_node_kinds: NodeKind, connectivity: Connectivity) -> ArrayVec<Node, 8> {
+        let mut nodes: ArrayVec<Node, 8> = self.neighbors(node, wanted_node_kinds).into_iter().collect();
+        if connectivity == Connectivity::Eight {
+            for diagonal in node.diagonals() {
+                if self.steps_past(node, diagonal, wanted_node_kinds) {
+                    nodes.push(diagonal);
+                }
+            }
+        }
+        nodes
+    }
+
+    // The corner rule (docs/plans/unit-movement.md, Q2): a diagonal step needs its end and both cells
+    // beside it of the wanted kinds, so nothing slips between two buildings or past one's corner, and
+    // nothing tall stands beside a walker moving across a corner; on raised ground the four flat at one
+    // level (`steps_diagonally`).
+    #[inline]
+    pub fn steps_past(&self, from: Node, to: Node, wanted_node_kinds: NodeKind) -> bool {
+        let is_wanted = |node: Node| self.node_kind(node).is_some_and(|kind| kind.intersects(wanted_node_kinds));
+        is_wanted(to) && from.diagonal_sides(to).into_iter().all(is_wanted) && self.steps_diagonally(from, to)
+    }
+
     // ----------------------
     // Heights:
     // ----------------------
@@ -580,29 +670,68 @@ impl Graph {
         self.elevation.set_byte(cell, byte);
     }
 
-    // Whether a walker can step between two cells side by side: their ground joins (always on a
-    // flat map). Says nothing about what stands there.
+    // Whether a walker can step between two cells side by side, or diagonal to each other: their
+    // ground joins (always on a flat map). Says nothing about what stands there.
     #[inline]
     pub fn steps(&self, from: Node, to: Node) -> bool {
-        self.elevation.is_flat() || self.elevation.joins(from.cell, to.cell)
-    }
-
-    // A step's cost per cell of distance: what the heuristic multiplies its estimate by.
-    #[inline]
-    pub fn cost_scale(&self) -> NodeCost {
-        if self.elevation.is_flat() { 1 } else { FLAT_STEP_COST }
-    }
-
-    // What stepping from one cell to the one beside it costs (see RAMP_STEP_COST).
-    #[inline]
-    pub fn step_cost(&self, from: Node, to: Node) -> NodeCost {
         if self.elevation.is_flat() {
-            1
-        } else if self.is_ramp_step(from, to) {
-            RAMP_STEP_COST
+            true
+        } else if from.is_diagonal_to(to) {
+            self.steps_diagonally(from, to)
         } else {
-            FLAT_STEP_COST
+            self.elevation.joins(from.cell, to.cell)
         }
+    }
+
+    // The heights rule for a diagonal step (docs/plans/unit-movement.md, §2): its start, its end and
+    // both cells beside it flat at one level, so a diagonal never climbs (ramps are taken straight)
+    // and never crosses a cliff's corner. Always on a flat map.
+    #[inline]
+    pub fn steps_diagonally(&self, from: Node, to: Node) -> bool {
+        if self.elevation.is_flat() {
+            return true;
+        }
+        let level = self.elevation.level(from.cell);
+        let [side_a, side_b] = from.diagonal_sides(to);
+        [from, to, side_a, side_b]
+            .into_iter()
+            .all(|node| self.elevation.is_cell_within_bounds(node.cell) && self.elevation.is_flat_at(node.cell, level))
+    }
+
+    // A straight step's cost per cell of distance: what the heuristic multiplies its estimate by,
+    // and the patrols' bias.
+    #[inline]
+    pub fn cost_scale(&self, connectivity: Connectivity) -> NodeCost {
+        match connectivity {
+            Connectivity::Four if self.elevation.is_flat() => 1,
+            Connectivity::Four => FLAT_STEP_COST,
+            Connectivity::Eight => STRAIGHT_STEP_COST,
+        }
+    }
+
+    // What stepping from one cell to the next costs, beside it or (eight-way) diagonal to it (see
+    // RAMP_STEP_COST and DIAGONAL_STEP_COST).
+    #[inline]
+    pub fn step_cost(&self, connectivity: Connectivity, from: Node, to: Node) -> NodeCost {
+        match connectivity {
+            Connectivity::Four if self.elevation.is_flat() => 1,
+            Connectivity::Four if self.is_ramp_step(from, to) => RAMP_STEP_COST,
+            Connectivity::Four => FLAT_STEP_COST,
+            Connectivity::Eight if from.is_diagonal_to(to) => DIAGONAL_STEP_COST,
+            Connectivity::Eight if !self.elevation.is_flat() && self.is_ramp_step(from, to) => EIGHT_WAY_RAMP_STEP_COST,
+            Connectivity::Eight => STRAIGHT_STEP_COST,
+        }
+    }
+
+    // What an eight-way search adds for a step from `from` to `to` that turns from the step before it,
+    // from `previous` (TURN_COST); nothing for a search's first step (`previous` is `from`) or a
+    // four-way search's.
+    #[inline]
+    pub fn turn_cost(connectivity: Connectivity, previous: Node, from: Node, to: Node) -> NodeCost {
+        let turns = previous != from
+            && (from.cell.x - previous.cell.x, from.cell.y - previous.cell.y)
+                != (to.cell.x - from.cell.x, to.cell.y - from.cell.y);
+        if connectivity == Connectivity::Eight && turns { TURN_COST } else { 0 }
     }
 
     // How much longer than a flat step a walker takes over this one: 1.5 onto, along or off a ramp.
@@ -733,15 +862,18 @@ impl Graph {
 
 pub trait Heuristic {
     // Returns the estimated cost from `node` to `goal` node.
-    // For grids this is typically the Manhattan Distance.
-    fn estimate_cost_to_goal(&self, graph: &Graph, node: Node, goal: Node) -> NodeCost;
+    // For grids this is typically the Manhattan Distance (octile for eight-way searches).
+    fn estimate_cost_to_goal(&self, graph: &Graph, connectivity: Connectivity, node: Node, goal: Node) -> NodeCost;
 
-    // Returns the cost of moving `from` node `to` node, AKA the Edge Cost.
-    fn movement_cost(&self, graph: &Graph, from: Node, to: Node) -> NodeCost;
+    // Returns the cost of moving `from` node `to` node, AKA the Edge Cost. `previous` is the node the
+    // search reached `from` by (`from` itself at the start).
+    fn movement_cost(&self, graph: &Graph, connectivity: Connectivity, previous: Node, from: Node, to: Node) -> NodeCost;
 }
 
-// Uniform movement cost on a flat map (movement_cost() always = 1); on a map with raised ground a
-// step's cost is the graph's (Graph::step_cost: a ramp costs more), the estimate scaled to match.
+// Uniform movement cost for a four-way search on a flat map (movement_cost() always = 1); on a map
+// with raised ground a step's cost is the graph's (Graph::step_cost: a ramp costs more), the estimate
+// scaled to match. An eight-way search's steps cost 10 straight and 14 diagonally, with 1 for a turn
+// (Graph::turn_cost), and its estimate is the octile distance.
 #[derive(Default)]
 pub struct AStarUniformCostHeuristic;
 
@@ -754,15 +886,22 @@ impl AStarUniformCostHeuristic {
 
 impl Heuristic for AStarUniformCostHeuristic {
     #[inline]
-    fn estimate_cost_to_goal(&self, graph: &Graph, node: Node, goal: Node) -> NodeCost {
-        // Estimating 0 here would turn A* into Dijkstra's. The cheapest step is cost_scale, so this
-        // never overestimates.
-        node.manhattan_distance(goal) * graph.cost_scale()
+    fn estimate_cost_to_goal(&self, graph: &Graph, connectivity: Connectivity, node: Node, goal: Node) -> NodeCost {
+        // Estimating 0 here would turn A* into Dijkstra's. The cheapest step is cost_scale (and a
+        // diagonal, which covers a cell each way, DIAGONAL_STEP_COST), so this never overestimates.
+        match connectivity {
+            Connectivity::Four => node.manhattan_distance(goal) * graph.cost_scale(connectivity),
+            Connectivity::Eight => {
+                let dx = (node.cell.x - goal.cell.x).abs();
+                let dy = (node.cell.y - goal.cell.y).abs();
+                STRAIGHT_STEP_COST * dx.max(dy) + (DIAGONAL_STEP_COST - STRAIGHT_STEP_COST) * dx.min(dy)
+            }
+        }
     }
 
     #[inline]
-    fn movement_cost(&self, graph: &Graph, from: Node, to: Node) -> NodeCost {
-        graph.step_cost(from, to)
+    fn movement_cost(&self, graph: &Graph, connectivity: Connectivity, previous: Node, from: Node, to: Node) -> NodeCost {
+        graph.step_cost(connectivity, from, to) + Graph::turn_cost(connectivity, previous, from, to)
     }
 }
 
@@ -1106,6 +1245,8 @@ impl Search {
 
         debug_assert!(self.possible_waypoints.is_empty());
 
+        let connectivity = Connectivity::for_kinds(traversable_node_kinds);
+
         while let Some((current, _)) = self.frontier.pop() {
             let dist_from_start = current.manhattan_distance(start);
 
@@ -1119,16 +1260,17 @@ impl Search {
                 self.possible_waypoints.push(current);
             }
 
-            let mut neighbors = graph.neighbors(current, traversable_node_kinds);
+            let mut neighbors = graph.neighbors_with(current, traversable_node_kinds, connectivity);
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
-                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+                let movement_cost =
+                    heuristic.movement_cost(graph, connectivity, self.came_from_of(current), current, neighbor);
 
                 if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
                     // Apply optional directional bias. With no bias this is Dijkstra's
                     // search using only node cost (no heuristic / explicit goal).
-                    let bias_amount = bias.cost_for(start, neighbor) * graph.cost_scale() as f32;
+                    let bias_amount = bias.cost_for(start, neighbor) * graph.cost_scale(connectivity) as f32;
                     let priority = ((new_cost as f32) + bias_amount).round() as i32;
                     self.frontier.push(neighbor, Reverse(priority));
                 }
@@ -1262,12 +1404,15 @@ impl Search {
 
         self.reset(start);
 
+        let connectivity = Connectivity::for_kinds(traversable_node_kinds);
+
         while let Some((current, _)) = self.frontier.pop() {
             if current.manhattan_distance(start) > max_distance {
                 continue;
             }
 
-            // Next to it means its ground joins the target's: not below or above a cliff from it.
+            // Next to it (one of the four beside it, whatever the connectivity) means its ground joins
+            // the target's: not below or above a cliff from it.
             let next_to_target = current.neighbors().into_iter().any(|neighbor| {
                 graph.node_kind(neighbor).is_some() && graph.steps(current, neighbor) && is_target(neighbor)
             });
@@ -1276,8 +1421,9 @@ impl Search {
                 return self.reconstruct_path(start, current);
             }
 
-            for neighbor in graph.neighbors(current, traversable_node_kinds) {
-                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+            for neighbor in graph.neighbors_with(current, traversable_node_kinds, connectivity) {
+                let movement_cost =
+                    heuristic.movement_cost(graph, connectivity, self.came_from_of(current), current, neighbor);
 
                 if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
                     self.frontier.push(neighbor, Reverse(new_cost));
@@ -1318,6 +1464,7 @@ impl Search {
 
         self.reset(start);
 
+        let connectivity = Connectivity::for_kinds(traversable_node_kinds);
         let mut paths_found: usize = 0;
 
         while let Some((current, _)) = self.frontier.pop() {
@@ -1331,15 +1478,16 @@ impl Search {
                 continue;
             }
 
-            let neighbors = graph.neighbors(current, traversable_node_kinds);
+            let neighbors = graph.neighbors_with(current, traversable_node_kinds, connectivity);
 
             for neighbor in neighbors {
-                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+                let movement_cost =
+                    heuristic.movement_cost(graph, connectivity, self.came_from_of(current), current, neighbor);
 
                 // Re-enqueue the goal so alternative routes can be explored.
                 let force_relax = ALLOW_GOAL_REENTRY && neighbor == goal;
                 if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, force_relax) {
-                    let priority = new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
+                    let priority = new_cost + heuristic.estimate_cost_to_goal(graph, connectivity, neighbor, goal);
                     self.frontier.push(neighbor, Reverse(priority));
                 }
             }
@@ -1384,6 +1532,7 @@ impl Search {
         self.reset(start);
 
         let wanted_neighbor_kinds = traversable_node_kinds | extra_neighbor_kinds;
+        let connectivity = Connectivity::for_kinds(traversable_node_kinds);
         let mut paths_found: usize = 0;
 
         while let Some((current, _)) = self.frontier.pop() {
@@ -1399,16 +1548,17 @@ impl Search {
                 return SearchResult::PathFound(&self.path);
             }
 
-            let mut neighbors = graph.neighbors(current, wanted_neighbor_kinds);
+            let mut neighbors = graph.neighbors_with(current, wanted_neighbor_kinds, connectivity);
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
-                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+                let movement_cost =
+                    heuristic.movement_cost(graph, connectivity, self.came_from_of(current), current, neighbor);
 
                 if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
                     // Apply optional directional bias. With no bias this is Dijkstra's
                     // search using only node cost (no heuristic / explicit goal).
-                    let bias_amount = bias.cost_for(start, neighbor) * graph.cost_scale() as f32;
+                    let bias_amount = bias.cost_for(start, neighbor) * graph.cost_scale(connectivity) as f32;
                     let priority = ((new_cost as f32) + bias_amount).round() as i32;
                     self.frontier.push(neighbor, Reverse(priority));
                 }
@@ -1464,6 +1614,13 @@ impl Search {
     #[inline]
     fn set_cost(&mut self, node: Node, value: NodeCost) {
         self.cost_so_far[node] = Versioned { generation: self.generation, value };
+    }
+
+    // The node the search reached `node` by (`node` itself at the start, or before it's reached).
+    #[inline]
+    fn came_from_of(&self, node: Node) -> Node {
+        let v = &self.came_from[node];
+        if v.generation == self.generation { v.value } else { node }
     }
 
     #[inline]

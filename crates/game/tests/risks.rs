@@ -1114,6 +1114,15 @@ fn test_a_fire_watcher_walks_off_the_road_to_a_fire() {
     });
 }
 
+// Whether a walker steps from one cell to the next: beside it where their ground joins, or diagonal
+// to it over flat ground at one level (docs/plans/unit-movement.md: a responder walks over open land
+// through eight neighbours).
+fn steps(env: &TestEnvironment, from: Cell, to: Cell) -> bool {
+    let (from, to) = (game::pathfind::Node::new(from), game::pathfind::Node::new(to));
+    let beside = (from.cell.x - to.cell.x).abs() + (from.cell.y - to.cell.y).abs() == 1;
+    (beside || from.is_diagonal_to(to)) && env.tile_map.graph().steps(from, to)
+}
+
 // A fire on a plateau: the fire watcher walks round to its ramp and up it, never up the cliff
 // (docs/plans/terrain-height.md, §6), and puts the fire out.
 fn test_a_fire_watcher_takes_the_ramp_to_a_fire() {
@@ -1151,7 +1160,7 @@ fn test_a_fire_watcher_takes_the_ramp_to_a_fire() {
         assert!(exists(&env, house), "the fire is out before the house burns down");
         assert!(cells.contains(&Cell::new(20, 12)), "by the ramp: {cells:?}");
         for step in cells.windows(2) {
-            assert!(env.tile_map.elevation().joins(step[0], step[1]), "{} to {} crosses a cliff", step[0], step[1]);
+            assert!(steps(&env, step[0], step[1]), "{} to {} crosses a cliff", step[0], step[1]);
         }
         let last = *cells.last().unwrap();
         assert_eq!(env.tile_map.elevation().level(last), 1, "he put it out from the plateau, at {last}");
@@ -1168,7 +1177,7 @@ fn test_a_fire_watcher_takes_the_ramp_to_a_fire() {
         });
         assert!(cells[fire_out_at..].contains(&Cell::new(20, 11)), "down the ramp: {cells:?}");
         for step in cells.windows(2) {
-            assert!(env.tile_map.elevation().joins(step[0], step[1]), "{} to {} crosses a cliff", step[0], step[1]);
+            assert!(steps(&env, step[0], step[1]), "{} to {} crosses a cliff", step[0], step[1]);
         }
         assert!(!fire_response_is_out(&mut env, fire_watch), "back home");
     });

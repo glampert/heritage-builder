@@ -5,7 +5,7 @@
 // (unit::task::UnitTaskShip); the dock keeps its berth and its dockers (DockBerth, on its
 // ServiceBuilding).
 
-use std::collections::VecDeque;
+use std::{cmp::Reverse, collections::BinaryHeap};
 
 use common::{
     callback::{self, Callback},
@@ -30,7 +30,7 @@ use super::{
 use crate::{
     building::{Building, BuildingContext, BuildingKind, BuildingKindAndId},
     config::GameConfigs,
-    pathfind::{Node, NodeKind as PathNodeKind, Path},
+    pathfind::{self, Node, NodeKind as PathNodeKind, Path},
     sim::{
         SimCmdQueue,
         SimCmds,
@@ -514,15 +514,42 @@ fn is_sailable(context: &SimContext, cell: Cell) -> bool {
 
 const SIDES: [(i32, i32); 4] = [(1, 0), (0, -1), (-1, 0), (0, 1)];
 
+// A ship's steps (docs/plans/unit-movement.md, Q6): the four sides, then the four diagonals.
+const STEPS: [(i32, i32); 8] = [(1, 0), (0, -1), (-1, 0), (0, 1), (1, 1), (-1, -1), (1, -1), (-1, 1)];
+
 fn neighbours(cell: Cell) -> impl Iterator<Item = Cell> {
     SIDES.iter().map(move |(dx, dy)| Cell::new(cell.x + dx, cell.y + dy))
 }
 
-// A breadth-first search over the open water from `starts`, visiting each cell in order of distance
-// until `visit` returns true; the path to that cell (from its start) if it does.
+// Whether a water cell is on the shore: land among its eight neighbours (water::is_land, the rule the
+// shore sprites follow), so its sprite is partly land and a ship on it looks as if it sails over
+// the land (Q8). A canal's mouth and the map's edge count as water.
+pub fn is_shore(context: &SimContext, cell: Cell) -> bool {
+    Node::new(cell).neighbors8().into_iter().any(|next| water::is_land(context.tile_map(), next.cell))
+}
+
+// What a step costs a ship (Q6, Q8): the walkers' eight-way distance (pathfind::STRAIGHT_STEP_COST
+// a side, DIAGONAL_STEP_COST a diagonal, TURN_COST a turn), under SHORE_STEP_COST for each shore cell
+// it enters, which outweighs any distance: a path takes no shore cell it can avoid, however far round
+// the way without, and only the fewest it can't (its last cells into a berth, a narrow channel).
+const SHORE_STEP_COST: u64 = 1 << 32;
+
+fn step_cost(from_step: Option<(i32, i32)>, step: (i32, i32), onto_shore: bool) -> u64 {
+    let distance = if step.0 != 0 && step.1 != 0 { pathfind::DIAGONAL_STEP_COST } else { pathfind::STRAIGHT_STEP_COST };
+    let turn = if from_step.is_some_and(|before| before != step) { pathfind::TURN_COST } else { 0 };
+    (distance + turn) as u64 + if onto_shore { SHORE_STEP_COST } else { 0 }
+}
+
+// A uniform-cost search over the open water from `starts` (Dijkstra's, through the eight neighbours,
+// a diagonal only when both cells beside it are open water too, so a ship never cuts past a point of
+// land or a dock's corner), visiting each cell in order of its cost (the shore cells entered, then
+// the distance) until `visit` returns true; the path to that cell (from its start) if it does. Ties
+// go to the cell reached first, so it's the same every time.
 struct WaterSearch {
     width: i32,
     parents: Vec<u32>,
+    costs: Vec<u64>,
+    settled: Vec<bool>,
 }
 
 const UNVISITED: u32 = u32::MAX;
@@ -531,27 +558,56 @@ const ROOT: u32 = u32::MAX - 1;
 impl WaterSearch {
     fn run(context: &SimContext, starts: &[Cell], mut visit: impl FnMut(Cell) -> bool) -> Option<Path> {
         let size = context.map_size_in_cells();
-        let mut search = Self { width: size.width, parents: vec![UNVISITED; (size.width * size.height).max(0) as usize] };
-        let mut queue = VecDeque::new();
+        let count = (size.width * size.height).max(0) as usize;
+        let mut search = Self {
+            width: size.width,
+            parents: vec![UNVISITED; count],
+            costs: vec![u64::MAX; count],
+            settled: vec![false; count],
+        };
+        let mut queue = BinaryHeap::new();
+        let mut order: u64 = 0;
         for &start in starts {
             if let Some(index) = search.index(start)
                 && search.parents[index] == UNVISITED
             {
                 search.parents[index] = ROOT;
-                queue.push_back(start);
+                search.costs[index] = 0;
+                queue.push(Reverse((0, order, index as u32)));
+                order += 1;
             }
         }
-        while let Some(cell) = queue.pop_front() {
+        while let Some(Reverse((cost, _, index))) = queue.pop() {
+            let index = index as usize;
+            if search.settled[index] || cost > search.costs[index] {
+                continue; // Reached again more cheaply since.
+            }
+            search.settled[index] = true;
+            let cell = search.cell_at(index);
             if visit(cell) {
                 return Some(search.path_to(cell));
             }
-            for next in neighbours(cell) {
-                if let Some(index) = search.index(next)
-                    && search.parents[index] == UNVISITED
-                    && is_sailable(context, next)
+            let from_step = search.step_into(index);
+            for step in STEPS {
+                let next = Cell::new(cell.x + step.0, cell.y + step.1);
+                let Some(next_index) = search.index(next) else {
+                    continue;
+                };
+                if search.settled[next_index] || !is_sailable(context, next) {
+                    continue;
+                }
+                let diagonal = step.0 != 0 && step.1 != 0;
+                if diagonal
+                    && !(is_sailable(context, Cell::new(next.x, cell.y)) && is_sailable(context, Cell::new(cell.x, next.y)))
                 {
-                    search.parents[index] = search.index(cell).unwrap() as u32;
-                    queue.push_back(next);
+                    continue;
+                }
+                let next_cost = cost + step_cost(from_step, step, is_shore(context, next));
+                if next_cost < search.costs[next_index] {
+                    search.costs[next_index] = next_cost;
+                    search.parents[next_index] = index as u32;
+                    queue.push(Reverse((next_cost, order, next_index as u32)));
+                    order += 1;
                 }
             }
         }
@@ -564,12 +620,25 @@ impl WaterSearch {
             .then(|| (cell.y * self.width + cell.x) as usize)
     }
 
+    fn cell_at(&self, index: usize) -> Cell {
+        Cell::new(index as i32 % self.width, index as i32 / self.width)
+    }
+
+    // The step the search took into the cell at `index` (none for a start).
+    fn step_into(&self, index: usize) -> Option<(i32, i32)> {
+        let parent = self.parents[index];
+        (parent != ROOT).then(|| {
+            let (from, to) = (self.cell_at(parent as usize), self.cell_at(index));
+            (to.x - from.x, to.y - from.y)
+        })
+    }
+
     fn path_to(&self, cell: Cell) -> Path {
         let mut path = vec![Node::new(cell)];
         let mut index = self.index(cell).unwrap();
         while self.parents[index] != ROOT {
             index = self.parents[index] as usize;
-            path.push(Node::new(Cell::new(index as i32 % self.width, index as i32 / self.width)));
+            path.push(Node::new(self.cell_at(index)));
         }
         path.reverse();
         path

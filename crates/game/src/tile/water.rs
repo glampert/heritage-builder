@@ -81,9 +81,10 @@ impl ShoreNeighbors {
 }
 
 // Is the terrain at `cell` land? Cells past the map's edge count as water, so a shore
-// ends at the edge of the map instead of running along it.
+// ends at the edge of the map instead of running along it. A water cell with land among its eight
+// neighbours draws a shore: ships keep off it (trade::ships).
 #[inline]
-fn is_land(tile_map: &TileMap, cell: Cell) -> bool {
+pub fn is_land(tile_map: &TileMap, cell: Cell) -> bool {
     tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).is_some_and(|tile| tile.path_kind().is_land())
 }
 
