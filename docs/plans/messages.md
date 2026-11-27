@@ -1,6 +1,6 @@
 # Messages and advisors
 
-**Status (2026-11-27): accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phases 0 to 3 done; Phase 4, the docs, next.** This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-27): done.** Accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phases 0 to 4 are done; their notes record the deviations and what was verified. This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
 - GDD 5.18's advisor messages and events: typed messages with a priority, a place on the map or a page, and a popup for the important ones (the mockups' `event-<realm>.jpg`);
 - GDD 5.3's labour priorities per sector, as in Pharaoh, and the advisor pages the roadmap asks for: the City book's Labour and Food pages (`city-labour-<realm>.jpg`, `city-food-<realm>.jpg`). Finances (M4) and Ratings (M9) are pages already;
 - the two inspector actions realm-ui Phase 8 left disabled: Pause work, and a store's Get and Empty orders.
@@ -229,9 +229,13 @@ Notes (2026-11-27):
 
 ### Phase 4: Documentation (small)
 
-- [ ] AGENTS.md: messages, popups, labour, the new pages and commands; the scenario list; the plan list.
-- [ ] known-issues.md: what's left out (advisors' characters, attack warnings, unbalanced numbers).
-- [ ] The roadmap's M11 row and save log; GDD 5.3 and 5.18's status.
+- [x] AGENTS.md: messages, popups, labour, the new pages and commands; the scenario list; the plan list.
+- [x] known-issues.md: what's left out (advisors' characters, attack warnings, unbalanced numbers).
+- [x] The roadmap's M11 row and save log; GDD 5.3 and 5.18's status.
+
+Notes (2026-11-27):
+- **As built.** Each phase brought AGENTS.md, known-issues.md and the roadmap up to date as it landed, so this phase checked them against the code and finished them: the plan list and the roadmap's status line count M11 done; the roadmap's M11 row says what was built and what waits (advisors as characters, attack warnings, scripted mission events), its section says the log is the HUD's lines rather than a panel, and its bug table says save and load failures still raise no message (M11 left them out); `city.state`'s `food` and `labour` in AGENTS.md; known-issues.md gains an entry for what M11 leaves out and the labour and store knobs that M13 balances; GDD 5.3 (labour priorities, Pause work), 5.18 (the goals today, messages with places and the important events' popups; what's planned) and 10 (the City book's pages as today's advisors); realm-ui.md's note on the inspector's labour priority.
+- **Verified.** The docs read against the code; no code changed in this phase.
 
 ## Risks
 

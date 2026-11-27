@@ -84,7 +84,7 @@ Status codes: **P** = in the prototype today, **P+** = in the prototype but to b
 |---|---|---|---|
 | 5.1 | Terrain, map and construction | P+ | Isometric tile map with land, water and shores, rocks and vegetation; dirt and paved roads; placing, clearing, undo and redo; minimap. Planned: building costs in gold and materials (5.1.1), a construction cycle (5.1.2), elevation-like terrain features (hills, karst, cliffs), fertility, and favourable sites, flood areas, rice paddies |
 | 5.2 | Population and housing | P+ | Houses evolve when their service and goods needs are met; five levels exist today. Planned: a common track and an elite track (5.2.1) |
-| 5.3 | Labour and employment | P | Each house supplies workers by level; buildings need staff to run. Planned: labour priorities per sector, as in Pharaoh |
+| 5.3 | Labour and employment | P | Each house supplies workers by level; buildings need staff to run. Workers go to six sectors (food and farming, industry, services, culture and religion, infrastructure, trade) in the player's order of priority, as in Pharaoh, from houses within reach along the roads; a workplace can pause work, freeing its workers |
 | 5.4 | Walkers and coverage | P+ | Service walkers patrol from their buildings; runners deliver goods; settlers move in. Today, access is decided by distance to the service building. Planned: decide whether to switch to walkers actually visiting (an open item in known-issues) |
 | 5.5 | Food and goods distribution | P | Farms and producers, then granary and storage yard, then market, then houses |
 | 5.6 | Industry and production chains | P+ | Mines, clay pits, lumberyards and factories (kiln, brick maker, distillery) exist. Planned: per-realm chains (5.13) |
@@ -99,7 +99,7 @@ Status codes: **P** = in the prototype today, **P+** = in the prototype but to b
 | 5.15 | Heritage monuments | N | Large projects built in stages from materials and specialist workers |
 | 5.16 | Defence and attacks | N | Walls, gatehouses, moats, towers, fortresses, automatic militia; raids and invasions |
 | 5.17 | Ratings | N | Prosperity, Culture, Security and Legitimacy |
-| 5.18 | Goals, events and advisors | P+ | Campaign goals exist (population, employment, treasury). Planned: the full goal set (section 7), scripted events, advisor messages |
+| 5.18 | Goals, events and advisors | P+ | Goals: population, employment, treasury, ratings, houses, trade income, requests, festivals and floods (section 7). Messages carry a priority and a place (a building, a cell, a City book page, the world map) the player can go to; important events (floods, requests, blessings and misfortunes, outbreaks, the last warnings before a mission is lost) open a popup. Planned: the survival and monument goals, scripted mission events, attack warnings, advisors as characters |
 | 5.19 | Story presentation | N | Briefings, comics, steles, in-mission story events |
 
 ### 5.1.1 Building costs
@@ -323,7 +323,7 @@ Many missions mix families. Planned goal types (`Population`, `Employment`, `Tre
 - Scroll and lacquer panels, with frame trims per realm: red and gold lacquer for Đại Long, carved sandstone for Kambara, gilt on red for Tampadesa. The prototype's scroll panels and build bar stay.
 - A minimal HUD: speed controls, treasury, population, date and season, a goals tracker and a message log.
 - **Overlays:** water and irrigation, each service, risks, desirability, defence coverage and floods.
-- **Advisors:** one screen per area (labour, military, food, trade, culture, finance, ratings, the court), as in Pharaoh.
+- **Advisors:** one screen per area (labour, military, food, trade, culture, finance, ratings, the court), as in Pharaoh. Today they are the City book's pages (overview, population, goods, finances, ratings, labour, food and heritage); military, trade and the court come with their systems.
 - **Accessibility:** UI scale, colour-blind-safe overlays, rebindable keys, adjustable game speed.
 - **Fonts** must cover Vietnamese diacritics.
 

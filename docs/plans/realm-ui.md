@@ -837,7 +837,7 @@ Left for later (in known-issues): no building is locked by mission yet, so a til
 The mockup draws one panel, a workshop (the pottery kiln), and so is the pattern for the rest. The panel stands at the right, under the top bar and left of the build column, on the HUD's large panel. From top to bottom:
 - **Header:** the building's icon tile (its palette glyph), its realm name, kind and size ("Workshop · 2×2") and the Close tile.
 - **Status line:** a coloured dot and a word (Working, Short of workers, No clay, Storage full, On fire, Sick, Under construction, Renovating), with a summary on the right ("Pottery for 18 houses").
-- **Workers:** employed against needed, a figure per post (empty ones faded), and a note on what's short. The labour priority ("Industry is priority 2") waits for M11.
+- **Workers:** employed against needed, a figure per post (empty ones faded), and a note on what's short. The labour priority ("Industry is priority 2") waited for M11, which added it (messages.md, Phase 3).
 - **Production:** each input and output against its capacity as a meter, the batch ("2 jars every 15 days") and the next batch's progress; then a line on what its walker is doing ("A cart is taking 4 jars to the storage yard").
 - **Costs:** upkeep a year, wages (workers × wage).
 - **Risks** (the user's call on 2026-11-14, in place of the mockup's Built line): fire and collapse risk, a house's disease risk too, each a meter and its level (Low, Medium from 40, High from 75), High in the realm's red.

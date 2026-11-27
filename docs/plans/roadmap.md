@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-26): Phase 1 in progress: M1, M3, M4, M5, M6, M7, M8, M9, M10 and T done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-27): Phase 1 in progress: M1, M3, M4, M5, M6, M7, M8, M9, M10, M11 and T done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -63,7 +63,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M8 | Faith and festivals | Medium | M1 | [faith.md](faith.md) | Done: data, state and save v10; the patrons' shrines and temples, picked from the palette's variation submenu; favour, the Patrons tab and the Faith lens; blessings and misfortunes; festivals and the festival square (floods' events came with M7 Phase 2; Culture and Legitimacy wait for M9) |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | [ratings.md](ratings.md) | Done (2026-11-26: the ratings, their data, save v17; the HUD's rings and the City book's Ratings page; the rating, houses and time-limit goals, requests' Legitimacy and the court asking again, save v18; failure by debt, Legitimacy or time and the failure screen; distinctions on the debrief, the stele, the campaign-complete screen and the picker; custom games' goal sets, their short debrief and the Failure switch; the docs). No `Stockpile`: `Resource` counts what's in storage (Q6); the survival and monument goals wait for game Phase 2; the difficulty isn't applied yet (Q10, M13) |
 | M10 | Trade v1 and court requests | Large | M1, M4, M5 | [trade.md](trade.md) | Done (2026-11-22: the data, the state, save v12; land routes, the trade limits dialog, caravans; docks, trade ships and their dockers, save v13; prices that move with trade and drift back; court requests and the `TradeIncome` and `RequestsFulfilled` goals, save v14; the docs). No trade post: caravans trade at the storage yards and granaries (Q1); docks and trade ships brought forward from Phase 2; the `TradeIncome` and `RequestsFulfilled` goals brought forward from M9 (Q10) |
-| M11 | Messages and advisors | Medium to large | M9 (grows with each system) | [messages.md](messages.md) | In progress (2026-11-26: plan accepted with its defaults, one save bump for labour and the stores' runners; Phase 0 done: typed messages with a priority, a place and a date, the HUD log's lines going there; Phase 1 done: event popups for floods, requests, blessings and misfortunes, outbreaks and the last failure warnings, with a Settings switch; Phase 2 done: labour priorities by sector handed out city-wide, Pause work, a store's Get and Empty runners, save v19; Phase 3 done: the City book's Labour and Food pages) |
+| M11 | Messages and advisors | Medium to large | M9 (grows with each system) | [messages.md](messages.md) | Done (2026-11-27: typed messages with a priority, a place and a date, the HUD log's lines going there; event popups for floods, requests, blessings and misfortunes, outbreaks and the last failure warnings, with a Settings switch; labour priorities by sector handed out city-wide, Pause work, a store's Get and Empty runners, save v19; the City book's Labour and Food pages). Advisors as characters, attack warnings and scripted mission events come later (game Phase 2, M13) |
 | M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3, the comic viewer (I-A and I-B as data) with Phase 4; the other sequences wait for their missions |
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Done (2026-11-23: the spike a go, at 32 px a level; Stage 1: the data, the editor's tools and save v15; Stage 2: the cliff, rim and ramp pieces from Blender, ramps two cells long; Stage 3: raised ground drawn; Stage 4: picking and placement follow heights; Stage 5: paths follow heights, ramps cost more; Stage 6: floods, irrigation and a farmstead's reach follow heights, save v16; the defence hooks wait for Phase 2) |
@@ -206,6 +206,8 @@ GDD 5.12 and 5.14:
 
 ### M11: Messages and advisors (medium)
 
+Done (2026-11-27): see [messages.md](messages.md). The message log is the HUD's three lines with their places, not a log panel (its Q11); a goal met opens the debrief, not a popup (Q3); automation reads `messages.state`.
+
 - **Message log:** a typed message system with priorities, a log panel, and a popup for important events (floods, fires, requests, blessings, goals). A request opening (M10) gets the mockup's event popup (`event-kambara.jpg`: what's asked, what meeting it brings, what lateness costs), with a way to the Goods page.
 - **Advisor screens:** labour, food, finance (M4) and ratings (M9), at a basic level.
 - **Pause work:** the inspector's Pause work button (realm-ui Phase 8 adds it, disabled with a tooltip) stops a workplace and frees its workers: a flag saved on the building (a save-version bump). Hook the button up here, and give the inspector's workers note the sector's labour priority ("2 short · Industry is priority 2").
@@ -298,7 +300,7 @@ These are bugs or gaps, each tied to the milestone that fixes it:
 | Storage accessors see only the first slot holding a good, so walkers fetch at most 4 at a time; a granary reports room for goods it can't hold, and a runner taking wine there crashes | `building/storage.rs` | After M3 (fixed) |
 | A market full of one good still asks for 0 of it; with nothing else in storage, its runner stays at a storage holding that good, taking nothing, and the market can't send another | `building/service.rs`, `unit/task/fetch.rs` | After M3 (fixed) |
 | Demolishing a tax office throws away the gold it holds | `building/service.rs` | M4 Phase 0 (fixed: collectors pay into one city treasury) |
-| Save and load failures are only logged (known-issues) | `session.rs` | M11, which can now show them |
+| Save and load failures are only logged (known-issues) | `session.rs` | Open: M11's messages could show them, but it left them out |
 
 ## Save-version log
 
