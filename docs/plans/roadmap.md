@@ -67,7 +67,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3, the comic viewer (I-A and I-B as data) with Phase 4; the other sequences wait for their missions |
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Done (2026-11-23: the spike a go, at 32 px a level; Stage 1: the data, the editor's tools and save v15; Stage 2: the cliff, rim and ramp pieces from Blender, ramps two cells long; Stage 3: raised ground drawn; Stage 4: picking and placement follow heights; Stage 5: paths follow heights, ramps cost more; Stage 6: floods, irrigation and a farmstead's reach follow heights, save v16; the defence hooks wait for Phase 2) |
-| U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
+| U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | In progress (2026-11-27: the plan brought up to date with terrain height, the responders, caravans and ships; Phase 1, the directions and the animation fallback, done) |
 | MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6, the Faith lens with M8, the Flood lens with M7 Phase 2, the Fertility lens with M7 Phase 4) |
 | UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–8 done (skins, main menus, world map, intermission and briefing, story comics, HUD, City book, old assets, the inspector's panels) |
 
@@ -238,7 +238,8 @@ See [terrain-height.md](terrain-height.md):
 ### U: Eight-direction movement for off-road walkers (medium)
 
 See [unit-movement.md](unit-movement.md):
-- units with `diagonal_movement` (settler, dog, buffalo, bird) path through 8 neighbours, without cutting corners, at costs of 10 and 14;
+- searches over open land (settlers, harvesters, fire watchers and medics on a call, caravans, dogs and buffalo) go through 8 neighbours, without cutting corners, at costs of 10, 14 and 15 (a ramp) on every map;
+- trade ships sail diagonally too, keeping off the shore where they can, with N, S and E facings from their Blender recipe;
 - road walkers don't change;
 - `UnitDirection` gets N, S, E and W, with a fallback to existing art;
 - the new walk angles come from the Blender walker experiment, or by hand.

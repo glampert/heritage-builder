@@ -228,12 +228,12 @@ impl Unit {
     }
 
     #[inline]
-    pub(crate) fn direction(&self) -> UnitDirection {
+    pub fn direction(&self) -> UnitDirection {
         self.direction
     }
 
     #[inline]
-    pub(crate) fn current_anim_name(&self) -> &'static str {
+    pub fn current_anim_name(&self) -> &'static str {
         self.anim_sets.current_anim_name()
     }
 
@@ -651,13 +651,13 @@ impl Unit {
 
     pub(crate) fn idle(&mut self, context: &SimContextMut) {
         if self.direction != UnitDirection::Idle {
-            let idle_anim_set_key = navigation::idle_anim_set_for_direction(self.direction);
-
             let tile = self.find_tile_mut(context);
-            if !self.anim_sets.set_anim(tile, idle_anim_set_key) {
-                // Fallback to generic idle if no directional anim.
-                self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
-            }
+            // A diagonal direction without its own idle stands as its walk was drawn (axis_fallback),
+            // and a unit with no directional idle takes the generic one.
+            let drawn_as = self.anim_sets.current_direction();
+            let anim_sets = &mut self.anim_sets;
+            let idle_anim_set_key = navigation::idle_anim_set(self.direction, drawn_as, |key| anim_sets.has_anim(tile, key));
+            self.anim_sets.set_anim(tile, idle_anim_set_key);
 
             self.direction = UnitDirection::Idle;
         }
@@ -665,7 +665,10 @@ impl Unit {
 
     fn update_direction_and_anim(&mut self, tile: &mut Tile, new_direction: UnitDirection) {
         if self.direction != new_direction {
-            let new_anim_set_key = anim_set_for_direction(new_direction);
+            // A diagonal direction the unit has no art for is drawn as the axis direction beside it.
+            let anim_sets = &mut self.anim_sets;
+            let (new_anim_set_key, _) =
+                navigation::walk_anim_set(new_direction, self.direction, |key| anim_sets.has_anim(tile, key));
             self.anim_sets.set_anim(tile, new_anim_set_key);
             self.direction = new_direction;
         }

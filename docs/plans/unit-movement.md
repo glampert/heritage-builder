@@ -1,6 +1,6 @@
 # Eight-direction movement for off-road walkers
 
-**Status (2026-11-27): Draft, brought up to date with the code at `60f5d956` (after terrain height, M6's responders and M10's caravans). Not started.** This plan lets walkers that leave the roads move diagonally on the grid as well as straight, which removes the zigzag paths they trace across open ground now. Today those are settlers, harvesters, fire watchers and medics on a call, caravans, and the dogs and buffalo that wander from houses and farms; Phase 2's raiders and militia will be too. Trade ships sail diagonally over open water as well (Q6). Walkers on roads keep their four directions. The defaults below were accepted on 2026-11-27, with ships sailing diagonally. It is milestone U of the [roadmap](roadmap.md). The new walk angles need art, and making it in Blender is tried in [placeholder-art.md](placeholder-art.md) Phase 6.
+**Status (2026-11-27): in progress. Brought up to date with the code at `60f5d956` (after terrain height, M6's responders and M10's caravans); Phase 1 (directions and the animation fallback) done.** This plan lets walkers that leave the roads move diagonally on the grid as well as straight, which removes the zigzag paths they trace across open ground now. Today those are settlers, harvesters, fire watchers and medics on a call, caravans, and the dogs and buffalo that wander from houses and farms; Phase 2's raiders and militia will be too. Trade ships sail diagonally over open water as well (Q6). Walkers on roads keep their four directions. The defaults below were accepted on 2026-11-27, with ships sailing diagonally. It is milestone U of the [roadmap](roadmap.md). The new walk angles need art, and making it in Blender is tried in [placeholder-art.md](placeholder-art.md) Phase 6.
 
 ## How to resume this work
 
@@ -116,11 +116,18 @@ Making the fire watcher's and the trader's directions means making the guard's a
 
 ### Phase 1: Directions and animation fallback (small)
 
-- [ ] `UnitDirection` N, S, E and W; `direction_between`, `same_axis` and the `is_*` helpers.
-- [ ] Anim set keys and the fallback chain, with a per-def cache.
-- [ ] Unit tests: each direction maps to the expected anim set for a unit that has 4 directions of art, and for a mock unit that has 8; the `is_*` table.
+- [x] `UnitDirection` N, S, E and W; `direction_between`, `same_axis` and the `is_*` helpers.
+- [x] Anim set keys and the fallback chain, with a per-def cache.
+- [x] Unit tests: each direction maps to the expected anim set for a unit that has 4 directions of art, and for a mock unit that has 8; the `is_*` table.
 
 Done when: nothing changes in play. Every unit still moves 4-way and looks the same.
+
+**Notes (2026-11-27): done.**
+- **Directions** ([unit/navigation.rs](../../crates/game/src/unit/navigation.rs)): `UnitDirection` gains `N`, `S`, `E` and `W` after the four it had (saved by name), and `is_diagonal`; `is_north`, `is_south`, `is_east` and `is_west` take the screen half they name (N north only, E east only, ...), so `same_axis` pairs N with NE and NW. `direction_between` gives a diagonal direction for an exactly diagonal step and today's answer for anything else.
+- **Deviation: patrols keep their heading.** The patrols weigh a whole path's direction, start to goal (`patrol::path_direction`), not a step's; through `direction_between` a path whose ends were exactly diagonal would have turned N, S, E or W and changed which waypoints they pick. They now call `heading_between`, the old four-axis rule (a tie still goes to NW or SE), so their choices and their saved `current_direction` are as before.
+- **Fallback:** `axis_fallback(direction, previous)` picks the axis direction beside a diagonal one on the side the unit turned from (N after anything east-facing is NE, after anything west-facing NW; E after anything north-facing NE, after anything south-facing SE), else NE for N, SE for S and E, SW for W. `walk_anim_set` plays a diagonal's own walk when the unit's tile has it, else its fallback's; `idle_anim_set` stands a diagonal as its walk was drawn (`UnitAnimSets::current_direction`, from the set playing), else its default side, else the generic `idle`, as before. `Unit::update_direction_and_anim` and `Unit::idle` call them. The new keys are `walk_n`, `walk_s`, `walk_e`, `walk_w` and `idle_n` ... `idle_w`; `current_anim_name` reads a table of the known sets.
+- **Deviation: no per-def cache.** `UnitAnimSets` already keeps each unit's map from pre-hashed set keys to its tile's sets (built once, lazily), so asking whether a unit has `walk_n` (`has_anim`) is one map lookup with no hashing; nothing else is cached.
+- **Verified:** `cargo test -p game --lib navigation` (the steps' directions, headings staying on the axes, the screen halves, the fallback table, the walk and idle sets of a four-way unit, an eight-way one and the bird's lone walk) and `unit_tasks`' `test_diagonal_steps_fall_back_to_axis_art` (a settler stepping diagonally, by `Unit::teleport` between cells that share only a corner, faces N, W, S and E and plays `walk_ne`, `walk_nw`, `walk_sw` and `walk_se`; axis steps play their own walk). Nothing changes in play: `determinism.jsonl` (`--seed 7 --window-size 1280x720`) prints the same checksum and writes a byte-identical save with the build before Phase 1 and the build after it. `cargo test --workspace`, both clippy runs, the 32 CI scenarios on a release build, and the `ui_build` and `determinism` recordings replaying to the same state.
 
 ### Phase 2: 8-way pathfinding (medium)
 

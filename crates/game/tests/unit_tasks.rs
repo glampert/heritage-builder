@@ -16,7 +16,7 @@ use game::{
         Unit,
         UnitId,
         config::UnitConfigKey,
-        navigation::UnitNavGoal,
+        navigation::{UnitDirection, UnitNavGoal},
         task::{
             UnitPatrolPathRecord,
             UnitPostDespawnCb,
@@ -45,6 +45,7 @@ use test_utils::{
     assign_task,
     clear_terrain,
     despawn_building,
+    fill_terrain,
     find_building,
     find_building_id,
     find_building_mut,
@@ -97,6 +98,8 @@ fn main() {
         test_utils::test_fn!(test_patrol_leaves_and_returns_to_origin),
         test_utils::test_fn!(test_patrol_visits_target_buildings),
         test_utils::test_fn!(test_patrol_respects_max_distance),
+        // Directions (docs/plans/unit-movement.md, Phase 1)
+        test_utils::test_fn!(test_diagonal_steps_fall_back_to_axis_art),
     ]);
 }
 
@@ -1349,4 +1352,39 @@ fn test_patrol_respects_max_distance() {
     assert!(max_observed <= MAX_DISTANCE, "patrol drifted {max_observed} cells from origin (max_distance={MAX_DISTANCE})",);
     // Also confirm we actually saw movement -- otherwise the assertion is vacuous.
     assert!(max_observed > 0, "patrol should have moved at least one cell from origin");
+}
+
+// ----------------------------------------------
+// Directions
+// ----------------------------------------------
+
+// A settler (art for the four axis directions only) stepping diagonally faces the diagonal
+// direction but is drawn with the axis direction's walk on the side it turned from, and an axis
+// step plays its own walk, as before.
+fn test_diagonal_steps_fall_back_to_axis_art() {
+    let mut env = TestEnvironment::new();
+    fill_terrain(&mut env, "grass");
+
+    let start = Cell::new(10, 10);
+    let unit_id = spawn_unit(&mut env, start, UnitConfigKey::Settler);
+    assert!(find_unit(&env, unit_id).direction() == UnitDirection::Idle);
+
+    // (step to, direction faced, walk played)
+    let steps = [
+        (Cell::new(11, 11), UnitDirection::N, "walk_ne"), // From standing: N's east side.
+        (Cell::new(10, 12), UnitDirection::W, "walk_nw"), // After N, a north one.
+        (Cell::new(9, 11), UnitDirection::S, "walk_sw"),  // After W, a west one.
+        (Cell::new(10, 10), UnitDirection::E, "walk_se"), // After S, a south one.
+        (Cell::new(11, 10), UnitDirection::NE, "walk_ne"), // An axis step: its own.
+        (Cell::new(11, 11), UnitDirection::NW, "walk_nw"),
+        (Cell::new(10, 12), UnitDirection::W, "walk_nw"), // After NW, a north one.
+    ];
+    for (cell, direction, walk) in steps {
+        let unit = env.world.find_unit_mut(unit_id).unwrap();
+        assert!(unit.teleport(&mut env.tile_map, cell), "the settler should move to {cell}");
+        let unit = find_unit(&env, unit_id);
+        assert!(unit.cell() == cell);
+        assert!(unit.direction() == direction, "stepping to {cell}: facing {}, not {direction}", unit.direction());
+        assert_eq!(unit.current_anim_name(), walk, "stepping to {cell} facing {direction}");
+    }
 }

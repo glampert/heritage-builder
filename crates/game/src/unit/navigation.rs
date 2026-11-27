@@ -16,7 +16,11 @@ use crate::{
 // UnitDirection
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq, Default, Display, Serialize, Deserialize)]
+// The way a unit faces: Idle, or one of the 8 screen directions. NE, NW, SE and SW are the moves
+// along the grid's axes (NE +x, NW +y, SE -y, SW -x); N, S, E and W the diagonal ones between them
+// (N +x+y, the screen's up; S -x-y; E +x-y, the screen's right; W -x+y), docs/plans/unit-movement.md.
+// Saved by name: the diagonal ones come last, so older saves still load.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Display, Serialize, Deserialize)]
 pub enum UnitDirection {
     #[default]
     Idle,
@@ -24,27 +28,41 @@ pub enum UnitDirection {
     NW,
     SE,
     SW,
+    N,
+    S,
+    E,
+    W,
 }
 
 impl UnitDirection {
+    // The screen's upper half: NE, N and NW.
     #[inline]
     pub fn is_north(self) -> bool {
-        matches!(self, Self::NE | Self::NW)
+        matches!(self, Self::NE | Self::NW | Self::N)
     }
 
+    // The screen's lower half: SE, S and SW.
     #[inline]
     pub fn is_south(self) -> bool {
-        matches!(self, Self::SE | Self::SW)
+        matches!(self, Self::SE | Self::SW | Self::S)
     }
 
+    // The screen's right half: NE, E and SE.
     #[inline]
     pub fn is_east(self) -> bool {
-        matches!(self, Self::NE | Self::SE)
+        matches!(self, Self::NE | Self::SE | Self::E)
     }
 
+    // The screen's left half: NW, W and SW.
     #[inline]
     pub fn is_west(self) -> bool {
-        matches!(self, Self::NW | Self::SW)
+        matches!(self, Self::NW | Self::SW | Self::W)
+    }
+
+    // A diagonal grid move: N, S, E or W.
+    #[inline]
+    pub fn is_diagonal(self) -> bool {
+        matches!(self, Self::N | Self::S | Self::E | Self::W)
     }
 }
 
@@ -56,8 +74,29 @@ pub fn same_axis(a: UnitDirection, b: UnitDirection) -> bool {
         || (a.is_west() && b.is_west())
 }
 
+// The direction of a step from `a` to `b`: a diagonal one (N, S, E, W) when the step is exactly
+// diagonal, else the grid axis it moves furthest along (NE, NW, SE, SW).
 #[inline]
 pub fn direction_between(a: Cell, b: Cell) -> UnitDirection {
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+
+    if dx != 0 && dx.abs() == dy.abs() {
+        match (dx > 0, dy > 0) {
+            (true, true) => UnitDirection::N,
+            (false, false) => UnitDirection::S,
+            (true, false) => UnitDirection::E,
+            (false, true) => UnitDirection::W,
+        }
+    } else {
+        heading_between(a, b)
+    }
+}
+
+// The grid axis `b` lies furthest along from `a` (NE, NW, SE or SW; NW or SE on a tie): a path's
+// overall heading, as the patrols weigh it, which stays on the four axes.
+#[inline]
+pub fn heading_between(a: Cell, b: Cell) -> UnitDirection {
     let dx = b.x - a.x;
     let dy = b.y - a.y;
 
@@ -72,6 +111,45 @@ pub fn direction_between(a: Cell, b: Cell) -> UnitDirection {
     }
 }
 
+// The axis direction a diagonal one is drawn as by a unit without art for it: of the two beside it,
+// the one on the side of the unit's `previous` direction (a unit turning N from the east side, NE),
+// else the east one for N and S and the south one for E and W. An axis direction is its own.
+#[inline]
+pub fn axis_fallback(direction: UnitDirection, previous: UnitDirection) -> UnitDirection {
+    use UnitDirection::*;
+    match direction {
+        N => {
+            if previous.is_west() {
+                NW
+            } else {
+                NE
+            }
+        }
+        S => {
+            if previous.is_west() {
+                SW
+            } else {
+                SE
+            }
+        }
+        E => {
+            if previous.is_north() {
+                NE
+            } else {
+                SE
+            }
+        }
+        W => {
+            if previous.is_north() {
+                NW
+            } else {
+                SW
+            }
+        }
+        _ => direction,
+    }
+}
+
 #[inline]
 pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
     match direction {
@@ -80,6 +158,10 @@ pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
         UnitDirection::NW => UnitAnimSets::WALK_NW,
         UnitDirection::SE => UnitAnimSets::WALK_SE,
         UnitDirection::SW => UnitAnimSets::WALK_SW,
+        UnitDirection::N => UnitAnimSets::WALK_N,
+        UnitDirection::S => UnitAnimSets::WALK_S,
+        UnitDirection::E => UnitAnimSets::WALK_E,
+        UnitDirection::W => UnitAnimSets::WALK_W,
     }
 }
 
@@ -91,7 +173,49 @@ pub fn idle_anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
         UnitDirection::NW => UnitAnimSets::IDLE_NW,
         UnitDirection::SE => UnitAnimSets::IDLE_SE,
         UnitDirection::SW => UnitAnimSets::IDLE_SW,
+        UnitDirection::N => UnitAnimSets::IDLE_N,
+        UnitDirection::S => UnitAnimSets::IDLE_S,
+        UnitDirection::E => UnitAnimSets::IDLE_E,
+        UnitDirection::W => UnitAnimSets::IDLE_W,
     }
+}
+
+// The walk anim set a unit turning to `direction` from `previous` plays: its own when the unit has
+// it (`has`), else, for a diagonal direction, that of the axis direction it falls back to
+// (axis_fallback). Returns the set and the direction it's drawn as.
+pub fn walk_anim_set(
+    direction: UnitDirection,
+    previous: UnitDirection,
+    mut has: impl FnMut(UnitAnimSetKey) -> bool,
+) -> (UnitAnimSetKey, UnitDirection) {
+    let own = anim_set_for_direction(direction);
+    if !direction.is_diagonal() || has(own) {
+        return (own, direction);
+    }
+    let fallback = axis_fallback(direction, previous);
+    (anim_set_for_direction(fallback), fallback)
+}
+
+// The idle anim set a unit that stops facing `direction` plays: its own directional one when it has
+// it, else, for a diagonal direction, that of the axis direction its walk was drawn as (`drawn_as`,
+// when known; else axis_fallback's default), else the generic idle.
+pub fn idle_anim_set(
+    direction: UnitDirection,
+    drawn_as: Option<UnitDirection>,
+    mut has: impl FnMut(UnitAnimSetKey) -> bool,
+) -> UnitAnimSetKey {
+    let own = idle_anim_set_for_direction(direction);
+    if has(own) {
+        return own;
+    }
+    if direction.is_diagonal() {
+        let axis = drawn_as.filter(|drawn| !drawn.is_diagonal() && *drawn != UnitDirection::Idle);
+        let fallback = idle_anim_set_for_direction(axis.unwrap_or_else(|| axis_fallback(direction, UnitDirection::Idle)));
+        if has(fallback) {
+            return fallback;
+        }
+    }
+    UnitAnimSets::IDLE
 }
 
 // ----------------------------------------------
@@ -387,5 +511,165 @@ impl UnitNavigation {
     pub fn set_movement_speed(&mut self, movement_speed: f32) {
         debug_assert!(movement_speed.is_finite() && movement_speed != 0.0);
         self.segment_duration = 1.0 / movement_speed;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use UnitDirection::*;
+
+    use super::*;
+
+    const AXES: [UnitDirection; 4] = [NE, NW, SE, SW];
+    const DIAGONALS: [UnitDirection; 4] = [N, S, E, W];
+
+    // A unit's anim sets, by name, as a `has` lookup.
+    fn has_sets(names: &'static [&'static str]) -> impl FnMut(UnitAnimSetKey) -> bool {
+        move |key| names.contains(&key.string)
+    }
+
+    // Today's walkers: the four axis directions' walks and idles (and the generic idle).
+    const FOUR_WAY: &[&str] =
+        &["idle", "idle_ne", "idle_nw", "idle_se", "idle_sw", "walk_ne", "walk_nw", "walk_se", "walk_sw"];
+    // A walker with art for all eight.
+    const EIGHT_WAY: &[&str] = &[
+        "idle", "idle_ne", "idle_nw", "idle_se", "idle_sw", "idle_n", "idle_s", "idle_e", "idle_w", "walk_ne", "walk_nw",
+        "walk_se", "walk_sw", "walk_n", "walk_s", "walk_e", "walk_w",
+    ];
+
+    #[test]
+    fn steps_map_to_eight_directions() {
+        let origin = Cell::new(5, 5);
+        let step = |dx, dy| direction_between(origin, Cell::new(5 + dx, 5 + dy));
+        assert_eq!(step(1, 0), NE);
+        assert_eq!(step(0, 1), NW);
+        assert_eq!(step(0, -1), SE);
+        assert_eq!(step(-1, 0), SW);
+        assert_eq!(step(1, 1), N);
+        assert_eq!(step(-1, -1), S);
+        assert_eq!(step(1, -1), E);
+        assert_eq!(step(-1, 1), W);
+        assert_eq!(step(0, 0), Idle);
+        // Longer: exactly diagonal is diagonal, anything else its longer axis.
+        assert_eq!(step(3, 3), N);
+        assert_eq!(step(3, 2), NE);
+        assert_eq!(step(-1, -4), SE);
+    }
+
+    #[test]
+    fn headings_stay_on_the_axes() {
+        let origin = Cell::new(5, 5);
+        let heading = |dx, dy| heading_between(origin, Cell::new(5 + dx, 5 + dy));
+        // A tie goes to the y axis, as direction_between did before the diagonals.
+        assert_eq!(heading(3, 3), NW);
+        assert_eq!(heading(-2, -2), SE);
+        assert_eq!(heading(2, -2), SE);
+        assert_eq!(heading(-2, 2), NW);
+        assert_eq!(heading(4, 1), NE);
+        assert_eq!(heading(-4, 1), SW);
+        assert_eq!(heading(0, 0), Idle);
+    }
+
+    #[test]
+    fn screen_halves() {
+        // (direction, north, south, east, west)
+        let table = [
+            (Idle, false, false, false, false),
+            (NE, true, false, true, false),
+            (NW, true, false, false, true),
+            (SE, false, true, true, false),
+            (SW, false, true, false, true),
+            (N, true, false, false, false),
+            (S, false, true, false, false),
+            (E, false, false, true, false),
+            (W, false, false, false, true),
+        ];
+        for (direction, north, south, east, west) in table {
+            assert_eq!(direction.is_north(), north, "{direction} north");
+            assert_eq!(direction.is_south(), south, "{direction} south");
+            assert_eq!(direction.is_east(), east, "{direction} east");
+            assert_eq!(direction.is_west(), west, "{direction} west");
+            assert_eq!(direction.is_diagonal(), DIAGONALS.contains(&direction), "{direction} diagonal");
+        }
+        assert!(same_axis(N, NE) && same_axis(N, NW) && !same_axis(N, S));
+        assert!(same_axis(E, SE) && !same_axis(E, W) && !same_axis(E, N));
+    }
+
+    #[test]
+    fn diagonals_fall_back_to_the_side_they_came_from() {
+        // (direction, previous, falls back to)
+        let table = [
+            (N, NE, NE),
+            (N, E, NE),
+            (N, SE, NE),
+            (N, NW, NW),
+            (N, W, NW),
+            (N, SW, NW),
+            (N, Idle, NE),
+            (N, S, NE),
+            (S, SE, SE),
+            (S, W, SW),
+            (S, Idle, SE),
+            (E, NE, NE),
+            (E, N, NE),
+            (E, SW, SE),
+            (E, Idle, SE),
+            (W, NW, NW),
+            (W, NE, NW),
+            (W, S, SW),
+            (W, Idle, SW),
+        ];
+        for (direction, previous, expected) in table {
+            assert_eq!(axis_fallback(direction, previous), expected, "{direction} after {previous}");
+        }
+        for direction in AXES {
+            assert_eq!(axis_fallback(direction, N), direction);
+        }
+    }
+
+    #[test]
+    fn walk_sets_for_four_and_eight_way_units() {
+        for direction in AXES {
+            let (key, drawn) = walk_anim_set(direction, Idle, has_sets(FOUR_WAY));
+            assert_eq!(key.hash, anim_set_for_direction(direction).hash);
+            assert_eq!(drawn, direction);
+        }
+        // Without art, a diagonal is drawn as its axis neighbour on the side it came from.
+        let four = |direction, previous| walk_anim_set(direction, previous, has_sets(FOUR_WAY));
+        assert_eq!(four(N, Idle).0.string, "walk_ne");
+        assert_eq!(four(N, NW).0.string, "walk_nw");
+        let (key, drawn) = four(S, SW);
+        assert_eq!((key.string, drawn), ("walk_sw", SW));
+        assert_eq!(four(E, NE).0.string, "walk_ne");
+        assert_eq!(four(W, Idle).0.string, "walk_sw");
+        // With art, its own.
+        for direction in DIAGONALS {
+            let (key, drawn) = walk_anim_set(direction, NE, has_sets(EIGHT_WAY));
+            assert_eq!(key.hash, anim_set_for_direction(direction).hash);
+            assert_eq!(drawn, direction);
+        }
+        assert_eq!(walk_anim_set(E, Idle, has_sets(EIGHT_WAY)).0.string, "walk_e");
+    }
+
+    #[test]
+    fn idle_sets_for_four_and_eight_way_units() {
+        for direction in AXES {
+            assert_eq!(idle_anim_set(direction, None, has_sets(FOUR_WAY)).hash, idle_anim_set_for_direction(direction).hash);
+        }
+        // A diagonal stands as its walk was drawn, else its default side.
+        assert_eq!(idle_anim_set(N, Some(NW), has_sets(FOUR_WAY)).string, "idle_nw");
+        assert_eq!(idle_anim_set(N, None, has_sets(FOUR_WAY)).string, "idle_ne");
+        assert_eq!(idle_anim_set(W, Some(Idle), has_sets(FOUR_WAY)).string, "idle_sw");
+        assert_eq!(idle_anim_set(E, Some(N), has_sets(FOUR_WAY)).string, "idle_se");
+        // An eight-way unit stands facing its own way.
+        for direction in DIAGONALS {
+            assert_eq!(
+                idle_anim_set(direction, Some(NE), has_sets(EIGHT_WAY)).hash,
+                idle_anim_set_for_direction(direction).hash
+            );
+        }
+        // A unit with no directional idle (the bird) takes the generic one, as before.
+        assert_eq!(idle_anim_set(NE, None, has_sets(&["walk_se"])).string, "idle");
+        assert_eq!(idle_anim_set(N, Some(SE), has_sets(&["walk_se"])).string, "idle");
     }
 }

@@ -2,6 +2,7 @@ use common::hash::{self, PreHashedKeyMap, StrHashPair, StringHash};
 use engine::log;
 use serde::{Deserialize, Serialize};
 
+use super::navigation::UnitDirection;
 use crate::tile::{Tile, sets::TileDef};
 
 // ----------------------------------------------
@@ -25,11 +26,40 @@ impl UnitAnimSets {
     pub const IDLE_NW: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_nw");
     pub const IDLE_SE: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_se");
     pub const IDLE_SW: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_sw");
+    pub const IDLE_N: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_n");
+    pub const IDLE_S: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_s");
+    pub const IDLE_E: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_e");
+    pub const IDLE_W: UnitAnimSetKey = UnitAnimSetKey::from_str("idle_w");
 
     pub const WALK_NE: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_ne");
     pub const WALK_NW: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_nw");
     pub const WALK_SE: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_se");
     pub const WALK_SW: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_sw");
+    pub const WALK_N: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_n");
+    pub const WALK_S: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_s");
+    pub const WALK_E: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_e");
+    pub const WALK_W: UnitAnimSetKey = UnitAnimSetKey::from_str("walk_w");
+
+    // Every set the game plays by name, with the direction a walk or directional idle faces.
+    const KNOWN: [(UnitAnimSetKey, UnitDirection); 17] = [
+        (Self::IDLE, UnitDirection::Idle),
+        (Self::IDLE_NE, UnitDirection::NE),
+        (Self::IDLE_NW, UnitDirection::NW),
+        (Self::IDLE_SE, UnitDirection::SE),
+        (Self::IDLE_SW, UnitDirection::SW),
+        (Self::IDLE_N, UnitDirection::N),
+        (Self::IDLE_S, UnitDirection::S),
+        (Self::IDLE_E, UnitDirection::E),
+        (Self::IDLE_W, UnitDirection::W),
+        (Self::WALK_NE, UnitDirection::NE),
+        (Self::WALK_NW, UnitDirection::NW),
+        (Self::WALK_SE, UnitDirection::SE),
+        (Self::WALK_SW, UnitDirection::SW),
+        (Self::WALK_N, UnitDirection::N),
+        (Self::WALK_S, UnitDirection::S),
+        (Self::WALK_E, UnitDirection::E),
+        (Self::WALK_W, UnitDirection::W),
+    ];
 
     pub fn new(tile: &mut Tile, new_anim_set_key: UnitAnimSetKey) -> Self {
         let mut anim_set = Self::default();
@@ -58,28 +88,23 @@ impl UnitAnimSets {
     pub fn current_anim_name(&self) -> &'static str {
         let curr = self.current_anim_set_key;
         if curr == hash::NULL_HASH {
-            "<none>"
-        } else if curr == Self::IDLE.hash {
-            Self::IDLE.string
-        } else if curr == Self::IDLE_NE.hash {
-            Self::IDLE_NE.string
-        } else if curr == Self::IDLE_NW.hash {
-            Self::IDLE_NW.string
-        } else if curr == Self::IDLE_SE.hash {
-            Self::IDLE_SE.string
-        } else if curr == Self::IDLE_SW.hash {
-            Self::IDLE_SW.string
-        } else if curr == Self::WALK_NE.hash {
-            Self::WALK_NE.string
-        } else if curr == Self::WALK_NW.hash {
-            Self::WALK_NW.string
-        } else if curr == Self::WALK_SE.hash {
-            Self::WALK_SE.string
-        } else if curr == Self::WALK_SW.hash {
-            Self::WALK_SW.string
-        } else {
-            panic!("Unknown current animation!")
+            return "<none>";
         }
+        match Self::KNOWN.iter().find(|(key, _)| key.hash == curr) {
+            Some((key, _)) => key.string,
+            None => panic!("Unknown current animation!"),
+        }
+    }
+
+    // The direction the set playing faces (a walk or directional idle), if any.
+    pub fn current_direction(&self) -> Option<UnitDirection> {
+        let curr = self.current_anim_set_key;
+        Self::KNOWN.iter().find(|(key, _)| key.hash == curr).map(|(_, direction)| *direction)
+    }
+
+    // Whether the unit's tile has the anim set (keys are pre-hashed: a map lookup, no hashing).
+    pub fn has_anim(&mut self, tile: &Tile, anim_set_key: UnitAnimSetKey) -> bool {
+        self.find_index(tile, anim_set_key).is_some()
     }
 
     fn find_index(&mut self, tile: &Tile, anim_set_key: UnitAnimSetKey) -> Option<usize> {

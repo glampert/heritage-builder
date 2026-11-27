@@ -69,10 +69,12 @@ impl UnitPatrolPathRecord {
     }
 }
 
+// A path's overall heading along the grid's four axes (navigation::heading_between), not the
+// direction of a step: a path from (0, 0) to (3, 3) heads NW, as it always has.
 fn path_direction(path: &Path) -> UnitDirection {
     let start = path.first().unwrap();
     let goal = path.last().unwrap();
-    navigation::direction_between(start.cell, goal.cell)
+    navigation::heading_between(start.cell, goal.cell)
 }
 
 // ----------------------------------------------
