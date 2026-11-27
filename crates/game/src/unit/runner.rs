@@ -65,6 +65,7 @@ impl UnitTaskHelper for Runner {
 }
 
 impl Runner {
+    // Delivers to a store that takes the goods, else to a producer that does.
     pub fn try_deliver_to_storage(
         &mut self,
         cmds: &mut SimCmds,
@@ -74,6 +75,53 @@ impl Runner {
         resource_kind_to_deliver: ResourceKind,
         resource_count: u32,
         completion_callback: Callback<UnitTaskDeliveryCompletionCallback>,
+    ) {
+        self.try_spawn_delivery(
+            cmds,
+            context,
+            unit_origin,
+            storage_buildings_accepted,
+            resource_kind_to_deliver,
+            resource_count,
+            completion_callback,
+            true,
+        );
+    }
+
+    // Carries goods out of a store to another that takes them, never to a producer (a store's
+    // Empty).
+    pub fn try_carry_to_storage(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &BuildingContext,
+        unit_origin: Cell,
+        storage_buildings_accepted: BuildingKind,
+        resource_kind_to_deliver: ResourceKind,
+        resource_count: u32,
+        completion_callback: Callback<UnitTaskDeliveryCompletionCallback>,
+    ) {
+        self.try_spawn_delivery(
+            cmds,
+            context,
+            unit_origin,
+            storage_buildings_accepted,
+            resource_kind_to_deliver,
+            resource_count,
+            completion_callback,
+            false,
+        );
+    }
+
+    fn try_spawn_delivery(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &BuildingContext,
+        unit_origin: Cell,
+        storage_buildings_accepted: BuildingKind,
+        resource_kind_to_deliver: ResourceKind,
+        resource_count: u32,
+        completion_callback: Callback<UnitTaskDeliveryCompletionCallback>,
+        allow_producer_fallback: bool,
     ) {
         self.try_spawn_with_task(
             context.debug_name(),
@@ -89,8 +137,9 @@ impl Runner {
                 resource_count,
                 completion_callback,
                 completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn::default()),
-                // If we can't find a Storage that will take our goods, try delivering directly to other Producers.
-                allow_producer_fallback: true,
+                // If we can't find a Storage that will take our goods, try delivering directly to
+                // other Producers.
+                allow_producer_fallback,
                 state: UnitTaskDeliveryState::default(),
                 visit_delivered: None,
             },

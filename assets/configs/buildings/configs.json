@@ -602,7 +602,8 @@
         ]
       },
       "num_slots": 8,
-      "slot_capacity": 8
+      "slot_capacity": 8,
+      "runner_load": 8
     },
     {
       "kind": "Granary",
@@ -619,7 +620,8 @@
         ]
       },
       "num_slots": 8,
-      "slot_capacity": 8
+      "slot_capacity": 8,
+      "runner_load": 8
     }
   ]
 }

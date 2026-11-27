@@ -19,6 +19,7 @@ pub mod faith;
 pub mod farms;
 pub mod floods;
 pub mod inspect;
+pub mod labour;
 pub mod launch;
 pub mod menu;
 pub mod messages;

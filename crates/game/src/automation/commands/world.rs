@@ -761,6 +761,8 @@ fn cmd_building_at(context: &mut CommandContext, params: Value) -> CommandResult
         .population()
         .map_or(Value::Null, |population| json!({ "count": population.count(), "max": population.max() }));
     reply["workers"] = building.workers().map_or(Value::Null, workers_json);
+    // The inspector's Pause work (crate::labour).
+    reply["paused"] = json!(building.is_paused());
     reply["stock"] = stock_items_json(building.stock().iter().filter(|item| item.count != 0));
     reply["risks"] = super::risks::building_risks_json(building);
     // The ground's level under its base cell (docs/plans/terrain-height.md).
@@ -769,7 +771,10 @@ fn cmd_building_at(context: &mut CommandContext, params: Value) -> CommandResult
     reply["patron"] = crate::faith::dedicated_patron_in(session.sim().realm(), session.tile_map(), building)
         .map_or(Value::Null, |patron| json!(patron.id));
 
-    if building.is(BuildingKind::House) && !building.is_under_construction() {
+    let store = building.is(BuildingKind::storage()).then(|| building.kind_and_id());
+    let is_house = building.is(BuildingKind::House) && !building.is_under_construction();
+
+    if is_house {
         let house = building.as_house();
         let upgrade_state = house.upgrade_state();
         reply["house"] = json!({
@@ -778,6 +783,11 @@ fn cmd_building_at(context: &mut CommandContext, params: Value) -> CommandResult
             "renovation_secs_left": upgrade_state.renovation_secs_left,
             "downgrade_pending_secs": upgrade_state.downgrade_pending_secs,
         });
+    }
+
+    // A store's runner's errand (Get and Empty).
+    if let Some(handle) = store {
+        reply["storage"] = super::inspect::storage_errand_json(context, handle);
     }
 
     done(reply)

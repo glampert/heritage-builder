@@ -39,11 +39,13 @@ pub use finance::Finance;
 
 pub mod faith;
 pub mod floods;
+pub mod labour;
 pub mod ratings;
 pub mod risks;
 pub mod trade;
 pub use faith::CityFaith;
 pub use floods::CityFloods;
+pub use labour::CityLabour;
 pub use ratings::CityRatings;
 pub use risks::CityRisks;
 pub use trade::CityTrade;
@@ -88,6 +90,7 @@ pub struct Simulation {
     floods: CityFloods,
     trade: CityTrade,
     ratings: CityRatings,
+    labour: CityLabour,
 
     // Path finding:
     #[serde(skip)]
@@ -118,6 +121,7 @@ impl Simulation {
             floods: CityFloods::new(&configs.sim.floods),
             trade: CityTrade::new(),
             ratings: CityRatings::new(),
+            labour: CityLabour::new(&configs.sim.labour),
             search: Search::with_grid_size(map_size_in_cells),
             speed: configs.sim.default_speed.clamp(Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED),
             is_paused: false,
@@ -154,6 +158,7 @@ impl Simulation {
             floods: &mut self.floods,
             trade: &mut self.trade,
             ratings: &mut self.ratings,
+            labour: &mut self.labour,
             cmds: &mut self.cmds,
         }
     }
@@ -255,6 +260,16 @@ impl Simulation {
     #[inline]
     pub fn ratings_mut(&mut self) -> &mut CityRatings {
         &mut self.ratings
+    }
+
+    #[inline]
+    pub fn labour(&self) -> &CityLabour {
+        &self.labour
+    }
+
+    #[inline]
+    pub fn labour_mut(&mut self) -> &mut CityLabour {
+        &mut self.labour
     }
 
     // What the world stats count of the simulation's state (World::refresh_stats).
@@ -446,6 +461,14 @@ impl Simulation {
             // dropped at the end of this block.
             let context = unsafe { self.aliased_context_mut(delta_time_secs, tile_map, world, false) };
             self.cmds.execute(&context);
+        }
+
+        // The houses' workers handed to the employers by the sectors' priorities, every
+        // `allocate_secs` and at the end of a step that asked for it (crate::labour).
+        if self.labour.tick(delta_time_secs) {
+            // SAFETY: as above; the context is dropped at the end of this block.
+            let context = unsafe { self.aliased_context_mut(delta_time_secs, tile_map, world, false) };
+            crate::labour::allocate(&context);
         }
 
         debug_assert!(self.cmds.is_empty());
@@ -700,6 +723,7 @@ impl Load for Simulation {
         self.paused_update_timer.post_load(context.configs().sim.paused_update_frequency_secs);
         self.task_manager.post_load();
         self.cmds.post_load();
+        self.labour.post_load(&context.configs().sim.labour);
         self.faith.sync_patrons(&context.configs().sim.faith);
         crate::trade::sync_on_load(&mut self.trade);
     }

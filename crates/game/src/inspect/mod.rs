@@ -139,8 +139,8 @@ impl StorageOrder {
         t(&format!("order.{}", self.key()))
     }
 
-    // Whether the store takes in more of the good. Empty takes in none, and carries out what it
-    // holds (roadmap M11; until then it only refuses).
+    // Whether the store takes in more of the good. Empty takes in none, and its runner carries out
+    // what it holds (building::storage).
     pub fn takes_in(self) -> bool {
         matches!(self, Self::Accept | Self::Get)
     }

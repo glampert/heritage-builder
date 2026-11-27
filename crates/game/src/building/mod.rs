@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use arrayvec::ArrayVec;
 use bitflags::Flags;
 use common::{
@@ -6,7 +8,7 @@ use common::{
     coords::{Cell, CellRange, WorldToScreenTransform},
     hash::StringHash,
     mem::Mutable,
-    time::{Seconds, UpdateTimer},
+    time::Seconds,
 };
 use config::{BuildingConfig, BuildingConfigs};
 use engine::{log, ui::UiSystem};
@@ -53,7 +55,7 @@ use crate::{
         game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color},
     },
     messages::MessageTarget,
-    pathfind::{self, NodeKind as PathNodeKind},
+    pathfind,
     save_context::*,
     tile::{
         Tile,
@@ -265,7 +267,8 @@ pub struct Building {
     map_cells: CellRange,
     road_link: Cell,
     kind: BuildingKind,
-    workers_update_timer: UpdateTimer,
+    // The inspector's Pause work: a paused building gets no workers (crate::labour), so it stops.
+    paused: bool,
     archetype: Option<BuildingArchetype>,
     // Some while the building is a construction site: inert until it completes.
     construction: Option<Box<ConstructionSite>>,
@@ -301,10 +304,6 @@ impl GameObject for Building {
             return;
         }
 
-        if self.workers_update_timer.tick(context.delta_time_secs()).should_update() {
-            self.update_workers(cmds);
-        }
-
         {
             let context = self.new_context(context);
             self.archetype_mut().update(cmds, &context);
@@ -329,7 +328,10 @@ impl GameObject for Building {
             if let Some(worker_pool) = workers.as_household_worker_pool() {
                 stats.population.employed += worker_pool.employed_count();
                 stats.population.unemployed += worker_pool.unemployed_count();
-            } else if let Some(employer) = workers.as_employer() {
+            } else if let Some(employer) = workers.as_employer()
+                && !self.paused
+            {
+                // A paused building's jobs aren't open.
                 stats.workers.min_required += employer.min_employees();
                 stats.workers.max_employed += employer.max_employees();
 
@@ -363,8 +365,6 @@ impl GameObject for Building {
     fn post_load(&mut self, context: &mut PostLoadContext) {
         debug_assert!(self.is_spawned());
 
-        self.workers_update_timer.post_load(context.configs().sim.workers_update_frequency_secs);
-
         let kind = self.kind();
         debug_assert!(kind.is_single_building());
 
@@ -382,9 +382,6 @@ impl GameObject for Building {
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
         self.archetype_mut().undo_redo_apply(state);
-
-        // Force a workers update right after this.
-        self.workers_update_timer.force_update();
     }
 
     fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem, mode: DebugUiMode) {
@@ -432,7 +429,7 @@ impl Building {
         self.id = id;
         self.map_cells = map_cells;
         self.kind = kind;
-        self.workers_update_timer = UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
+        self.paused = false;
         self.archetype = Some(archetype);
         self.risks = BuildingRisks::new(map_cells.start, kind, &GameConfigs::get().sim.risks);
 
@@ -472,7 +469,7 @@ impl Building {
         self.id = BuildingId::default();
         self.map_cells = CellRange::default();
         self.kind = BuildingKind::default();
-        self.workers_update_timer = UpdateTimer::default();
+        self.paused = false;
         self.archetype = None;
         self.construction = None;
         self.risks = BuildingRisks::default();
@@ -514,11 +511,11 @@ impl Building {
             let site = self.construction.take().unwrap();
             let settlers = site.settlers();
 
-            // Hire workers on the first step.
-            self.workers_update_timer.force_update();
-
             cmds.defer_building_update(self.kind_and_id(), move |context, building| {
                 set_construction_tile_flags(context.tile_map_mut(), building.base_cell(), None);
+
+                // Its workers at the end of this step, or a settler house's to give.
+                context.labour_mut().request_allocation();
 
                 if settlers != 0 {
                     let mut cmds = ImmediateModeSimCmds::new(context);
@@ -1021,12 +1018,6 @@ impl Building {
         self.archetype.as_mut().unwrap()
     }
 
-    // Accessor for the debug UI (see `crate::debug::building`).
-    #[inline]
-    pub(crate) fn workers_update_timer_mut(&mut self) -> &mut UpdateTimer {
-        &mut self.workers_update_timer
-    }
-
     building_type_casts! { producer, ProducerBuilding } // as_producer()
     building_type_casts! { storage,  StorageBuilding  } // as_storage()
     building_type_casts! { service,  ServiceBuilding  } // as_service()
@@ -1372,51 +1363,50 @@ impl Building {
         }
     }
 
-    fn update_workers(&mut self, cmds: &mut SimCmds) {
-        if !self.is_linked_to_road() {
-            return;
+    // The labour allocation's result for an employer (crate::labour): how many workers each house
+    // sends. Returns whether anything changed.
+    pub(crate) fn assign_employees(&mut self, households: BTreeMap<BuildingId, u32>) -> bool {
+        let before = self.workers_count();
+        let changed = self
+            .archetype_mut()
+            .workers_mut()
+            .and_then(|workers| workers.as_employer_mut())
+            .is_some_and(|employer| employer.assign(households));
+        let after = self.workers_count();
+        if after > before {
+            debug_popup_msg_color!(self.archetype_mut().debug_options(), Color::cyan(), "+{} workers", after - before);
+        } else if after < before {
+            debug_popup_msg_color!(self.archetype_mut().debug_options(), Color::magenta(), "-{} workers", before - after);
         }
-
-        // Search for employees if we're an Employer and not already at max capacity.
-        if let Some(workers) = self.archetype().workers()
-            && let Some(employer) = workers.as_employer()
-            && !employer.is_at_max_capacity()
-        {
-            cmds.defer_building_update(self.kind_and_id(), |context, building| {
-                if let Some(house) = building.find_house_with_available_workers_mut(context) {
-                    let workers_available = house.workers_count();
-                    let workers_added = building.add_workers(workers_available, house.kind_and_id());
-                    let workers_removed = house.remove_workers(workers_added, building.kind_and_id());
-                    debug_assert!(workers_added == workers_removed);
-                }
-            });
-        }
+        changed
     }
 
-    fn find_house_with_available_workers_mut<'game>(&self, context: &'game SimContextMut) -> Option<&'game mut Building> {
-        let workers_search_radius = GameConfigs::get().sim.workers_search_radius;
-        debug_assert!(workers_search_radius > 0);
+    // And for a house: who employs how many of its workers.
+    pub(crate) fn assign_employers(&mut self, employers: BTreeMap<BuildingKindAndId, u32>) -> bool {
+        self.archetype_mut()
+            .workers_mut()
+            .and_then(|workers| workers.as_household_worker_pool_mut())
+            .is_some_and(|pool| pool.assign(employers))
+    }
 
-        let result = context.find_nearest_buildings_mut(
-            self.road_link().unwrap(),
-            BuildingKind::House,
-            PathNodeKind::Road,
-            Some(workers_search_radius),
-            |house, _path| {
-                if house.workers_count() != 0 {
-                    return false; // Accept and stop search.
-                }
-                true // Continue searching.
-            },
-        );
+    // ----------------------
+    // Pause work:
+    // ----------------------
 
-        if let Some((house, _path)) = result {
-            debug_assert!(house.is(BuildingKind::House));
-            debug_assert!(house.workers_count() != 0);
-            return Some(house);
-        }
+    #[inline]
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
 
-        None
+    // Use labour::set_paused, which lets its workers go and hands them out again at once.
+    #[inline]
+    pub(crate) fn set_paused(&mut self, paused: bool) {
+        self.paused = paused;
+    }
+
+    // Whether the building takes workers (its Pause work): a finished workplace with jobs.
+    pub fn has_jobs(&self) -> bool {
+        self.workers().and_then(|workers| workers.as_employer()).is_some_and(|employer| employer.max_employees() > 0)
     }
 
     // ----------------------

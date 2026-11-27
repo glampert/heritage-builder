@@ -442,6 +442,21 @@ impl HouseholdWorkerPool {
         true
     }
 
+    // The labour allocation's result (crate::labour): who employs how many of its workers. Its
+    // workers not employed are looking for work. Returns whether anything changed.
+    pub(crate) fn assign(&mut self, employers: BTreeMap<BuildingKindAndId, u32>) -> bool {
+        if employers == self.employers {
+            return false;
+        }
+        let total = self.total_workers();
+        let employed: u32 = employers.values().sum();
+        debug_assert!(employed <= total, "{employed} of {total} workers employed!");
+        self.employed_count = employed.min(total);
+        self.unemployed_count = total - self.employed_count;
+        self.employers = employers;
+        true
+    }
+
     // Iterator over (employer, employed_count) pairs, for the debug UI (see `crate::debug::sim`).
     pub(crate) fn employers_iter(&self) -> impl Iterator<Item = (BuildingKindAndId, u32)> + '_ {
         self.employers.iter().map(|(info, count)| (*info, *count))
@@ -621,6 +636,19 @@ impl Employer {
                 return false;
             }
         }
+        true
+    }
+
+    // The labour allocation's result (crate::labour): how many workers each house sends. Returns
+    // whether anything changed.
+    pub(crate) fn assign(&mut self, households: BTreeMap<BuildingId, u32>) -> bool {
+        if households == self.employee_households {
+            return false;
+        }
+        let count: u32 = households.values().sum();
+        debug_assert!(count <= self.max_employees, "{count} workers for {} jobs!", self.max_employees);
+        self.employee_count = count.min(self.max_employees);
+        self.employee_households = households;
         true
     }
 

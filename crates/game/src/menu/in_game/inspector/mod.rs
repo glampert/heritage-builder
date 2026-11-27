@@ -251,7 +251,15 @@ impl TileInspectorMenu {
                 }
                 self.close(context);
             }
-            Command::Action(ActionKind::PauseWork) => {} // Disabled until M11's labour.
+            Command::Action(ActionKind::PauseWork) => {
+                // Pause work, or Resume work: its workers go, or come back, at once (crate::labour).
+                if let InspectTarget::Building { handle, .. } = target {
+                    let sim = context.new_sim_context();
+                    let paused = sim.find_building(handle.kind, handle.id).is_some_and(|building| building.is_paused());
+                    crate::labour::set_paused(&sim, handle, !paused);
+                }
+                self.refresh(context);
+            }
             Command::Action(ActionKind::TradeLimits) => {
                 let partner = {
                     let sim = context.new_sim_context();

@@ -454,6 +454,24 @@ impl World {
         }
     }
 
+    // Every building in the world mutably, pool by pool in the same order as
+    // for_each_building_of_any_kind. Visitor function should return true to continue iterating or
+    // false to stop.
+    pub fn for_each_building_of_any_kind_mut<F>(&mut self, mut visitor_fn: F)
+    where
+        F: FnMut(&mut Building) -> bool,
+    {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
+
+        for (_, buildings) in &mut self.building_spawn_pools {
+            for building in buildings.iter_mut() {
+                if !visitor_fn(building) {
+                    return;
+                }
+            }
+        }
+    }
+
     // Iterates *all* buildings of a kind in the world, in unspecified order.
     // Visitor function should return true to continue iterating or false to stop.
     // `building_kinds` can be a combination of ORed BuildingKind flags.

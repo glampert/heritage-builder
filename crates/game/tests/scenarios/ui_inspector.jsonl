@@ -2,8 +2,9 @@
 # inspector-<kind>-<realm>.jpg lays it out. Builds a small city, checks what inspect.at reports of
 # each kind, opens each panel from a click in each realm and checks its widgets and layout, then the
 # actions: a store's orders (one good, Accept all, Accept none) and that a refused good goes to
-# another store, Demolish and its popup, a site's Cancel and refund, Clear on a road, and a walker
-# without a home. Saves screenshots to out/ui_inspector/.
+# another store, Demolish and its popup, a site's Cancel and refund, Clear on a road, a walker
+# without a home, then Get and Empty's runner and its errand on the panel, and Pause work and
+# Resume work. Saves screenshots to out/ui_inspector/.
 # From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --default-configs --window-size 1920x1080 --script crates/game/tests/scenarios/ui_inspector.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
@@ -271,6 +272,7 @@
 {"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [14, 20]}, "path": "/orders/Bricks", "value": "accept"}}
 {"method": "storage.orders", "params": {"cell": [14, 20], "good": "Wood", "order": "get"}}
 {"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [14, 20]}, "path": "/orders/Wood", "value": "get"}}
+{"method": "storage.orders", "params": {"cell": [14, 20], "good": "Wood", "order": "accept"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
 
 # Demolish asks first; Cancel keeps the building, Demolish clears it (nothing given back).
@@ -306,4 +308,52 @@
 {"method": "ui.click", "params": {"path": "TerrainInspector/Clear"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [37, 23]}, "path": "/name", "value": "Grass"}}
+
+# Get and Empty send the store's runner (docs/plans/messages.md, Phase 2): the second yard set to
+# Get bricks fetches a load from the first, its panel saying so; set to Empty, it carries them out
+# to a third yard with room (the first's slots fill with the clay pit's clay), until it holds none.
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [22, 24]}}
+{"method": "storage.orders", "params": {"cell": [34, 24], "good": "Bricks", "order": "get"}}
+{"method": "wait.until", "params": {"query": "world.building_at", "args": {"cell": [34, 24]}, "path": "/storage/errand/order", "op": "eq", "value": "get", "timeout_frames": 900}}
+{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [34, 24]}, "path": "/errand", "value": {"order": "get", "good": "Bricks", "count": 8}}}
+{"method": "camera.teleport", "params": {"cell": [34, 24]}}
+{"method": "input.click", "params": {"cell": [34, 24]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [34, 24]}, "path": "/sections/2/section", "value": "errand"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_inspector/storage_get.png"}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
+{"method": "wait.until", "params": {"query": "world.building_at", "args": {"cell": [34, 24]}, "path": "/stock/Bricks", "op": "ge", "value": 16, "timeout_frames": 3600}}
+{"method": "storage.orders", "params": {"cell": [34, 24], "good": "Bricks", "order": "empty"}}
+{"method": "wait.until", "params": {"query": "world.building_at", "args": {"cell": [34, 24]}, "path": "/storage/errand/order", "op": "eq", "value": "empty", "timeout_frames": 900}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [34, 24]}, "path": "/storage/errand/good", "value": "Bricks"}}
+{"method": "time.fast_forward", "params": {"sim_secs": 180}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [34, 24]}, "path": "/sections/1/rows/8/good", "value": "Bricks"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [34, 24]}, "path": "/sections/1/rows/8/have", "value": 0}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [34, 24]}, "path": "/storage/cannot_empty", "value": []}}
+{"method": "storage.orders", "params": {"cell": [34, 24], "good": "Bricks", "order": "accept"}}
+
+# Pause work: the kiln's workers go and it says so; Resume work brings them back.
+{"method": "camera.teleport", "params": {"cell": [21, 21]}}
+{"method": "input.click", "params": {"cell": [21, 21]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [21, 21]}, "path": "/paused", "value": false}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Pause work"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [21, 21]}, "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [21, 21]}, "path": "/workers/employees", "value": 0}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [21, 21]}, "path": "/status/word", "value": "Paused"}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/sectors/1/paused", "value": 1}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/Resume work"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_inspector/workshop_paused.png"}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Resume work"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [21, 21]}, "path": "/paused", "value": false}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/Pause work"}, "path": "/widgets/0"}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
+
 {"method": "assert.eq", "params": {"query": "text.missing", "path": "/count", "value": 0}}

@@ -15,7 +15,18 @@ use rand::{
 };
 use smallvec::SmallVec;
 
-use super::{CityFaith, CityFloods, CityRatings, CityRisks, CityTrade, Finance, GameCalendar, RandomGenerator, SimCmds};
+use super::{
+    CityFaith,
+    CityFloods,
+    CityLabour,
+    CityRatings,
+    CityRisks,
+    CityTrade,
+    Finance,
+    GameCalendar,
+    RandomGenerator,
+    SimCmds,
+};
 use crate::{
     building::{Building, BuildingId, BuildingKind},
     pathfind::{
@@ -105,6 +116,9 @@ pub struct SimContext<'game> {
     // The four ratings and the failure clocks:
     ratings: RawPtr<CityRatings>,
 
+    // The sectors' labour priorities:
+    labour: RawPtr<CityLabour>,
+
     // Update delta time.
     delta_time_secs: Seconds,
 
@@ -144,6 +158,7 @@ pub(super) struct SimContextParts<'a> {
     pub floods: &'a mut CityFloods,
     pub trade: &'a mut CityTrade,
     pub ratings: &'a mut CityRatings,
+    pub labour: &'a mut CityLabour,
     pub cmds: &'a mut SimCmds,
 }
 
@@ -170,6 +185,7 @@ impl<'game> SimContext<'game> {
             floods: RawPtr::from_ref(parts.floods),
             trade: RawPtr::from_ref(parts.trade),
             ratings: RawPtr::from_ref(parts.ratings),
+            labour: RawPtr::from_ref(parts.labour),
             delta_time_secs,
             is_world_teardown,
             _borrow: PhantomData,
@@ -269,6 +285,11 @@ impl<'game> SimContext<'game> {
     #[inline]
     pub fn ratings(&self) -> &CityRatings {
         &self.ratings
+    }
+
+    #[inline]
+    pub fn labour(&self) -> &CityLabour {
+        &self.labour
     }
 
     // What the world stats count of the simulation's state (World::refresh_stats).
@@ -730,6 +751,11 @@ impl<'game> SimContextMut<'game> {
     #[inline]
     pub fn ratings_mut(&self) -> &mut CityRatings {
         self.ratings.mut_ref_cast()
+    }
+
+    #[inline]
+    pub fn labour_mut(&self) -> &mut CityLabour {
+        self.labour.mut_ref_cast()
     }
 
     #[inline]

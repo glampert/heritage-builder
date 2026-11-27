@@ -37,14 +37,16 @@
 {"method": "ui.tree", "params": {"fields": ["path", "kind", "value"]}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_city/dailong-overview.png"}}
-# The figures are the world's: its stats and the treasury.
+# The figures are the world's: its stats and the treasury. The 3 workers go by the labour
+# priorities: food first, the granary's and the market's 1 each, then the granary's second, so the
+# storage yard and the tax office have none (docs/plans/messages.md, Phase 2).
 {"method": "assert.eq", "params": {"query": "world.stats", "path": "/population/total", "value": 4}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/cards", "kind": "canvas"}, "path": "/widgets/0/value/population", "value": 4}}
-{"method": "assert.eq", "params": {"query": "world.stats", "path": "/population/unemployed", "value": 1}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/cards", "kind": "canvas"}, "path": "/widgets/0/value/unemployed", "value": 1}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/population/unemployed", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/cards", "kind": "canvas"}, "path": "/widgets/0/value/unemployed", "value": 0}}
 {"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 934}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/cards", "kind": "canvas"}, "path": "/widgets/0/value/treasury", "value": 934}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/attention", "kind": "canvas"}, "path": "/widgets/0/value/0", "value": "1 person is looking for work."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/attention", "kind": "canvas"}, "path": "/widgets/0/value/0", "value": "2 buildings lack the workers they need."}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/title", "kind": "canvas"}, "path": "/widgets/0/value/note", "value": "Updated each month"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/standing", "kind": "canvas"}, "path": "/widgets/0/value/ratings/rated", "value": true}}
 
@@ -53,8 +55,10 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_city/dailong-population.png"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Population/population", "kind": "canvas"}, "path": "/widgets/0/value/employed", "value": 2}}
-{"method": "assert.eq", "params": {"query": "world.stats", "path": "/population/employed", "value": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Population/population", "kind": "canvas"}, "path": "/widgets/0/value/employed", "value": 3}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/population/employed", "value": 3}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/sectors/0/employed", "value": 3}}
+{"method": "assert.eq", "params": {"query": "labour.state", "path": "/jobs_not_filled", "value": 12}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Population/housing", "kind": "canvas"}, "path": "/widgets/0/value/1", "value": {"level": 2, "house": "Cottage", "houses": 2, "residents": 4, "next_level_needs": "Large well, Shrine, Apothecary, Police station, rice, meat/fish, pottery"}}}
 {"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Goods"}}
 {"method": "wait.frames", "params": {"frames": 2}}

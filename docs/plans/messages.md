@@ -1,6 +1,6 @@
 # Messages and advisors
 
-**Status (2026-11-26): accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phases 0 and 1 done; Phase 2 next.** This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
+**Status (2026-11-27): accepted with every decision's default, but Q10: one save bump, v19, for labour, Pause work and the stores' runners together (Phase 2). Phases 0 to 2 done; Phase 3 next.** This plan is milestone M11 of the [roadmap](roadmap.md). It covers:
 - GDD 5.18's advisor messages and events: typed messages with a priority, a place on the map or a page, and a popup for the important ones (the mockups' `event-<realm>.jpg`);
 - GDD 5.3's labour priorities per sector, as in Pharaoh, and the advisor pages the roadmap asks for: the City book's Labour and Food pages (`city-labour-<realm>.jpg`, `city-food-<realm>.jpg`). Finances (M4) and Ratings (M9) are pages already;
 - the two inspector actions realm-ui Phase 8 left disabled: Pause work, and a store's Get and Empty orders.
@@ -191,11 +191,24 @@ Notes (2026-11-26):
 
 ### Phase 2: Labour priorities, Pause work and storage orders (large)
 
-- [ ] `CityLabour` and the sectors' order; save v19 with each building's `paused` and each store's runner, its migration script and the sample saves.
-- [ ] `labour::allocate` in place of each employer's own search.
-- [ ] Pause work and Resume in the inspector.
-- [ ] A store's runner and its Get and Empty errands; the inspector's errand line.
-- [ ] `labour.state`, `labour.set`, `building.pause`, `storage.orders`' errands; `tests/labour.rs` and the stores' tests; the scenarios whose numbers move; `ui_inspector.jsonl`'s Pause work, Get and Empty.
+- [x] `CityLabour` and the sectors' order; save v19 with each building's `paused` and each store's runner, its migration script and the sample saves.
+- [x] `labour::allocate` in place of each employer's own search.
+- [x] Pause work and Resume in the inspector.
+- [x] A store's runner and its Get and Empty errands; the inspector's errand line.
+- [x] `labour.state`, `labour.set`, `building.pause`, `storage.orders`' errands; `tests/labour.rs` and the stores' tests; the scenarios whose numbers move; `ui_inspector.jsonl`'s Pause work, Get and Empty.
+
+Notes (2026-11-27):
+- **As built.** `sim::labour::CityLabour` (`order`, the six `LabourSector`s, and `allocate_timer`), saved in `Simulation` and read through `SimContext::labour()`; `LabourSector::of_tile_sector` maps a building's tile's `TileSector` (Q6: housing, roads and beautification count under Infrastructure). `labour::allocate` runs at the end of `Simulation::step_world`, after the `SimCmds`, when the clock is due (`LabourRules::allocate_secs`, 10) or a building finished in the step (`CityLabour::request_allocation`, from the completion's deferred update): the supply is every finished house's workers, the demand every employer that can work (`labour::can_work`), each sector in priority order giving each building its minimum when the houses in reach can give all of it, then the rest up to its maximum, nearest houses first (a road search from its road link within `workers_search_radius`, as the old search); the result replaces both sides' maps (`Employer::assign`, `HouseholdWorkerPool::assign`), unchanged maps left alone. `labour::set_paused` (Pause work: `Building::paused`, its workers let go at once) and `labour::set_priority` hand the workers out again at once. A store's runner (`StorageBuilding::runner`, `errand_timer`, `send_on_errand`): Empty first, carried to another store only (`Runner::try_carry_to_storage`), then Get; `find_storage_fetch_candidate` skips the origin store and the stores that Get the good when the origin is a store. Save v19 (`v18_to_v19.py`): `sim.labour`, each building's `paused` (its `workers_update_timer` dropped), each store's `runner` and `errand_timer`.
+- **Deviations.**
+  - **Each employer's own search is gone,** with the building's worker timer and `SimConfigs::workers_update_frequency_secs`; a house's people leaving, or its despawn, still take their workers from their employers at once, so the two sides agree between passes.
+  - **Short of its minimum, none.** A building the houses in reach can't give its minimum gets no one, rather than a few who can't run it: the workers go to buildings that run, and the unfilled jobs show.
+  - **The test harness freezes labour** (the `freeze_labour` cheat), as it turns construction instant and risks off: tests that staff buildings by hand keep their numbers, and `tests/labour.rs` turns it off. Every existing test passed unchanged.
+  - **A mission's `labour` block** isn't read yet: every game starts in the mockup's order until M13 needs another.
+  - **Paused jobs** are left out of the world stats' jobs and of the Labour report's needed, so the City book's "short of workers" warning doesn't count a paused building.
+  - **The errand line** is the producers' (the walker's task in its own words: "A runner is fetching bricks from the storage yard."); a good to empty that no other store in reach takes adds "No other store in reach takes its bricks." The order selector had no tooltip to remove.
+  - **Knobs.** `SimConfigs::storage_errand_secs` (10), `storage_reach` (40) and a store config's `runner_load` (8), first guesses for M13.
+  - **Commands.** `labour.allocate` was added beside `labour.state`, `labour.set` (`sector` and `priority`, or a whole `order`) and `building.pause`.
+- **Verified.** `cargo test --workspace` (the new `tests/labour.rs`: the sectors, the order, priority, minimums first, a building short of its minimum, reach, nearest first, stability over passes and world steps, Pause work and Resume, a house gone, the clock, the cheat, the report; and `tests/storage.rs`: Get, Get skipping stores that get the good too, Empty, Empty with nowhere to go, reach, the errand), both clippy runs, the local saves and the sample saves migrated (`v18_to_v19.py`, idempotent) and loaded by `--smoke-test-saves`, all 31 CI scenarios on a release build (`ui_city.jsonl`'s numbers moved and were checked by hand: its 3 workers go to food first, the granary and the market, leaving the storage yard and the tax office without; `ui_inspector.jsonl` gains Get, Empty and Pause work; `ui_dev_screens.jsonl` failed twice in full runs on its known macOS flake, a covered world map popup, and passed alone), `determinism.jsonl` twice with the same outputs and save, and `ui_build` and `determinism` recorded and replayed. Screenshots of a store's errand line and a paused workshop.
 
 ### Phase 3: The Labour and Food pages (medium)
 

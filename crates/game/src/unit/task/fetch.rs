@@ -114,7 +114,7 @@ impl UnitTaskFetchFromStorage {
 
             let path_find_result = find_storage_fetch_candidate(
                 ctx.sim_context,
-                self.origin_building.kind,
+                self.origin_building,
                 origin_cell,
                 traversable_node_kinds,
                 self.storage_buildings_accepted,

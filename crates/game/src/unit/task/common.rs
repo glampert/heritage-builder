@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::UnitTask;
 use crate::{
-    building::{Building, BuildingId, BuildingKind, BuildingVisitResult},
+    building::{Building, BuildingId, BuildingKind, BuildingKindAndId, BuildingVisitResult},
+    inspect::StorageOrder,
     pathfind::{NodeKind as PathNodeKind, Path},
     sim::{SimCmdQueue, SimCmds, SimContext, SimContextMut, resources::ResourceKind},
     unit::{Unit, navigation::UnitNavGoal},
@@ -269,9 +270,11 @@ pub(super) fn find_delivery_candidate<'a>(
     PathFindResult::from_query_result(origin_kind, origin_base_cell, result)
 }
 
+// A store's own Get runner (its origin a store) skips that store and every store that Gets the
+// good itself, so stores don't pull a good back and forth.
 pub(super) fn find_storage_fetch_candidate<'a>(
     context: &'a SimContext,
-    origin_kind: BuildingKind,
+    origin: BuildingKindAndId,
     origin_base_cell: Cell,
     traversable_node_kinds: PathNodeKind,
     storage_buildings_accepted: BuildingKind,
@@ -281,6 +284,7 @@ pub(super) fn find_storage_fetch_candidate<'a>(
     debug_assert!(!storage_buildings_accepted.is_empty());
     debug_assert!(resource_kind_to_fetch.is_single_resource()); // Only one resource kind at a time.
     debug_assert!(traversable_node_kinds == PathNodeKind::Road, "Traversable Nodes={traversable_node_kinds}");
+    let store_errand = origin.kind.intersects(BuildingKind::storage());
 
     // Try to find a storage building that has the resource we want:
     let result = context.find_nearest_buildings(
@@ -289,6 +293,12 @@ pub(super) fn find_storage_fetch_candidate<'a>(
         traversable_node_kinds,
         None,
         |building, _path| {
+            if store_errand
+                && (building.kind_and_id() == origin
+                    || building.as_storage().order(resource_kind_to_fetch) == StorageOrder::Get)
+            {
+                return true; // Not from itself, nor from a store that gets it too.
+            }
             if building.available_resources(resource_kind_to_fetch) != 0 && building.is_linked_to_road() {
                 return false; // Accept this building and end the search.
             }
@@ -299,5 +309,5 @@ pub(super) fn find_storage_fetch_candidate<'a>(
         },
     );
 
-    PathFindResult::from_query_result(origin_kind, origin_base_cell, result)
+    PathFindResult::from_query_result(origin.kind, origin_base_cell, result)
 }

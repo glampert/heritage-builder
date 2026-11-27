@@ -7,6 +7,7 @@ use engine::ui::text::{self as ui_text, UiTextCategory};
 use super::{
     Action,
     ActionKind,
+    ErrandIcon,
     InspectIcon,
     InspectReport,
     InspectTarget,
@@ -92,7 +93,7 @@ pub(super) fn read(context: &SimContext, building: &Building, realm: Realm) -> I
         BuildingArchetypeKind::StorageBuilding => {
             report.panel = PanelKind::Storage;
             report.subtitle = subtitle(t("kind.storage"));
-            read_storage(context, building, tile_def, &mut report);
+            read_storage(context, building, tile_def, realm, &mut report);
         }
         BuildingArchetypeKind::ServiceBuilding => {
             let market = building.as_service().service_stock.is_stock();
@@ -219,11 +220,14 @@ fn emergency_status(building: &Building) -> Option<Status> {
     None
 }
 
-// Why a workplace isn't working, if it isn't, in order: no road (when it needs one), too few
-// workers.
+// Why a workplace isn't working, if it isn't, in order: paused, no road (when it needs one), too
+// few workers.
 fn workplace_status(building: &Building, needs_road: bool) -> Option<Status> {
     if let Some(status) = emergency_status(building) {
         return Some(status);
+    }
+    if building.is_paused() {
+        return Some(Status { word: t("status.paused"), tone: Tone::Pending, summary: t("summary.paused") });
     }
     if needs_road && !building.is_linked_to_road() {
         return Some(Status { word: t("status.no_road"), tone: Tone::Bad, summary: t("summary.no_road") });
@@ -242,7 +246,9 @@ fn workers_section(building: &Building, compact: bool) -> Option<Section> {
     }
     let have = employer.employee_count();
     let short = need.saturating_sub(have);
-    let note = if have < employer.min_employees() {
+    let note = if building.is_paused() {
+        t("workers.paused")
+    } else if have < employer.min_employees() {
         tf("workers.needs_min", &[("min", &employer.min_employees().to_string())])
     } else if short > 0 {
         tc("workers.short", i64::from(short), &[])
@@ -299,11 +305,13 @@ fn risks_section(building: &Building) -> Option<Section> {
     if rows.is_empty() { None } else { Some(Section::Risks { rows }) }
 }
 
-// Pause work (for a building with workers; M11's labour hooks it up) and Demolish.
+// Pause work, or Resume work while paused (for a building with workers: crate::labour), and
+// Demolish.
 fn workplace_actions(building: &Building) -> Vec<Action> {
     let mut actions = Vec::new();
-    if building.workers().and_then(|workers| workers.as_employer()).is_some_and(|employer| employer.max_employees() > 0) {
-        actions.push(Action::new(ActionKind::PauseWork, "action.pause_work").disabled("action.pause_work_soon"));
+    if building.has_jobs() {
+        let key = if building.is_paused() { "action.resume_work" } else { "action.pause_work" };
+        actions.push(Action::new(ActionKind::PauseWork, key));
     }
     actions.push(Action::new(ActionKind::Demolish, "action.demolish"));
     actions
@@ -412,7 +420,13 @@ fn read_producer(
 // Store
 // ----------------------------------------------
 
-fn read_storage(context: &SimContext, building: &Building, tile_def: Option<&TileDef>, report: &mut InspectReport) {
+fn read_storage(
+    context: &SimContext,
+    building: &Building,
+    tile_def: Option<&TileDef>,
+    realm: Realm,
+    report: &mut InspectReport,
+) {
     let storage = building.as_storage();
     let slots = &storage.storage_slots;
     let config = BuildingConfigs::get().find_storage_config(building.kind());
@@ -455,6 +469,15 @@ fn read_storage(context: &SimContext, building: &Building, tile_def: Option<&Til
         rows,
         footer,
     });
+    // Its runner's errand (Get and Empty), and the goods to empty that no store in reach takes.
+    push_errand(&mut report.sections, context, storage.runner.unit_id(), realm);
+    if !storage.cannot_empty.is_empty() && !storage.is_runner_out() {
+        let goods: Vec<String> = storage.cannot_empty.iter().map(|kind| good_name(kind).to_lowercase()).collect();
+        let goods = goods.join(&format!(" {} ", t("or")));
+        report
+            .sections
+            .push(Section::Errand { icon: ErrandIcon::Cart, text: tf("storage.cannot_empty", &[("goods", &goods)]) });
+    }
     if wide {
         // Half the width: the wages as gold alone.
         let mut costs = costs_rows(context, building, tile_def);

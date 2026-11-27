@@ -19,7 +19,11 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "storage.orders",
         help: "A storage yard's or granary's order for each good it takes (refuse, accept, get or empty), as its \
                inspector shows them; sets one good's (`good` and `order`) or every good's (`all`) first. Refuse and \
-               Empty take in no more of the good; Get and Empty send no runners until roadmap M11.",
+               Empty take in no more of the good; Get sends its runner to fetch the good from the nearest other \
+               store in reach that holds it and doesn't get it too, Empty to carry it out to the nearest that takes \
+               it, one errand at a time, every 10 simulated seconds while it's staffed. Also reports its runner's \
+               `errand` (order, good, count; null while it's in) and the goods to empty that no store in reach \
+               takes (`cannot_empty`).",
         params: &[
             ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]: any cell of the store." },
             ParamDef {
@@ -109,6 +113,7 @@ fn cmd_orders(context: &mut CommandContext, params: Value) -> CommandResult {
         .map(|building| building.kind_and_id())
         .ok_or_else(|| CommandError::not_found(format!("No storage building at [{}, {}].", cell.x, cell.y)))?;
     let building = session.world_mut().find_building_mut(handle.kind, handle.id).expect("found above");
+    let kind = building.kind();
     let slots = &mut building.as_storage_mut().storage_slots;
     if let Some(order) = params.all {
         slots.set_orders(ResourceKind::all(), order);
@@ -117,7 +122,8 @@ fn cmd_orders(context: &mut CommandContext, params: Value) -> CommandResult {
         slots.set_orders(kind, order);
     }
 
-    let config = crate::building::config::BuildingConfigs::get().find_storage_config(building.kind());
+    let config = crate::building::config::BuildingConfigs::get().find_storage_config(kind);
+    let building = context.session.world().find_building(handle.kind, handle.id).expect("found above");
     let orders: serde_json::Map<String, Value> = config
         .resources_accepted
         .iter()
@@ -129,5 +135,24 @@ fn cmd_orders(context: &mut CommandContext, params: Value) -> CommandResult {
             )
         })
         .collect();
-    done(serde_json::json!({ "orders": orders }))
+    let reply = storage_errand_json(context, handle);
+    let mut reply = reply;
+    reply["orders"] = Value::Object(orders);
+    done(reply)
+}
+
+// A store's runner's errand and the goods to empty no store in reach takes (crate::building::storage).
+pub(super) fn storage_errand_json(context: &mut CommandContext, handle: crate::building::BuildingKindAndId) -> Value {
+    context.session.with_sim_context(0.0, |sim| {
+        let Some(building) = sim.find_building(handle.kind, handle.id) else {
+            return Value::Null;
+        };
+        let storage = building.as_storage();
+        let errand = storage.errand(sim).map_or(
+            Value::Null,
+            |(order, kind, count)| serde_json::json!({ "order": order, "good": kind.name(), "count": count }),
+        );
+        let cannot_empty: Vec<&str> = storage.cannot_empty.iter().map(|kind| kind.name()).collect();
+        serde_json::json!({ "errand": errand, "cannot_empty": cannot_empty })
+    })
 }

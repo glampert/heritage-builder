@@ -1,36 +1,64 @@
 use std::cmp::Reverse;
 
 use arrayvec::ArrayVec;
-use common::hash::{self, StringHash};
+use common::{
+    callback::{self, Callback},
+    coords::Cell,
+    hash::{self, StringHash},
+    time::UpdateTimer,
+};
 use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 
 use super::{
+    Building,
     BuildingBehavior,
     BuildingContext,
     BuildingContextMut,
     BuildingKind,
+    BuildingKindAndId,
     BuildingVisitResult,
     config::{BuildingConfig, BuildingConfigs, building_config},
     risks::RiskRates,
 };
 use crate::{
     cheats,
+    config::GameConfigs,
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, game_object_debug_options},
     inspect::StorageOrder,
+    pathfind::NodeKind as PathNodeKind,
     save_context::PostLoadContext,
     sim::{
         SimCmds,
-        resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers, per_kind_map},
+        SimContext,
+        SimContextMut,
+        resources::{
+            RESOURCE_KIND_COUNT,
+            ResourceKind,
+            ResourceKinds,
+            ResourceStock,
+            ShoppingList,
+            StockItem,
+            Workers,
+            per_kind_map,
+        },
     },
     tile::Tile,
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
-        task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage, UnitTaskTrade},
+        UnitTaskHelper,
+        runner::Runner,
+        task::{
+            UnitTaskDeliverToStorage,
+            UnitTaskDeliveryCompletionCallback,
+            UnitTaskFetchCompletionCallback,
+            UnitTaskFetchFromStorage,
+            UnitTaskTrade,
+        },
     },
-    world::stats::WorldStats,
+    world::{object::GameObject, stats::WorldStats},
 };
 
 // ----------------------------------------------
@@ -58,6 +86,10 @@ pub struct StorageConfig {
     pub num_slots: u32,
     pub slot_capacity: u32,
 
+    // What its runner carries a trip (Get and Empty).
+    #[serde(default = "default_runner_load")]
+    pub runner_load: u32,
+
     // How fast its fire and collapse risks build up, per calendar month (building::risks).
     #[serde(default)]
     #[debug_ui(nested)]
@@ -77,9 +109,14 @@ impl Default for StorageConfig {
             resources_accepted: ResourceKinds::all(),
             num_slots: 8,
             slot_capacity: 8,
+            runner_load: default_runner_load(),
             risks: RiskRates::ZERO,
         }
     }
+}
+
+const fn default_runner_load() -> u32 {
+    8
 }
 
 building_config! {
@@ -118,6 +155,16 @@ pub struct StorageBuilding {
     // Stockpiles:
     pub(crate) storage_slots: Box<StorageSlots>,
 
+    // Its runner, sent on the Get and Empty orders' errands one at a time, and the clock it looks
+    // for one by (SimConfigs::storage_errand_secs).
+    pub(crate) runner: Runner,
+    errand_timer: UpdateTimer,
+
+    // The goods it's set to Empty that no store in reach takes, as of its last look (its panel
+    // says so).
+    #[serde(skip)]
+    pub(crate) cannot_empty: ResourceKind,
+
     #[serde(skip)]
     debug: StorageDebug,
 }
@@ -139,13 +186,18 @@ impl BuildingBehavior for StorageBuilding {
         self.config.unwrap()
     }
 
-    fn despawned(&mut self, _context: &BuildingContextMut) {
-        // Nothing for now.
+    fn despawned(&mut self, context: &BuildingContextMut) {
+        self.runner.discard_spawn_promise(context.sim_ctx.cmds_mut());
     }
 
-    fn update(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext) {
+    fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         debug_assert!(self.config.is_some());
-        // Nothing for now.
+
+        self.runner.update(cmds);
+
+        if self.errand_timer.tick(context.sim_ctx.delta_time_secs()).should_update() {
+            self.send_on_errand(cmds, context);
+        }
     }
 
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContextMut) -> BuildingVisitResult {
@@ -212,18 +264,20 @@ impl BuildingBehavior for StorageBuilding {
         BuildingVisitResult::Refused
     }
 
-    fn pre_save(&mut self, _cmds: &mut SimCmds) {
-        // Nothing for now.
+    fn pre_save(&mut self, cmds: &mut SimCmds) {
+        self.runner.pre_save(cmds);
     }
 
     fn post_save(&mut self) {
-        // Nothing for now.
+        self.runner.post_save();
     }
 
-    fn post_load(&mut self, _context: &mut PostLoadContext, kind: BuildingKind, _tile: &Tile) {
+    fn post_load(&mut self, context: &mut PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::storage()));
         let config = BuildingConfigs::get().find_storage_config(kind);
         self.storage_slots.refresh_from_config(&config.resources_accepted, config.num_slots, config.slot_capacity);
+        self.runner.post_load();
+        self.errand_timer.post_load(context.configs().sim.storage_errand_secs);
         self.config = Some(config);
     }
 
@@ -309,6 +363,10 @@ impl BuildingBehavior for StorageBuilding {
         Some(&mut self.workers)
     }
 
+    fn active_runner(&mut self) -> Option<&mut Runner> {
+        Some(&mut self.runner)
+    }
+
     #[inline]
     fn has_min_required_workers(&self) -> bool {
         if cheats::get().ignore_worker_requirements {
@@ -358,11 +416,173 @@ impl StorageBuilding {
             config: Some(config),
             workers: Workers::employer(config.min_workers, config.max_workers),
             storage_slots: StorageSlots::new(&config.resources_accepted, config.num_slots, config.slot_capacity),
+            runner: Runner::default(),
+            errand_timer: UpdateTimer::new(GameConfigs::get().sim.storage_errand_secs),
+            cannot_empty: ResourceKind::empty(),
             debug: StorageDebug::default(),
         }
     }
 
-    pub fn register_callbacks() {}
+    pub fn register_callbacks() {
+        let _: Callback<UnitTaskDeliveryCompletionCallback> = callback::register!(StorageBuilding::on_goods_carried_out);
+        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(StorageBuilding::on_goods_fetched);
+    }
+
+    // The player's order for a good.
+    #[inline]
+    pub fn order(&self, kind: ResourceKind) -> StorageOrder {
+        self.storage_slots.order(kind)
+    }
+
+    // Sets the order for each good of `kinds` (the inspector's rows, storage.orders).
+    #[inline]
+    pub fn set_orders(&mut self, kinds: ResourceKind, order: StorageOrder) {
+        self.storage_slots.set_orders(kinds, order);
+    }
+
+    // The goods it's set to Empty that no store in reach takes, as of its last look.
+    #[inline]
+    pub fn cannot_empty(&self) -> ResourceKind {
+        self.cannot_empty
+    }
+
+    #[inline]
+    pub fn is_runner_out(&self) -> bool {
+        self.runner.is_spawned_or_pending_spawn()
+    }
+
+    // Its runner's errand while it's out: the order it runs for (Get or Empty), the good and how
+    // many it carries, or is sent for.
+    pub fn errand(&self, context: &SimContext) -> Option<(StorageOrder, ResourceKind, u32)> {
+        let unit = self.runner.try_unit(context)?;
+        let task_manager = context.task_manager();
+        let carried = unit.peek_inventory().filter(|item| item.count != 0);
+        if let Some(task) = unit.current_task_as::<UnitTaskDeliverToStorage>(task_manager) {
+            let count = carried.map_or(task.resource_count, |item| item.count);
+            return Some((StorageOrder::Empty, task.resource_kind_to_deliver, count));
+        }
+        if let Some(task) = unit.current_task_as::<UnitTaskFetchFromStorage>(task_manager) {
+            let wanted = task.resources_to_fetch.first()?;
+            let count = carried.map_or(wanted.count, |item| item.count);
+            return Some((StorageOrder::Get, wanted.kind, count));
+        }
+        None
+    }
+
+    // The orders' errands (docs/plans/messages.md, Phase 2), one at a time while it's staffed:
+    // first a good set to Empty that it holds, carried to the nearest other store in reach that
+    // takes it; else a good set to Get that it has room for, fetched from the nearest other store
+    // in reach that holds it and doesn't get it too. A load at most a trip.
+    fn send_on_errand(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
+        self.cannot_empty = ResourceKind::empty();
+        if !self.has_min_required_workers() || self.is_runner_out() {
+            return;
+        }
+        let Some(road_link) = context.road_link else {
+            return; // Its runner walks the roads.
+        };
+        let config = self.config.unwrap();
+        let load = config.runner_load.max(1);
+        let this = context.kind_and_id();
+
+        // Empty: the goods it holds, in the goods' order.
+        let mut to_empty = None;
+        for kind in config.resources_accepted.combined().iter() {
+            let held = self.storage_slots.available_resources(kind);
+            if held == 0 || self.storage_slots.order(kind) != StorageOrder::Empty {
+                continue;
+            }
+            if store_in_reach(context, road_link, this, |store| store.receivable_resources(kind) != 0) {
+                to_empty = Some((kind, held.min(load)));
+                break;
+            }
+            self.cannot_empty |= kind;
+        }
+        if let Some((kind, count)) = to_empty {
+            self.runner.try_carry_to_storage(
+                cmds,
+                context,
+                road_link,
+                BuildingKind::storage(),
+                kind,
+                count,
+                callback::create!(StorageBuilding::on_goods_carried_out),
+            );
+            // Handed to the runner, as a producer's output is.
+            let removed = self.storage_slots.remove_resources(kind, count);
+            debug_assert_eq!(removed, count);
+            debug_popup_msg!(self.debug, "Carrying out {count} {kind}");
+            return;
+        }
+
+        // Get: the goods it has room for.
+        for kind in config.resources_accepted.combined().iter() {
+            if self.storage_slots.order(kind) != StorageOrder::Get {
+                continue;
+            }
+            let room = self.storage_slots.receivable_resources(kind);
+            if room == 0 {
+                continue;
+            }
+            let found = store_in_reach(context, road_link, this, |store| {
+                store.as_storage().order(kind) != StorageOrder::Get && store.available_resources(kind) != 0
+            });
+            if found {
+                let count = room.min(load);
+                self.runner.try_fetch_from_storage(
+                    cmds,
+                    context,
+                    road_link,
+                    BuildingKind::storage(),
+                    ShoppingList::from_items(&[StockItem { kind, count }]),
+                    callback::create!(StorageBuilding::on_goods_fetched),
+                );
+                debug_popup_msg!(self.debug, "Fetching {count} {kind}");
+                return;
+            }
+        }
+    }
+
+    fn on_goods_carried_out(_context: &SimContextMut, this_building: &mut Building, runner_unit: &mut Unit) {
+        let this_storage = this_building.as_storage_mut();
+        debug_assert!(runner_unit.inventory_is_empty(), "Runner Unit should have delivered all resources by now!");
+        debug_assert!(this_storage.runner.unit_id() == runner_unit.id());
+        this_storage.runner.reset();
+    }
+
+    fn on_goods_fetched(_context: &SimContextMut, this_building: &mut Building, runner_unit: &mut Unit) {
+        let this_storage = this_building.as_storage_mut();
+        debug_assert!(this_storage.runner.unit_id() == runner_unit.id());
+
+        // Unload what it brought. What doesn't fit (the order changed, the slots filled) stays with
+        // the runner, whose task takes it to a store that will.
+        if let Some(item) = runner_unit.peek_inventory() {
+            let received = this_storage.receive_resources(item.kind, item.count);
+            if received != 0 {
+                let removed = runner_unit.remove_resources(item.kind, received);
+                debug_assert!(removed == received);
+            }
+        }
+        this_storage.runner.reset();
+    }
+}
+
+// Whether another staffed store, linked to a road, lies within the stores' reach along the roads
+// from `road_link` and passes `accepts`.
+fn store_in_reach(
+    context: &BuildingContext,
+    road_link: Cell,
+    this: BuildingKindAndId,
+    accepts: impl Fn(&Building) -> bool,
+) -> bool {
+    let reach = GameConfigs::get().sim.storage_reach;
+    context
+        .sim_ctx
+        .find_nearest_buildings(road_link, BuildingKind::storage(), PathNodeKind::Road, Some(reach), |store, _path| {
+            // Accept and stop at the first that will do.
+            !(store.kind_and_id() != this && store.is_linked_to_road() && accepts(store))
+        })
+        .is_some()
 }
 
 // ----------------------------------------------
@@ -544,8 +764,8 @@ impl StorageSlots {
         self.orders[kind.index()]
     }
 
-    // Sets the order for each good of `kinds`. Goods already held stay until they're taken
-    // (Empty's runners, which carry them out, come with roadmap M11).
+    // Sets the order for each good of `kinds`. Goods already held stay until they're taken (Empty's
+    // runner carries them out).
     pub(crate) fn set_orders(&mut self, kinds: ResourceKind, order: StorageOrder) {
         for kind in kinds.iter() {
             self.orders[kind.index()] = order;

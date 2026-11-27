@@ -206,9 +206,17 @@ pub struct SimConfigs {
     #[debug_ui(nested)]
     pub ratings: RatingRules,
 
-    // Workers/Population:
+    // Labour priorities and the allocation (docs/plans/messages.md, M11 Phase 2).
+    #[debug_ui(nested)]
+    pub labour: LabourRules,
+
+    // Workers/Population: how far along the roads an employer's workers may live.
     pub workers_search_radius: i32,
-    pub workers_update_frequency_secs: Seconds,
+
+    // A store's runner (Get and Empty): simulated seconds between its looks for an errand, and how
+    // far along the roads the other store may be.
+    pub storage_errand_secs: Seconds,
+    pub storage_reach: i32,
 
     // Game Systems:
     pub birds_spawn_frequency: Seconds,
@@ -238,9 +246,11 @@ impl Default for SimConfigs {
             floods: FloodRules::default(),
             trade: TradeRules::default(),
             ratings: RatingRules::default(),
+            labour: LabourRules::default(),
             // Workers/Population:
             workers_search_radius: 20,
-            workers_update_frequency_secs: 20.0,
+            storage_errand_secs: 10.0,
+            storage_reach: 40,
             // Game Systems:
             birds_spawn_frequency: 20.0,
             settlers_spawn_frequency_secs: 20.0,
@@ -498,6 +508,20 @@ impl Default for FloodRules {
             wear_jitter: 0.25,
             worn_wear: 50.0,
         }
+    }
+}
+
+// The labour allocation's knobs (crate::labour).
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LabourRules {
+    // Simulated seconds between the allocation's passes.
+    pub allocate_secs: Seconds,
+}
+
+impl Default for LabourRules {
+    fn default() -> Self {
+        Self { allocate_secs: 10.0 }
     }
 }
 

@@ -21,6 +21,7 @@ mod floods;
 mod input;
 mod inspect;
 mod intermission;
+mod labour;
 mod messages;
 mod meta;
 mod minimap;
@@ -54,6 +55,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     floods::COMMANDS,
     trade::COMMANDS,
     ratings::COMMANDS,
+    labour::COMMANDS,
     camera::COMMANDS,
     minimap::COMMANDS,
     city::COMMANDS,

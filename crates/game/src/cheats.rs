@@ -108,6 +108,9 @@ game_cheats! {
     build_sites_in_editor = false,
     // Fire and collapse risks don't build up (docs/plans/city-risks.md); the test harness turns it on.
     no_city_risks = false,
+    // Workers stay where they are: the labour allocation doesn't run (crate::labour); the test
+    // harness turns it on, so tests staff buildings by hand.
+    freeze_labour = false,
 }
 
 // ----------------------------------------------

@@ -142,3 +142,11 @@ harness = false
 [[test]]
 name    = "messages"
 harness = false
+
+[[test]]
+name    = "labour"
+harness = false
+
+[[test]]
+name    = "storage"
+harness = false

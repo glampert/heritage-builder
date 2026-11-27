@@ -289,8 +289,8 @@ impl Building {
             }
 
             if is_employer {
-                // Only employers need to search for workers.
-                self.workers_update_timer_mut().draw_debug_ui_with_header("Update", ui_sys);
+                // The labour allocation hands workers out (crate::labour); paused, it gives none.
+                ui::text(ui_sys, if self.is_paused() { "Paused: no workers." } else { "Working." });
             }
         }
 
