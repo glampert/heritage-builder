@@ -1981,6 +1981,48 @@
                   "duration": 0.7,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_se" }
+                },
+                {
+                  "name": "idle_n",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_s",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_e",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_w",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_e" }
+                },
+                {
+                  "name": "walk_n",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_s",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_e",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_w",
+                  "duration": 0.7,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_e" }
                 }
               ]
             }
@@ -2182,6 +2224,48 @@
                   "duration": 0.7,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_se" }
+                },
+                {
+                  "name": "idle_n",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_s",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_e",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_w",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_e" }
+                },
+                {
+                  "name": "walk_n",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_s",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_e",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_w",
+                  "duration": 0.7,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_e" }
                 }
               ]
             }
@@ -2249,6 +2333,48 @@
                   "duration": 0.9,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_se" }
+                },
+                {
+                  "name": "idle_n",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_s",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_e",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_w",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_e" }
+                },
+                {
+                  "name": "walk_n",
+                  "duration": 0.9,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_s",
+                  "duration": 0.9,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_e",
+                  "duration": 0.9,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_w",
+                  "duration": 0.9,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_e" }
                 }
               ]
             }
@@ -2517,6 +2643,48 @@
                   "duration": 0.5,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_se" }
+                },
+                {
+                  "name": "idle_n",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_s",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_e",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_w",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_e" }
+                },
+                {
+                  "name": "walk_n",
+                  "duration": 0.5,
+                  "frames_source": { "Files": 5 }
+                },
+                {
+                  "name": "walk_s",
+                  "duration": 0.5,
+                  "frames_source": { "Files": 5 }
+                },
+                {
+                  "name": "walk_e",
+                  "duration": 0.5,
+                  "frames_source": { "Files": 5 }
+                },
+                {
+                  "name": "walk_w",
+                  "duration": 0.5,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_e" }
                 }
               ]
             }
@@ -2614,6 +2782,48 @@
                   "duration": 1.1,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_se" }
+                },
+                {
+                  "name": "idle_n",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_s",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_e",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_w",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_e" }
+                },
+                {
+                  "name": "walk_n",
+                  "duration": 1.1,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_s",
+                  "duration": 1.1,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_e",
+                  "duration": 1.1,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_w",
+                  "duration": 1.1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_e" }
                 }
               ]
             }
@@ -2748,6 +2958,48 @@
                   "duration": 0.7,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_se" }
+                },
+                {
+                  "name": "idle_n",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_s",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_e",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_w",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_e" }
+                },
+                {
+                  "name": "walk_n",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_s",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_e",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_w",
+                  "duration": 0.7,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_e" }
                 }
               ]
             }
@@ -2949,6 +3201,48 @@
                   "duration": 0.7,
                   "mirror": true,
                   "frames_source": { "CopyAllFrom": "walk_se" }
+                },
+                {
+                  "name": "idle_n",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_s",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_e",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_w",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_e" }
+                },
+                {
+                  "name": "walk_n",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_s",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_e",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_w",
+                  "duration": 0.7,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_e" }
                 }
               ]
             }

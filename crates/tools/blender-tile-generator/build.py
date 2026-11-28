@@ -87,12 +87,15 @@ def main():
         sources = CORE_SOURCES + [inspect.getsourcefile(RECIPES[e["recipe"]])]
         # A tile def has one draw_size, so a tile's sprites (variations and frames) share the tallest one's height.
         height = None
-        if len(jobs) > 1:
+        if len(jobs) > 1 and cat.render_frame(e) is None:
             height = max(generate_engine(j["recipe"], j["palette"], j["density"], render=False, params=j["params"],
                                          seed=j["seed"])["png_size"][1] for j in jobs)
         for j in jobs:
             label = "/".join(x for x in (j["tile"], j["variation"], j["frame"] if j["frame"] != j["tile"] else "") if x)
-            h = cat.job_hash(j, sources, {"fast": a.fast, "height_px": height})
+            extra = {"fast": a.fast, "height_px": height}
+            if j["frame_box"]:
+                extra["frame"] = j["frame_box"]
+            h = cat.job_hash(j, sources, extra)
             rec = sprites.get(j["path"]); full = os.path.join(cat.REPO_ROOT, j["path"])
             if not a.force and rec and rec.get("hash") == h and os.path.exists(full):
                 skipped += 1; log(f"up to date  {label}"); continue
@@ -106,7 +109,7 @@ def main():
             t = time.time()
             try:
                 res = generate_engine(j["recipe"], j["palette"], j["density"], out=full, params=j["params"], seed=j["seed"],
-                                      samples=FAST_SAMPLES if a.fast else None, height_px=height)
+                                      samples=FAST_SAMPLES if a.fast else None, height_px=height, frame=j["frame_box"])
             except Exception as ex:  # keep going: one bad recipe shouldn't stop the batch
                 failed += 1; log(f"FAILED      {label}: {type(ex).__name__}: {ex}"); continue
             sprites[j["path"]] = dict(tile=j["tile"], variation=j["variation"], frame=j["frame"], layer=j["layer"], category=j["category"],

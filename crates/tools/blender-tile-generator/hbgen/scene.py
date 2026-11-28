@@ -68,11 +68,16 @@ def model_extents(G, collection):
     return max_up, max_side
 
 
-def setup_camera_engine(G, density, collection, height_px=None):
+def setup_camera_engine(G, density, collection, height_px=None, frame=None):
     """Orthographic camera whose frame matches the engine's sprite anchor exactly.
     The height is measured from the model and rounded up to whole logical px;
     height_px forces a taller frame (so a tile's variations share one size).
+    frame (catalog.render_frame) instead renders into a hand-made unit's frame: its
+    width and height in logical px, the model's origin origin_up px above the bottom
+    edge's middle and origin_x px right of it, at the same world scale.
     Returns (camera, width_px, height_px)."""
+    if frame is not None:
+        return _setup_camera_framed(density, collection, frame)
     from mathutils import Euler, Vector
     sc = bpy.context.scene
     cam_d = bpy.data.cameras.new("IsoCam"); cam_d.type = 'ORTHO'; cam_d.sensor_fit = 'HORIZONTAL'
@@ -100,6 +105,38 @@ def setup_camera_engine(G, density, collection, height_px=None):
     return cam, width_px, height_px
 
 
+def _setup_camera_framed(density, collection, frame):
+    from mathutils import Euler, Vector
+    sc = bpy.context.scene
+    cam_d = bpy.data.cameras.new("IsoCam"); cam_d.type = 'ORTHO'; cam_d.sensor_fit = 'HORIZONTAL'
+    cam = bpy.data.objects.new("IsoCam", cam_d); sc.collection.objects.link(cam); sc.camera = cam
+    rot = Euler((radians(60), 0, radians(45))); cam.rotation_euler = rot
+    R = rot.to_matrix(); up, right, fwd = R @ Vector((0, 1, 0)), R @ Vector((1, 0, 0)), R @ Vector((0, 0, -1))
+    world_per_logical = sqrt(2) / 64                        # a cell's diamond is 64 logical px across
+    width_px, height_px = frame["width"] * density, frame["height"] * density
+    cam_d.ortho_scale = frame["width"] * world_per_logical
+    # The frame round the model's origin, in world units along the screen's axes.
+    left = -(frame["width"] / 2 + frame["origin_x"]) * world_per_logical
+    right_edge = (frame["width"] / 2 - frame["origin_x"]) * world_per_logical
+    top = (frame["height"] - frame["origin_up"]) * world_per_logical
+    bpy.context.view_layer.update()
+    for o in collection.all_objects:
+        if o.type != 'MESH': continue
+        for v in o.data.vertices:
+            d = o.matrix_world @ v.co
+            if d.dot(up) > top + 1e-4 or not (left - 1e-4 <= d.dot(right) <= right_edge + 1e-4):
+                print(f"WARNING: {o.name} reaches outside the unit's {frame['width']}x{frame['height']} frame; it's clipped.")
+                break
+    sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = width_px, height_px, 100
+    sc.render.pixel_aspect_x = sc.render.pixel_aspect_y = 1.0
+    cam_d.shift_x = cam_d.shift_y = 0.0
+    dist = 44.0
+    centre = up * ((frame["height"] / 2 - frame["origin_up"]) * world_per_logical) - right * (frame["origin_x"] * world_per_logical)
+    cam.location = centre - fwd * dist
+    cam_d.clip_start, cam_d.clip_end = 0.1, dist * 2 + 20
+    return cam, width_px, height_px
+
+
 def setup_lighting():
     L = LIGHTING; sc = bpy.context.scene
     sun_d = bpy.data.lights.new("Sun", 'SUN'); sun_d.energy = L["sun_energy"]; sun_d.color = L["sun_color"]; sun_d.angle = radians(L["sun_angle"])
@@ -123,11 +160,14 @@ def setup_render(samples=None):
         if hasattr(ev, k): setattr(ev, k, v)
 
 
-def setup_outlines(px_scale=1.0, wobble_scale=None, border=True):
+def setup_outlines(px_scale=1.0, wobble_scale=None, border=True, color=None, skip=None):
     """px_scale multiplies the line thickness, for renders at more than one pixel
     per logical pixel; wobble_scale (default px_scale) multiplies the noise and jitter.
-    border=False leaves out open mesh edges, for pieces cut to meet their neighbours."""
+    border=False leaves out open mesh edges, for pieces cut to meet their neighbours.
+    color replaces the ink's colour; skip lists objects drawn without ink (a shadow)."""
     O = dict(OUTLINE); sc = bpy.context.scene
+    if color is not None:
+        O["color"] = tuple(color)
     # The scene's line thickness multiplies the line style's, so only the style's
     # measures scale: the legacy renders get 1.6 x 1.6 = 2.56 px lines.
     sc.render.use_freestyle = True; sc.render.line_thickness_mode = 'ABSOLUTE'; sc.render.line_thickness = O["thickness"]
@@ -137,6 +177,13 @@ def setup_outlines(px_scale=1.0, wobble_scale=None, border=True):
     fs = bpy.context.view_layer.freestyle_settings; fs.use_culling = True; fs.crease_angle = radians(120)
     for ls in list(fs.linesets): fs.linesets.remove(ls)
     ls = fs.linesets.new("Ink"); ls.select_silhouette = True; ls.select_border = border; ls.select_crease = True; ls.select_contour = False
+    if skip:
+        # Freestyle face marks on the skipped objects' faces, which the line set leaves out.
+        # (Blender 5 keeps them as a boolean face attribute, "freestyle_face".)
+        for o in skip:
+            marks = o.data.attributes.get("freestyle_face") or o.data.attributes.new("freestyle_face", 'BOOLEAN', 'FACE')
+            marks.data.foreach_set("value", [True] * len(o.data.polygons))
+        ls.select_by_face_marks = True; ls.face_mark_negation = 'EXCLUSIVE'; ls.face_mark_condition = 'ONE'
     st = ls.linestyle; st.color = O["color"]; st.thickness = O["thickness"]; st.alpha = O["alpha"]
     m = st.thickness_modifiers.new(name="Noise", type='NOISE'); m.amplitude = O["noise_amp"]; m.period = O["noise_period"]; m.seed = 3
     g = st.geometry_modifiers.new(name="Jitter", type='PERLIN_NOISE_1D'); g.amplitude = O["jitter_amp"]; g.frequency = O["jitter_freq"]; g.octaves = 2

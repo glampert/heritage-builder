@@ -27,26 +27,33 @@ def _render_to(out):
 
 
 def generate_engine(building, palette="viet", density=DEFAULT_DENSITY, out=None, blend=None, render=True,
-                    params=None, seed=0, samples=None, height_px=None):
+                    params=None, seed=0, samples=None, height_px=None, frame=None):
     """Render a tile in the engine's sprite format. Returns the PNG size, the
     logical_size and the draw_size for tile_set.json (PNG size / density).
     params go to the recipe; seed seeds B.rng; samples overrides Eevee's (for --fast);
-    height_px forces the frame's height (see setup_camera_engine)."""
+    height_px forces the frame's height; frame renders into a hand-made unit's frame
+    (see setup_camera_engine)."""
     clear_scene()
     mats = Materials(PALETTES[palette])
     B = Builder(mats, collection_name=building, seed=seed)
     G = RECIPES[building](B, **(params or {}))
     # Ink: thickness scales with density, but the wobble stays small so the lines stay crisp.
-    # A recipe sets B.outline_border = False when its cut edges must not be inked (rubble pieces).
+    # A recipe sets B.outline_border = False when its cut edges must not be inked (rubble pieces), and
+    # B.ink to change the ink: {"scale": thickness factor, "wobble": noise factor, "color": (r, g, b),
+    # "skip": objects left uninked} (walkers: thin, steady, near-black lines, and an uninked shadow).
+    ink = getattr(B, "ink", {})
     setup_lighting(); setup_render(samples)
-    setup_outlines(density * ENGINE_OUTLINE_SCALE, wobble_scale=1.0, border=getattr(B, "outline_border", True)); setup_grade()
-    _, w, h = setup_camera_engine(G, density, B.col, height_px)
+    setup_outlines(density * ENGINE_OUTLINE_SCALE * ink.get("scale", 1.0), wobble_scale=ink.get("wobble", 1.0),
+                   border=getattr(B, "outline_border", True), color=ink.get("color"), skip=ink.get("skip"))
+    setup_grade()
+    _, w, h = setup_camera_engine(G, density, B.col, height_px, frame)
     if blend:
         bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(os.path.expanduser(blend)))
     if out and render:
         _render_to(out)
+    logical = dict(width=G * 64, height=G * 32) if frame is None else dict(width=w // density, height=h // density)
     return dict(building=building, cells=G, density=density, png_size=[w, h],
-                logical_size=dict(width=G * 64, height=G * 32), draw_size=dict(width=w // density, height=h // density), out=out)
+                logical_size=logical, draw_size=dict(width=w // density, height=h // density), out=out)
 
 
 def generate(building="fortress", palette="viet", cells=15, scale=1.0, height_factor=1.0, out=None, blend=None, render=True, trim=True):

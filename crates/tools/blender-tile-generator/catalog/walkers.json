@@ -1,0 +1,2325 @@
+{
+  "realm": "shared",
+  "palette": "viet",
+  "density": 8,
+  "notes": "Walkers (docs/plans/unit-movement.md, Phase 4; the walker experiment, docs/plans/placeholder-art.md, Phase 6). The off-road walkers' hand-made art has the four axis directions; these entries add the diagonals it lacks, N, S and E rendered (W mirrored from E), into each hand-made def's own frame (its draw_size and iso_offset: 'frame'), with its frame counts and timings. Sync adds only these anim sets to the hand-made defs. New units are Blender's in every direction.",
+  "entries": [
+    {
+      "tile": "settler",
+      "category": "units",
+      "recipe": "settler_family",
+      "variations": [
+        {
+          "name": "walk_n",
+          "seed": 1,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_s",
+          "seed": 2,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_e",
+          "seed": 3,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_n",
+          "seed": 4,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_s",
+          "seed": 5,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_e",
+          "seed": 6,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "frame": {
+        "width": 40,
+        "height": 45,
+        "origin_up": 4
+      },
+      "unit": {
+        "iso_offset": {
+          "x": 0,
+          "y": 5
+        },
+        "anim_sets": [
+          {
+            "name": "idle_n",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_s",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_e",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_w",
+            "duration": 1,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
+            }
+          },
+          {
+            "name": "walk_n",
+            "duration": 0.9,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_s",
+            "duration": 0.9,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_e",
+            "duration": 0.9,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_w",
+            "duration": 0.9,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "walk_e"
+            }
+          }
+        ]
+      },
+      "notes": "The settler: a family walking to its new home."
+    },
+    {
+      "tile": "peasant",
+      "category": "units",
+      "recipe": "peasant",
+      "variations": [
+        {
+          "name": "walk_n",
+          "seed": 1,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_s",
+          "seed": 2,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_e",
+          "seed": 3,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_n",
+          "seed": 4,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_s",
+          "seed": 5,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_e",
+          "seed": 6,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "frame": {
+        "width": 22,
+        "height": 40,
+        "origin_up": 2
+      },
+      "unit": {
+        "iso_offset": {
+          "x": 0,
+          "y": 5
+        },
+        "anim_sets": [
+          {
+            "name": "idle_n",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_s",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_e",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_w",
+            "duration": 1,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
+            }
+          },
+          {
+            "name": "walk_n",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_s",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_e",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_w",
+            "duration": 0.7,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "walk_e"
+            }
+          }
+        ]
+      },
+      "notes": "The peasant, a lumberyard harvester off the road."
+    },
+    {
+      "tile": "medic",
+      "category": "units",
+      "recipe": "medic",
+      "variations": [
+        {
+          "name": "walk_n",
+          "seed": 1,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_s",
+          "seed": 2,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_e",
+          "seed": 3,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_n",
+          "seed": 4,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_s",
+          "seed": 5,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_e",
+          "seed": 6,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "frame": {
+        "width": 22,
+        "height": 42,
+        "origin_up": 3
+      },
+      "unit": {
+        "iso_offset": {
+          "x": 0,
+          "y": 5
+        },
+        "anim_sets": [
+          {
+            "name": "idle_n",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_s",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_e",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_w",
+            "duration": 1,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
+            }
+          },
+          {
+            "name": "walk_n",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_s",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_e",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_w",
+            "duration": 0.7,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "walk_e"
+            }
+          }
+        ]
+      },
+      "notes": "The medic, on a call to a sick house."
+    },
+    {
+      "tile": "fire_watcher",
+      "category": "units",
+      "recipe": "fire_watcher",
+      "variations": [
+        {
+          "name": "walk_n",
+          "seed": 1,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_s",
+          "seed": 2,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_e",
+          "seed": 3,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_n",
+          "seed": 4,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_s",
+          "seed": 5,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_e",
+          "seed": 6,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "frame": {
+        "width": 23,
+        "height": 41,
+        "origin_up": 1
+      },
+      "unit": {
+        "iso_offset": {
+          "x": 0,
+          "y": 5
+        },
+        "anim_sets": [
+          {
+            "name": "idle_n",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_s",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_e",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_w",
+            "duration": 1,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
+            }
+          },
+          {
+            "name": "walk_n",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_s",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_e",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_w",
+            "duration": 0.7,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "walk_e"
+            }
+          }
+        ]
+      },
+      "notes": "The fire watcher, on a call to a fire (the guard in red)."
+    },
+    {
+      "tile": "trader",
+      "category": "units",
+      "recipe": "trader",
+      "variations": [
+        {
+          "name": "walk_n",
+          "seed": 1,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_s",
+          "seed": 2,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_e",
+          "seed": 3,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_n",
+          "seed": 4,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_s",
+          "seed": 5,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_e",
+          "seed": 6,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "frame": {
+        "width": 38,
+        "height": 38,
+        "origin_up": 4
+      },
+      "unit": {
+        "iso_offset": {
+          "x": 0,
+          "y": 5
+        },
+        "anim_sets": [
+          {
+            "name": "idle_n",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_s",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_e",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_w",
+            "duration": 1,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
+            }
+          },
+          {
+            "name": "walk_n",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_s",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_e",
+            "duration": 0.7,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_w",
+            "duration": 0.7,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "walk_e"
+            }
+          }
+        ]
+      },
+      "notes": "The trader, a caravan from a land partner (the vendor in indigo)."
+    },
+    {
+      "tile": "dog",
+      "category": "units",
+      "recipe": "dog",
+      "variations": [
+        {
+          "name": "walk_n",
+          "seed": 1,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 5
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_s",
+          "seed": 2,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 5
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_e",
+          "seed": 3,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 5
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 5
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_n",
+          "seed": 4,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_s",
+          "seed": 5,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_e",
+          "seed": 6,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "frame": {
+        "width": 22,
+        "height": 22,
+        "origin_up": 1
+      },
+      "unit": {
+        "iso_offset": {
+          "x": 0,
+          "y": 5
+        },
+        "anim_sets": [
+          {
+            "name": "idle_n",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_s",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_e",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_w",
+            "duration": 1,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
+            }
+          },
+          {
+            "name": "walk_n",
+            "duration": 0.5,
+            "frames_source": {
+              "Files": 5
+            }
+          },
+          {
+            "name": "walk_s",
+            "duration": 0.5,
+            "frames_source": {
+              "Files": 5
+            }
+          },
+          {
+            "name": "walk_e",
+            "duration": 0.5,
+            "frames_source": {
+              "Files": 5
+            }
+          },
+          {
+            "name": "walk_w",
+            "duration": 0.5,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "walk_e"
+            }
+          }
+        ]
+      },
+      "notes": "The dog that wanders from the houses."
+    },
+    {
+      "tile": "buffalo",
+      "category": "units",
+      "recipe": "buffalo",
+      "variations": [
+        {
+          "name": "walk_n",
+          "seed": 1,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_s",
+          "seed": 2,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "walk_e",
+          "seed": 3,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "step": 0,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "step": 1,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame2",
+              "params": {
+                "step": 2,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame3",
+              "params": {
+                "step": 3,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame4",
+              "params": {
+                "step": 4,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame5",
+              "params": {
+                "step": 5,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame6",
+              "params": {
+                "step": 6,
+                "steps": 8
+              }
+            },
+            {
+              "name": "frame7",
+              "params": {
+                "step": 7,
+                "steps": 8
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_n",
+          "seed": 4,
+          "params": {
+            "facing": "n"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_s",
+          "seed": 5,
+          "params": {
+            "facing": "s"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        },
+        {
+          "name": "idle_e",
+          "seed": 6,
+          "params": {
+            "facing": "e"
+          },
+          "frames": [
+            {
+              "name": "frame0",
+              "params": {
+                "breath": 0
+              }
+            },
+            {
+              "name": "frame1",
+              "params": {
+                "breath": 1
+              }
+            }
+          ]
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "frame": {
+        "width": 50,
+        "height": 40,
+        "origin_up": 10
+      },
+      "unit": {
+        "iso_offset": {
+          "x": 2,
+          "y": 12
+        },
+        "anim_sets": [
+          {
+            "name": "idle_n",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_s",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_e",
+            "duration": 1,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_w",
+            "duration": 1,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
+            }
+          },
+          {
+            "name": "walk_n",
+            "duration": 1.1,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_s",
+            "duration": 1.1,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_e",
+            "duration": 1.1,
+            "frames_source": {
+              "Files": 8
+            }
+          },
+          {
+            "name": "walk_w",
+            "duration": 1.1,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "walk_e"
+            }
+          }
+        ]
+      },
+      "notes": "The water buffalo that wanders from the farms."
+    }
+  ]
+}

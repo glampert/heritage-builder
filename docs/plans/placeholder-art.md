@@ -321,17 +321,24 @@ Approach:
 - **Output:** `assets/tiles/objects/units/<unit>/<anim_set>/frameN.png` with `frames_source: {"Files": n}`. Catalog entries of a new `unit` kind; `sync_tileset.py` adds the anim sets.
 
 Tasks:
-- [ ] The `figure` and `quadruped` recipes, the walk cycle, rendering each direction, and frame-sequence output.
-- [ ] Settler test: render all 8 directions (5 plus mirrors) and place it next to the hand-made settler in the game. Compare at 1× and at full zoom.
-- [ ] Decide with the user whether to:
+- [x] The `figure` and `quadruped` recipes, the walk cycle, rendering each direction, and frame-sequence output.
+- [x] Settler test: render all 8 directions (5 plus mirrors) and place it next to the hand-made settler in the game. Compare at 1× and at full zoom.
+- [x] Decide with the user whether to:
   - generate only the missing N, S and E for existing units;
   - regenerate every direction for a unit;
   - or draw them by hand instead.
 
   Record the answer in [unit-movement.md](unit-movement.md) Q5.
-- [ ] If Blender works out: generate N, S and E for the settler, dog, buffalo and bird ([unit-movement.md](unit-movement.md) Phase 4).
+- [x] If Blender works out: generate N, S and E for the settler, dog, buffalo and bird ([unit-movement.md](unit-movement.md) Phase 4).
 
 Done when: the user has judged the settler test and the decision is recorded.
+
+**Notes (2026-11-28): done.**
+- **The figure** (`hbgen/recipes/walkers.py`): `person`, a low-poly person from the Builder's primitives (tapered round torso, a skirt flared deep enough front to back that a striding thigh stays inside, two-segment limbs with balls at the joints, a head with eyes, the conical hat tipped back, or a wrap or bun) dressed by parameters and carrying a basket, a baby, a bag, a spear or a shoulder pole; `quadruped`, the dog and the buffalo. The walk is procedural: thighs on a sine, knees bending as a leg comes forward, arms against the legs, a bob twice a stride (animals' legs in diagonal pairs). A figure faces +X and turns to each direction (`FACINGS`: se 0°, e 45°, ne 90°, n 135°, s −45°).
+- **The first settler test** (rendered with the buildings' shading and ink, as a `settler_blender` unit beside the hand-made settler) read softer and muddier: smooth 3D shading, thick wobbly brown ink, boxy coats, no faces, no shadow. The user asked to refine it first. **Refined:** two-tone cel shading (`_cel`: the diffuse light thresholded at `CEL_EDGE` into lit and `CEL_SHADE` tones, an emission shader), thin steady near-black ink (`B.ink`, a generator hook: `scale`, `wobble`, `color`, and `skip`, objects left uninked by Freestyle face marks), small eyes, a translucent shadow, round bodies. Beside the hand-made settler at 1× the two families sit together; closer, the hand-made art's painted folds and faces show the Blender figures are simpler.
+- **Decision (2026-11-28, recorded as unit-movement.md Q5):** keep the hand-made art and render only the missing N, S and E for the walkers that leave the roads; new units are Blender's in every direction.
+- **Adding to hand-made units** (catalog `frame`, sync): see unit-movement.md Phase 4's notes and the generator's README (Walkers). The bird keeps its own art (unit-movement.md Q7). `settler_blender` was a test only and is gone.
+
 
 ### Later
 

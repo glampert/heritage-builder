@@ -82,6 +82,21 @@ class Catalog(unittest.TestCase):
         with self.assertRaises(cat.CatalogError): entry("x", frames=[{"name": "a"}, {"name": "a"}])
         with self.assertRaises(cat.CatalogError): entry("x", frames=[{"params": {}}])
 
+    def test_variation_frames(self):
+        # A walker: 8 walk frames for its walk_ variations, 2 for its idle ones, with the entry's as the default.
+        walk = [{"name": f"frame{i}", "params": {"step": i}} for i in range(8)]
+        e = entry("walker", [{"name": "walk_se", "frames": walk}, {"name": "idle_se"}], category="units",
+                  frames=[{"name": "frame0", "params": {"idle": 0}}, {"name": "frame1", "params": {"idle": 1}}])
+        js = cat.jobs([e])
+        self.assertEqual(len(js), 10)
+        self.assertEqual(js[7]["path"], "assets/tiles/objects/units/walker/walk_se/frame7.png")
+        self.assertEqual(js[7]["params"], {"step": 7})
+        self.assertEqual([j["path"] for j in js[8:]], ["assets/tiles/objects/units/walker/idle_se/frame0.png",
+                                                       "assets/tiles/objects/units/walker/idle_se/frame1.png"])
+        self.assertEqual(cat.sprite_path(e, "walk_se"), "assets/tiles/objects/units/walker/walk_se/frame0.png")
+        with self.assertRaises(cat.CatalogError): entry("x", [{"name": "a", "frames": []}])
+        with self.assertRaises(cat.CatalogError): entry("x", [{"name": "a", "frames": [{"name": "f"}, {"name": "f"}]}])
+
     def test_rejects_bad_entries(self):
         with self.assertRaises(cat.CatalogError): entry("kiln", colour="red")
         with self.assertRaises(cat.CatalogError): entry("a" * 25)
@@ -205,6 +220,41 @@ class Sync(unittest.TestCase):
         self.assertEqual(again, new, "a second sync must change nothing")
         with self.assertRaises(cat.CatalogError):
             entry("ship", [{"name": "idle_ne"}], category="units", unit={"iso_offset": {"x": 0, "y": 0}})
+
+    def test_adds_directions_to_a_hand_made_unit(self):
+        # A hand-made unit's missing directions (catalog 'frame'): rendered into its def's frame, and
+        # only the entry's anim sets are added to its variation; everything else stays as it was.
+        hand = {"name": "walker", "draw_size": {"width": 40, "height": 45}, "variations": [{"iso_offset": {"x": 0, "y": 5},
+                "anim_sets": [{"name": "walk_ne", "duration": 0.9, "frames_source": {"Files": 8}}]}]}
+        text = json.dumps({"categories": [{"name": "units", "tile_defs": [hand]}]}, indent=2)
+        added = [{"name": "walk_n", "duration": 0.9, "frames_source": {"Files": 2}},
+                 {"name": "walk_w", "duration": 0.9, "mirror": True, "frames_source": {"CopyAllFrom": "walk_e"}}]
+        unit = {"iso_offset": {"x": 0, "y": 5}, "anim_sets": added}
+        frames = [{"name": "frame0"}, {"name": "frame1"}]
+        e = entry("walker", [{"name": "walk_n"}, {"name": "walk_e"}], category="units", frames=frames, unit=unit,
+                  frame={"width": 40, "height": 45})
+        self.assertEqual(cat.render_frame(e), {"width": 40, "height": 45, "origin_x": 0, "origin_up": 0})
+        raised = entry("walker", [{"name": "walk_n"}], category="units", frames=frames, unit=unit,
+                       frame={"width": 50, "height": 40, "origin_up": 7})
+        self.assertEqual(cat.render_frame(raised)["origin_up"], 7)
+        self.assertEqual(cat.jobs([e])[0]["frame_box"], cat.render_frame(e))
+        sprites = {j["path"]: sprite_rec(320, 360) for j in cat.jobs([e])}
+        new, _ = self.sync(text, [e], sprites)
+        d = json.loads(new)["categories"][0]["tile_defs"][0]
+        self.assertEqual(d["draw_size"], hand["draw_size"])
+        self.assertEqual([a["name"] for a in d["variations"][0]["anim_sets"]], ["walk_ne", "walk_n", "walk_w"])
+        self.assertEqual(d["variations"][0]["anim_sets"][0], hand["variations"][0]["anim_sets"][0])
+        again, _ = self.sync(new, [e], sprites)
+        self.assertEqual(again, new, "a second sync must change nothing")
+        # Not into a frame of another size, nor over a hand-made anim set, nor without a def.
+        other = entry("walker", [{"name": "walk_n"}], category="units", frames=frames, unit=unit, frame={"width": 22, "height": 40})
+        with self.assertRaises(tileset.SyncError): self.sync(text, [other], sprites)
+        clash = entry("walker", [{"name": "walk_n"}], category="units", frames=frames, frame={"width": 40, "height": 45},
+                      unit={"iso_offset": {"x": 0, "y": 5}, "anim_sets": [{"name": "walk_ne", "frames_source": {"Files": 2}}]})
+        with self.assertRaises(tileset.SyncError): self.sync(text, [clash], sprites)
+        with self.assertRaises(tileset.SyncError):
+            self.sync(json.dumps({"categories": [{"name": "units", "tile_defs": []}]}), [e], sprites)
+        with self.assertRaises(cat.CatalogError): entry("walker", frame={"width": 40, "height": 45})
 
     def test_refuses_hand_made_def(self):
         # The catalog renders a variation of "temple", whose existing art the generator never wrote.

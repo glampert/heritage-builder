@@ -9,7 +9,9 @@ appended to their category. Rules:
 - Variations are append-only. Saves store a variation by index, so existing
   ones keep their place, and one the catalog no longer lists is kept as it is.
 - A def that exists but none of whose sprites the generator wrote is hand-made,
-  and syncing it is an error.
+  and syncing it is an error; except a hand-made unit's entry with a 'frame', which
+  adds its anim sets to the def's one variation (replacing same-named ones the
+  generator added before) and changes nothing else.
 """
 
 import json
@@ -80,21 +82,21 @@ def parse_spans(text):
     return doc, spans
 
 
-def format_value(v, indent, key=None):
+def format_value(v, indent, key=None, inline=INLINE_OBJECT_KEYS):
     """JSON text in the tile sets' style: two-space indent, objects in
-    INLINE_OBJECT_KEYS on one line. indent is the column of the value's line."""
+    `inline` on one line. indent is the column of the value's line."""
     pad = " " * indent
     if isinstance(v, dict):
         if not v:
             return "{}"
-        if key in INLINE_OBJECT_KEYS and all(not isinstance(x, (dict, list)) for x in v.values()):
+        if key in inline and all(not isinstance(x, (dict, list)) for x in v.values()):
             return "{ " + ", ".join(f"{json.dumps(k)}: {json.dumps(x)}" for k, x in v.items()) + " }"
-        items = [f"{pad}  {json.dumps(k)}: {format_value(x, indent + 2, k)}" for k, x in v.items()]
+        items = [f"{pad}  {json.dumps(k)}: {format_value(x, indent + 2, k, inline)}" for k, x in v.items()]
         return "{\n" + ",\n".join(items) + "\n" + pad + "}"
     if isinstance(v, list):
         if not v:
             return "[]"
-        return "[\n" + ",\n".join(pad + "  " + format_value(x, indent + 2) for x in v) + "\n" + pad + "]"
+        return "[\n" + ",\n".join(pad + "  " + format_value(x, indent + 2, None, inline) for x in v) + "\n" + pad + "]"
     return json.dumps(v, ensure_ascii=False)
 
 
@@ -106,14 +108,36 @@ def _line_indent(text, pos):
     return i - start
 
 
-def _append_to_array(text, spans, path, length, item):
+def _append_to_array(text, spans, path, length, item, inline=INLINE_OBJECT_KEYS):
     s, e = spans[path]
     if length:
         ls, le = spans[path + (length - 1,)]
         ind = _line_indent(text, ls)
-        return text[:le] + ",\n" + " " * ind + format_value(item, ind) + text[le:]
+        return text[:le] + ",\n" + " " * ind + format_value(item, ind, None, inline) + text[le:]
     ind = _line_indent(text, s)
-    return text[:s] + "[\n" + " " * (ind + 2) + format_value(item, ind + 2) + "\n" + " " * ind + "]" + text[e:]
+    return text[:s] + "[\n" + " " * (ind + 2) + format_value(item, ind + 2, None, inline) + "\n" + " " * ind + "]" + text[e:]
+
+
+# A hand-made unit's anim sets write their frames_source on one line.
+_ANIM_SET_INLINE = INLINE_OBJECT_KEYS | {"frames_source"}
+
+
+def _extend_text(text, path, existing, desired):
+    """Writes a hand-made unit's added anim sets into its def's text, each set on its own and the
+    rest of the def as it was: a set it has already is replaced in place, a new one appended."""
+    sets_path = path + ("variations", 0, "anim_sets")
+    for a in desired["variations"][0]["anim_sets"]:
+        doc, spans = parse_spans(text)
+        cur = doc
+        for k in sets_path:
+            cur = cur[k]
+        k = next((i for i, x in enumerate(cur) if x["name"] == a["name"]), None)
+        if k is None:
+            text = _append_to_array(text, spans, sets_path, len(cur), a, _ANIM_SET_INLINE)
+        elif cur[k] != a:
+            s, e = spans[sets_path + (k,)]
+            text = text[:s] + format_value(a, _line_indent(text, s), None, _ANIM_SET_INLINE) + text[e:]
+    return text
 
 
 # ----------------------------------------------------------------------------
@@ -131,6 +155,8 @@ def _variation_obj(entry, v):
 def desired_def(entry, existing, sprites, notes):
     """The tile def a generated entry should have, given the existing def (or
     None) and the manifest's sprites. Appends warnings to notes."""
+    if "frame" in entry:
+        return _extended_def(entry, existing, sprites)
     bad = _RESERVED & set(entry["tile_set"])
     if bad:
         raise SyncError(f"{entry['tile']}: tile_set may not set {sorted(bad)}; they come from the render")
@@ -174,6 +200,39 @@ def desired_def(entry, existing, sprites, notes):
     return d
 
 
+def _extended_def(entry, existing, sprites):
+    """A hand-made unit's def with the entry's rendered anim sets added (catalog 'frame')."""
+    if existing is None:
+        raise SyncError(f"{entry['tile']}: adds directions to a hand-made unit, but there's no such tile def")
+    if entry["tile_set"]:
+        raise SyncError(f"{entry['tile']}: adds directions to a hand-made unit, so it may not set tile_set fields")
+    frame = {"width": entry["frame"]["width"], "height": entry["frame"]["height"]}   # its origin is the render's
+    if existing.get("draw_size") != frame:
+        raise SyncError(f"{entry['tile']}: its frame {frame} isn't the hand-made def's draw_size {existing.get('draw_size')}")
+    variations = existing.get("variations", [])
+    if len(variations) != 1:
+        raise SyncError(f"{entry['tile']}: a unit's def has one variation, not {len(variations)}")
+    var = dict(variations[0])
+    if var.get("iso_offset", {}) != entry["unit"].get("iso_offset", {}):
+        raise SyncError(f"{entry['tile']}: its iso_offset isn't the hand-made def's {var.get('iso_offset')}")
+    for job in cat.jobs([dict(entry, generated=True)]):
+        if job["path"] not in sprites:
+            raise SyncError(f"{entry['tile']}: {job['path']} isn't rendered yet; run build.py")
+    # A same-named set may be replaced only when it's the generator's: one of the rendered folders,
+    # or a copy of one (a mirrored direction); never the hand-made art's.
+    rendered = {v["name"] for v in entry["variations"]}
+    ours = lambda a: a["name"] in rendered or a.get("frames_source", {}).get("CopyAllFrom") in rendered
+    added = {a["name"]: a for a in entry["unit"]["anim_sets"]}
+    for a in var.get("anim_sets", []):
+        if a["name"] in added and not ours(a):
+            raise SyncError(f"{entry['tile']}: would replace the hand-made anim set '{a['name']}'")
+    sets = [added.pop(a["name"], a) for a in var.get("anim_sets", [])]
+    var["anim_sets"] = sets + [a for a in entry["unit"]["anim_sets"] if a["name"] in added]
+    d = dict(existing)
+    d["variations"] = [var]
+    return d
+
+
 def sync_text(text, entries, sprites, notes):
     """The tile set's text with the entries merged in."""
     for entry in entries:
@@ -188,7 +247,9 @@ def sync_text(text, entries, sprites, notes):
         defs = cats[ci].get("tile_defs", [])
         di = next((j for j, t in enumerate(defs) if t.get("name") == entry["tile"]), None)
         d = desired_def(entry, defs[di] if di is not None else None, sprites, notes)
-        if di is None:
+        if "frame" in entry:
+            text = _extend_text(text, ("categories", ci, "tile_defs", di), defs[di], d)
+        elif di is None:
             text = _append_to_array(text, spans, ("categories", ci, "tile_defs"), len(defs), d)
         else:
             s, e = spans[("categories", ci, "tile_defs", di)]

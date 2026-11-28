@@ -378,6 +378,43 @@ moves the frame's middle, the model's origin, onto the unit's cell (the engine
 stands a unit's sprite on its cell's centre). Units skip the ground checks
 (`"validate": {"ground": false}`).
 
+**Walkers** (`catalog/walkers.json`, `hbgen/recipes/walkers.py`;
+[unit-movement.md](../../../docs/plans/unit-movement.md) Phase 4 and Q5,
+[placeholder-art.md](../../../docs/plans/placeholder-art.md) Phase 6): low-poly people
+and animals built from the Builder's primitives, posed procedurally (each leg swings
+on a sine about its hip and bends at the knee, the arms swing against the legs, the
+body bobs twice a stride) and turned to each facing as the ship is (`FACINGS`). Their
+look is the hand-made walkers': each colour in two flat tones, lit and in shade,
+with a hard edge between (`_cel`: the diffuse light thresholded, as an emission
+shader), thin steady near-black ink (`B.ink`, below) and a soft translucent shadow
+(`shadow`, an ellipse across the screen made after the turn, left uninked). `person`
+dresses one figure (top, sleeves, skirt and its length, trousers, feet, leg wraps,
+belt, hat, wrap or bun, a face or not, and what it carries: a basket on the back, a
+baby, a bag, a spear, a shoulder pole); `quadruped` builds the dog and the buffalo.
+The colours (`COLOURS`) are sampled from each unit's hand-made art.
+
+**Adding directions to a hand-made unit** (`"frame"`): the off-road walkers'
+hand-made art has the four axis directions; their entries in `catalog/walkers.json`
+render only the diagonals they lack, N, S and E (W mirrored from E), and add just
+those anim sets to the hand-made def. An entry with `"frame": {"width": 40, "height":
+45, "origin_up": 4}` renders into that frame, the hand-made def's `draw_size` (the
+sync checks they agree, and that its `iso_offset` is the def's), at the world scale
+every tile has (64 logical px across a cell's diamond), with the model's origin, its
+feet, `origin_up` px above the frame's bottom edge's middle (and `origin_x` to the
+right), where the hand-made walkers' feet are; the checks warn when part of the model
+falls outside the frame. Sync then writes only the entry's anim sets into the def's
+one variation, each on its own (in the hand-made defs' style, `frames_source` on one
+line), appending new ones and replacing only sets the generator owns (a rendered
+folder or a copy of one): never a hand-made set, and nothing else in the def. A
+variation can list its own `frames`, in place of the entry's (a walk's 8 or 5, an
+idle's 2); each walk frame's params carry its `step` and the stride's `steps`.
+
+**Ink** (`B.ink`, a recipe's choice): `{"scale": ..., "wobble": ..., "color": (r, g,
+b), "skip": [objects]}` thins or thickens the line, steadies its wobble, recolours
+it, and leaves objects uninked (Freestyle face marks, in Blender 5 the `freestyle_face`
+face attribute, which the line set excludes). Walkers use thin, steady, near-black
+ink and an uninked shadow.
+
 `"validate": {"ground": false}` marks an overlay, a sprite without a ground
 diamond (the renovation scaffolds), so the checks skip the corner and
 bottom-row tests. The `overlays` category is drawn by the renderer only:
@@ -399,7 +436,7 @@ lists the options). For each catalog entry, or the tiles named:
   `GENERATOR_VERSION` in `hbgen/catalog.py`. Bump that to re-render
   everything, e.g. after a Blender upgrade.
 - A tile def has one `draw_size`, so a tile's variations and frames all
-  render at the tallest one's height.
+  render at the tallest one's height (or in a hand-made unit's `frame`).
 - It saves the manifest after every render, then runs the checks, writes the
   contact sheets to `build/` (git-ignored), and syncs the tile sets.
 - `--dry-run` lists what would render. `--force` ignores the hash.
@@ -414,7 +451,8 @@ fails on any difference, which CI runs):
 - Variations are append-only, since saves store a variation by index. One the
   catalog drops stays in place, with a note.
 - A def none of whose sprites the generator wrote is hand-made, and syncing
-  it is an error.
+  it is an error, except a hand-made unit's entry with a `frame`, which adds
+  its anim sets to the def and changes nothing else (Walkers, above).
 - It also checks that each sprite exists at its recorded size, isn't a
   `--fast` render, and is listed in `web/asset_manifest.json`. `tilegen.sh`
   refreshes that list with `cargo run -p web-builder -- manifest`.

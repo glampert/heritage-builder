@@ -101,6 +101,7 @@ fn main() {
         test_utils::test_fn!(test_patrol_respects_max_distance),
         // Directions (docs/plans/unit-movement.md, Phase 1)
         test_utils::test_fn!(test_diagonal_steps_fall_back_to_axis_art),
+        test_utils::test_fn!(test_off_road_walkers_have_diagonal_art),
         // Eight-way navigation (docs/plans/unit-movement.md, Phase 3)
         test_utils::test_fn!(test_diagonal_steps_take_root_two_as_long),
         test_utils::test_fn!(test_a_bird_flies_at_one_pace_over_anything),
@@ -1365,15 +1366,15 @@ fn test_patrol_respects_max_distance() {
 // Directions
 // ----------------------------------------------
 
-// A settler (art for the four axis directions only) stepping diagonally faces the diagonal
-// direction but is drawn with the axis direction's walk on the side it turned from, and an axis
-// step plays its own walk, as before.
+// A runner (a road walker, with art for the four axis directions only) stepping diagonally faces
+// the diagonal direction but is drawn with the axis direction's walk on the side it turned from,
+// and an axis step plays its own walk, as before.
 fn test_diagonal_steps_fall_back_to_axis_art() {
     let mut env = TestEnvironment::new();
     fill_terrain(&mut env, "grass");
 
     let start = Cell::new(10, 10);
-    let unit_id = spawn_unit(&mut env, start, UnitConfigKey::Settler);
+    let unit_id = spawn_unit(&mut env, start, UnitConfigKey::Runner);
     assert!(find_unit(&env, unit_id).direction() == UnitDirection::Idle);
 
     // (step to, direction faced, walk played)
@@ -1561,4 +1562,37 @@ fn test_settler_paths_again_round_a_building_beside_its_way() {
     tick_n(&mut env, 4, PACE_TICK_SECS);
     let house = env.world.find_building_for_cell(lot, &env.tile_map).expect("a house on the lot");
     assert_eq!(house.population_count(), 1, "the settler moved in");
+}
+
+// The walkers that leave the roads have their own art for the diagonals (docs/plans/unit-movement.md,
+// Phase 4: N, S and E from the Blender generator, W mirrored), so a diagonal step plays its own walk.
+fn test_off_road_walkers_have_diagonal_art() {
+    let walkers = [
+        UnitConfigKey::Settler,
+        UnitConfigKey::Peasant,
+        UnitConfigKey::Medic,
+        UnitConfigKey::FireWatcher,
+        UnitConfigKey::Trader,
+        UnitConfigKey::Dog,
+        UnitConfigKey::Buffalo,
+    ];
+    for config in walkers {
+        let mut env = TestEnvironment::new();
+        fill_terrain(&mut env, "grass");
+        let unit_id = spawn_unit(&mut env, Cell::new(10, 10), config);
+        // (step to, direction faced, walk played)
+        let steps = [
+            (Cell::new(11, 11), UnitDirection::N, "walk_n"),
+            (Cell::new(10, 12), UnitDirection::W, "walk_w"),
+            (Cell::new(9, 11), UnitDirection::S, "walk_s"),
+            (Cell::new(10, 10), UnitDirection::E, "walk_e"),
+        ];
+        for (cell, direction, walk) in steps {
+            let unit = env.world.find_unit_mut(unit_id).unwrap();
+            assert!(unit.teleport(&mut env.tile_map, cell), "{config:?} should move to {cell}");
+            let unit = find_unit(&env, unit_id);
+            assert!(unit.direction() == direction, "{config:?} faces {direction}");
+            assert_eq!(unit.current_anim_name(), walk, "{config:?} stepping {direction}");
+        }
+    }
 }

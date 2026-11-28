@@ -2464,6 +2464,3768 @@
       "tile": "rubble",
       "variation": "1111"
     },
+    "assets/tiles/objects/units/buffalo/idle_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "e794dedd00f7942d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/buffalo/idle_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "1204f6cdc68d99b9",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/buffalo/idle_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "51277a494c3d5555",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/buffalo/idle_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "37013d7a7ef977dc",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/buffalo/idle_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "7a2bd1dceaaf060a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/buffalo/idle_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "ff57d040beb08d69",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/buffalo/walk_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "742b6b967e9c810b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/buffalo/walk_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "d6ecbf3eb4b4f1c5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/buffalo/walk_e/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "009c422183713fc5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/buffalo/walk_e/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "20bcdd66b1fa888d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/buffalo/walk_e/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "a0291f9ee69806eb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/buffalo/walk_e/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "31c111e714ce3d68",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/buffalo/walk_e/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "663651b941ecaf76",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/buffalo/walk_e/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "f317a6d7f2ddd396",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/buffalo/walk_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "9fef653cc22e9905",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/buffalo/walk_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "c4b69becf4d66cfa",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/buffalo/walk_n/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "14ca46d620ccbbee",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/buffalo/walk_n/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "445ece6a2cda959c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/buffalo/walk_n/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "bf779251a323077d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/buffalo/walk_n/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "ba8a9e992cdc872d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/buffalo/walk_n/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "cb57bccbd796ba31",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/buffalo/walk_n/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "21a54045d96d296c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/buffalo/walk_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "9a78d6390856f81e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/buffalo/walk_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "3032fc7db464b916",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/buffalo/walk_s/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "f4c33600d40232e2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/buffalo/walk_s/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "af80d6adc5f954ff",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/buffalo/walk_s/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "6d365211342a189c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/buffalo/walk_s/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "0488e5da9b6eb53b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/buffalo/walk_s/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "8a75914ef67c1ffd",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/buffalo/walk_s/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 50
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "c1911db359218491",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 50
+      },
+      "png_size": [
+        400,
+        320
+      ],
+      "tile": "buffalo",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/dog/idle_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "69d6e649d52109a3",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/dog/idle_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "bc958fc4252544ed",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/dog/idle_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "bd787468f61cc251",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/dog/idle_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "08bd79b304baf56e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/dog/idle_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "9a0199759f63fdcf",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/dog/idle_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "eea0fb021b8ce0b6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/dog/walk_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "4ecea0386909a49d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/dog/walk_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "ce6d08418332c80a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/dog/walk_e/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "e9d032c3052689c4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/dog/walk_e/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "add965d85b34d2fd",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/dog/walk_e/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "ea514b11d4ee18d7",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/dog/walk_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "6df9754e98354a63",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/dog/walk_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "334d69529aea3639",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/dog/walk_n/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "14319e73dae1a6db",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/dog/walk_n/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "613bad94e5cec026",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/dog/walk_n/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "d41f7521d01f6650",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/dog/walk_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "7fda51e3fab5e1c3",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/dog/walk_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "5f5b8305d51070ad",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/dog/walk_s/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "06a53a42fd97ac09",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/dog/walk_s/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "daacd06320638fd2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/dog/walk_s/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 22,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "073645fa594ce0d6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 22,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        176
+      ],
+      "tile": "dog",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/idle_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "7fa4630d10eb5e0d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/idle_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "12573dcdb9359907",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/idle_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "6b4a4165f67240c3",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/idle_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "22346740a099e897",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/idle_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "0fe6f453a8151fbe",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/idle_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "39994d020ab98dc6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "9c108c36bcda147e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "5d5e4e2b0099130f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_e/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "9cb4ee098e771703",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_e/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "82259f71ff0cb5c1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_e/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "e665798b6676eb1f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_e/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "50b8baa97aef73cf",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_e/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "8edae49987ca123f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_e/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "10f69a150f5a9251",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "21aef1897116b0b5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "b38d44141c11c19f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_n/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "91595ef3a39a4844",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_n/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "df3fa7437b657bfe",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_n/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "1f3f697eb87cbd74",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_n/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "3eecd5362227e9e2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_n/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "8a81362b9a7c79be",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_n/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "123bae642dd1dffb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "7a6e9f6e73e1826f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "4fdb55a773c4fc4d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_s/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "68cd6a2d97a33b3a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_s/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "d4f48bf12296129d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_s/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "95da8df476f6d9b8",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_s/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "383da78f8d07246a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_s/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "9e723ea523852ed2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/fire_watcher/walk_s/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 41,
+        "width": 23
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "0a542989dd0790fb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 41,
+        "width": 23
+      },
+      "png_size": [
+        184,
+        328
+      ],
+      "tile": "fire_watcher",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/medic/idle_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "5e8a094b229052f7",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/medic/idle_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "c68fd67b0ff59ba8",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/medic/idle_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "93979cc10abcc60e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/medic/idle_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "3873e674511153cd",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/medic/idle_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "100192f50f2b1f78",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/medic/idle_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "b26ad3c2cb2a032a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/medic/walk_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "a76603f436b1c402",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/medic/walk_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "276257fc020c2d45",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/medic/walk_e/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "20c0dfb8c34d3be1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/medic/walk_e/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "0bac6286cb597734",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/medic/walk_e/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "4c6c00c183218ca3",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/medic/walk_e/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "065d2568cd8f372f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/medic/walk_e/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "004a626a743237dd",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/medic/walk_e/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "d997ee5805e41f30",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/medic/walk_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "0b066c9ebfda4cde",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/medic/walk_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "d17101fb1f7d23a1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/medic/walk_n/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "3b18d6af2202976e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/medic/walk_n/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "15655185c7a3960e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/medic/walk_n/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "4dd86f8250fcb27c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/medic/walk_n/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "3167bea695dff95c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/medic/walk_n/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "3002c9eeb35277c6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/medic/walk_n/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "9632df45445da3f4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/medic/walk_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "d0d31e86d4c71950",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/medic/walk_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "bd77b8555d86ed8c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/medic/walk_s/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "a4a1b53beb7104fe",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/medic/walk_s/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "e53de897228e8d19",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/medic/walk_s/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "5902f7579fc3432e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/medic/walk_s/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "e027c0c30b033987",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/medic/walk_s/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "66ce97a8445c6b52",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/medic/walk_s/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "c10c3ee77e59392f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 42,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        336
+      ],
+      "tile": "medic",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/peasant/idle_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "cdde2f33f0fe4c20",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/peasant/idle_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "5f84145274bafd2b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/peasant/idle_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "3a615efd48bb1f15",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/peasant/idle_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "63208972deac8848",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/peasant/idle_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "a9a15816a07fc084",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/peasant/idle_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "a162011f3e7c848b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/peasant/walk_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "cb33a450ed6a4dd8",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/peasant/walk_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "00cb4738f650c871",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/peasant/walk_e/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "f9c3815803281840",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/peasant/walk_e/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "5893078105bbc7ba",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/peasant/walk_e/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "6f368ffd1cdd049d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/peasant/walk_e/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "7890ba48d2295c7c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/peasant/walk_e/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "cde1314e214524a5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/peasant/walk_e/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "61a0f1eb2aeb758c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/peasant/walk_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "d4e82510a6a5f85e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/peasant/walk_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "20d2daa5ecd340b2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/peasant/walk_n/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "c22d9225b15afbf0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/peasant/walk_n/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "e65f2b62db0c2de6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/peasant/walk_n/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "c4d3099c1a07d208",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/peasant/walk_n/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "2e08c17ab4132b1a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/peasant/walk_n/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "7d6faafcd5040099",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/peasant/walk_n/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "977cc53b1d66628f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/peasant/walk_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "b3f4a92f8b9d0cd0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/peasant/walk_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "900a98d7a4fcf445",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/peasant/walk_s/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "94bd98e3a8f05adc",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/peasant/walk_s/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "33f369a69439831d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/peasant/walk_s/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "d88ffdfcfe7aed43",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/peasant/walk_s/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "12a21c9da0442ed1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/peasant/walk_s/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "afb45992b8736746",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/peasant/walk_s/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 40,
+        "width": 22
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "b701bc55d4272639",
+      "layer": "objects",
+      "logical_size": {
+        "height": 40,
+        "width": 22
+      },
+      "png_size": [
+        176,
+        320
+      ],
+      "tile": "peasant",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/settler/idle_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "501ce770e8419a05",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/settler/idle_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "6f16e0fd3b35ee9c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/settler/idle_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "2b05495ef39623bb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/settler/idle_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "6d43c86d7e6d4c3f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/settler/idle_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "407d8ad39e224f92",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/settler/idle_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "e4d684ac61705e17",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/settler/walk_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "96ae62f65999e538",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/settler/walk_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "c6d88f17e15344a9",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/settler/walk_e/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "71d3e01bbd576063",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/settler/walk_e/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "a81785ff8411204e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/settler/walk_e/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "63631f27bdb6a908",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/settler/walk_e/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "829b765523739856",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/settler/walk_e/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "c0fc3ce1bec4271b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/settler/walk_e/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "95cb5bdef3943b04",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/settler/walk_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "3054125511ecbf6e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/settler/walk_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "804685291991b5c6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/settler/walk_n/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "84cc43b46213f935",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/settler/walk_n/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "f688f4839a083daf",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/settler/walk_n/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "b8dd1731288bc48d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/settler/walk_n/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "46f4517c9010f7a6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/settler/walk_n/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "24f8a113b3e5643b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/settler/walk_n/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "9371e95dfa85b124",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/settler/walk_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "cdadc725b3c2946c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/settler/walk_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "1deb152c1253afcb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/settler/walk_s/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "11384e21a980deab",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/settler/walk_s/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "71fa6effff5eb9e2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/settler/walk_s/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "ff437703ab9e468d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/settler/walk_s/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "29df853e25605608",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/settler/walk_s/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "701b71c7dc8da63c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/settler/walk_s/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 40
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "88724655a8710514",
+      "layer": "objects",
+      "logical_size": {
+        "height": 45,
+        "width": 40
+      },
+      "png_size": [
+        320,
+        360
+      ],
+      "tile": "settler",
+      "variation": "walk_s"
+    },
     "assets/tiles/objects/units/trade_ship/idle_e/frame0.png": {
       "category": "units",
       "density": 8,
@@ -2683,6 +6445,666 @@
       ],
       "tile": "trade_ship",
       "variation": "idle_se"
+    },
+    "assets/tiles/objects/units/trader/idle_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "c8eb7686c6024264",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/trader/idle_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "049955dde4210fb2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/trader/idle_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "ae126107389765db",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/trader/idle_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "42ecbc231f1791fc",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/trader/idle_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "88e92b4decfbefb1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/trader/idle_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "c60788d04cfa52d3",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/trader/walk_e/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "8c5027c3fd44808e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/trader/walk_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "898af57bf100c8e8",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/trader/walk_e/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "251e62afa582dcc2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/trader/walk_e/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "211283b157d5644f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/trader/walk_e/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "4a3f3dd6dbd83972",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/trader/walk_e/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "5df2ea50e76330e8",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/trader/walk_e/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "27c9b0136cb626a9",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/trader/walk_e/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "52fe82de30b2577e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_e"
+    },
+    "assets/tiles/objects/units/trader/walk_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "d18e2e0bc0c41796",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/trader/walk_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "21ec0d01d90b685e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/trader/walk_n/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "789339642fd4ad70",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/trader/walk_n/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "e4311d66ce173146",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/trader/walk_n/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "dc9b47998ddbfc26",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/trader/walk_n/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "7b42610b525fb43b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/trader/walk_n/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "f367873998651920",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/trader/walk_n/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "b7c43a52aff751ff",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_n"
+    },
+    "assets/tiles/objects/units/trader/walk_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "5abf28a7e331901d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/trader/walk_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "488d0f402beaa029",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/trader/walk_s/frame2.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "7ad367258f918186",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/trader/walk_s/frame3.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "0bc3fde8367d80e4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/trader/walk_s/frame4.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame4",
+      "hash": "ca62364d86f4c2dd",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/trader/walk_s/frame5.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame5",
+      "hash": "ef961ee3a6ff18c4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/trader/walk_s/frame6.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame6",
+      "hash": "491fe840ee503dc6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_s"
+    },
+    "assets/tiles/objects/units/trader/walk_s/frame7.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 38,
+        "width": 38
+      },
+      "fast": false,
+      "frame": "frame7",
+      "hash": "881ba32f18839daa",
+      "layer": "objects",
+      "logical_size": {
+        "height": 38,
+        "width": 38
+      },
+      "png_size": [
+        304,
+        304
+      ],
+      "tile": "trader",
+      "variation": "walk_s"
     },
     "assets/tiles/terrain/land/dyke/0000/dyke.png": {
       "category": "land",

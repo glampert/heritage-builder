@@ -15,8 +15,8 @@ A catalog file (catalog/*.json, one per realm):
           "recipe": "roof_tile_kiln",# hbgen.recipes.RECIPES key (default: tile)
           "params": {},              # recipe parameters
           "variations": [            # optional; omitted = one unnamed variation
-            {"name": "var0", "seed": 1, "params": {}}
-          ],
+            {"name": "var0", "seed": 1, "params": {}}  # a variation may list its own "frames",
+          ],                                           # in place of the entry's (a walker's 8 walk, 2 idle)
           "frames": [                # optional; omitted = one frame named after the tile.
             {"name": "stage0", "params": {"stage": 0}}   # One sprite per frame, in one anim set:
           ],                                             # <tile>/[<variation>/]<frame>.png
@@ -26,8 +26,12 @@ A catalog file (catalog/*.json, one per realm):
           "unit": {                  # a unit (category "units"): its one variation, written as it is
             "iso_offset": {"x": 0, "y": 32},   # into the tile def, with its anim sets; the
             "anim_sets": [...]                 # variations above are the rendered anim sets'
-          }                                    # folders, their frames the frames
-        }
+          },                                   # folders, their frames the frames
+          "frame": {"width": 40, "height": 45} # a hand-made unit's missing directions: rendered into
+        }                                      # its def's frame (its draw_size), the model standing on
+                                               # the frame's bottom edge as the hand-made walkers do
+                                               # (or "origin_x"/"origin_up" px from its middle), and
+                                               # only the unit's anim_sets are added to its def (sync)
       ]
     }
 
@@ -51,9 +55,9 @@ MAX_FRAME_NAME = 24                 # TileSprite::name is an ArrayString<24>
 GENERATOR_VERSION = 1
 
 _ENTRY_KEYS = {"tile", "layer", "category", "recipe", "params", "palette", "density", "variations", "frames", "tile_set", "generated", "validate",
-               "unit", "notes"}
+               "unit", "frame", "notes"}
 _FRAME_KEYS = {"name", "params"}
-_VARIATION_KEYS = {"name", "seed", "params", "tile_set"}
+_VARIATION_KEYS = {"name", "seed", "params", "tile_set", "frames"}
 
 
 class CatalogError(Exception):
@@ -87,20 +91,20 @@ def load(paths=None, catalog_dir=CATALOG_DIR):
             e.setdefault("tile_set", {}); e.setdefault("generated", True); e.setdefault("validate", {})
             if "unit" in e and not (isinstance(e["unit"], dict) and isinstance(e["unit"].get("anim_sets"), list)):
                 raise CatalogError(f"{where}: 'unit' needs its 'anim_sets'")
+            if "frame" in e:
+                fr = e["frame"]
+                if "unit" not in e or not isinstance(fr, dict) or not {"width", "height"} <= set(fr) <= {"width", "height", "origin_x", "origin_up"} \
+                        or not all(isinstance(fr[k], int) for k in fr) or fr["width"] <= 0 or fr["height"] <= 0:
+                    raise CatalogError(f"{where}: 'frame' is a unit's {{width, height[, origin_x, origin_up]}} in logical px, with its 'unit' block")
             e["variations"] = [dict(v) for v in raw.get("variations", [{"name": ""}])]
             for v in e["variations"]:
                 if set(v) - _VARIATION_KEYS:
                     raise CatalogError(f"{where}: unknown variation keys {sorted(set(v) - _VARIATION_KEYS)}")
                 v.setdefault("name", ""); v.setdefault("seed", 0); v.setdefault("params", {}); v.setdefault("tile_set", {})
-            e["frames"] = [dict(f) for f in raw.get("frames", [{"name": e["tile"]}])]
-            for f in e["frames"]:
-                if set(f) - _FRAME_KEYS or not f.get("name"):
-                    raise CatalogError(f"{where}: a frame needs a name, and may only have {sorted(_FRAME_KEYS)}")
-                if len(f["name"]) > MAX_FRAME_NAME:
-                    raise CatalogError(f"{where}: frame name '{f['name']}' is longer than {MAX_FRAME_NAME} characters")
-                f.setdefault("params", {})
-            if len({f["name"] for f in e["frames"]}) != len(e["frames"]):
-                raise CatalogError(f"{where}: frame names must be unique")
+            e["frames"] = _frames(raw.get("frames", [{"name": e["tile"]}]), where)
+            for v in e["variations"]:
+                if "frames" in v:
+                    v["frames"] = _frames(v["frames"], f"{where} variation '{v['name']}'")
             names = [v["name"] for v in e["variations"]]
             if len(set(names)) != len(names) or ("" in names and len(names) > 1):
                 raise CatalogError(f"{where}: variation names must be unique, and only a lone variation may be unnamed")
@@ -115,14 +119,50 @@ def load(paths=None, catalog_dir=CATALOG_DIR):
     return entries
 
 
+def _frames(raw, where):
+    frames = [dict(f) for f in raw]
+    if not frames:
+        raise CatalogError(f"{where}: no frames")
+    for f in frames:
+        if set(f) - _FRAME_KEYS or not f.get("name"):
+            raise CatalogError(f"{where}: a frame needs a name, and may only have {sorted(_FRAME_KEYS)}")
+        if len(f["name"]) > MAX_FRAME_NAME:
+            raise CatalogError(f"{where}: frame name '{f['name']}' is longer than {MAX_FRAME_NAME} characters")
+        f.setdefault("params", {})
+    if len({f["name"] for f in frames}) != len(frames):
+        raise CatalogError(f"{where}: frame names must be unique")
+    return frames
+
+
+def variation_frames(entry, variation):
+    """A variation's frames: its own, else the entry's."""
+    return variation.get("frames") or entry["frames"]
+
+
 def sprite_path(entry, variation_name, frame_name=None):
     """Repository-relative path of a sprite, as the engine looks it up:
     assets/tiles/<layer>/<category>/<tile>/[<variation>/]<frame>.png. The frame
-    defaults to the entry's first, which is named after the tile unless it lists frames."""
+    defaults to the variation's first (its own frames', else the entry's, named after
+    the tile unless it lists frames)."""
     parts = ["assets", "tiles", entry["layer"], entry["category"], entry["tile"]]
     if variation_name:
         parts.append(variation_name)
-    return "/".join(parts + [(frame_name or entry["frames"][0]["name"]) + ".png"])
+    if frame_name is None:
+        v = next((v for v in entry["variations"] if v["name"] == variation_name), {})
+        frame_name = variation_frames(entry, v)[0]["name"]
+    return "/".join(parts + [frame_name + ".png"])
+
+
+def render_frame(entry):
+    """The frame a hand-made unit's added sprites are rendered into (an entry with 'frame'): its
+    size in logical px and where the model's origin (its feet) falls, measured from the frame's
+    bottom edge's middle: on it by default, as the hand-made walkers stand (the engine stands the
+    frame's bottom on the cell's centre, moved by iso_offset, so both land in one place). None for
+    a tile the generator sizes itself."""
+    if "frame" not in entry:
+        return None
+    fr = entry["frame"]
+    return dict(width=fr["width"], height=fr["height"], origin_x=fr.get("origin_x", 0), origin_up=fr.get("origin_up", 0))
 
 
 def jobs(entries):
@@ -132,11 +172,12 @@ def jobs(entries):
         if not e["generated"]:
             continue
         for v in e["variations"]:
-            for f in e["frames"]:
+            for f in variation_frames(e, v):
                 out.append(dict(tile=e["tile"], layer=e["layer"], category=e["category"], recipe=e["recipe"],
                                 params={**e["params"], **v["params"], **f["params"]}, seed=v["seed"], palette=e["palette"],
                                 density=e["density"], variation=v["name"], frame=f["name"],
-                                path=sprite_path(e, v["name"], f["name"]), validate=e["validate"], source=e["source"]))
+                                path=sprite_path(e, v["name"], f["name"]), validate=e["validate"], source=e["source"],
+                                frame_box=render_frame(e)))
     return out
 
 
