@@ -2960,7 +2960,7 @@
           "sails": true,
           "draw_size": {
             "width": 128,
-            "height": 97
+            "height": 101
           },
           "variations": [
             {
@@ -3007,6 +3007,35 @@
                   }
                 },
                 {
+                  "name": "idle_n",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "Files": 2
+                  }
+                },
+                {
+                  "name": "idle_s",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "Files": 2
+                  }
+                },
+                {
+                  "name": "idle_e",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "Files": 2
+                  }
+                },
+                {
+                  "name": "idle_w",
+                  "duration": 1.6,
+                  "mirror": true,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_e"
+                  }
+                },
+                {
                   "name": "walk_ne",
                   "duration": 1.6,
                   "frames_source": {
@@ -3034,6 +3063,35 @@
                   "mirror": true,
                   "frames_source": {
                     "CopyAllFrom": "idle_se"
+                  }
+                },
+                {
+                  "name": "walk_n",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_n"
+                  }
+                },
+                {
+                  "name": "walk_s",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_s"
+                  }
+                },
+                {
+                  "name": "walk_e",
+                  "duration": 1.6,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_e"
+                  }
+                },
+                {
+                  "name": "walk_w",
+                  "duration": 1.6,
+                  "mirror": true,
+                  "frames_source": {
+                    "CopyAllFrom": "idle_e"
                   }
                 }
               ]

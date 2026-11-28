@@ -364,15 +364,15 @@ bank.
 
 **Units** (`catalog/trade.json`): an entry with a `unit` block renders a unit's
 sprites, the trade ship the first. Its `category` is `units`; its variations are
-the anim sets it renders, named as their folders (`idle_ne`, `idle_se`: a unit's
+the anim sets it renders, named as their folders (`idle_ne`, `idle_se`, `idle_n`, `idle_s`, `idle_e`: a unit's
 sprites are `assets/tiles/objects/units/<tile>/<anim set>/<frame>.png`), and its
 `frames` the frames of each (`frame0`, `frame1`, with their recipe `params`). The
 `unit` block is the tile def's one variation as the engine reads it, written as
 it is: its `iso_offset` and its `anim_sets`, where a rendered set says
 `"frames_source": {"Files": 2}` and the others copy one (`CopyAllFrom`), mirrored
-for nw and sw. The sync writes a unit's `draw_size` only (units have no
+for nw, sw and w. The sync writes a unit's `draw_size` only (units have no
 `logical_size`). The recipe turns the model to each facing (`ne`: bow to +Y, `se`:
-to +X) and returns the footprint whose frame it's drawn in: the ship's is 2, a
+to +X, and the diagonals between: `e` 45°, `n` 135°, `s` −45°) and returns the footprint whose frame it's drawn in: the ship's is 2, a
 128-px-wide frame round a hull longer than a cell, and its `iso_offset` (`y: 32`)
 moves the frame's middle, the model's origin, onto the unit's cell (the engine
 stands a unit's sprite on its cell's centre). Units skip the ground checks

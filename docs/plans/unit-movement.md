@@ -170,9 +170,15 @@ Done when: nothing changes in play. Every unit still moves 4-way and looks the s
 
 ### Phase 4: Art (small to medium; the walkers depend on placeholder-art Phase 6)
 
-- [ ] The trade ship's `n`, `s` and `e` facings from its Blender recipe (`SHIP_FACINGS`, `catalog/trade.json`, `tilegen.sh trade_ship`), `w` mirrored, checked in its 2 × 2 frame. This doesn't wait for the experiment and can land with Phase 2.
+- [x] The trade ship's `n`, `s` and `e` facings from its Blender recipe (`SHIP_FACINGS`, `catalog/trade.json`, `tilegen.sh trade_ship`), `w` mirrored, checked in its 2 × 2 frame. This doesn't wait for the experiment and can land with Phase 2.
 - [ ] N, S and E walk and idle frames for the settler, peasant, medic, dog and buffalo, and for the guard and the vendor, recoloured into the fire watcher and the trader, from Blender if the experiment succeeds, otherwise by hand. Add them to `tile_set.json` with W mirrored.
 - [ ] Review in the game at 1× zoom and at full zoom, next to the hand-made directions.
+
+**Notes (2026-11-28): the ship's facings done.**
+- **Recipe** ([hbgen/recipes/trade.py](../../crates/tools/blender-tile-generator/hbgen/recipes/trade.py)): `SHIP_FACINGS` gains `e` (45°: bow to the screen's right), `n` (135°: up) and `s` (−45°: down), between the `se` (0°) and `ne` (90°) it had. `catalog/trade.json` renders them as `idle_n`, `idle_s` and `idle_e` (two bob frames each), with `idle_w` and the four diagonal `walk_*` sets copying them (`w` mirrors `e`), so the ship plays its own art on a diagonal and the fallback no longer applies to it.
+- **Frame:** `e`, broadside across the screen, is the widest, about 72 of the frame's 128 logical px, so the 2 × 2 frame holds it. `s`'s mainmast reaches higher on screen than any other facing's, so the tile's one draw size grows from 97 to 101 logical px; the engine stands a unit's frame on its bottom edge (`calc_unit_iso_coords`), so `ne` and `se`, re-rendered with 4 px more room at the top and otherwise the same, stand where they did.
+- **Looked at:** the contact sheet and, in a probe like `trade.jsonl`'s (a 14-row river, the dock on its far bank), the ship crossing 12 diagonal cells heading S at 1.5× zoom: bow down, on its cell, in its frame. Bow-on (`n`, `s`) the junk's battened sails, which lie along its keel, are seen edge-on, so those facings show its masts more than its sails, as the model is.
+- **Verified:** `sync_tileset.py --check`, the generator's unit tests, `cargo test -p game --test trade` and the CI `trade.jsonl` and `offroad.jsonl` scenarios.
 
 ## Risks
 

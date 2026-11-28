@@ -2,7 +2,7 @@
   "realm": "shared",
   "palette": "viet",
   "density": 8,
-  "notes": "Trade art (docs/plans/trade.md, Phase 2). The dock is a 2x2 building on open water at the shore (on_shore), as the fishing wharf is: its variations are the bank it faces, north_bank, south_bank, east_bank and west_bank, which tile/water.rs picks by name as it's placed. The trade ship is the pipeline's first unit: its rendered variations are the anim sets' folders (idle_ne, idle_se; nw and sw are those mirrored, and its sailing is its idle), two frames each for a slow bob; its 'unit' block is the tile def's one variation, written as it is. Its frame is a 2x2 footprint's, so iso_offset y 32 puts the frame's middle on its cell (the engine stands a unit's sprite on its cell's centre).",
+  "notes": "Trade art (docs/plans/trade.md, Phase 2). The dock is a 2x2 building on open water at the shore (on_shore), as the fishing wharf is: its variations are the bank it faces, north_bank, south_bank, east_bank and west_bank, which tile/water.rs picks by name as it's placed. The trade ship is the pipeline's first unit: its rendered variations are the anim sets' folders (idle_ne, idle_se and the diagonals' idle_n, idle_s, idle_e; nw, sw and w are those mirrored, and its sailing is its idle: docs/plans/unit-movement.md, Phase 4), two frames each for a slow bob; its 'unit' block is the tile def's one variation, written as it is. Its frame is a 2x2 footprint's, so iso_offset y 32 puts the frame's middle on its cell (the engine stands a unit's sprite on its cell's centre).",
   "entries": [
     {
       "tile": "dock",
@@ -76,6 +76,27 @@
           "params": {
             "facing": "se"
           }
+        },
+        {
+          "name": "idle_n",
+          "seed": 3,
+          "params": {
+            "facing": "n"
+          }
+        },
+        {
+          "name": "idle_s",
+          "seed": 4,
+          "params": {
+            "facing": "s"
+          }
+        },
+        {
+          "name": "idle_e",
+          "seed": 5,
+          "params": {
+            "facing": "e"
+          }
         }
       ],
       "frames": [
@@ -139,6 +160,35 @@
             }
           },
           {
+            "name": "idle_n",
+            "duration": 1.6,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_s",
+            "duration": 1.6,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_e",
+            "duration": 1.6,
+            "frames_source": {
+              "Files": 2
+            }
+          },
+          {
+            "name": "idle_w",
+            "duration": 1.6,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
+            }
+          },
+          {
             "name": "walk_ne",
             "duration": 1.6,
             "frames_source": {
@@ -166,6 +216,35 @@
             "mirror": true,
             "frames_source": {
               "CopyAllFrom": "idle_se"
+            }
+          },
+          {
+            "name": "walk_n",
+            "duration": 1.6,
+            "frames_source": {
+              "CopyAllFrom": "idle_n"
+            }
+          },
+          {
+            "name": "walk_s",
+            "duration": 1.6,
+            "frames_source": {
+              "CopyAllFrom": "idle_s"
+            }
+          },
+          {
+            "name": "walk_e",
+            "duration": 1.6,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
+            }
+          },
+          {
+            "name": "walk_w",
+            "duration": 1.6,
+            "mirror": true,
+            "frames_source": {
+              "CopyAllFrom": "idle_e"
             }
           }
         ]

@@ -2464,16 +2464,16 @@
       "tile": "rubble",
       "variation": "1111"
     },
-    "assets/tiles/objects/units/trade_ship/idle_ne/frame0.png": {
+    "assets/tiles/objects/units/trade_ship/idle_e/frame0.png": {
       "category": "units",
       "density": 8,
       "draw_size": {
-        "height": 97,
+        "height": 101,
         "width": 128
       },
       "fast": false,
       "frame": "frame0",
-      "hash": "27434d3221c4d021",
+      "hash": "37f03760e9224daf",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -2481,7 +2481,95 @@
       },
       "png_size": [
         1024,
-        776
+        808
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_e/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 101,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "68e77b3382b84538",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        808
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_e"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_n/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 101,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "63eeecbfe9d678ff",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        808
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_n/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 101,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "f77e233ac0f3d9fe",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        808
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_n"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_ne/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 101,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "ca8066e2979114e0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        808
       ],
       "tile": "trade_ship",
       "variation": "idle_ne"
@@ -2490,12 +2578,12 @@
       "category": "units",
       "density": 8,
       "draw_size": {
-        "height": 97,
+        "height": 101,
         "width": 128
       },
       "fast": false,
       "frame": "frame1",
-      "hash": "d4b0cca3f878628a",
+      "hash": "c0a5c922a9795dfc",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -2503,21 +2591,65 @@
       },
       "png_size": [
         1024,
-        776
+        808
       ],
       "tile": "trade_ship",
       "variation": "idle_ne"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_s/frame0.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 101,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "82b181cea20e8397",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        808
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_s"
+    },
+    "assets/tiles/objects/units/trade_ship/idle_s/frame1.png": {
+      "category": "units",
+      "density": 8,
+      "draw_size": {
+        "height": 101,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "8387665bc57b2de1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        808
+      ],
+      "tile": "trade_ship",
+      "variation": "idle_s"
     },
     "assets/tiles/objects/units/trade_ship/idle_se/frame0.png": {
       "category": "units",
       "density": 8,
       "draw_size": {
-        "height": 97,
+        "height": 101,
         "width": 128
       },
       "fast": false,
       "frame": "frame0",
-      "hash": "371e529e062bac2d",
+      "hash": "a904a8d1259dc32e",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -2525,7 +2657,7 @@
       },
       "png_size": [
         1024,
-        776
+        808
       ],
       "tile": "trade_ship",
       "variation": "idle_se"
@@ -2534,12 +2666,12 @@
       "category": "units",
       "density": 8,
       "draw_size": {
-        "height": 97,
+        "height": 101,
         "width": 128
       },
       "fast": false,
       "frame": "frame1",
-      "hash": "401c91fdc3c7a92c",
+      "hash": "c029e4c86d2bf844",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -2547,7 +2679,7 @@
       },
       "png_size": [
         1024,
-        776
+        808
       ],
       "tile": "trade_ship",
       "variation": "idle_se"

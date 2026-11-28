@@ -8,11 +8,14 @@ placed). It's modelled with its land on +Y, the engine's north, then turned to i
 bank, as the sluice gate is (floods.GATE_SIDES).
 
 The ship is the pipeline's first unit: a rigid model rendered in the unit sprite
-format, in the two directions the engine draws (ne and se; nw and sw are those
-mirrored), with a slow two-frame bob for its idle and its sailing. It's modelled with
-its bow on +X (screen lower right, se) and turned to +Y (upper right, ne). Its frame
-is a 2x2 footprint's, so the ship, longer than a cell, fits; the unit's iso_offset in
-the catalog puts the frame's middle on its cell.
+format, in five of the eight directions it sails (ne, se, and the diagonals' n, s and
+e; nw, sw and w are those mirrored: docs/plans/unit-movement.md), with a slow
+two-frame bob for its idle and its sailing. It's modelled with its bow on +X (screen
+lower right, se) and turned about Z to each facing: +Y is upper right (ne), and the
+diagonals lie between, e (screen right) at 45 degrees, n (up) at 135 and s (down) at
+-45. Its frame is a 2x2 footprint's, so the ship, longer than a cell, fits at every
+facing (across the screen, e, it's widest: about 72 of the frame's 128 logical px);
+the unit's iso_offset in the catalog puts the frame's middle on its cell.
 """
 
 import math
@@ -27,7 +30,7 @@ from .floods import GATE_SIDES
 DECK_Z = 0.12
 
 # The rotation that turns the ship's bow (+X as it's modelled) to each facing.
-SHIP_FACINGS = {"se": 0.0, "ne": 90.0}
+SHIP_FACINGS = {"se": 0.0, "e": 45.0, "ne": 90.0, "n": 135.0, "s": -45.0}
 
 
 def _turn(B, degrees):
@@ -188,7 +191,7 @@ def build_trade_ship(B, facing="se", bob=0, **_):
     """A sea junk (one hull for river and sea routes in every realm for now, Q15): a dark hull with
     a high stern and a red-banded gunwale, a deckhouse aft under a tiled roof, two masts with
     battened ochre sails, a rudder, and bales and jars on deck. `facing` is "se" (bow to the screen's
-    lower right) or "ne" (upper right); `bob` 1 lifts it a little on the swell, the second frame of
+    lower right), "ne" (upper right), "e" (right), "n" (up) or "s" (down); `bob` 1 lifts it a little on the swell, the second frame of
     its idle and its sailing."""
     if facing not in SHIP_FACINGS:
         raise ValueError(f"ship facing must be one of {sorted(SHIP_FACINGS)}, got {facing!r}")
