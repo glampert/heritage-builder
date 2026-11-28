@@ -628,10 +628,24 @@ impl Graph {
     // eight-way search the diagonal ones it can step to without cutting a corner (`steps_past`).
     #[inline]
     pub fn neighbors_with(&self, node: Node, wanted_node_kinds: NodeKind, connectivity: Connectivity) -> ArrayVec<Node, 8> {
-        let mut nodes: ArrayVec<Node, 8> = self.neighbors(node, wanted_node_kinds).into_iter().collect();
+        self.neighbors_onto(node, wanted_node_kinds, NodeKind::empty(), connectivity)
+    }
+
+    // `neighbors_with` for a search that walks `walked_node_kinds` and may also step onto
+    // `extra_node_kinds` (a building search's BuildingAccess cells): onto those only straight, so a
+    // diagonal never passes one the walker can't stand on, which its PathBlocked check would refuse.
+    #[inline]
+    pub fn neighbors_onto(
+        &self,
+        node: Node,
+        walked_node_kinds: NodeKind,
+        extra_node_kinds: NodeKind,
+        connectivity: Connectivity,
+    ) -> ArrayVec<Node, 8> {
+        let mut nodes: ArrayVec<Node, 8> = self.neighbors(node, walked_node_kinds | extra_node_kinds).into_iter().collect();
         if connectivity == Connectivity::Eight {
             for diagonal in node.diagonals() {
-                if self.steps_past(node, diagonal, wanted_node_kinds) {
+                if self.steps_past(node, diagonal, walked_node_kinds) {
                     nodes.push(diagonal);
                 }
             }
@@ -647,6 +661,18 @@ impl Graph {
     pub fn steps_past(&self, from: Node, to: Node, wanted_node_kinds: NodeKind) -> bool {
         let is_wanted = |node: Node| self.node_kind(node).is_some_and(|kind| kind.intersects(wanted_node_kinds));
         is_wanted(to) && from.diagonal_sides(to).into_iter().all(is_wanted) && self.steps_diagonally(from, to)
+    }
+
+    // Whether a walker of these kinds can take a step of its path now (UnitNavigation's PathBlocked
+    // check): onto a cell of its kinds whose ground joins, or across a corner by the corner rule
+    // (`steps_past`), so a building put up beside a diagonal step makes it path again.
+    #[inline]
+    pub fn can_take_step(&self, from: Node, to: Node, walked_node_kinds: NodeKind) -> bool {
+        if from.is_diagonal_to(to) {
+            self.steps_past(from, to, walked_node_kinds)
+        } else {
+            self.node_kind(to).is_some_and(|kind| kind.intersects(walked_node_kinds)) && self.steps(from, to)
+        }
     }
 
     // ----------------------
@@ -734,10 +760,14 @@ impl Graph {
         if connectivity == Connectivity::Eight && turns { TURN_COST } else { 0 }
     }
 
-    // How much longer than a flat step a walker takes over this one: 1.5 onto, along or off a ramp.
+    // How much longer than a flat straight step a walker (or a ship) takes over this one: √2 across a
+    // corner, so it moves at one speed in every direction, and 1.5 onto, along or off a ramp (which a
+    // diagonal never is: `steps_diagonally`).
     #[inline]
     pub fn step_time_scale(&self, from: Node, to: Node) -> f32 {
-        if !self.elevation.is_flat() && self.is_ramp_step(from, to) {
+        if from.is_diagonal_to(to) {
+            std::f32::consts::SQRT_2
+        } else if !self.elevation.is_flat() && self.is_ramp_step(from, to) {
             RAMP_STEP_COST as f32 / FLAT_STEP_COST as f32
         } else {
             1.0
@@ -1531,7 +1561,6 @@ impl Search {
 
         self.reset(start);
 
-        let wanted_neighbor_kinds = traversable_node_kinds | extra_neighbor_kinds;
         let connectivity = Connectivity::for_kinds(traversable_node_kinds);
         let mut paths_found: usize = 0;
 
@@ -1548,7 +1577,7 @@ impl Search {
                 return SearchResult::PathFound(&self.path);
             }
 
-            let mut neighbors = graph.neighbors_with(current, wanted_neighbor_kinds, connectivity);
+            let mut neighbors = graph.neighbors_onto(current, traversable_node_kinds, extra_neighbor_kinds, connectivity);
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {

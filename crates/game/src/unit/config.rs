@@ -51,6 +51,12 @@ pub struct UnitConfig {
     #[serde(default)]
     pub traversable_node_kinds: PathNodeKind,
     pub movement_speed: f32, // in tiles per second.
+
+    // A flying unit (the bird) follows a path made for it over whatever lies below: UnitNavigation
+    // stops it only where its next cell is of no kind it crosses, and every step takes it as long,
+    // diagonal or not, ramp or not (docs/plans/unit-movement.md, Q7).
+    #[serde(default)]
+    pub flies: bool,
 }
 
 impl Default for UnitConfig {
@@ -62,6 +68,7 @@ impl Default for UnitConfig {
             tile_def_name_hash: UnitConfigKey::Peasant as StringHash,
             traversable_node_kinds: PathNodeKind::default(),
             movement_speed: 1.66,
+            flies: false,
         }
     }
 }

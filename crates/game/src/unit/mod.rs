@@ -237,8 +237,9 @@ impl Unit {
         self.anim_sets.current_anim_name()
     }
 
+    // Its path and how far along it is (automation, tests, the inspector).
     #[inline]
-    pub(crate) fn navigation(&self) -> &UnitNavigation {
+    pub fn navigation(&self) -> &UnitNavigation {
         &self.navigation
     }
 
@@ -403,7 +404,7 @@ impl Unit {
         debug_assert!(self.is_spawned());
 
         // Path following and movement:
-        match self.navigation.update(context.graph(), context.delta_time_secs()) {
+        match self.navigation.update(context.graph(), context.delta_time_secs(), self.config().flies) {
             UnitNavResult::Idle => {
                 // Nothing.
             }

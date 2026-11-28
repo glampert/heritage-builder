@@ -64,7 +64,10 @@ pub(super) fn read(context: &SimContext, unit: &Unit, realm: Realm) -> Option<In
     let status = doing.as_ref().map(|doing| {
         let summary = if remaining > 0 {
             match unit_speed(unit) {
-                Some(speed) => tf("summary.arrives_in", &[("time", &duration_text(remaining as f32 / speed))]),
+                Some(speed) => {
+                    let steps = unit.navigation().remaining_steps(context.graph());
+                    tf("summary.arrives_in", &[("time", &duration_text(steps / speed))])
+                }
                 None => distance_text(remaining),
             }
         } else {

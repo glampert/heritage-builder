@@ -1,0 +1,90 @@
+# Off-road walkers (docs/plans/unit-movement.md, Phase 3). On the Blank map's open grass a walker sent
+# across the map (world.walk) goes round a well's corner and on across the corners (13 steps, 11 of
+# them diagonal; screenshot out/offroad/walker.png). A caravan walks in from the map's edge to a
+# storage yard across the corners (21 steps, 20 of them diagonal, where four neighbours take 41),
+# sells its bricks there and leaves; then a settler walks from the same edge to a vacant lot in 10
+# diagonal steps (four-way: 20) and moves in. A diagonal step takes √2 a straight one's time, so
+# after 6.5 seconds the settler still has 3 cells to go, where 10 straight steps would be done in 6.2.
+# Both come in at the playable area's top corner and keep to its top edge, where the camera can't
+# centre on them, so they have no screenshots.
+# From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/offroad.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+# Event popups off (messages.jsonl checks them).
+{"method": "config.set", "params": {"path": "/display/event_popups", "value": false}}
+{"method": "ui.click", "params": {"path": "Home/Custom Game"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CustomGame"}}
+{"method": "ui.click", "params": {"path": "CustomGame/Start"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/map", "value": "blank"}}
+{"method": "sim.pause"}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "cheats.set", "params": {"name": "no_city_risks", "value": true}}
+
+# ---- A walker round a corner ----
+# The first unit of the session, so its id is known. The well stands beside the diagonal's step from
+# [45, 65] to [46, 66], so the walker steps straight past it and goes on diagonally.
+{"method": "world.place", "params": {"tile": "small_well", "cell": [46, 65]}}
+{"method": "world.spawn_unit", "params": {"unit": "peasant", "cell": [40, 60]}}
+{"method": "assert.eq", "params": {"query": "world.walk", "args": {"id": "unit:0:1", "to": [52, 72]}, "path": "/diagonal_steps", "value": 11}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "peasant"}, "path": "/steps", "value": 13}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "peasant"}, "path": "/cells/5", "value": [45, 65]}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "peasant"}, "path": "/cells/6", "value": [45, 66]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 4, "resume": true}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "peasant"}, "path": "/index", "value": 4}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "peasant"}, "path": "/direction", "value": "N"}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+{"method": "camera.teleport", "params": {"cell": [46, 66]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/offroad/walker.png"}}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "world.unit_path", "args": {"name": "peasant"}, "path": "/moving", "op": "eq", "value": false, "timeout_frames": 900}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "peasant"}, "path": "/cell", "value": [52, 72]}}
+{"method": "sim.pause"}
+
+# ---- A caravan ----
+# Đê Sơn's caravan comes in at the settlers' spawn point on the bottom edge (a Blank map has none of
+# its own), [63, 127], with 20 bricks for the yard up the diagonal from it.
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [84, 104]}}
+{"method": "trade.set", "params": {"partner": "de_son", "open": true}}
+{"method": "trade.set", "params": {"partner": "de_son", "good": "Bricks", "import": 20}}
+{"method": "trade.arrive_now", "params": {"partner": "de_son"}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/caravans/0/entry", "value": [63, 127]}}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "world.unit_path", "args": {"name": "trader"}, "path": "/moving", "op": "eq", "value": true, "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "trader"}, "path": "/steps", "value": 21}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "trader"}, "path": "/diagonal_steps", "value": 20}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "trader"}, "path": "/cells/0", "value": [63, 127]}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "trader"}, "path": "/cells/10", "value": [73, 117]}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "trader"}, "path": "/cells/21", "value": [84, 107]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 5}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "trader"}, "path": "/index", "value": 5}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "trader"}, "path": "/direction", "value": "E"}}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "world.building_at", "args": {"cell": [84, 104]}, "path": "/stock/Bricks", "op": "eq", "value": 20, "timeout_frames": 3000}}
+{"method": "assert.eq", "params": {"query": "trade.state", "path": "/partners/0/sells/0/traded", "value": 20}}
+# It walks back the way it came and leaves.
+{"method": "wait.until", "params": {"query": "trade.state", "path": "/caravans", "op": "eq", "value": [], "timeout_frames": 3000}}
+
+# ---- A settler ----
+# Settlers come every 10 seconds while a lot is free, from the same spawn point.
+{"method": "world.place", "params": {"tile": "vacant_lot", "cell": [73, 117]}}
+{"method": "wait.until", "params": {"query": "world.list", "args": {"type": "unit", "name": "settler"}, "path": "/total", "op": "ge", "value": 1, "timeout_frames": 1200}}
+{"method": "wait.until", "params": {"query": "world.unit_path", "args": {"name": "settler"}, "path": "/moving", "op": "eq", "value": true, "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "settler"}, "path": "/steps", "value": 10}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "settler"}, "path": "/diagonal_steps", "value": 10}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "settler"}, "path": "/cells/0", "value": [63, 127]}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "settler"}, "path": "/cells/10", "value": [73, 117]}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "settler"}, "path": "/index", "value": 0}}
+{"method": "time.fast_forward", "params": {"sim_secs": 6.5}}
+{"method": "sim.pause"}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "settler"}, "path": "/remaining_cells", "value": 3}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "settler"}, "path": "/direction", "value": "E"}}
+{"method": "assert.eq", "params": {"query": "world.unit_path", "args": {"name": "settler"}, "path": "/blocked", "value": false}}
+{"method": "sim.resume"}
+{"method": "wait.until", "params": {"query": "sim.state", "path": "/population", "op": "ge", "value": 1, "timeout_frames": 600}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [73, 117]}, "path": "/kind", "value": "House"}}

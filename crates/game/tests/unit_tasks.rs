@@ -2,7 +2,7 @@ use common::{callback::Callback, coords::Cell, mem::SingleThreadStatic, time::Se
 use game::{
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo, config::BuildingConfigs},
     debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
-    pathfind::{NodeKind as PathNodeKind, SearchResult},
+    pathfind::{Node, NodeKind as PathNodeKind, Path, SearchResult},
     sim::{
         SimCmdQueue,
         SimCmds,
@@ -54,6 +54,7 @@ use test_utils::{
     place_road,
     spawn_unit,
     tick,
+    tick_n,
     tick_until,
     unit_exists,
 };
@@ -100,6 +101,12 @@ fn main() {
         test_utils::test_fn!(test_patrol_respects_max_distance),
         // Directions (docs/plans/unit-movement.md, Phase 1)
         test_utils::test_fn!(test_diagonal_steps_fall_back_to_axis_art),
+        // Eight-way navigation (docs/plans/unit-movement.md, Phase 3)
+        test_utils::test_fn!(test_diagonal_steps_take_root_two_as_long),
+        test_utils::test_fn!(test_a_bird_flies_at_one_pace_over_anything),
+        test_utils::test_fn!(test_a_building_beside_a_diagonal_step_blocks_it),
+        test_utils::test_fn!(test_settler_walks_diagonally_to_a_lot),
+        test_utils::test_fn!(test_settler_paths_again_round_a_building_beside_its_way),
     ]);
 }
 
@@ -1387,4 +1394,171 @@ fn test_diagonal_steps_fall_back_to_axis_art() {
         assert!(unit.direction() == direction, "stepping to {cell}: facing {}, not {direction}", unit.direction());
         assert_eq!(unit.current_anim_name(), walk, "stepping to {cell} facing {direction}");
     }
+}
+
+// ----------------------------------------------
+// Eight-way navigation (docs/plans/unit-movement.md, Phase 3)
+// ----------------------------------------------
+
+// Fine enough to tell a diagonal step's time from a straight one's: a step ends on the tick its
+// progress reaches the end (UnitNavigation::update), so it takes a whole number of ticks.
+const PACE_TICK_SECS: Seconds = 0.01;
+
+// The cells from `start`, `count` steps of (dx, dy) each.
+fn line_path(start: Cell, (dx, dy): (i32, i32), count: i32) -> Path {
+    (0..=count).map(|step| Node::new(Cell::new(start.x + dx * step, start.y + dy * step))).collect()
+}
+
+// Sends a unit along `path` (over land and roads) and counts the ticks until it's at its end.
+fn ticks_to_walk(env: &mut TestEnvironment, unit_id: UnitId, path: &Path) -> usize {
+    {
+        let unit = env.world.find_unit_mut(unit_id).unwrap();
+        unit.set_traversable_node_kinds(PathNodeKind::EmptyLand | PathNodeKind::Road);
+        unit.follow_path(Some(path));
+    }
+    let ticks = tick_until(env, 10_000, PACE_TICK_SECS, |env| !find_unit(env, unit_id).is_following_path());
+    assert!(find_unit(env, unit_id).cell() == path.last().unwrap().cell, "it walked the whole path");
+    ticks
+}
+
+// Ticks a step takes at a unit's speed, `scale` times a straight step's time (see PACE_TICK_SECS).
+fn ticks_per_step(config: UnitConfigKey, scale: f32) -> usize {
+    let speed = game::unit::config::UnitConfigs::get().find_config_by_key(config).movement_speed;
+    (scale / speed / PACE_TICK_SECS).ceil() as usize
+}
+
+// A walker takes √2 times as long over a diagonal step as over a straight one, so it moves at one
+// speed every way (Goal 4).
+fn test_diagonal_steps_take_root_two_as_long() {
+    let mut env = TestEnvironment::with_terrain(TestEnvironment::DEFAULT_MAP_SIZE, test_utils::find_terrain_def("grass"));
+    let start = Cell::new(8, 8);
+    let unit_id = spawn_unit(&mut env, start, UnitConfigKey::Peasant);
+
+    let straight = ticks_to_walk(&mut env, unit_id, &line_path(start, (1, 0), 8));
+    env.world.find_unit_mut(unit_id).unwrap().teleport(&mut env.tile_map, start);
+    let diagonal = ticks_to_walk(&mut env, unit_id, &line_path(start, (1, 1), 8));
+
+    let step = ticks_per_step(UnitConfigKey::Peasant, 1.0);
+    let diagonal_step = ticks_per_step(UnitConfigKey::Peasant, std::f32::consts::SQRT_2);
+    assert!(straight.abs_diff(8 * step) <= 1, "8 straight steps: {straight} ticks, not {}", 8 * step);
+    assert!(diagonal.abs_diff(8 * diagonal_step) <= 1, "8 diagonal steps: {diagonal} ticks, not {}", 8 * diagonal_step);
+    let ratio = diagonal as f32 / straight as f32;
+    assert!((ratio - std::f32::consts::SQRT_2).abs() < 0.02, "a diagonal step takes √2 as long, not {ratio}");
+}
+
+// The bird's flight is all diagonal steps, a path made for it: it flies them at one pace, as it
+// always has, and nothing below it stops it but a cell of no kind at all (Q7).
+fn test_a_bird_flies_at_one_pace_over_anything() {
+    let mut env = TestEnvironment::with_terrain(TestEnvironment::DEFAULT_MAP_SIZE, test_utils::find_terrain_def("grass"));
+    let start = Cell::new(8, 20);
+    let path = line_path(start, (1, -1), 8);
+    // A hole beside its third step and a building beside its fifth, which would stop a walker.
+    clear_terrain(&mut env, &[Cell::new(11, 18)]);
+    test_utils::spawn_building(&mut env, Cell::new(13, 16), "small_well");
+
+    let bird = spawn_unit(&mut env, start, UnitConfigKey::Bird);
+    env.world.find_unit_mut(bird).unwrap().follow_path(Some(&path));
+    let ticks = tick_until(&mut env, 10_000, PACE_TICK_SECS, |env| !find_unit(env, bird).is_following_path());
+
+    assert!(!find_unit(&env, bird).path_is_blocked(), "the bird flew on");
+    assert!(find_unit(&env, bird).cell() == path.last().unwrap().cell);
+    let step = ticks_per_step(UnitConfigKey::Bird, 1.0);
+    assert!(ticks.abs_diff(8 * step) <= 1, "8 steps of flight: {ticks} ticks, not {}", 8 * step);
+}
+
+// The corner rule holds as a walker goes: a building put up beside a diagonal step it hasn't taken
+// yet stops it there (PathBlocked), on the cell before, so its task can path again.
+fn test_a_building_beside_a_diagonal_step_blocks_it() {
+    let mut env = TestEnvironment::with_terrain(TestEnvironment::DEFAULT_MAP_SIZE, test_utils::find_terrain_def("grass"));
+    let start = Cell::new(8, 8);
+    let path = line_path(start, (1, 1), 8);
+    let unit_id = spawn_unit(&mut env, start, UnitConfigKey::Peasant);
+    {
+        let unit = env.world.find_unit_mut(unit_id).unwrap();
+        unit.set_traversable_node_kinds(PathNodeKind::EmptyLand | PathNodeKind::Road);
+        unit.follow_path(Some(&path));
+    }
+    tick_until(&mut env, 1_000, PACE_TICK_SECS, |env| find_unit(env, unit_id).cell() == Cell::new(10, 10));
+
+    // Beside the step from [12, 12] to [13, 13], leaving both of its ends open.
+    test_utils::spawn_building(&mut env, Cell::new(13, 12), "small_well");
+    tick_until(&mut env, 1_000, PACE_TICK_SECS, |env| find_unit(env, unit_id).path_is_blocked());
+
+    let unit = find_unit(&env, unit_id);
+    assert!(unit.cell() == Cell::new(12, 12), "it stops before the step past the building, not at {}", unit.cell());
+    assert!(!unit.is_following_path(), "its path is dropped");
+}
+
+// The settler task's search goes over open land, so a settler walks to a vacant lot across a
+// corner at a time: in half the cells of a four-way path, at √2 a step's time, and moves in.
+fn test_settler_walks_diagonally_to_a_lot() {
+    let mut env = TestEnvironment::with_terrain(TestEnvironment::DEFAULT_MAP_SIZE, test_utils::find_terrain_def("grass"));
+    let spawn = Cell::new(8, 8);
+    let lot = Cell::new(18, 18);
+    test_utils::place_terrain(&mut env, lot, "vacant_lot");
+
+    let settler_id = spawn_settler(&mut env, spawn, 1);
+    tick(&mut env, PACE_TICK_SECS); // The task finds its lot and sets out.
+    let path = find_unit(&env, settler_id).navigation().path().to_vec();
+    assert_eq!(path.len(), 11, "straight across the corners: 11 cells, where four-way takes 21");
+    assert_eq!(find_unit(&env, settler_id).navigation().diagonal_steps(), 10);
+    assert!(path.first().unwrap().cell == spawn && path.last().unwrap().cell == lot);
+
+    let ticks = tick_until(&mut env, 10_000, PACE_TICK_SECS, |env| !unit_exists(env, settler_id));
+    let diagonal_step = ticks_per_step(UnitConfigKey::Settler, std::f32::consts::SQRT_2);
+    let straight_step = ticks_per_step(UnitConfigKey::Settler, 1.0);
+    assert!(ticks >= 10 * diagonal_step, "10 diagonal steps take {} ticks, not {ticks}", 10 * diagonal_step);
+    assert!(ticks < 20 * straight_step, "and less than the four-way path's 20 steps");
+
+    tick_n(&mut env, 4, PACE_TICK_SECS); // The house it settled spawns.
+    let house = env.world.find_building_for_cell(lot, &env.tile_map).expect("a house on the lot");
+    assert!(house.is(BuildingKind::House));
+    assert_eq!(house.population_count(), 1, "the settler moved in");
+}
+
+// A building put up beside a settler's way stops it at the corner before it, and it paths again
+// round the building, no corner cut, and still moves in.
+fn test_settler_paths_again_round_a_building_beside_its_way() {
+    let mut env = TestEnvironment::with_terrain(TestEnvironment::DEFAULT_MAP_SIZE, test_utils::find_terrain_def("grass"));
+    let spawn = Cell::new(8, 8);
+    let lot = Cell::new(18, 18);
+    test_utils::place_terrain(&mut env, lot, "vacant_lot");
+
+    let settler_id = spawn_settler(&mut env, spawn, 1);
+    tick_until(&mut env, 1_000, PACE_TICK_SECS, |env| find_unit(env, settler_id).cell() == Cell::new(10, 10));
+    let well = Cell::new(13, 12); // Beside the step from [12, 12] to [13, 13].
+    test_utils::spawn_building(&mut env, well, "small_well");
+
+    // Its new path, as it sets out again: every step one it can take, no corner cut past the well.
+    let mut saw_blocked = false;
+    let mut new_path = Path::new();
+    tick_until(&mut env, 10_000, PACE_TICK_SECS, |env| {
+        if !unit_exists(env, settler_id) {
+            return true;
+        }
+        let unit = find_unit(env, settler_id);
+        saw_blocked |= unit.path_is_blocked();
+        if saw_blocked && unit.is_following_path() && new_path.is_empty() {
+            new_path = unit.navigation().path().to_vec();
+            let graph = env.tile_map.graph();
+            for step in new_path.windows(2) {
+                let (from, to) = (step[0], step[1]);
+                assert!(
+                    graph.can_take_step(from, to, unit.traversable_node_kinds()),
+                    "a corner cut: {} to {}",
+                    from.cell,
+                    to.cell
+                );
+            }
+        }
+        false
+    });
+
+    assert!(saw_blocked, "the settler's way was blocked");
+    assert!(new_path.first().unwrap().cell == Cell::new(12, 12), "it set out again from where it stopped");
+    assert!(new_path.last().unwrap().cell == lot);
+    assert!(new_path.windows(2).any(|step| step[0].is_diagonal_to(step[1])), "still across corners elsewhere");
+    tick_n(&mut env, 4, PACE_TICK_SECS);
+    let house = env.world.find_building_for_cell(lot, &env.tile_map).expect("a house on the lot");
+    assert_eq!(house.population_count(), 1, "the settler moved in");
 }

@@ -1089,7 +1089,8 @@ fn test_a_fire_watcher_goes_on_to_the_next_fire() {
     });
 }
 
-// A fire watcher walks over land to a building with no road, and home again.
+// A fire watcher walks over land to a building with no road, across corners where the land is open
+// (docs/plans/unit-movement.md: fewer cells than a four-way path), and home again.
 fn test_a_fire_watcher_walks_off_the_road_to_a_fire() {
     with_risks(|| {
         let mut env =
@@ -1105,6 +1106,14 @@ fn test_a_fire_watcher_walks_off_the_road_to_a_fire() {
         test_utils::tick(&mut env, TICK_SECS);
         assert!(fire_response_is_out(&mut env, fire_watch), "the fire watch sends someone");
         let walker = test_utils::find_unit_by_config(&env, UnitConfigKey::FireWatcher).expect("the fire watcher");
+        test_utils::tick_until(&mut env, 10, TICK_SECS, |env| test_utils::find_unit(env, walker).is_following_path());
+
+        let navigation = test_utils::find_unit(&env, walker).navigation();
+        let path = navigation.path();
+        let (start, end) = (path.first().unwrap().cell, path.last().unwrap().cell);
+        let four_way_cells = ((start.x - end.x).abs() + (start.y - end.y).abs() + 1) as usize;
+        assert!(navigation.diagonal_steps() >= 5, "across corners: {} diagonal steps", navigation.diagonal_steps());
+        assert!(path.len() < four_way_cells, "{} cells, where four-way takes {four_way_cells}", path.len());
 
         test_utils::tick_until(&mut env, (burn_secs() / TICK_SECS) as usize, TICK_SECS, |env| !is_burning(env, house));
         assert!(exists(&env, house), "the fire is out before the house burns down");

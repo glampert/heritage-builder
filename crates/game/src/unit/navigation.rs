@@ -7,7 +7,7 @@ use super::anim::{UnitAnimSetKey, UnitAnimSets};
 use crate::{
     building::{BuildingKind, BuildingTileInfo},
     debug::{self as debug_utils},
-    pathfind::{Graph, NodeKind as PathNodeKind, Path},
+    pathfind::{Graph, Node, NodeKind as PathNodeKind, Path},
     sim::SimContext,
     tile::TileMapLayerKind,
 };
@@ -392,7 +392,9 @@ pub struct UnitNavigation {
 }
 
 impl UnitNavigation {
-    pub fn update(&mut self, graph: &Graph, mut delta_time_secs: Seconds) -> UnitNavResult {
+    // `flies`: the unit's config's (the bird's): its path is a flight made for it, not a walk, so
+    // what stands beside a step and the ground's heights don't stop it, and every step takes as long.
+    pub fn update(&mut self, graph: &Graph, mut delta_time_secs: Seconds, flies: bool) -> UnitNavResult {
         debug_assert!(self.segment_duration.is_finite() && self.segment_duration != 0.0);
 
         if self.pause_current_path || self.path.is_empty() {
@@ -417,13 +419,21 @@ impl UnitNavigation {
         let from = self.path[self.path_index];
         let to = self.path[self.path_index + 1];
 
-        // Blocked by what stands there now, or by a height edit that left a cliff across the way.
-        if graph.node_kind(to).is_none_or(|kind| !kind.intersects(self.traversable_node_kinds)) || !graph.steps(from, to) {
+        // Blocked by what stands there now (or, across a corner, beside the step), or by a height edit
+        // that left a cliff across the way. A flight only by a cell of no kind it crosses.
+        let open = if flies {
+            graph.node_kind(to).is_some_and(|kind| kind.intersects(self.traversable_node_kinds))
+        } else {
+            graph.can_take_step(from, to, self.traversable_node_kinds)
+        };
+        if !open {
             return UnitNavResult::PathBlocked;
         }
 
-        // A ramp takes longer to walk (Graph::step_time_scale; 1 on flat ground).
-        self.progress += delta_time_secs / (self.segment_duration * graph.step_time_scale(from, to));
+        // A diagonal takes √2 times as long and a ramp 1.5 times (Graph::step_time_scale; 1 for a
+        // straight step on flat ground), so a walker or a ship moves at one speed every way.
+        let time_scale = if flies { 1.0 } else { graph.step_time_scale(from, to) };
+        self.progress += delta_time_secs / (self.segment_duration * time_scale);
 
         if self.progress >= 1.0 {
             self.path_index += 1;
@@ -476,10 +486,34 @@ impl UnitNavigation {
         UnitNavStatus::Moving
     }
 
+    // The path it follows (empty once it's reached the end), and the index of the cell it's on.
+    #[inline]
+    pub fn path(&self) -> &[Node] {
+        &self.path
+    }
+
+    #[inline]
+    pub fn path_index(&self) -> usize {
+        self.path_index
+    }
+
+    // How many steps of its path go across a corner (docs/plans/unit-movement.md).
+    pub fn diagonal_steps(&self) -> usize {
+        self.path.windows(2).filter(|step| step[0].is_diagonal_to(step[1])).count()
+    }
+
     // How many cells of its path are still ahead of it (the inspector's distance to go).
     #[inline]
     pub fn remaining_cells(&self) -> usize {
         self.path.len().saturating_sub(self.path_index + 1)
+    }
+
+    // The steps still ahead of it, each counted by how long it takes against a straight one on flat
+    // ground (Graph::step_time_scale: √2 across a corner, 1.5 over a ramp), the one it's on in full:
+    // the inspector's time to arrive, at its speed.
+    pub fn remaining_steps(&self, graph: &Graph) -> f32 {
+        let ahead = self.path.get(self.path_index..).unwrap_or_default();
+        ahead.windows(2).map(|step| graph.step_time_scale(step[0], step[1])).sum()
     }
 
     #[inline]

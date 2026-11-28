@@ -121,6 +121,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_walk,
     },
     CommandDef {
+        name: "world.unit_path",
+        help: "A unit's path as it follows it: its cells, its steps and how many go across a corner, the cell it's on \
+               (index) and the cells still ahead, the way it faces, and whether it's moving or its path was blocked.",
+        params: &[ParamDef { name: "id", kind: "string", required: false, help: "A unit's id. Or give name." }, ParamDef {
+            name: "name",
+            kind: "string",
+            required: false,
+            help: "The first unit with this name, as world.list names it (Settler, Trader).",
+        }],
+        run: cmd_unit_path,
+    },
+    CommandDef {
         name: "world.despawn",
         help: "Remove a building, unit or prop by id, for test setup: no refund, no undo.",
         params: &[ParamDef {
@@ -527,10 +539,62 @@ fn cmd_walk(context: &mut CommandContext, params: Value) -> CommandResult {
         let unit = sim.find_unit_mut(id).ok_or("The unit is gone.")?;
         unit.set_traversable_node_kinds(kinds);
         unit.follow_path(Some(&path));
-        Ok(path.len())
+        Ok((path.len(), unit.navigation().diagonal_steps()))
     });
-    let cells = result.map_err(CommandError::failed)?;
-    done(json!({ "path_cells": cells }))
+    let (cells, diagonal_steps) = result.map_err(CommandError::failed)?;
+    done(json!({ "path_cells": cells, "diagonal_steps": diagonal_steps }))
+}
+
+fn cmd_unit_path(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        id: Option<String>,
+        name: Option<String>,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let world = context.session.world();
+    let unit = match (&params.id, &params.name) {
+        (Some(id), None) => {
+            let ObjectId::Unit(unit_id) = ObjectId::parse(id)? else {
+                return Err(CommandError::invalid_params(format!("'{id}' isn't a unit's id.")));
+            };
+            world.find_unit(unit_id).ok_or_else(|| CommandError::not_found(format!("No unit with id '{id}'.")))?
+        }
+        (None, Some(name)) => {
+            let mut found = None;
+            world.for_each_unit(|unit| {
+                if unit.name().eq_ignore_ascii_case(name) {
+                    found = Some(unit.id());
+                    return false;
+                }
+                true
+            });
+            found
+                .and_then(|unit_id| world.find_unit(unit_id))
+                .ok_or_else(|| CommandError::not_found(format!("No unit named '{name}'.")))?
+        }
+        _ => return Err(CommandError::invalid_params("Give either id or name.")),
+    };
+
+    let navigation = unit.navigation();
+    let path = navigation.path();
+    let cells: Vec<Value> = path.iter().map(|node| cell_json(node.cell)).collect();
+    done(json!({
+        "id": ObjectId::Unit(unit.id()).to_json(),
+        "name": unit.name(),
+        "cell": cell_json(unit.cell()),
+        "direction": unit.direction().to_string(),
+        "moving": unit.is_following_path(),
+        "blocked": unit.path_is_blocked(),
+        "cells": cells,
+        "steps": path.len().saturating_sub(1),
+        "diagonal_steps": navigation.diagonal_steps(),
+        "index": navigation.path_index(),
+        "remaining_cells": navigation.remaining_cells(),
+    }))
 }
 
 fn cmd_despawn(context: &mut CommandContext, params: Value) -> CommandResult {
