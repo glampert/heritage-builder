@@ -4,11 +4,11 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{ObjectId, cell_json};
+use super::{CellParam, ObjectId, cell_json};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     config::GameConfigs,
-    sim::defence::{RaidFrom, RaidLosses, RaidRecord, RaidUnderWay, ScheduledRaid},
+    sim::defence::{RaidFrom, RaidLosses, RaidRecord, RaidUnderWay, ScheduledRaid, WallCondition},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -19,21 +19,25 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                cell, size, enemy, arrives and warn_from as ordinal months, months_left, warnings_sent), those \
                under way and the log of those that ended (their losses: walkers and militia killed, residents \
                lost, buildings and houses destroyed, goods and gold taken; repelled, palace_lost), how many the \
-               city survived and repelled, and the walls (count).",
+               city survived and repelled, and the walls: their count, how many are damaged, and each piece \
+               (cell, tier, condition, strength, damaged, repaired: the ordinal month a builder last mended it).",
         params: &[],
         run: cmd_state,
     },
     CommandDef {
         name: "defence.set",
         help: "Turn a custom game's random raids on or off (the next drawn afresh), move a scheduled raid to \
-               arrive in N months (its warning as far ahead as before), or set a unit's health (0 to its max). \
-               Reports defence.state, with the unit's health and max if one was given.",
+               arrive in N months (its warning as far ahead as before), set a unit's health (0 to its max), or a \
+               wall piece's condition (0 to its strength; 0 breaches it: rubble in its place). Reports \
+               defence.state, with the unit's health and max if one was given.",
         params: &[
             ParamDef { name: "random_raids", kind: "bool", required: false, help: "Whether raids come at random." },
             ParamDef { name: "raid", kind: "string", required: false, help: "A scheduled raid's id. Needs months." },
             ParamDef { name: "months", kind: "int", required: false, help: "Months from now it arrives in, 0 or more." },
             ParamDef { name: "unit", kind: "string", required: false, help: "A unit's id. Needs health." },
             ParamDef { name: "health", kind: "int", required: false, help: "Its health, 0 to its max." },
+            ParamDef { name: "cell", kind: "cell", required: false, help: "A wall piece's cell. Needs condition." },
+            ParamDef { name: "condition", kind: "number", required: false, help: "Its condition, 0 to its strength." },
         ],
         run: cmd_set,
     },
@@ -109,9 +113,22 @@ fn record_json(raid: &RaidRecord) -> Value {
     })
 }
 
+fn wall_json(wall: &WallCondition) -> Value {
+    let rules = &GameConfigs::get().sim.defence;
+    json!({
+        "cell": cell_json(wall.cell),
+        "tier": wall.tier.name(),
+        "condition": wall.condition,
+        "strength": wall.strength(rules),
+        "damaged": wall.is_damaged(rules),
+        "repaired": wall.repaired,
+    })
+}
+
 fn state_json(context: &CommandContext) -> Value {
     let now = now_month(context);
     let defence = context.session.sim().defence();
+    let rules = &GameConfigs::get().sim.defence;
     json!({
         "now": now,
         "random_raids": defence.random_raids(),
@@ -122,7 +139,11 @@ fn state_json(context: &CommandContext) -> Value {
         "log": defence.log().iter().map(record_json).collect::<Vec<_>>(),
         "survived": defence.survived(),
         "repelled": defence.repelled(),
-        "walls": { "count": defence.walls().len() },
+        "walls": {
+            "count": defence.walls().len(),
+            "damaged": defence.walls().iter().filter(|wall| wall.is_damaged(rules)).count(),
+            "pieces": defence.walls().iter().map(wall_json).collect::<Vec<_>>(),
+        },
     })
 }
 
@@ -145,6 +166,8 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
         months: Option<u32>,
         unit: Option<String>,
         health: Option<u16>,
+        cell: Option<CellParam>,
+        condition: Option<f32>,
     }
 
     let params: Params = parse_params(params)?;
@@ -181,6 +204,26 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
         }
         None => None,
     };
+    if params.cell.is_some() != params.condition.is_some() {
+        return Err(CommandError::invalid_params("cell and condition go together."));
+    }
+    let wall = match (&params.cell, params.condition) {
+        (Some(cell), Some(condition)) => {
+            let cell = cell.0;
+            context.require_cell_in_map(cell)?;
+            let Some(wall) = context.session.sim().defence().wall_at(cell) else {
+                return Err(CommandError::not_found(format!("No wall piece at {cell}.")));
+            };
+            let strength = wall.strength(&GameConfigs::get().sim.defence);
+            if !(0.0..=strength).contains(&condition) {
+                return Err(CommandError::invalid_params(format!(
+                    "condition must be from 0 to {strength}, got {condition}."
+                )));
+            }
+            Some((cell, condition))
+        }
+        _ => None,
+    };
 
     let now = now_month(context);
     let rules = &GameConfigs::get().sim.defence;
@@ -189,6 +232,12 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     }
     if let (Some(id), Some(months)) = (&params.raid, params.months) {
         context.session.sim_mut().defence_mut().set_raid_arrival(id, now + months);
+    }
+    if let Some((cell, condition)) = wall {
+        let delta_time_secs = context.engine.frame_clock().delta_time();
+        context.session.with_sim_context(delta_time_secs, |sim_context| {
+            crate::defence::set_wall_condition(sim_context, cell, condition);
+        });
     }
     let mut reply = state_json(context);
     if let Some((unit_id, health)) = unit {

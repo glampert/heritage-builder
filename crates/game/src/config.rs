@@ -532,6 +532,16 @@ pub struct DefenceRules {
     pub residents_per_raider: u32,
     pub random_raid_min_size: u32,
     pub random_raid_max_size: u32,
+
+    // Each wall tier's strength (decision Q3): the condition a new piece has, which raiders' strikes
+    // lower and at 0 breach.
+    pub palisade_strength: f32,
+    pub rampart_strength: f32,
+    pub city_wall_strength: f32,
+    // A builders' guild walker beside a damaged piece mends this share of its strength (Q4).
+    pub repair_share: f32,
+    // A piece below this share of its strength shows its cracks.
+    pub damaged_below: f32,
 }
 
 impl Default for DefenceRules {
@@ -543,6 +553,11 @@ impl Default for DefenceRules {
             residents_per_raider: 25,
             random_raid_min_size: 4,
             random_raid_max_size: 40,
+            palisade_strength: 100.0,
+            rampart_strength: 250.0,
+            city_wall_strength: 500.0,
+            repair_share: 0.2,
+            damaged_below: 0.5,
         }
     }
 }

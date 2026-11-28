@@ -39,6 +39,7 @@ pub mod road;
 pub mod rubble;
 pub mod selection;
 pub mod sets;
+pub mod wall;
 pub mod water;
 
 // Internal:
@@ -65,7 +66,7 @@ pub type TileVariationIndex = u8;
 
 bitflags_with_display! {
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-    pub struct TileKind: u8 {
+    pub struct TileKind: u16 {
         // Base Archetypes:
         const Terrain    = 1 << 0;
         const Object     = 1 << 1;
@@ -77,6 +78,7 @@ bitflags_with_display! {
         const Rocks      = 1 << 5;
         const Vegetation = 1 << 6;
         const Field      = 1 << 7; // A farmstead's rice field (crate::farms): a plain tile, no game object.
+        const Wall       = 1 << 8; // A wall piece (crate::defence): a plain tile, no game object, drawn like a road.
 
         // Aliases:
         const Prop = Self::Vegetation.bits(); // Only harvestable trees for now.
@@ -88,7 +90,8 @@ bitflags_with_display! {
                              | Self::Unit.bits()
                              | Self::Rocks.bits()
                              | Self::Vegetation.bits()
-                             | Self::Field.bits();
+                             | Self::Field.bits()
+                             | Self::Wall.bits();
     }
 }
 
@@ -118,6 +121,8 @@ impl TileKind {
             TileKind::Vegetation
         } else if category_hash == sets::OBJECTS_FIELDS_CATEGORY.hash {
             TileKind::Field
+        } else if category_hash == sets::OBJECTS_WALLS_CATEGORY.hash {
+            TileKind::Wall
         } else if category_hash == sets::OBJECTS_OVERLAYS_CATEGORY.hash {
             TileKind::empty() // Drawn by the renderer only; never placed (see OBJECTS_OVERLAYS_CATEGORY).
         } else {
@@ -178,6 +183,14 @@ bitflags_with_display! {
 
         // A canal no water reaches (crate::farms::irrigation): drawn dry.
         const DryCanal           = 1 << 22;
+
+        // A wall segment's preview (tile::road), one per tier, as the roads' above.
+        const PalisadePlacement  = 1 << 23;
+        const RampartPlacement   = 1 << 24;
+        const CityWallPlacement  = 1 << 25;
+
+        // A wall piece battered below half its strength (crate::defence): drawn with cracks over it.
+        const WallDamaged        = 1 << 26;
     }
 }
 
@@ -664,7 +677,7 @@ pub fn calc_object_iso_coords(kind: TileKind, base_cell: Cell, logical_size: Siz
     // Convert the anchor (bottom tile for buildings) to isometric coordinates:
     let mut tile_iso_coords = coords::cell_to_iso(base_cell);
 
-    if kind.intersects(TileKind::Building | TileKind::Field) {
+    if kind.intersects(TileKind::Building | TileKind::Field | TileKind::Wall) {
         // Center the sprite horizontally:
         tile_iso_coords.x += HALF_BASE_TILE_WIDTH_I32 - (logical_size.width / 2);
 
@@ -926,6 +939,7 @@ impl Tile {
         path_kind.set(PathNodeKind::Rocks, self.is(TileKind::Rocks));
         path_kind.set(PathNodeKind::Vegetation, self.is(TileKind::Vegetation));
         path_kind.set(PathNodeKind::Field, self.is(TileKind::Field));
+        path_kind.set(PathNodeKind::Wall, self.is(TileKind::Wall));
 
         path_kind
     }

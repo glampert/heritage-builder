@@ -84,11 +84,17 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "world.road",
-        help: "Build a road between two cells as a player's drag does: straight legs when possible, all or nothing.",
+        help: "Build a road between two cells as a player's drag does: straight legs when possible, all or nothing. \
+               A wall (palisade, rampart, city_wall) is drawn the same way, over open land or a weaker tier.",
         params: &[
             ParamDef { name: "from", kind: "cell", required: true, help: "[x, y]." },
             ParamDef { name: "to", kind: "cell", required: true, help: "[x, y]." },
-            ParamDef { name: "kind", kind: "string", required: false, help: "dirt (default), paved, dyke or canal." },
+            ParamDef {
+                name: "kind",
+                kind: "string",
+                required: false,
+                help: "dirt (default), paved, dyke, canal, palisade, rampart or city_wall.",
+            },
         ],
         run: cmd_road,
     },
@@ -452,8 +458,13 @@ fn cmd_road(context: &mut CommandContext, params: Value) -> CommandResult {
         Some("paved") => RoadKind::Paved,
         Some("dyke") => RoadKind::Dyke,
         Some("canal") => RoadKind::Canal,
+        Some("palisade") => RoadKind::Palisade,
+        Some("rampart") => RoadKind::Rampart,
+        Some("city_wall") => RoadKind::CityWall,
         Some(other) => {
-            return Err(CommandError::invalid_params(format!("kind must be dirt, paved, dyke or canal, got '{other}'.")));
+            return Err(CommandError::invalid_params(format!(
+                "kind must be dirt, paved, dyke, canal, palisade, rampart or city_wall, got '{other}'."
+            )));
         }
     };
 

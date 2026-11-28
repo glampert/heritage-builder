@@ -118,6 +118,7 @@ pub const SECTOR_GLYPHS: &[&str] = &[
     "infrastructure",
     "culture",
     "trade",
+    "defence",
     "beauty",
     "undo",
     "redo",

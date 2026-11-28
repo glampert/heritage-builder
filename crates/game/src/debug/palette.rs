@@ -43,6 +43,50 @@ pub struct TilePaletteDevMenu {
     terrace_level: i32,         // The Height section's Terrace level.
 }
 
+// A named group of buttons in a section of the palette: the buildings by archetype, and the
+// city's defences (its walls and gatehouses) on their own.
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum TileGroup {
+    Archetype(BuildingArchetypeKind),
+    Defence,
+}
+
+impl TileGroup {
+    const COUNT: usize = 5;
+
+    fn of(tile_def: &TileDef) -> Option<Self> {
+        if tile_def.is(TileKind::Wall) || tile_def.requires_wall {
+            return Some(Self::Defence);
+        }
+        // A farmstead's field goes with the producers, beside the farms.
+        if tile_def.is(TileKind::Field) {
+            return Some(Self::Archetype(BuildingArchetypeKind::ProducerBuilding));
+        }
+        BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def).map(Self::Archetype)
+    }
+
+    // Where the group comes in its section.
+    fn order(self) -> usize {
+        match self {
+            Self::Archetype(BuildingArchetypeKind::ServiceBuilding) => 0,
+            Self::Archetype(BuildingArchetypeKind::ProducerBuilding) => 1,
+            Self::Archetype(BuildingArchetypeKind::StorageBuilding) => 2,
+            Self::Archetype(BuildingArchetypeKind::HouseBuilding) => 3,
+            Self::Defence => 4,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Archetype(BuildingArchetypeKind::ProducerBuilding) => "Production",
+            Self::Archetype(BuildingArchetypeKind::StorageBuilding) => "Storage",
+            Self::Archetype(BuildingArchetypeKind::ServiceBuilding) => "Services",
+            Self::Archetype(BuildingArchetypeKind::HouseBuilding) => "Houses",
+            Self::Defence => "Defence",
+        }
+    }
+}
+
 // The Height section's tools, in the order their buttons show (docs/plans/terrain-height.md, §8).
 const HEIGHT_TOOLS: [HeightTool; 9] = [
     HeightTool::Raise,
@@ -199,7 +243,7 @@ impl TilePaletteDevMenu {
 
             let sections = [
                 ("Terrain", TileKind::Terrain),
-                ("", TileKind::Building | TileKind::Field),
+                ("", TileKind::Building | TileKind::Field | TileKind::Wall),
                 ("Props", TileKind::Rocks | TileKind::Vegetation),
                 ("Units", TileKind::Unit),
             ];
@@ -407,60 +451,41 @@ impl TilePaletteDevMenu {
             ui::text(ui_sys, label);
         }
 
-        let mut tile_defs = SmallVec::<[(&TileSet, &TileCategory, &TileDef, Option<BuildingArchetypeKind>); 32]>::new();
+        let mut tile_defs = SmallVec::<[(&TileSet, &TileCategory, &TileDef, Option<TileGroup>); 32]>::new();
 
         // Gather relevant tiles:
         TileSets::get().for_each_tile_def(|tile_set, tile_category, tile_def| {
             if tile_def.is(tile_kind) {
-                // A farmstead's field goes with the producers, beside the farms.
-                let building_archetype = if tile_def.is(TileKind::Field) {
-                    Some(BuildingArchetypeKind::ProducerBuilding)
-                } else {
-                    BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def)
-                };
-
-                tile_defs.push((tile_set, tile_category, tile_def, building_archetype));
+                tile_defs.push((tile_set, tile_category, tile_def, TileGroup::of(tile_def)));
             }
             true
         });
 
-        // Group by building archetype kind (if any):
-        tile_defs.sort_by_key(|entry| {
-            if let Some(archetype) = entry.3 {
-                match archetype {
-                    // Custom sort order.
-                    BuildingArchetypeKind::ServiceBuilding => 0,
-                    BuildingArchetypeKind::ProducerBuilding => 1,
-                    BuildingArchetypeKind::StorageBuilding => 2,
-                    BuildingArchetypeKind::HouseBuilding => 3,
-                }
-            } else {
-                4
-            }
-        });
+        // Group them (the tiles of no group last), the walls before their gatehouse:
+        tile_defs.sort_by_key(|entry| (entry.3.map_or(TileGroup::COUNT, TileGroup::order), entry.2.requires_wall));
 
-        // Rows of up to `tiles_per_row` buttons. Each named building group starts on a new row,
-        // under its name.
+        // Rows of up to `tiles_per_row` buttons. Each named group starts on a new row, under its
+        // name.
         let mut tile_index = 0;
         let mut row = SmallVec::<[(&TileSet, &TileCategory, &TileDef); 4]>::new();
-        let mut prev_building_archetype: Option<BuildingArchetypeKind> = None;
+        let mut prev_group: Option<TileGroup> = None;
 
-        for (tile_set, tile_category, tile_def, building_archetype) in tile_defs {
+        for (tile_set, tile_category, tile_def, group) in tile_defs {
             if row.len() == tiles_per_row {
                 self.draw_tile_row(ui_sys, tile_kind, &row, &mut tile_index, padding_between_tiles, select);
                 row.clear();
             }
 
-            // New named building group?
-            if building_archetype != prev_building_archetype {
-                if let Some(archetype_kind) = building_archetype {
+            // New named group?
+            if group != prev_group {
+                if let Some(group) = group {
                     if !row.is_empty() {
                         self.draw_tile_row(ui_sys, tile_kind, &row, &mut tile_index, padding_between_tiles, select);
                         row.clear();
                     }
-                    ui::text(ui_sys, Self::building_archetype_kind_label(archetype_kind));
+                    ui::text(ui_sys, group.label());
                 }
-                prev_building_archetype = building_archetype;
+                prev_group = group;
             }
 
             row.push((tile_set, tile_category, tile_def));
@@ -550,15 +575,6 @@ impl TilePaletteDevMenu {
             self.reset_selection_internal();
             self.current_selection = TilePaletteSelection::Tile(handle, offered.first().copied());
             self.selected_index.insert(tile_kind, tile_index);
-        }
-    }
-
-    fn building_archetype_kind_label(archetype_kind: BuildingArchetypeKind) -> &'static str {
-        match archetype_kind {
-            BuildingArchetypeKind::ProducerBuilding => "Production",
-            BuildingArchetypeKind::StorageBuilding => "Storage",
-            BuildingArchetypeKind::ServiceBuilding => "Services",
-            BuildingArchetypeKind::HouseBuilding => "Houses",
         }
     }
 

@@ -307,7 +307,8 @@ impl TileMapRenderer {
         let mut try_add_to_sort_list = |tile: &Tile| {
             fn should_draw(tile: &Tile, flags: TileMapRenderFlags) -> bool {
                 !tile.is(TileKind::Blocker)
-                    && (tile.is(TileKind::Building | TileKind::Field) && flags.contains(TileMapRenderFlags::DrawBuildings))
+                    && (tile.is(TileKind::Building | TileKind::Field | TileKind::Wall)
+                        && flags.contains(TileMapRenderFlags::DrawBuildings))
                     || (tile.is(TileKind::Unit) && flags.contains(TileMapRenderFlags::DrawUnits))
                     || (tile.is(TileKind::Rocks) && flags.contains(TileMapRenderFlags::DrawProps))
                     || (tile.is(TileKind::Vegetation) && flags.contains(TileMapRenderFlags::DrawVegetation))
@@ -367,7 +368,7 @@ impl TileMapRenderer {
                     continue;
                 };
                 let key = match objects.try_tile(cell) {
-                    Some(object) if object.is(TileKind::Building | TileKind::Field | TileKind::Blocker) => {
+                    Some(object) if object.is(TileKind::Building | TileKind::Field | TileKind::Wall | TileKind::Blocker) => {
                         coords::cell_to_screen_diamond_center_y(object.base_cell(), object.logical_size(), transform)
                     }
                     _ => coords::cell_to_screen_diamond_center_y(cell, BASE_TILE_SIZE_I32, transform),
@@ -832,6 +833,19 @@ impl TileMapRenderer {
                         DRY_CANAL_WASH * highlight_color,
                     );
                 }
+            } else if tile.has_flags(TileFlags::WallDamaged) && tile.is(TileKind::Wall) {
+                // A wall piece below half its strength (crate::defence): its cracks over it.
+                render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
+                draw_cell_overlay(
+                    render_sys,
+                    tile,
+                    transform,
+                    tile_map.overlay_anim_secs(),
+                    highlight_color,
+                    &super::wall::WALL_CRACKS_TILE,
+                    1.0,
+                    up,
+                );
             } else if tile.has_flags(TileFlags::Festive)
                 && let Some((rect, festive)) = festive_overlay(tile, transform)
             {
@@ -880,7 +894,13 @@ impl TileMapRenderer {
             let tex_coords = &tile_sprite.coords;
             let texture = tile_sprite.texture;
 
-            let iso_position = IsoPointF32::from_integer_iso(coords::cell_to_iso(cell));
+            // A wall piece stands on its cell as a 1x1 building does; terrain is drawn from the cell's
+            // top corner.
+            let iso_position = if kind.is_wall() {
+                super::calc_object_iso_coords(TileKind::Wall, cell, tile_def.logical_size, tile_def.draw_size)
+            } else {
+                IsoPointF32::from_integer_iso(coords::cell_to_iso(cell))
+            };
             let tile_screen_rect =
                 coords::iso_to_screen_rect_f32(iso_position, tile_def.draw_size, transform).translated(up);
 

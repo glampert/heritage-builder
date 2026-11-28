@@ -47,7 +47,7 @@ pub const LABOUR_SECTOR_COUNT: usize = LabourSector::COUNT;
 
 impl LabourSector {
     // The sector a building with workers counts under: its tile's, Infrastructure for any other
-    // (housing, roads, beautification; decision Q6).
+    // (housing, roads, defence, beautification; decision Q6; defence's own sector can follow it).
     pub fn of_tile_sector(sector: TileSector) -> Self {
         match sector {
             TileSector::FoodAndFarming => Self::FoodAndFarming,
@@ -59,6 +59,7 @@ impl LabourSector {
             | TileSector::None
             | TileSector::Housing
             | TileSector::Roads
+            | TileSector::Defence
             | TileSector::Beautification => Self::Infrastructure,
         }
     }

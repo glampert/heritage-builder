@@ -312,6 +312,9 @@ pub fn inspect_tile(context: &SimContext, tile: &Tile, realm: Realm) -> Option<I
     if tile.is(TileKind::Field) {
         return tile::read_field(context, tile);
     }
+    if tile.is(TileKind::Wall) {
+        return Some(tile::read_wall(context, tile));
+    }
     if tile.is(TileKind::Terrain | TileKind::Rocks | TileKind::Vegetation) {
         return Some(tile::read_terrain(context, tile));
     }
@@ -340,7 +343,7 @@ pub fn target_tile<'a>(context: &'a SimContext, target: &InspectTarget) -> Optio
     match *target {
         InspectTarget::Prop { cell } => tiles.find_tile(cell, TileKind::Prop | TileKind::Vegetation | TileKind::Rocks),
         InspectTarget::Terrain { cell } => tiles
-            .find_tile(cell, TileKind::Vegetation | TileKind::Rocks | TileKind::Field)
+            .find_tile(cell, TileKind::Vegetation | TileKind::Rocks | TileKind::Field | TileKind::Wall)
             .or_else(|| tiles.find_tile(cell, TileKind::Terrain)),
         InspectTarget::Building { cell, .. } | InspectTarget::Unit { cell, .. } => tiles.topmost_tile_at_cell(cell),
     }

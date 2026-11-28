@@ -343,6 +343,7 @@ impl UnitTaskRandomizedPatrol {
     // Queues deferred visits to any target buildings adjacent to the unit's current cell.
     fn visit_buildings_along_way(&mut self, ctx: &mut UnitTaskContext) {
         self.walk_over_dyke(ctx);
+        self.pass_by_walls(ctx);
 
         let Some(buildings_to_visit) = self.buildings_to_visit else {
             return;
@@ -398,6 +399,21 @@ impl UnitTaskRandomizedPatrol {
         ctx.sim_cmds.defer_tile_update(cell, TileKind::Terrain, move |context, _tile| {
             let now = crate::farms::current_month(context);
             context.floods_mut().builder_walked(cell, now);
+        });
+    }
+
+    // A builders' guild walker beside a damaged wall piece mends it (crate::defence, once a month
+    // a piece at most), queued, since the world step reads the state only.
+    fn pass_by_walls(&self, ctx: &mut UnitTaskContext) {
+        if self.origin_building.kind != BuildingKind::BuildersGuild {
+            return;
+        }
+        let cell = ctx.unit.cell();
+        if !crate::defence::has_damaged_wall_beside(ctx.sim_context, cell) {
+            return;
+        }
+        ctx.sim_cmds.defer_tile_update(cell, TileKind::Terrain, move |context, _tile| {
+            crate::defence::builder_passed(context, cell);
         });
     }
 

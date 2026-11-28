@@ -308,6 +308,7 @@ impl RunLoop for GameLoop {
         self.notify_floods();
         self.notify_farms();
         self.notify_trade();
+        self.notify_defence();
         self.notify_failure_warnings();
         self.update_after_save();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
@@ -918,6 +919,16 @@ impl GameLoop {
         for notice in notices {
             let (message, sound) = crate::floods::notice_message(&notice, &river, &sources);
             self.post_message(message.with_popup(popups::flood(&notice, &river, months, dykes)));
+            ui::sound::play(self.engine.sound_system_mut(), sound);
+        }
+    }
+
+    // The walls' breaches (crate::defence), each a Warning at its cell with the Alert sound.
+    fn notify_defence(&mut self) {
+        let notices = self.session.sim_mut().defence_mut().take_notices();
+        for notice in notices {
+            let (message, sound) = crate::defence::notice_message(&notice);
+            self.post_message(message);
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
     }

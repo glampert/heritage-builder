@@ -446,6 +446,7 @@ impl Simulation {
                     crate::farms::on_new_month(&context, date);
                     crate::trade::on_new_month(&context, date);
                     crate::faith::events::on_new_month(&context, &GameConfigs::get().sim.faith, date);
+                    crate::defence::on_new_month(&context, date);
                     crate::ratings::on_new_month(&context, date);
                 }
             }

@@ -18,6 +18,47 @@ use crate::{
 };
 
 // ----------------------------------------------
+// WallTier
+// ----------------------------------------------
+
+// A wall's tier (GDD 5.16: wood, earth, then brick or stone; decision Q3), each its own tile and
+// strength; a gatehouse takes its walls' tier.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WallTier {
+    Palisade,
+    Rampart,
+    CityWall,
+}
+
+impl WallTier {
+    pub const ALL: [WallTier; 3] = [WallTier::Palisade, WallTier::Rampart, WallTier::CityWall];
+
+    // Its tile's name, and its name in data and automation.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Palisade => "palisade",
+            Self::Rampart => "rampart",
+            Self::CityWall => "city_wall",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|tier| tier.name() == name)
+    }
+
+    // What a new piece of it holds out against (DefenceRules).
+    pub fn strength(self, rules: &DefenceRules) -> f32 {
+        match self {
+            Self::Palisade => rules.palisade_strength,
+            Self::Rampart => rules.rampart_strength,
+            Self::CityWall => rules.city_wall_strength,
+        }
+        .max(1.0)
+    }
+}
+
+// ----------------------------------------------
 // RaidKind, MapSide, RaidFrom
 // ----------------------------------------------
 
@@ -160,13 +201,38 @@ impl RaidRecord {
 // ----------------------------------------------
 
 // A wall cell's condition, 0 to its tier's strength (docs/plans/defence.md, §1): raiders lower it, it
-// breaches at 0, and a builders' guild walker standing on it repairs it; `repaired` is the ordinal
-// month one last did.
+// breaches at 0, and a builders' guild walker beside it repairs it; `repaired` is the ordinal month
+// one last did.
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct WallCondition {
     pub cell: Cell,
+    pub tier: WallTier,
     pub condition: f32,
     pub repaired: Option<u32>,
+}
+
+impl WallCondition {
+    #[inline]
+    pub fn strength(&self, rules: &DefenceRules) -> f32 {
+        self.tier.strength(rules)
+    }
+
+    // Below the rules' share of its strength: it shows its cracks.
+    #[inline]
+    pub fn is_damaged(&self, rules: &DefenceRules) -> bool {
+        self.condition < self.strength(rules) * rules.damaged_below
+    }
+}
+
+// ----------------------------------------------
+// DefenceNotice
+// ----------------------------------------------
+
+// What the message log hears of the defence (GameLoop::notify_defence; runtime only).
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum DefenceNotice {
+    // A wall piece gave way: rubble in its place.
+    Breach { cell: Cell, tier: WallTier },
 }
 
 // ----------------------------------------------
@@ -185,6 +251,10 @@ pub struct CityDefence {
     log: Vec<RaidRecord>,
     // Each wall cell's condition, in row order.
     walls: Vec<WallCondition>,
+
+    // For the message log (runtime only).
+    #[serde(skip)]
+    notices: Vec<DefenceNotice>,
 }
 
 impl CityDefence {
@@ -202,7 +272,10 @@ impl CityDefence {
         rules: &DefenceRules,
         rng: &mut impl Rng,
     ) {
+        // A new game's raids; the walls on its map stay as they are.
+        let walls = std::mem::take(&mut self.walls);
         *self = Self::new();
+        self.walls = walls;
         if let Some(mission) = mission {
             for raid in &mission.raids {
                 let arrives = now + raid.month;
@@ -278,6 +351,86 @@ impl CityDefence {
         true
     }
 
+    // ----------------------
+    // Walls:
+    // ----------------------
+
+    // Matches the walls' records to the map's wall pieces (`walls`: each cell and its tier, any
+    // order): a piece kept keeps its condition (at most its tier's strength), a new piece or one of
+    // another tier (drawn over in a stronger one) starts at its tier's full strength, and a piece
+    // gone takes its record with it.
+    pub fn sync_walls(&mut self, mut walls: Vec<(Cell, WallTier)>, rules: &DefenceRules) {
+        walls.sort_by_key(|(cell, _)| row_order(*cell));
+        let old = std::mem::take(&mut self.walls);
+        self.walls = walls
+            .into_iter()
+            .map(|(cell, tier)| match old.binary_search_by_key(&row_order(cell), |wall| row_order(wall.cell)) {
+                Ok(index) if old[index].tier == tier => {
+                    let wall = old[index];
+                    WallCondition { condition: wall.condition.min(tier.strength(rules)), ..wall }
+                }
+                _ => WallCondition { cell, tier, condition: tier.strength(rules), repaired: None },
+            })
+            .collect();
+    }
+
+    #[inline]
+    fn wall_index(&self, cell: Cell) -> Result<usize, usize> {
+        self.walls.binary_search_by_key(&row_order(cell), |wall| row_order(wall.cell))
+    }
+
+    #[inline]
+    pub fn wall_at(&self, cell: Cell) -> Option<&WallCondition> {
+        self.wall_index(cell).ok().map(|index| &self.walls[index])
+    }
+
+    // Sets a piece's condition, within 0 and its strength; false where there's no wall.
+    pub fn set_wall_condition(&mut self, cell: Cell, condition: f32, rules: &DefenceRules) -> bool {
+        let Ok(index) = self.wall_index(cell) else {
+            return false;
+        };
+        let wall = &mut self.walls[index];
+        wall.condition = condition.clamp(0.0, wall.strength(rules));
+        true
+    }
+
+    // Lowers a piece's condition; the condition left (None where there's no wall). At 0 the caller
+    // breaches it (crate::defence::damage_wall).
+    pub fn damage_wall(&mut self, cell: Cell, amount: f32) -> Option<f32> {
+        let index = self.wall_index(cell).ok()?;
+        let wall = &mut self.walls[index];
+        wall.condition = (wall.condition - amount.max(0.0)).max(0.0);
+        Some(wall.condition)
+    }
+
+    // Mends a piece by the rules' share of its strength, at `now` (an ordinal month), once a month at
+    // most; false where there's no wall, it's whole, or it was mended this month.
+    pub fn repair_wall(&mut self, cell: Cell, now: u32, rules: &DefenceRules) -> bool {
+        let Ok(index) = self.wall_index(cell) else {
+            return false;
+        };
+        let wall = &mut self.walls[index];
+        let strength = wall.strength(rules);
+        if wall.condition >= strength || wall.repaired == Some(now) {
+            return false;
+        }
+        wall.condition = (wall.condition + strength * rules.repair_share).min(strength);
+        wall.repaired = Some(now);
+        true
+    }
+
+    // A breached piece's record goes, and the log hears of it.
+    pub fn remove_wall(&mut self, cell: Cell) -> Option<WallCondition> {
+        let index = self.wall_index(cell).ok()?;
+        let wall = self.walls.remove(index);
+        self.notices.push(DefenceNotice::Breach { cell, tier: wall.tier });
+        Some(wall)
+    }
+
+    pub fn take_notices(&mut self) -> Vec<DefenceNotice> {
+        std::mem::take(&mut self.notices)
+    }
+
     // Raids that ended without the palace lost (the `SurviveAttacks` goal) and those repelled.
     pub fn survived(&self) -> u32 {
         self.log.iter().filter(|raid| !raid.palace_lost).count() as u32
@@ -286,6 +439,11 @@ impl CityDefence {
     pub fn repelled(&self) -> u32 {
         self.log.iter().filter(|raid| raid.repelled()).count() as u32
     }
+}
+
+#[inline]
+fn row_order(cell: Cell) -> (i32, i32) {
+    (cell.y, cell.x)
 }
 
 // Months until a custom game's next random raid: between DefenceRules' least and most years.

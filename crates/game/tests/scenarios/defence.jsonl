@@ -1,0 +1,119 @@
+# The city's defence (docs/plans/defence.md), Phase 1: walls and gatehouses. A palisade drawn from the
+# build palette's Defence grid and a rampart by command across a blank map, one wall; a road dragged
+# across it refused, a gatehouse from the grid on one of its pieces (the piece making way for it, its
+# look the weaker tier's, its walls joining it, a road laid under it) and a road drawn through it; a
+# piece's panel, a piece battered below half its strength (its cracks, its panel), another breached
+# (rubble in the gap, its Warning), a builders' guild walker mending the battered one from the road
+# beside it, and the walls kept by a save. Screenshots go to out/defence/. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/defence.jsonl --default-configs --fresh-profile
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "config.set", "params": {"path": "/display/event_popups", "value": false}}
+{"method": "session.new_map", "params": {"size": [40, 40]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "cheats.set", "params": {"name": "no_city_risks", "value": true}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/count", "value": 0}}
+# A road beside where the wall will run, along y 19.
+{"method": "world.road", "params": {"from": [14, 19], "to": [19, 19]}}
+{"method": "camera.teleport", "params": {"cell": [20, 20]}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+# The widget registry on, for ui.layout_issues.
+{"method": "ui.tree", "params": {"filter": "TilePaletteMenu"}}
+# The Defence grid: the three walls and the gatehouse. A palisade dragged along y 20, west of the road.
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/defence"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: defence/Palisade"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: defence/Rampart"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: defence/City Wall"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TilePaletteChildMenu: defence/Gatehouse"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/defence/palette.png"}}
+{"method": "ui.click", "params": {"path": "TilePaletteChildMenu: defence/Palisade"}}
+{"method": "input.drag", "params": {"from": [14, 20], "to": [19, 20], "cells": true, "frames": 12}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/count", "value": 6}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/pieces/0/tier", "value": "palisade"}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/pieces/0/condition", "value": 100.0}}
+# Its pieces join (north, east, south, west: north is +x): the ends join one side, the middle two.
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [14, 20]}, "path": "/objects/0/variation_name", "value": "1000"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [16, 20]}, "path": "/objects/0/variation_name", "value": "1010"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [19, 20]}, "path": "/objects/0/variation_name", "value": "0010"}}
+# A rampart by command, on from the palisade: one wall.
+{"method": "world.road", "params": {"from": [20, 20], "to": [26, 20], "kind": "rampart"}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/count", "value": 13}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/pieces/6/tier", "value": "rampart"}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/pieces/6/strength", "value": 250.0}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [20, 20]}, "path": "/objects/0/variation_name", "value": "1010"}}
+# A road dragged across the wall from the Roads grid is refused: nothing is laid.
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/roads"}}
+{"method": "ui.click", "params": {"path": "TilePaletteChildMenu: roads/Dirt Road"}}
+{"method": "input.drag", "params": {"from": [22, 17], "to": [22, 23], "cells": true, "frames": 12}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [22, 20]}, "path": "/objects/0/name", "value": "rampart"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [22, 20]}, "path": "/terrain/name", "value": "grass"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [22, 18]}, "path": "/terrain/name", "value": "grass"}}
+# The gatehouse from the grid, on the rampart's first piece: the piece makes way for it, its look the
+# palisade's (the weaker of its walls), its walls north and south of it (x 19 and 21) join it, and a
+# road is laid under it, through its passage both ways (east and west).
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/defence"}}
+{"method": "ui.click", "params": {"path": "TilePaletteChildMenu: defence/Gatehouse"}}
+{"method": "input.click", "params": {"cell": [20, 20]}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [20, 20]}, "path": "/kind", "value": "Gatehouse"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [20, 20]}, "path": "/objects/0/variation_name", "value": "palisade_ns"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [20, 20]}, "path": "/terrain/name", "value": "dirt_road"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [20, 20]}, "path": "/terrain/variation_name", "value": "0101"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [19, 20]}, "path": "/objects/0/variation_name", "value": "1010"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [21, 20]}, "path": "/objects/0/variation_name", "value": "1010"}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/count", "value": 12}}
+# A road along x 20 drawn through the gatehouse in one go: laid either side of it, joining it.
+{"method": "world.road", "params": {"from": [20, 12], "to": [20, 28]}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [20, 20]}, "path": "/kind", "value": "Gatehouse"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [20, 19]}, "path": "/terrain/variation_name", "value": "0111"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [20, 21]}, "path": "/terrain/variation_name", "value": "0101"}}
+# A piece's panel: its condition and that no builder has mended it.
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/subtitle", "value": "Wall · 1×1"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/sections/0/title", "value": "The wall"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/sections/0/rows/0/value", "value": "100 of 100"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/sections/0/rows/1/value", "value": "Haven't mended it"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/defence/walls.png", "include_ui": false}}
+# Battered to 30 of 100: below half, it shows its cracks and its panel warns.
+{"method": "defence.set", "params": {"cell": [16, 20], "condition": 30}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/damaged", "value": 1}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/pieces/2/damaged", "value": true}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/sections/0/rows/0/value", "value": "30 of 100"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/sections/0/rows/0/warn", "value": true}}
+# Another piece breached: rubble in the gap, the pieces beside it close up, and a Warning at its cell.
+{"method": "defence.set", "params": {"cell": [18, 20], "condition": 0}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/count", "value": 11}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [18, 20]}, "path": "/objects/0/name", "value": "rubble"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [17, 20]}, "path": "/objects/0/variation_name", "value": "0010"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [19, 20]}, "path": "/objects/0/variation_name", "value": "1000"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "A stretch of the palisade gave way: rubble lies in the gap."}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "warning"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/target/cell", "value": [18, 20]}}
+{"method": "screenshot", "params": {"path": "out/defence/breach.png", "include_ui": false}}
+# A builders' guild by the road along y 19: its walker passes beside the battered piece and mends it,
+# a fifth of its strength a month.
+{"method": "world.place", "params": {"tile": "builders_guild", "cell": [15, 17]}}
+{"method": "sim.speed", "params": {"speed": 10}}
+{"method": "wait.until", "params": {"query": "defence.state", "path": "/walls/pieces/2/condition", "op": "gt", "value": 30, "timeout_frames": 6000}}
+{"method": "sim.speed", "params": {"speed": 1}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/pieces/2/condition", "value": 50.0}}
+{"method": "assert.exists", "params": {"query": "defence.state", "path": "/walls/pieces/2/repaired"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/sections/0/rows/1/value", "value": "Mended it this month"}}
+# A save keeps the walls and their condition.
+{"method": "session.save", "params": {"name": "scenario_defence"}}
+{"method": "session.load_save", "params": {"name": "scenario_defence"}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/count", "value": 11}}
+{"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/pieces/2/condition", "value": 50.0}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [20, 20]}, "path": "/objects/0/variation_name", "value": "palisade_ns"}}
+{"method": "session.delete_save", "params": {"name": "scenario_defence"}}

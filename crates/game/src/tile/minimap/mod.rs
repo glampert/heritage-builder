@@ -864,5 +864,9 @@ fn display_name(name: &str) -> String {
 
 // Minimap only displays terrain tiles and these object kinds.
 const MINIMAP_OBJECT_TILE_KINDS: TileKind = TileKind::from_bits_retain(
-    TileKind::Building.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits() | TileKind::Field.bits(),
+    TileKind::Building.bits()
+        | TileKind::Rocks.bits()
+        | TileKind::Vegetation.bits()
+        | TileKind::Field.bits()
+        | TileKind::Wall.bits(),
 );

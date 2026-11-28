@@ -9,7 +9,8 @@ use crate::{
         TileKind,
         TileMap,
         TileMapLayerKind,
-        sets::{TERRAIN_LAND_CATEGORY, TERRAIN_WATER_CATEGORY, TileDef, TileSets},
+        sets::{OBJECTS_WALLS_CATEGORY, TERRAIN_LAND_CATEGORY, TERRAIN_WATER_CATEGORY, TileDef, TileSets},
+        wall,
         water,
     },
 };
@@ -29,10 +30,39 @@ pub enum RoadKind {
     // A canal (crate::farms::irrigation): drawn as roads are, but a water tile with the water's
     // shores (tile::water), on open land only. Not a road: nothing walks it.
     Canal,
+    // The city's walls in their three tiers (crate::defence, tile::wall): drawn as roads are, but
+    // object tiles that sort with the buildings, on open land only. No one walks them.
+    Palisade,
+    Rampart,
+    CityWall,
 }
 
 impl RoadKind {
-    pub const ALL: [RoadKind; 4] = [RoadKind::Dirt, RoadKind::Paved, RoadKind::Dyke, RoadKind::Canal];
+    pub const ALL: [RoadKind; 7] = [
+        RoadKind::Dirt,
+        RoadKind::Paved,
+        RoadKind::Dyke,
+        RoadKind::Canal,
+        RoadKind::Palisade,
+        RoadKind::Rampart,
+        RoadKind::CityWall,
+    ];
+
+    // A wall's tier, None for a road, dyke or canal.
+    pub const fn wall_tier(self) -> Option<crate::sim::defence::WallTier> {
+        use crate::sim::defence::WallTier;
+        match self {
+            RoadKind::Palisade => Some(WallTier::Palisade),
+            RoadKind::Rampart => Some(WallTier::Rampart),
+            RoadKind::CityWall => Some(WallTier::CityWall),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub const fn is_wall(self) -> bool {
+        self.wall_tier().is_some()
+    }
 }
 
 // ----------------------------------------------
@@ -91,6 +121,9 @@ pub const fn tile_name(kind: RoadKind) -> StrHashPair {
         RoadKind::Paved => StrHashPair::from_str("paved_road"),
         RoadKind::Dyke => StrHashPair::from_str("dyke"),
         RoadKind::Canal => water::CANAL,
+        RoadKind::Palisade => StrHashPair::from_str("palisade"),
+        RoadKind::Rampart => StrHashPair::from_str("rampart"),
+        RoadKind::CityWall => StrHashPair::from_str("city_wall"),
     }
 }
 
@@ -101,6 +134,9 @@ pub fn tile_def(kind: RoadKind) -> &'static TileDef {
         RoadKind::Paved => &PAVED_ROAD_TILE_DEF,
         RoadKind::Dyke => &DYKE_TILE_DEF,
         RoadKind::Canal => &CANAL_TILE_DEF,
+        RoadKind::Palisade => &PALISADE_TILE_DEF,
+        RoadKind::Rampart => &RAMPART_TILE_DEF,
+        RoadKind::CityWall => &CITY_WALL_TILE_DEF,
     }
 }
 
@@ -114,14 +150,16 @@ pub fn kind(tile_def: &'static TileDef) -> RoadKind {
         RoadKind::Dyke
     } else if tile_def.hash == CANAL_TILE_DEF.hash {
         RoadKind::Canal
+    } else if let Some(kind) = try_kind(tile_def) {
+        kind
     } else {
         unimplemented!()
     }
 }
 
-// The road kind of a tile def drawn as a segment (a road, a dyke, a canal), None for any other.
+// The road kind of a tile def drawn as a segment (a road, a dyke, a canal, a wall), None for any other.
 pub fn try_kind(tile_def: &TileDef) -> Option<RoadKind> {
-    if !tile_def.is(TileKind::Terrain) {
+    if !tile_def.is(TileKind::Terrain | TileKind::Wall) {
         return None;
     }
     RoadKind::ALL.into_iter().find(|kind| tile_name(*kind).hash == tile_def.hash)
@@ -144,6 +182,16 @@ static DYKE_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
         .find_tile_def_by_hash(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.hash, tile_name(RoadKind::Dyke).hash)
         .expect("Failed to find the dyke tile!")
 });
+
+fn wall_tile_def(kind: RoadKind) -> &'static TileDef {
+    TileSets::get()
+        .find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_WALLS_CATEGORY.hash, tile_name(kind).hash)
+        .unwrap_or_else(|| panic!("Failed to find the {kind:?} wall tile!"))
+}
+
+static PALISADE_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| wall_tile_def(RoadKind::Palisade));
+static RAMPART_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| wall_tile_def(RoadKind::Rampart));
+static CITY_WALL_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| wall_tile_def(RoadKind::CityWall));
 
 static CANAL_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
     TileSets::get()
@@ -184,7 +232,20 @@ fn can_place_road(tile_map: &TileMap, cell: Cell, kind: RoadKind) -> bool {
     match kind {
         RoadKind::Canal if elevation.is_raised(cell) => return false,
         RoadKind::Dyke if elevation.shape(cell).is_ramp() => return false,
+        _ if kind.is_wall() && elevation.shape(cell).is_ramp() => return false,
         _ => {}
+    }
+
+    // A wall goes on open land, or over a wall piece already there (a stronger tier replaces it).
+    if kind.is_wall() {
+        if let Some(object) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects)
+            && wall::tier_of(object.tile_def()).is_none()
+        {
+            return false;
+        }
+        return tile_map
+            .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+            .is_some_and(|tile| tile.path_kind() == PathNodeKind::EmptyLand);
     }
 
     // A canal goes on open land with nothing on it (not a road, a dyke, a lot or a field), or
@@ -198,8 +259,16 @@ fn can_place_road(tile_map: &TileMap, cell: Cell, kind: RoadKind) -> bool {
             .is_some_and(|tile| water::is_canal_def(tile.tile_def()) || tile.path_kind() == PathNodeKind::EmptyLand);
     }
 
+    // A road runs through a gatehouse (a road lies under it already, tile::wall), never over a wall:
+    // only a gatehouse opens one.
+    if matches!(kind, RoadKind::Dirt | RoadKind::Paved) && wall::is_gatehouse(tile_map, cell) {
+        return true;
+    }
+
     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects)
-        && tile.kind().intersects(TileKind::Building | TileKind::Blocker | TileKind::Rocks | TileKind::Vegetation)
+        && tile
+            .kind()
+            .intersects(TileKind::Building | TileKind::Blocker | TileKind::Rocks | TileKind::Vegetation | TileKind::Wall)
     {
         return false;
     }
@@ -320,7 +389,8 @@ pub fn build_segment(tile_map: &TileMap, start: Cell, end: Cell, kind: RoadKind)
 
 // The flags a segment's preview sets on its cells, one per kind (the renderer draws that kind's
 // piece over them).
-pub const ROAD_PLACEMENT_FLAGS: TileFlags = ROAD_PREVIEW_FLAGS.union(TileFlags::CanalPlacement);
+pub const ROAD_PLACEMENT_FLAGS: TileFlags =
+    ROAD_PREVIEW_FLAGS.union(TileFlags::CanalPlacement).union(wall::WALL_PREVIEW_FLAGS);
 
 // The previews of roads and dykes, which roads' junctions join (a canal's doesn't).
 const ROAD_PREVIEW_FLAGS: TileFlags =
@@ -332,6 +402,9 @@ pub const fn placement_flag(kind: RoadKind) -> TileFlags {
         RoadKind::Paved => TileFlags::PavedRoadPlacement,
         RoadKind::Dyke => TileFlags::DykePlacement,
         RoadKind::Canal => TileFlags::CanalPlacement,
+        RoadKind::Palisade => TileFlags::PalisadePlacement,
+        RoadKind::Rampart => TileFlags::RampartPlacement,
+        RoadKind::CityWall => TileFlags::CityWallPlacement,
     }
 }
 
@@ -388,9 +461,15 @@ const SOUTH_BIT: usize = 1 << 1;
 const EAST_BIT: usize = 1 << 2;
 const NORTH_BIT: usize = 1 << 3;
 
+// The road under a gatehouse runs through its passage both ways, road beyond it or not
+// (wall::gate_passage); the roads beside it join it as they join any road.
 pub fn junction_mask(tile_map: &TileMap, cell: Cell) -> usize {
     let elevation = tile_map.elevation();
-    mask_of(cell, |neighbour| is_road(tile_map, neighbour) && elevation.joins(cell, neighbour))
+    let passage = wall::gate_passage(tile_map, cell);
+    mask_of(cell, |neighbour| {
+        (is_road(tile_map, neighbour) || passage.is_some_and(|passage| passage.contains(&neighbour)))
+            && elevation.joins(cell, neighbour)
+    })
 }
 
 // A dyke's pieces join other dykes only: its embankment stands at full height where it joins, so
@@ -401,12 +480,18 @@ pub fn dyke_junction_mask(tile_map: &TileMap, cell: Cell) -> usize {
     mask_of(cell, |neighbour| is_dyke_or_placing_one(tile_map, neighbour) && elevation.joins(cell, neighbour))
 }
 
-// The junction mask of a road tile of `kind` at the cell.
+// The junction mask of a road tile of `kind` at the cell (a wall piece's, for a wall).
 pub fn junction_mask_for(tile_map: &TileMap, cell: Cell, kind: RoadKind) -> usize {
-    if kind == RoadKind::Dyke { dyke_junction_mask(tile_map, cell) } else { junction_mask(tile_map, cell) }
+    if kind.is_wall() {
+        wall::junction_mask(tile_map, cell)
+    } else if kind == RoadKind::Dyke {
+        dyke_junction_mask(tile_map, cell)
+    } else {
+        junction_mask(tile_map, cell)
+    }
 }
 
-fn mask_of(cell: Cell, joins: impl Fn(Cell) -> bool) -> usize {
+pub(crate) fn mask_of(cell: Cell, joins: impl Fn(Cell) -> bool) -> usize {
     let mut mask = 0;
     if joins(Cell::new(cell.x + 1, cell.y)) {
         mask |= NORTH_BIT;

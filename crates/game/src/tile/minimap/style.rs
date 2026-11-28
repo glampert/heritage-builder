@@ -170,6 +170,8 @@ pub struct SectorColors {
     pub culture_and_religion: HexColor,
     #[serde(rename = "TradeAndEconomy")]
     pub trade_and_economy: HexColor,
+    #[serde(rename = "Defence")]
+    pub defence: HexColor,
     #[serde(rename = "Beautification")]
     pub beautification: HexColor,
     #[serde(rename = "None")]
@@ -186,6 +188,7 @@ impl SectorColors {
             TileSector::Infrastructure => self.infrastructure,
             TileSector::CultureAndReligion => self.culture_and_religion,
             TileSector::TradeAndEconomy => self.trade_and_economy,
+            TileSector::Defence => self.defence,
             TileSector::Beautification => self.beautification,
             TileSector::None | TileSector::Roads => self.none,
         }
@@ -360,6 +363,7 @@ impl Default for SectorColors {
             infrastructure: HexColor::rgb(0x8d8a83),
             culture_and_religion: HexColor::rgb(0x9a5aa8),
             trade_and_economy: HexColor::rgb(0xe0a93a),
+            defence: HexColor::rgb(0x7a6a5a),
             beautification: HexColor::rgb(0x6fbf7a),
             none: HexColor::rgb(0xd9d3c4),
         }
@@ -377,6 +381,7 @@ impl SectorColors {
             infrastructure: HexColor::rgb(0x7d8794),
             culture_and_religion: HexColor::rgb(0x9b59c2),
             trade_and_economy: HexColor::rgb(0xf08c2a),
+            defence: HexColor::rgb(0xa08a74),
             beautification: HexColor::rgb(0x3dbf8a),
             none: HexColor::rgb(0xd9d3c4),
         }

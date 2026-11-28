@@ -58,6 +58,7 @@ use crate::{
         sets::{
             OBJECTS_BUILDINGS_CATEGORY,
             OBJECTS_FIELDS_CATEGORY,
+            OBJECTS_WALLS_CATEGORY,
             PresetTiles,
             TERRAIN_LAND_CATEGORY,
             TERRAIN_WATER_CATEGORY,
@@ -136,6 +137,9 @@ enum TilePaletteMainButtonDef {
     #[strum(props(Label = "trade_and_economy", Glyph = "trade", Title = "sector.trade", DisabledIfEmpty = true))]
     TradeAndEconomy,
 
+    #[strum(props(Label = "defence", Glyph = "defence", Title = "sector.defence", DisabledIfEmpty = true))]
+    Defence,
+
     #[strum(props(
         Label = "beautification",
         Glyph = "beauty",
@@ -185,9 +189,11 @@ impl TilePaletteMainButtonDef {
         let button_name = self.name();
 
         TileSets::get().for_each_category(|_, category| {
-            // Buildings, land and roads, a farmstead's fields and the canal (crate::farms).
+            // Buildings, land and roads, a farmstead's fields and the canal (crate::farms), the
+            // walls (tile::wall).
             if category.hash == OBJECTS_BUILDINGS_CATEGORY.hash
                 || category.hash == OBJECTS_FIELDS_CATEGORY.hash
+                || category.hash == OBJECTS_WALLS_CATEGORY.hash
                 || category.hash == TERRAIN_LAND_CATEGORY.hash
                 || category.hash == TERRAIN_WATER_CATEGORY.hash
             {

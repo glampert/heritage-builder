@@ -176,6 +176,138 @@
       "tile": "fire_watch",
       "variation": ""
     },
+    "assets/tiles/objects/buildings/gatehouse/city_wall_ew/gatehouse.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 69,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "gatehouse",
+      "hash": "9d45ad6252fde9ab",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        552
+      ],
+      "tile": "gatehouse",
+      "variation": "city_wall_ew"
+    },
+    "assets/tiles/objects/buildings/gatehouse/city_wall_ns/gatehouse.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 69,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "gatehouse",
+      "hash": "6d5da59e3d7ca48a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        552
+      ],
+      "tile": "gatehouse",
+      "variation": "city_wall_ns"
+    },
+    "assets/tiles/objects/buildings/gatehouse/palisade_ew/gatehouse.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 69,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "gatehouse",
+      "hash": "fb1639d532f72865",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        552
+      ],
+      "tile": "gatehouse",
+      "variation": "palisade_ew"
+    },
+    "assets/tiles/objects/buildings/gatehouse/palisade_ns/gatehouse.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 69,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "gatehouse",
+      "hash": "f1c54f9e76e07ed5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        552
+      ],
+      "tile": "gatehouse",
+      "variation": "palisade_ns"
+    },
+    "assets/tiles/objects/buildings/gatehouse/rampart_ew/gatehouse.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 69,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "gatehouse",
+      "hash": "dff0de597cf468b4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        552
+      ],
+      "tile": "gatehouse",
+      "variation": "rampart_ew"
+    },
+    "assets/tiles/objects/buildings/gatehouse/rampart_ns/gatehouse.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 69,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "gatehouse",
+      "hash": "1a675e59fefe4e58",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        552
+      ],
+      "tile": "gatehouse",
+      "variation": "rampart_ns"
+    },
     "assets/tiles/objects/buildings/roof_tile_kiln/roof_tile_kiln.png": {
       "category": "buildings",
       "density": 8,
@@ -2110,6 +2242,28 @@
         360
       ],
       "tile": "sickness_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/wall_cracks/wall_cracks.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 39,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "wall_cracks",
+      "hash": "9b37ee7703eee867",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        312
+      ],
+      "tile": "wall_cracks",
       "variation": ""
     },
     "assets/tiles/objects/rocks/rubble/0000/rubble.png": {
@@ -7105,6 +7259,1062 @@
       ],
       "tile": "trader",
       "variation": "walk_s"
+    },
+    "assets/tiles/objects/walls/city_wall/0000/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "a19d5893d07bf3cd",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "0000"
+    },
+    "assets/tiles/objects/walls/city_wall/0001/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "210c7c92752393a2",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "0001"
+    },
+    "assets/tiles/objects/walls/city_wall/0010/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "7aeac29fd99704ce",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "0010"
+    },
+    "assets/tiles/objects/walls/city_wall/0011/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "85fcef027ec390f1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "0011"
+    },
+    "assets/tiles/objects/walls/city_wall/0100/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "774081e71bd25094",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "0100"
+    },
+    "assets/tiles/objects/walls/city_wall/0101/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "e0de244f2a580342",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "0101"
+    },
+    "assets/tiles/objects/walls/city_wall/0110/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "69a99e3ddfc1ec59",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "0110"
+    },
+    "assets/tiles/objects/walls/city_wall/0111/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "c10a694868cf9803",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "0111"
+    },
+    "assets/tiles/objects/walls/city_wall/1000/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "3d0219226cc973fe",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "1000"
+    },
+    "assets/tiles/objects/walls/city_wall/1001/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "ea267bdc5088d290",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "1001"
+    },
+    "assets/tiles/objects/walls/city_wall/1010/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "e370d4b8b44c25d0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "1010"
+    },
+    "assets/tiles/objects/walls/city_wall/1011/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "30bd30a93feb8899",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "1011"
+    },
+    "assets/tiles/objects/walls/city_wall/1100/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "4a20aff7089711c9",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "1100"
+    },
+    "assets/tiles/objects/walls/city_wall/1101/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "aea7e82f4c60f0b4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "1101"
+    },
+    "assets/tiles/objects/walls/city_wall/1110/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "2e2e0b9494f06499",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "1110"
+    },
+    "assets/tiles/objects/walls/city_wall/1111/city_wall.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 54,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "city_wall",
+      "hash": "a20c7162eb34efd5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        432
+      ],
+      "tile": "city_wall",
+      "variation": "1111"
+    },
+    "assets/tiles/objects/walls/palisade/0000/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "56c48162360f257d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "0000"
+    },
+    "assets/tiles/objects/walls/palisade/0001/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "70af2582ff45fc15",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "0001"
+    },
+    "assets/tiles/objects/walls/palisade/0010/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "5ddf7ef27fc8f0b5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "0010"
+    },
+    "assets/tiles/objects/walls/palisade/0011/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "f777bf97aae77fd1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "0011"
+    },
+    "assets/tiles/objects/walls/palisade/0100/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "df8dcfaa30946a0a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "0100"
+    },
+    "assets/tiles/objects/walls/palisade/0101/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "3318fb0670e2f27e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "0101"
+    },
+    "assets/tiles/objects/walls/palisade/0110/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "95688e8925627a1c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "0110"
+    },
+    "assets/tiles/objects/walls/palisade/0111/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "f7bf406df2440afb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "0111"
+    },
+    "assets/tiles/objects/walls/palisade/1000/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "1f90a00b2f6fdbb8",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "1000"
+    },
+    "assets/tiles/objects/walls/palisade/1001/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "f58dfd499d9de815",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "1001"
+    },
+    "assets/tiles/objects/walls/palisade/1010/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "6505930cb99d0659",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "1010"
+    },
+    "assets/tiles/objects/walls/palisade/1011/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "e6d07c5c411e397f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "1011"
+    },
+    "assets/tiles/objects/walls/palisade/1100/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "53a100203cae87a1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "1100"
+    },
+    "assets/tiles/objects/walls/palisade/1101/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "59f84a81856483db",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "1101"
+    },
+    "assets/tiles/objects/walls/palisade/1110/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "9f00a559b80a8764",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "1110"
+    },
+    "assets/tiles/objects/walls/palisade/1111/palisade.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 47,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "palisade",
+      "hash": "3cfe1726cd3d8c51",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        376
+      ],
+      "tile": "palisade",
+      "variation": "1111"
+    },
+    "assets/tiles/objects/walls/rampart/0000/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "6858f3820f810262",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "0000"
+    },
+    "assets/tiles/objects/walls/rampart/0001/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "04cc9efac3fe6b69",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "0001"
+    },
+    "assets/tiles/objects/walls/rampart/0010/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "858f1df5cdd4367e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "0010"
+    },
+    "assets/tiles/objects/walls/rampart/0011/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "21c49dc51ecc8a17",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "0011"
+    },
+    "assets/tiles/objects/walls/rampart/0100/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "484619f65adecf6f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "0100"
+    },
+    "assets/tiles/objects/walls/rampart/0101/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "25b4ecca4895577b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "0101"
+    },
+    "assets/tiles/objects/walls/rampart/0110/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "4ced0d9b14ea0e38",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "0110"
+    },
+    "assets/tiles/objects/walls/rampart/0111/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "23948c4361af5019",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "0111"
+    },
+    "assets/tiles/objects/walls/rampart/1000/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "07788076d0a8539f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "1000"
+    },
+    "assets/tiles/objects/walls/rampart/1001/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "2d8145370e3d085c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "1001"
+    },
+    "assets/tiles/objects/walls/rampart/1010/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "c3b9fe693a481adc",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "1010"
+    },
+    "assets/tiles/objects/walls/rampart/1011/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "7e58cfa2f2d7858e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "1011"
+    },
+    "assets/tiles/objects/walls/rampart/1100/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "33c2ee8c401cf09d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "1100"
+    },
+    "assets/tiles/objects/walls/rampart/1101/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "fbe4ecb96d857191",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "1101"
+    },
+    "assets/tiles/objects/walls/rampart/1110/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "291861813482e4cf",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "1110"
+    },
+    "assets/tiles/objects/walls/rampart/1111/rampart.png": {
+      "category": "walls",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rampart",
+      "hash": "82223df215013980",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "rampart",
+      "variation": "1111"
     },
     "assets/tiles/terrain/land/dyke/0000/dyke.png": {
       "category": "land",

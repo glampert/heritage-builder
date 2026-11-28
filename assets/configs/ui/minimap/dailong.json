@@ -11,7 +11,7 @@
   "sector_colors": {
     "Housing": "#e7c98b", "FoodAndFarming": "#a9b85a", "IndustryAndResources": "#b8553f",
     "Services": "#5b8fc9", "Infrastructure": "#8d8a83", "CultureAndReligion": "#9a5aa8",
-    "TradeAndEconomy": "#e0a93a", "Beautification": "#6fbf7a", "None": "#d9d3c4"
+    "TradeAndEconomy": "#e0a93a", "Defence": "#7a6a5a", "Beautification": "#6fbf7a", "None": "#d9d3c4"
   },
   "blur_cells": { "water": 0.3, "vegetation": 0.4, "rocks": 0.4, "vacant_lot": 0.15 },
   "max_depth_cells": 6,
@@ -52,7 +52,7 @@
     "sector_colors": {
       "Housing": "#f2c45a", "FoodAndFarming": "#9cc24a", "IndustryAndResources": "#d4463a",
       "Services": "#3f8fe0", "Infrastructure": "#7d8794", "CultureAndReligion": "#9b59c2",
-      "TradeAndEconomy": "#f08c2a", "Beautification": "#3dbf8a", "None": "#d9d3c4"
+      "TradeAndEconomy": "#f08c2a", "Defence": "#a08a74", "Beautification": "#3dbf8a", "None": "#d9d3c4"
     },
     "water_ramp": ["#3d8fd100", "#3d8fd1b0"],
     "water_access": "#2f78c4",

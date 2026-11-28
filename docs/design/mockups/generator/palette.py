@@ -44,6 +44,7 @@ SECTORS = [
     ("culture", "Culture and religion", "Faith, learning and theatre",
      ["shrine", "temple", "festival_square", "theater", "university"]),
     ("trade", "Trade and economy", "Docks for the river and sea routes", ["dock"]),
+    ("defence", "Defence", "Walls and gatehouses", ["palisade", "rampart", "city_wall", "gatehouse"]),
     ("beauty", "Beautification", "Gardens and plazas", ["garden"]),
     None,
     ("undo", "Undo", "", []),
@@ -51,7 +52,7 @@ SECTORS = [
 ]
 
 SHORT = {"clear": "Clear", "food": "Food", "industry": "Industry", "infrastructure": "Civic", "culture": "Culture",
-         "trade": "Trade", "beauty": "Beauty"}
+         "trade": "Trade", "defence": "Defence", "beauty": "Beauty"}
 
 # The game's costs (assets/tiles/objects/tile_set.json) and sizes in tiles.
 COSTS = {
@@ -69,6 +70,8 @@ COSTS = {
     "shrine": (2, {}, "1×1"), "temple": (15, {"Wood": 6, "Bricks": 8, "Roof Tiles": 4}, "3×3"),
     "theater": (15, {"Wood": 8, "Bricks": 6, "Roof Tiles": 4}, "2×2"), "university": (20, {"Wood": 8, "Bricks": 10, "Roof Tiles": 5}, "3×3"),
     "garden": (10, {}, "3×3"), "festival_square": (20, {"Wood": 4, "Bricks": 4}, "3×3"),
+    "palisade": (4, {}, "1×1"), "rampart": (8, {}, "1×1"), "city_wall": (16, {}, "1×1"),
+    "gatehouse": (30, {"Wood": 6}, "1×1"),
 }
 STOCK = {"Wood": 140, "Bricks": 2, "Roof Tiles": 42, "Metal": 0}
 
@@ -151,6 +154,9 @@ def sector_glyph(key, realm):
     if key == "trade":  # a boat with a coin over it
         return [P("M-36,14 Q-30,28 -10,30 H18 Q34,28 38,12 Q20,18 0,18 Q-20,18 -36,14Z"), P("M-4,18 V-10", True, 2.6),
                 P("M-2,-10 Q14,-2 16,14 H-2Z")] + G.coin(-22, -12, 10)
+    if key == "defence":  # a crenellated tower with its gate
+        return [R(-22, -14, 44, 48), *[R(x, -28, 10, 15) for x in (-22, -5, 12)], P("M-8,34 V14 Q0,4 8,14 V34Z", False),
+                R(-4, -6, 8, 10, False)] + G.ground_line(-38, 38)
     if key == "beauty":
         return G.lotus(0, 26, 1.9) + G.waves(-36, 36, 32, 3, 3, 2.6)
     if key == "undo":

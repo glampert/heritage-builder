@@ -1319,6 +1319,98 @@
               ]
             }
           ]
+        },
+        {
+          "name": "gatehouse",
+          "cost": 30,
+          "materials": { "Wood": 6 },
+          "upkeep": 4,
+          "construction": "Basic",
+          "sector": "Defence",
+          "requires_wall": true,
+          "path_kind": "Road | Gate",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 69
+          },
+          "variations": [
+            {
+              "name": "palisade_ns",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "gatehouse"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "palisade_ew",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "gatehouse"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "rampart_ns",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "gatehouse"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "rampart_ew",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "gatehouse"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "city_wall_ns",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "gatehouse"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "city_wall_ew",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "gatehouse"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -4390,6 +4482,30 @@
               ]
             }
           ]
+        },
+        {
+          "name": "wall_cracks",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 39
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "wall_cracks"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -4453,6 +4569,635 @@
                   "frames": [
                     {
                       "name": "rice_field"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "walls",
+      "tile_defs": [
+        {
+          "name": "palisade",
+          "cost": 4,
+          "sector": "Defence",
+          "path_kind": "Wall",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 47
+          },
+          "variations": [
+            {
+              "name": "0000",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0011",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0110",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1001",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1010",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1011",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1100",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1110",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "palisade"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rampart",
+          "cost": 8,
+          "sector": "Defence",
+          "path_kind": "Wall",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 45
+          },
+          "variations": [
+            {
+              "name": "0000",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0011",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0110",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1001",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1010",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1011",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1100",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1110",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rampart"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "city_wall",
+          "cost": 16,
+          "sector": "Defence",
+          "path_kind": "Wall",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 54
+          },
+          "variations": [
+            {
+              "name": "0000",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0011",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0110",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1001",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1010",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1011",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1100",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1110",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "city_wall"
                     }
                   ]
                 }

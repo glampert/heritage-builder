@@ -23,6 +23,7 @@ use strum::EnumProperty;
 use crate::{
     building::construction::ConstructionMode,
     cheats,
+    defence,
     farms,
     floods,
     save_context::{Load, Save},
@@ -33,11 +34,12 @@ use crate::{
         TileKind,
         TileMapLayerKind,
         elevation::{self, HeightTool},
-        placement::{TilePlacementErrReason, TilePlacementOp},
+        placement::{self, TilePlacementErrReason, TilePlacementOp},
         rendering::TileMapRenderFlags,
         road::{self, RoadKind, RoadSegment},
         rubble,
         sets::{PresetTiles, TileDef, TileDefHandle, TileSets},
+        wall,
         water,
     },
     ui_context::GameUiContext,
@@ -585,19 +587,55 @@ impl TilePlacement {
         let mut spawner = Spawner::new(context);
         spawner.set_subtract_tile_cost(true);
 
-        // Place tiles:
+        // Place tiles. A wall drawn over a piece of a weaker tier replaces it (nothing refunded;
+        // undo puts it back), and over one as strong or stronger leaves it, uncharged (tile::wall).
+        // A road through a gatehouse leaves the road under it as it is.
+        let wall_tier = segment.kind.wall_tier();
+        let mut placed: Vec<Cell> = Vec::with_capacity(segment.path.len());
+        let mut replaced: Vec<Cell> = Vec::new();
         for cell in &segment.path {
+            if wall_tier.is_none() && wall::is_gatehouse(context.tile_map(), *cell) {
+                continue;
+            }
+            if let Some(tier) = wall_tier
+                && let Some(existing) = wall::tier_at(context.tile_map(), *cell)
+            {
+                if existing >= tier {
+                    continue;
+                }
+                replaced.push(*cell);
+            }
+            placed.push(*cell);
+        }
+        let replaced = if undo_redo {
+            undo_redo::Replaced::capture(&replaced, EditedLayer::Objects, context.tile_map(), context.world())
+        } else {
+            undo_redo::Replaced::default()
+        };
+        for cell in &placed {
+            if wall_tier.is_some()
+                && let Some(tile) = context.tile_map().try_tile_from_layer(*cell, TileMapLayerKind::Objects)
+            {
+                spawner.despawn_tile(tile);
+            }
             spawner.try_spawn_tile_with_def(*cell, segment.tile_def());
         }
 
         // Update road junctions (each junction is a different variation of the same tile), or a
-        // canal's shores and those of the water beside it.
+        // canal's shores and those of the water beside it, or the wall's pieces.
         for cell in &segment.path {
             if segment.kind == RoadKind::Canal {
                 water::update_transitions(context.tile_map_mut(), *cell);
+            } else if segment.kind.is_wall() {
+                wall::update_variations(context.tile_map_mut(), *cell);
             } else {
                 road::update_junctions(context.tile_map_mut(), *cell);
             }
+        }
+
+        // A wall drawn: its records follow (crate::defence).
+        if segment.kind.is_wall() {
+            defence::walls_changed(context);
         }
 
         // A canal or a dyke laid: what water reaches may change (crate::farms::irrigation).
@@ -609,13 +647,8 @@ impl TilePlacement {
         context.floods_mut().sync_dykes(context.tile_map());
 
         if undo_redo {
-            undo_redo::record(
-                EditAction::PlacedTiles,
-                &segment.path,
-                EditedLayer::Terrain,
-                context.tile_map(),
-                context.world(),
-            );
+            let layers = if segment.kind.is_wall() { EditedLayer::Objects } else { EditedLayer::Terrain };
+            undo_redo::record_placement(&placed, layers, context.tile_map(), context.world(), replaced);
         }
 
         Ok(())
@@ -848,6 +881,17 @@ impl TilePlacement {
             };
         }
 
+        // A gatehouse in a wall (tile::wall): the piece it's placed on makes way for it, and a road
+        // is laid under it where none runs.
+        let opening = if tile_def.requires_wall {
+            match Self::open_wall_for_gatehouse(context, target_cell, tile_def, subtract_tile_cost, undo_redo) {
+                Ok(opening) => opening,
+                Err(failed) => return failed,
+            }
+        } else {
+            WallOpening::default()
+        };
+
         let mut spawner = Spawner::new(context);
         spawner.set_subtract_tile_cost(subtract_tile_cost);
         spawner.set_construction_mode(construction_mode);
@@ -870,11 +914,26 @@ impl TilePlacement {
                 // A sluice gate faces the dyke beside it.
                 farms::face_dyke(context.tile_map_mut(), target_cell);
             }
+            SpawnerResult::Building(_) if tile_def.requires_wall => {
+                // A gatehouse turns to its walls and they join it, the road under it runs through
+                // its passage and the roads beside it join it, and the walls' records follow.
+                wall::update_variations(context.tile_map_mut(), target_cell);
+                road::update_junctions(context.tile_map_mut(), target_cell);
+                defence::walls_changed(context);
+            }
+            SpawnerResult::Tile(tile) if tile.is(TileKind::Wall) => {
+                // A wall piece joins those beside it (undo, the editor), and its record follows.
+                wall::update_variations(context.tile_map_mut(), target_cell);
+                defence::walls_changed(context);
+            }
             SpawnerResult::Tile(tile) if rubble::is_rubble_def(tile.tile_def()) => {
                 // Rubble joins the pile around it (an undone clear, the editor).
                 rubble::update_variations(context.tile_map_mut(), CellRange::new(target_cell, target_cell));
             }
             SpawnerResult::Err(err) => {
+                // A gatehouse that couldn't be placed after all gives its wall back.
+                opening.close(context, target_cell);
+
                 let obstructing_tile_def =
                     { if let TilePlacementErrReason::Obstruction(tile_def) = err.reason { Some(tile_def) } else { None } };
 
@@ -898,14 +957,71 @@ impl TilePlacement {
                 farms::claim_fields(context);
             }
             if undo_redo {
-                let layers = if tile_def.is(TileKind::Terrain) { EditedLayer::Terrain } else { EditedLayer::Objects };
-                undo_redo::record(EditAction::PlacedTiles, &[target_cell], layers, context.tile_map(), context.world());
+                let mut layers = if tile_def.is(TileKind::Terrain) { EditedLayer::Terrain } else { EditedLayer::Objects };
+                if opening.laid_road() {
+                    layers |= EditedLayer::Terrain; // The road under a gatehouse, undone with it.
+                }
+                undo_redo::record_placement(&[target_cell], layers, context.tile_map(), context.world(), opening.replaced);
             }
             return PlaceOrClearResult::PlacedTile(tile_def);
         }
 
         // SpawnerResult::Err is already handled in the match above.
         unreachable!();
+    }
+
+    // Makes way for a gatehouse at `cell` (tile::wall), once its placement is checked: the wall piece
+    // there goes (nothing refunded; undo puts it back), and a road is laid under it where none runs
+    // (charged as roads are), so it opens onto the roads either side of the wall. Err where the
+    // gatehouse can't stand there or the road can't be paid for, with nothing changed.
+    fn open_wall_for_gatehouse(
+        context: &SimContextMut,
+        cell: Cell,
+        tile_def: &'static TileDef,
+        subtract_tile_cost: bool,
+        undo_redo: bool,
+    ) -> Result<WallOpening, PlaceOrClearResult> {
+        let failed = |err: &placement::TilePlacementErr| PlaceOrClearResult::Failed {
+            placement_attempt_tile_def: Some(tile_def),
+            obstructing_tile_def: if let TilePlacementErrReason::Obstruction(def) = err.reason { Some(def) } else { None },
+            message: err.message.clone(),
+        };
+
+        let tile_map = context.tile_map();
+        placement::internal::is_placement_on_terrain_valid(tile_map.layers(), cell, tile_def)
+            .and_then(|()| {
+                placement::internal::is_placement_on_heights_valid(tile_map.layers(), tile_map.elevation(), cell, tile_def)
+            })
+            .map_err(|err| failed(&err))?;
+
+        let mut opening = WallOpening::default();
+        let road_kind = wall::gate_road(tile_map, cell);
+
+        if let Some(piece) = tile_map
+            .try_tile_from_layer(cell, TileMapLayerKind::Objects)
+            .filter(|tile| wall::tier_of(tile.tile_def()).is_some())
+        {
+            if undo_redo {
+                opening.replaced = undo_redo::Replaced::capture(&[cell], EditedLayer::Objects, tile_map, context.world());
+            }
+            opening.piece = Some((piece.tile_def(), piece.variation_index(), piece.flags()));
+            Spawner::new(context).despawn_tile(piece);
+        }
+
+        if let Some(ground) = context.tile_map().try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+            && !ground.path_kind().is_road()
+        {
+            let ground = (ground.tile_def(), ground.variation_index());
+            let mut spawner = Spawner::new(context);
+            spawner.set_subtract_tile_cost(subtract_tile_cost);
+            if let SpawnerResult::Err(err) = spawner.try_spawn_tile_with_def(cell, road::tile_def(road_kind)) {
+                opening.close(context, cell);
+                return Err(failed(&err));
+            }
+            opening.ground = Some(ground);
+        }
+
+        Ok(opening)
     }
 
     // Lays `tile_def` on each of `cells` that can take it, as the area tool does (a farmstead's
@@ -939,7 +1055,7 @@ impl TilePlacement {
         let tile_def = tile.tile_def();
 
         let is_terrain = tile.is(TileKind::Terrain);
-        let is_road = tile_def.is_road();
+        let is_road = is_terrain && tile_def.is_road(); // Not a gatehouse, whose path kind is a road's.
         let is_vacant_lot = tile_def.is_vacant_lot();
         let is_canal = water::is_canal_def(tile_def);
         let is_rubble = rubble::is_rubble_def(tile_def);
@@ -998,6 +1114,17 @@ impl TilePlacement {
                 farms::irrigation::network_changed();
             }
 
+            // A wall piece or a gatehouse cleared: the pieces beside it close up, and the walls'
+            // records follow (crate::defence). A gatehouse leaves the road under it, a road through
+            // the gap.
+            if tile_def.is(TileKind::Wall) || tile_def.requires_wall {
+                wall::update_variations(context.tile_map_mut(), target_cell);
+                if tile_def.requires_wall {
+                    road::update_junctions(context.tile_map_mut(), target_cell);
+                }
+                defence::walls_changed(context);
+            }
+
             if is_rubble {
                 // The rest of the pile closes over the gap, and the fire or collapse is dealt with.
                 rubble::update_variations(context.tile_map_mut(), CellRange::new(target_cell, target_cell));
@@ -1027,6 +1154,50 @@ impl TilePlacement {
         let is_vacant_lot = tile_def.is_vacant_lot();
 
         !is_terrain || is_road || is_vacant_lot || water::is_canal_def(tile_def)
+    }
+}
+
+// What a gatehouse placed in a wall changed to stand there (TilePlacement::open_wall_for_gatehouse):
+// the wall piece it took the place of and the ground the road under it was laid over, to put back
+// if it can't be placed after all, and the piece for undo.
+#[derive(Default)]
+struct WallOpening {
+    piece: Option<(&'static TileDef, usize, TileFlags)>, // The piece's def, variation and flags.
+    ground: Option<(&'static TileDef, usize)>,           // The ground's def and variation.
+    replaced: undo_redo::Replaced,
+}
+
+impl WallOpening {
+    #[inline]
+    fn laid_road(&self) -> bool {
+        self.ground.is_some()
+    }
+
+    // Puts the cell back as it was: the road laid goes (refunded) and the piece comes back, its
+    // record and condition kept, as they were never synced without it.
+    fn close(&self, context: &SimContextMut, cell: Cell) {
+        if let Some((ground_def, ground_variation)) = self.ground {
+            let mut spawner = Spawner::new(context);
+            spawner.set_restore_tile_cost(true);
+            if let Some(road) = context.tile_map().try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
+                spawner.despawn_tile(road);
+            }
+            spawner.set_restore_tile_cost(false);
+            spawner.try_spawn_tile_with_def(cell, ground_def);
+            if let Some(ground) = context.tile_map_mut().try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {
+                ground.set_variation_index(ground_variation);
+            }
+            road::update_junctions(context.tile_map_mut(), cell);
+        }
+        if let Some((piece_def, piece_variation, piece_flags)) = self.piece {
+            Spawner::new(context).try_spawn_tile_with_def(cell, piece_def);
+            if let Some(piece) = context.tile_map_mut().try_tile_from_layer_mut(cell, TileMapLayerKind::Objects) {
+                piece.set_variation_index(piece_variation);
+            }
+            if !piece_flags.is_empty() {
+                context.tile_map_mut().set_tile_flags(cell, TileKind::Wall, piece_flags, true);
+            }
+        }
     }
 }
 

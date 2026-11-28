@@ -221,6 +221,51 @@ fn canal_section(context: &SimContext, tile: &Tile) -> Option<Section> {
     })
 }
 
+// A wall piece (crate::defence, tile::wall): its condition against its tier's strength, and when a
+// builder last mended it.
+pub(super) fn read_wall(context: &SimContext, tile: &Tile) -> InspectReport {
+    let cell = tile.base_cell();
+    let rules = &crate::config::GameConfigs::get().sim.defence;
+    let mut sections = Vec::new();
+    if let Some(wall) = context.defence().wall_at(cell) {
+        let mended = match wall.repaired {
+            Some(month) => {
+                let ago = crate::farms::current_month(context).saturating_sub(month);
+                if ago == 0 { t("wall.mended_this_month") } else { tc("wall.mended_ago", i64::from(ago), &[]) }
+            }
+            None => t("wall.never_mended"),
+        };
+        sections.push(Section::Values {
+            title: t("wall.title"),
+            note: Some(t("wall.note")),
+            rows: vec![
+                ValueRow {
+                    label: t("wall.condition"),
+                    value: tf("wall.condition_value", &[
+                        ("condition", &(wall.condition.round() as i64).to_string()),
+                        ("strength", &(wall.strength(rules).round() as i64).to_string()),
+                    ]),
+                    warn: wall.is_damaged(rules),
+                },
+                ValueRow { label: t("wall.builders"), value: mended, warn: false },
+            ],
+        });
+    }
+    sections.extend(description(tile));
+    sections.push(clearing(tile, false));
+    InspectReport {
+        target: InspectTarget::Terrain { cell },
+        panel: PanelKind::Terrain,
+        icon: InspectIcon::Sprite,
+        name: building::sentence_case(&tile.name().replace('_', " ")),
+        subtitle: format!("{} · {}", t("kind.wall"), size_text(tile)),
+        status: None,
+        sections,
+        actions: vec![Action::new(ActionKind::Clear, "action.clear")],
+        wide: false,
+    }
+}
+
 pub(super) fn read_terrain(context: &SimContext, tile: &Tile) -> InspectReport {
     let def = tile.tile_def();
     let is_canal = crate::tile::water::is_canal_def(def);

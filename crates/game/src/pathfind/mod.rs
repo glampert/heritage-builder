@@ -819,7 +819,8 @@ impl Graph {
             | TileKind::Blocker.bits()
             | TileKind::Rocks.bits()
             | TileKind::Vegetation.bits()
-            | TileKind::Field.bits(),
+            | TileKind::Field.bits()
+            | TileKind::Wall.bits(),
     );
 
     #[inline]
@@ -1763,6 +1764,10 @@ impl Search {
 pub fn find_nearest_road_link(graph: &Graph, start_cells: CellRange) -> Option<Cell> {
     let mut found = None;
     for_each_surrounding_cell(start_cells, |cell| {
+        // Never a cell of its own: a gatehouse stands on a road (tile::wall).
+        if start_cells.contains(cell) {
+            return true;
+        }
         let inside = Cell::new(
             cell.x.clamp(start_cells.start.x, start_cells.end.x),
             cell.y.clamp(start_cells.start.y, start_cells.end.y),

@@ -1,0 +1,479 @@
+{
+  "realm": "shared",
+  "palette": "viet",
+  "density": 8,
+  "notes": "Defence art (docs/plans/defence.md, Phase 1): the walls in three tiers, drawn like roads in 1x1 pieces anchored as buildings, the gatehouse where a road crosses one, and the cracks a damaged piece shows.",
+  "entries": [
+    {
+      "tile": "palisade",
+      "category": "walls",
+      "recipe": "wall_piece",
+      "params": {
+        "tier": "palisade"
+      },
+      "tile_set": {
+        "cost": 4,
+        "sector": "Defence",
+        "path_kind": "Wall"
+      },
+      "variations": [
+        {
+          "name": "0000",
+          "seed": 1,
+          "params": {
+            "mask": "0000"
+          }
+        },
+        {
+          "name": "0001",
+          "seed": 2,
+          "params": {
+            "mask": "0001"
+          }
+        },
+        {
+          "name": "0010",
+          "seed": 3,
+          "params": {
+            "mask": "0010"
+          }
+        },
+        {
+          "name": "0011",
+          "seed": 4,
+          "params": {
+            "mask": "0011"
+          }
+        },
+        {
+          "name": "0100",
+          "seed": 5,
+          "params": {
+            "mask": "0100"
+          }
+        },
+        {
+          "name": "0101",
+          "seed": 6,
+          "params": {
+            "mask": "0101"
+          }
+        },
+        {
+          "name": "0110",
+          "seed": 7,
+          "params": {
+            "mask": "0110"
+          }
+        },
+        {
+          "name": "0111",
+          "seed": 8,
+          "params": {
+            "mask": "0111"
+          }
+        },
+        {
+          "name": "1000",
+          "seed": 9,
+          "params": {
+            "mask": "1000"
+          }
+        },
+        {
+          "name": "1001",
+          "seed": 10,
+          "params": {
+            "mask": "1001"
+          }
+        },
+        {
+          "name": "1010",
+          "seed": 11,
+          "params": {
+            "mask": "1010"
+          }
+        },
+        {
+          "name": "1011",
+          "seed": 12,
+          "params": {
+            "mask": "1011"
+          }
+        },
+        {
+          "name": "1100",
+          "seed": 13,
+          "params": {
+            "mask": "1100"
+          }
+        },
+        {
+          "name": "1101",
+          "seed": 14,
+          "params": {
+            "mask": "1101"
+          }
+        },
+        {
+          "name": "1110",
+          "seed": 15,
+          "params": {
+            "mask": "1110"
+          }
+        },
+        {
+          "name": "1111",
+          "seed": 16,
+          "params": {
+            "mask": "1111"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Defence Phase 1: the weakest wall, sharpened stakes on two rails, drawn with the road tool (RoadKind::Palisade). Its variations are its junction mask (north, east, south, west), in mask order: the variation index is the mask (tile/wall.rs)."
+    },
+    {
+      "tile": "rampart",
+      "category": "walls",
+      "recipe": "wall_piece",
+      "params": {
+        "tier": "rampart"
+      },
+      "tile_set": {
+        "cost": 8,
+        "sector": "Defence",
+        "path_kind": "Wall"
+      },
+      "variations": [
+        {
+          "name": "0000",
+          "seed": 1,
+          "params": {
+            "mask": "0000"
+          }
+        },
+        {
+          "name": "0001",
+          "seed": 2,
+          "params": {
+            "mask": "0001"
+          }
+        },
+        {
+          "name": "0010",
+          "seed": 3,
+          "params": {
+            "mask": "0010"
+          }
+        },
+        {
+          "name": "0011",
+          "seed": 4,
+          "params": {
+            "mask": "0011"
+          }
+        },
+        {
+          "name": "0100",
+          "seed": 5,
+          "params": {
+            "mask": "0100"
+          }
+        },
+        {
+          "name": "0101",
+          "seed": 6,
+          "params": {
+            "mask": "0101"
+          }
+        },
+        {
+          "name": "0110",
+          "seed": 7,
+          "params": {
+            "mask": "0110"
+          }
+        },
+        {
+          "name": "0111",
+          "seed": 8,
+          "params": {
+            "mask": "0111"
+          }
+        },
+        {
+          "name": "1000",
+          "seed": 9,
+          "params": {
+            "mask": "1000"
+          }
+        },
+        {
+          "name": "1001",
+          "seed": 10,
+          "params": {
+            "mask": "1001"
+          }
+        },
+        {
+          "name": "1010",
+          "seed": 11,
+          "params": {
+            "mask": "1010"
+          }
+        },
+        {
+          "name": "1011",
+          "seed": 12,
+          "params": {
+            "mask": "1011"
+          }
+        },
+        {
+          "name": "1100",
+          "seed": 13,
+          "params": {
+            "mask": "1100"
+          }
+        },
+        {
+          "name": "1101",
+          "seed": 14,
+          "params": {
+            "mask": "1101"
+          }
+        },
+        {
+          "name": "1110",
+          "seed": 15,
+          "params": {
+            "mask": "1110"
+          }
+        },
+        {
+          "name": "1111",
+          "seed": 16,
+          "params": {
+            "mask": "1111"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Defence Phase 1: an earthen bank with a row of stakes along its crest (RoadKind::Rampart); variations as the palisade's."
+    },
+    {
+      "tile": "city_wall",
+      "category": "walls",
+      "recipe": "wall_piece",
+      "params": {
+        "tier": "city_wall"
+      },
+      "tile_set": {
+        "cost": 16,
+        "sector": "Defence",
+        "path_kind": "Wall"
+      },
+      "variations": [
+        {
+          "name": "0000",
+          "seed": 1,
+          "params": {
+            "mask": "0000"
+          }
+        },
+        {
+          "name": "0001",
+          "seed": 2,
+          "params": {
+            "mask": "0001"
+          }
+        },
+        {
+          "name": "0010",
+          "seed": 3,
+          "params": {
+            "mask": "0010"
+          }
+        },
+        {
+          "name": "0011",
+          "seed": 4,
+          "params": {
+            "mask": "0011"
+          }
+        },
+        {
+          "name": "0100",
+          "seed": 5,
+          "params": {
+            "mask": "0100"
+          }
+        },
+        {
+          "name": "0101",
+          "seed": 6,
+          "params": {
+            "mask": "0101"
+          }
+        },
+        {
+          "name": "0110",
+          "seed": 7,
+          "params": {
+            "mask": "0110"
+          }
+        },
+        {
+          "name": "0111",
+          "seed": 8,
+          "params": {
+            "mask": "0111"
+          }
+        },
+        {
+          "name": "1000",
+          "seed": 9,
+          "params": {
+            "mask": "1000"
+          }
+        },
+        {
+          "name": "1001",
+          "seed": 10,
+          "params": {
+            "mask": "1001"
+          }
+        },
+        {
+          "name": "1010",
+          "seed": 11,
+          "params": {
+            "mask": "1010"
+          }
+        },
+        {
+          "name": "1011",
+          "seed": 12,
+          "params": {
+            "mask": "1011"
+          }
+        },
+        {
+          "name": "1100",
+          "seed": 13,
+          "params": {
+            "mask": "1100"
+          }
+        },
+        {
+          "name": "1101",
+          "seed": 14,
+          "params": {
+            "mask": "1101"
+          }
+        },
+        {
+          "name": "1110",
+          "seed": 15,
+          "params": {
+            "mask": "1110"
+          }
+        },
+        {
+          "name": "1111",
+          "seed": 16,
+          "params": {
+            "mask": "1111"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Defence Phase 1: brick on a stone plinth under a stone coping, with merlons (RoadKind::CityWall); variations as the palisade's."
+    },
+    {
+      "tile": "gatehouse",
+      "recipe": "gatehouse",
+      "tile_set": {
+        "cost": 30,
+        "materials": {
+          "Wood": 6
+        },
+        "upkeep": 4,
+        "construction": "Basic",
+        "sector": "Defence",
+        "requires_wall": true,
+        "path_kind": "Road | Gate"
+      },
+      "variations": [
+        {
+          "name": "palisade_ns",
+          "seed": 1,
+          "params": {
+            "tier": "palisade",
+            "axis": "ns"
+          }
+        },
+        {
+          "name": "palisade_ew",
+          "seed": 2,
+          "params": {
+            "tier": "palisade",
+            "axis": "ew"
+          }
+        },
+        {
+          "name": "rampart_ns",
+          "seed": 3,
+          "params": {
+            "tier": "rampart",
+            "axis": "ns"
+          }
+        },
+        {
+          "name": "rampart_ew",
+          "seed": 4,
+          "params": {
+            "tier": "rampart",
+            "axis": "ew"
+          }
+        },
+        {
+          "name": "city_wall_ns",
+          "seed": 5,
+          "params": {
+            "tier": "city_wall",
+            "axis": "ns"
+          }
+        },
+        {
+          "name": "city_wall_ew",
+          "seed": 6,
+          "params": {
+            "tier": "city_wall",
+            "axis": "ew"
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Defence Phase 1: where a road crosses a wall (service config 'Gatehouse'): placed on a road cell with a wall piece on both sides along one axis (requires_wall). Its variation is its walls' tier and axis, <tier>_ns (walls north and south) or <tier>_ew, picked by name as it's placed (tile/wall.rs)."
+    },
+    {
+      "tile": "wall_cracks",
+      "category": "overlays",
+      "recipe": "wall_cracks",
+      "validate": {
+        "ground": false
+      },
+      "notes": "Drawn over a wall piece below half its strength (TileFlags::WallDamaged, crate::defence)."
+    }
+  ]
+}

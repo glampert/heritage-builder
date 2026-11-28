@@ -51,6 +51,8 @@ pub const OBJECTS_ROCKS_CATEGORY: StrHashPair = StrHashPair::from_str("rocks");
 pub const OBJECTS_VEGETATION_CATEGORY: StrHashPair = StrHashPair::from_str("vegetation");
 // Farmsteads' rice fields (crate::farms): plain tiles a farmstead tends, their variation the crop's stage.
 pub const OBJECTS_FIELDS_CATEGORY: StrHashPair = StrHashPair::from_str("fields");
+// The city's walls (crate::defence): plain tiles drawn like roads, their variation the junction mask.
+pub const OBJECTS_WALLS_CATEGORY: StrHashPair = StrHashPair::from_str("walls");
 
 // Sprites drawn over or instead of other tiles, never placed on the map: construction site
 // scaffolds and renovation overlays (see `tile::rendering`). Their tile defs have no specialized
@@ -111,6 +113,9 @@ pub enum TileSector {
 
     #[strum(props(Name = "trade_and_economy"))]
     TradeAndEconomy,
+
+    #[strum(props(Name = "defence"))]
+    Defence,
 
     #[strum(props(Name = "beautification"))]
     Beautification,
@@ -697,6 +702,11 @@ pub struct TileDef {
     // blocks floods (a sluice gate, crate::farms). Optional.
     #[serde(default)]
     pub requires_dyke: bool,
+
+    // Placed only where a road crosses a wall (a gatehouse, crate::defence): on a road cell with a
+    // wall piece on both sides along one axis. Optional.
+    #[serde(default)]
+    pub requires_wall: bool,
 
     // Placed on open water at the shore (not a canal): its footprint on water, beside land. Its
     // variations are the bank it faces, `north_bank`, `south_bank`, `east_bank` and `west_bank`,

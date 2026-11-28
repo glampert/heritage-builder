@@ -552,6 +552,30 @@
       "source_hash": "2a3a1d0d8ec74a4b",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/building/city_wall_idle.png": {
+      "catalog_hash": "800b18f2648cfd00",
+      "id": "glyph_building_city_wall",
+      "png_hash": "3633619743d3323a",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "7df232fcc19f4369",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/city_wall_pressed.png": {
+      "catalog_hash": "9a00c2e5bd0d614a",
+      "id": "glyph_building_city_wall",
+      "png_hash": "a1a211f9366b9e90",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "62ef3d0ff9d65448",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/building/clay_pit_idle.png": {
       "catalog_hash": "22acf33927c08e25",
       "id": "glyph_building_clay_pit",
@@ -768,6 +792,30 @@
       "source_hash": "d0640405cf34f6d0",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/building/gatehouse_idle.png": {
+      "catalog_hash": "4c3b4e51eb78494f",
+      "id": "glyph_building_gatehouse",
+      "png_hash": "4f88ce09432cd836",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "1fd27615380523ed",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/gatehouse_pressed.png": {
+      "catalog_hash": "0d0b0781acea26a1",
+      "id": "glyph_building_gatehouse",
+      "png_hash": "2d1455b3d12d4431",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "1d742027bf9d2501",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/building/governor_palace_idle.png": {
       "catalog_hash": "0d6dcb317f738a23",
       "id": "glyph_building_governor_palace",
@@ -960,6 +1008,30 @@
       "source_hash": "fdc6d332585661ff",
       "state": "pressed"
     },
+    "assets/ui/skins/dailong/hud/glyphs/building/palisade_idle.png": {
+      "catalog_hash": "d7bbb3f9b5d320b4",
+      "id": "glyph_building_palisade",
+      "png_hash": "7ebd1e93f61655da",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "9ef2f767917869a7",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/palisade_pressed.png": {
+      "catalog_hash": "517ba260b9b97ac3",
+      "id": "glyph_building_palisade",
+      "png_hash": "ec3b6ee074e1a01f",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "74e16831e4adb59d",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/hud/glyphs/building/police_station_idle.png": {
       "catalog_hash": "6b6f2a0bda4dee19",
       "id": "glyph_building_police_station",
@@ -1006,6 +1078,30 @@
       ],
       "realm": "dailong",
       "source_hash": "3c64790a1265a860",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/rampart_idle.png": {
+      "catalog_hash": "ee6aabfe165a0b9d",
+      "id": "glyph_building_rampart",
+      "png_hash": "f53b44207c6b96d6",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "691ebd5d789899b5",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/rampart_pressed.png": {
+      "catalog_hash": "8c2e6941488d82f1",
+      "id": "glyph_building_rampart",
+      "png_hash": "be3693138ef6561b",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "d80d6bd6a0909601",
       "state": "pressed"
     },
     "assets/ui/skins/dailong/hud/glyphs/building/rice_field_idle.png": {
@@ -1966,6 +2062,30 @@
       ],
       "realm": "dailong",
       "source_hash": "b331389e8a1d9679",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/defence_idle.png": {
+      "catalog_hash": "bae3cf818d5863a3",
+      "id": "glyph_sector_defence",
+      "png_hash": "3a9fb0bc70697492",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "410e562838e6e5c1",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/defence_pressed.png": {
+      "catalog_hash": "a1f3ebf09f8e6774",
+      "id": "glyph_sector_defence",
+      "png_hash": "f6db991282cc21b2",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "7dd63fb09d9c51eb",
       "state": "pressed"
     },
     "assets/ui/skins/dailong/hud/glyphs/sector/food_idle.png": {
@@ -3588,6 +3708,30 @@
       "source_hash": "a9d87529ab4ac439",
       "state": "pressed"
     },
+    "assets/ui/skins/kambara/hud/glyphs/building/city_wall_idle.png": {
+      "catalog_hash": "b7cccf163cddf89c",
+      "id": "glyph_building_city_wall",
+      "png_hash": "52e7d28abfee215b",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "263e58a867171655",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/city_wall_pressed.png": {
+      "catalog_hash": "aae5570ab11f43ff",
+      "id": "glyph_building_city_wall",
+      "png_hash": "fcbdb6f9948129a8",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "e72acc1f2bc561d5",
+      "state": "pressed"
+    },
     "assets/ui/skins/kambara/hud/glyphs/building/clay_pit_idle.png": {
       "catalog_hash": "07fead7d1bcff8a5",
       "id": "glyph_building_clay_pit",
@@ -3804,6 +3948,30 @@
       "source_hash": "99fffa57a5ff8d92",
       "state": "pressed"
     },
+    "assets/ui/skins/kambara/hud/glyphs/building/gatehouse_idle.png": {
+      "catalog_hash": "bc2ff3a245321365",
+      "id": "glyph_building_gatehouse",
+      "png_hash": "761bff33a1810540",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "3a09d98abfd3132e",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/gatehouse_pressed.png": {
+      "catalog_hash": "c4688872db008e6e",
+      "id": "glyph_building_gatehouse",
+      "png_hash": "1b657b80197837b0",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "57465f939458d06d",
+      "state": "pressed"
+    },
     "assets/ui/skins/kambara/hud/glyphs/building/governor_palace_idle.png": {
       "catalog_hash": "628a102fd25c1a82",
       "id": "glyph_building_governor_palace",
@@ -3996,6 +4164,30 @@
       "source_hash": "2a44ac240e9ee774",
       "state": "pressed"
     },
+    "assets/ui/skins/kambara/hud/glyphs/building/palisade_idle.png": {
+      "catalog_hash": "aa9ac865a7e3ff01",
+      "id": "glyph_building_palisade",
+      "png_hash": "76ba6fa6b79dac94",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "ced21605beebe6fd",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/palisade_pressed.png": {
+      "catalog_hash": "09a8301a1a74cd6f",
+      "id": "glyph_building_palisade",
+      "png_hash": "932e0c4a97bbcade",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "526e0b485f4c5c26",
+      "state": "pressed"
+    },
     "assets/ui/skins/kambara/hud/glyphs/building/police_station_idle.png": {
       "catalog_hash": "5b7a0604dc128339",
       "id": "glyph_building_police_station",
@@ -4042,6 +4234,30 @@
       ],
       "realm": "kambara",
       "source_hash": "ea9f19b2484672cf",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/rampart_idle.png": {
+      "catalog_hash": "3fc24c9740ff5987",
+      "id": "glyph_building_rampart",
+      "png_hash": "20a1406e9cb14c65",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "f4aff1e12fd2a8ee",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/rampart_pressed.png": {
+      "catalog_hash": "1b7f8002aa5b22c6",
+      "id": "glyph_building_rampart",
+      "png_hash": "6d37ba99f2551bd1",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "f0b582d298522d1a",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/hud/glyphs/building/rice_field_idle.png": {
@@ -5002,6 +5218,30 @@
       ],
       "realm": "kambara",
       "source_hash": "b16fb812ec059e21",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/defence_idle.png": {
+      "catalog_hash": "a2ba45531cc7974e",
+      "id": "glyph_sector_defence",
+      "png_hash": "de39273e9b28ad9f",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "823a215a9a1a01ca",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/defence_pressed.png": {
+      "catalog_hash": "43ccf974140a58f3",
+      "id": "glyph_sector_defence",
+      "png_hash": "acfb5b1a876944fe",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "9cd5b81695d32ab6",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/hud/glyphs/sector/food_idle.png": {
@@ -6660,6 +6900,30 @@
       "source_hash": "7472e2bd665ce88e",
       "state": "pressed"
     },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/city_wall_idle.png": {
+      "catalog_hash": "0107a41b6be901b4",
+      "id": "glyph_building_city_wall",
+      "png_hash": "86a4e7a3a42f577a",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "31b6812d86d61cf8",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/city_wall_pressed.png": {
+      "catalog_hash": "358b1bed1b4b60d2",
+      "id": "glyph_building_city_wall",
+      "png_hash": "2c71dc605de632b0",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "1b5d73551d49ca81",
+      "state": "pressed"
+    },
     "assets/ui/skins/tampadesa/hud/glyphs/building/clay_pit_idle.png": {
       "catalog_hash": "5c64c70659b533e8",
       "id": "glyph_building_clay_pit",
@@ -6876,6 +7140,30 @@
       "source_hash": "a08daaefd4f6305c",
       "state": "pressed"
     },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/gatehouse_idle.png": {
+      "catalog_hash": "f14bdac868e02275",
+      "id": "glyph_building_gatehouse",
+      "png_hash": "688f15f534704f53",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a5f5b739b120f676",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/gatehouse_pressed.png": {
+      "catalog_hash": "45d057b7ab4598e5",
+      "id": "glyph_building_gatehouse",
+      "png_hash": "edcde446524ac28f",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "dd7a86ca7dd9e530",
+      "state": "pressed"
+    },
     "assets/ui/skins/tampadesa/hud/glyphs/building/governor_palace_idle.png": {
       "catalog_hash": "5a9b793223a76347",
       "id": "glyph_building_governor_palace",
@@ -7068,6 +7356,30 @@
       "source_hash": "ed72785fbe595889",
       "state": "pressed"
     },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/palisade_idle.png": {
+      "catalog_hash": "721628f2871f4d72",
+      "id": "glyph_building_palisade",
+      "png_hash": "4658805de77ccf14",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "f20cb43caa529934",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/palisade_pressed.png": {
+      "catalog_hash": "a6d37b4bff687aa5",
+      "id": "glyph_building_palisade",
+      "png_hash": "21b1a308cb4bcf66",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "12611b771b97dd53",
+      "state": "pressed"
+    },
     "assets/ui/skins/tampadesa/hud/glyphs/building/police_station_idle.png": {
       "catalog_hash": "d5962c91408954ab",
       "id": "glyph_building_police_station",
@@ -7114,6 +7426,30 @@
       ],
       "realm": "tampadesa",
       "source_hash": "db6b0367e5c10309",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/rampart_idle.png": {
+      "catalog_hash": "ae4b3f18acf20e9f",
+      "id": "glyph_building_rampart",
+      "png_hash": "fcb7121933b83e53",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "e6c5dcc9e0f5a4ca",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/rampart_pressed.png": {
+      "catalog_hash": "fcb2b2fefa35e7d6",
+      "id": "glyph_building_rampart",
+      "png_hash": "7ce4b2941105e01c",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "5086b12135bedf08",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/hud/glyphs/building/rice_field_idle.png": {
@@ -8074,6 +8410,30 @@
       ],
       "realm": "tampadesa",
       "source_hash": "7ffb444162ae1f5e",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/defence_idle.png": {
+      "catalog_hash": "7b73f698fdb8a73c",
+      "id": "glyph_sector_defence",
+      "png_hash": "a035e7ed4702e32f",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "cbb1201774f326f6",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/defence_pressed.png": {
+      "catalog_hash": "5151ee9337d264b9",
+      "id": "glyph_sector_defence",
+      "png_hash": "a2aeb4a754513763",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "06e60851f9a1453b",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/hud/glyphs/sector/food_idle.png": {

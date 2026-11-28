@@ -1,7 +1,7 @@
 use common::coords::Cell;
 use strum::Display;
 
-use super::{Tile, TileKind, TileMapLayer, TileMapLayerKind, TileMapLayerRefs, TilePoolIndex, sets::TileDef, water};
+use super::{Tile, TileKind, TileMapLayer, TileMapLayerKind, TileMapLayerRefs, TilePoolIndex, sets::TileDef, wall, water};
 use crate::{
     debug,
     pathfind::{self, NodeKind as PathNodeKind},
@@ -74,6 +74,7 @@ pub enum TilePlacementErrReason {
     CannotAffordMaterials,
     RequiresProximity(PathNodeKind), // Required node proximity violated.
     RequiresDyke,                    // A sluice gate away from every dyke.
+    RequiresWall,                    // A gatehouse not in a wall: between two pieces, on one or in a gap.
     Obstruction(&'static TileDef),   // Tile obstructing the placement.
     // Terrain height (docs/plans/terrain-height.md, §7):
     UnevenGround,       // A footprint on a ramp, or across levels.
@@ -292,7 +293,8 @@ pub mod internal {
                                 tile_def_to_place.name,
                                 tile.name()
                             );
-                        } else if tile_def_to_place.is(TileKind::Rocks | TileKind::Vegetation | TileKind::Field)
+                        } else if tile_def_to_place
+                            .is(TileKind::Rocks | TileKind::Vegetation | TileKind::Field | TileKind::Wall)
                             && !path_kind.is_object_placeable()
                         {
                             return err!(
@@ -302,7 +304,11 @@ pub mod internal {
                                 tile.name()
                             );
                         } else if tile_def_to_place.is(TileKind::Building) && !path_kind.is_object_placeable() {
-                            let can_place_building = path_kind.is_vacant_lot() && tile_def_to_place.is_house();
+                            // A house on its lot; a gatehouse on the road where it crosses a wall.
+                            let can_place_building = (path_kind.is_vacant_lot() && tile_def_to_place.is_house())
+                                || (tile_def_to_place.requires_wall
+                                    && path_kind.is_road()
+                                    && !tile.tile_def().blocks_floods);
 
                             if !can_place_building {
                                 return err!(
@@ -342,6 +348,31 @@ pub mod internal {
                         "Building must be placed near {}.",
                         tile_def_to_place.required_proximity
                     );
+                }
+
+                // A gatehouse stands in a wall (crate::defence, tile::wall): a wall piece on both
+                // sides of it along one axis, on a piece of the wall (which makes way for it as
+                // it's placed), a gap of open land or a road through a gap (not a dyke).
+                if tile_def_to_place.requires_wall {
+                    let terrain = layers.get(TileMapLayerKind::Terrain);
+                    let objects = layers.get(TileMapLayerKind::Objects);
+                    let is_wall =
+                        |cell: Cell| objects.try_tile(cell).is_some_and(|tile| wall::tier_of(tile.tile_def()).is_some());
+                    let ground_takes_it = terrain.try_tile(target_cell).is_some_and(|tile| {
+                        let path_kind = tile.path_kind();
+                        path_kind.is_object_placeable() || (path_kind.is_road() && !tile.tile_def().blocks_floods)
+                    });
+                    let free_or_wall = objects.try_tile(target_cell).is_none() || is_wall(target_cell);
+                    let (x, y) = (target_cell.x, target_cell.y);
+                    let in_wall = (is_wall(Cell::new(x + 1, y)) && is_wall(Cell::new(x - 1, y)))
+                        || (is_wall(Cell::new(x, y + 1)) && is_wall(Cell::new(x, y - 1)));
+                    if !ground_takes_it || !free_or_wall || !in_wall {
+                        return err!(
+                            Placement::RequiresWall,
+                            "'{}' must be placed in a wall: on a piece with a piece on both sides of it.",
+                            tile_def_to_place.name
+                        );
+                    }
                 }
 
                 // A sluice gate stands beside a dyke (crate::farms): a terrain tile next to its

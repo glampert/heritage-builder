@@ -23,9 +23,13 @@ const UNDO_REDO_STACK_MAX_SIZE: usize = 16;
 const SUPPORTED_TERRAIN_KINDS: PathNodeKind =
     PathNodeKind::from_bits_retain(PathNodeKind::Road.bits() | PathNodeKind::VacantLot.bits());
 
-// We can undo/redo placing/deleting of buildings, props and fields.
+// We can undo/redo placing/deleting of buildings, props, fields and wall pieces.
 const SUPPORTED_OBJECT_KINDS: TileKind = TileKind::from_bits_retain(
-    TileKind::Building.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits() | TileKind::Field.bits(),
+    TileKind::Building.bits()
+        | TileKind::Rocks.bits()
+        | TileKind::Vegetation.bits()
+        | TileKind::Field.bits()
+        | TileKind::Wall.bits(),
 );
 
 // ----------------------------------------------
@@ -92,6 +96,44 @@ impl SavedState {
     }
 }
 
+// The supported tiles in `layers` at each cell, as they are now.
+fn saved_states<I, C>(cells: I, layers: EditedLayer, tile_map: &TileMap, world: &World) -> Vec<SavedState>
+where
+    I: IntoIterator<Item = C>,
+    C: CellKey,
+{
+    let mut saved_states = Vec::new();
+
+    for cell_key in cells {
+        let cell = *cell_key.to_cell();
+        let mut saved_state = SavedState::default();
+
+        if layers.intersects(EditedLayer::Terrain)
+            && let Some(terrain_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+            && terrain_tile.path_kind().intersects(SUPPORTED_TERRAIN_KINDS)
+        {
+            saved_state.terrain_tile_state = record_tile_state(terrain_tile);
+        }
+
+        if layers.intersects(EditedLayer::Objects)
+            && let Some(object_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects)
+            && object_tile.is(SUPPORTED_OBJECT_KINDS)
+        {
+            saved_state.object_tile_state = record_tile_state(object_tile);
+
+            if let Some(game_object) = world.find_game_object_for_tile(object_tile) {
+                saved_state.game_object_state = game_object.undo_redo_record();
+            }
+        }
+
+        if !saved_state.is_empty() {
+            saved_states.push(saved_state);
+        }
+    }
+
+    saved_states
+}
+
 fn record_tile_state(tile: &Tile) -> Option<TileSavedState> {
     Some(TileSavedState {
         tile_base_cell: tile.base_cell(),
@@ -129,6 +171,7 @@ enum Command {
 struct Record {
     action: EditAction,
     saved_states: Vec<SavedState>,
+    replaced: Vec<SavedState>,     // What a placement took away first (Replaced).
     elevation: Vec<ElevationEdit>, // EditAction::Elevation's cells.
 }
 
@@ -142,22 +185,30 @@ pub struct ElevationEdit {
 
 impl Record {
     // Undo:
-    // - Place Tiles: Delete tiles added.
+    // - Place Tiles: Delete tiles added, then place back the tiles they replaced.
     // - Clear Tiles: Place back deleted tiles.
     //
     // Redo:
-    // - Place Tiles: Place back deleted tiles.
+    // - Place Tiles: Delete the tiles they replaced again, then place back deleted tiles.
     // - Clear Tiles: Delete tiles added.
+    //
+    // The tiles a placement replaced come and go free: it took them without a refund.
     fn apply_action(&self, command: Command, context: &SimContextMut) {
         match command {
             Command::Undo => match self.action {
-                EditAction::PlacedTiles => self.clear_tiles(context, true),
-                EditAction::ClearingTiles => self.place_tiles(context, false),
+                EditAction::PlacedTiles => {
+                    Self::clear_tiles(context, &self.saved_states, true);
+                    Self::place_tiles(context, &self.replaced, false);
+                }
+                EditAction::ClearingTiles => Self::place_tiles(context, &self.saved_states, false),
                 EditAction::Elevation => self.set_elevation(context, |edit| edit.before),
             },
             Command::Redo => match self.action {
-                EditAction::PlacedTiles => self.place_tiles(context, true),
-                EditAction::ClearingTiles => self.clear_tiles(context, false),
+                EditAction::PlacedTiles => {
+                    Self::clear_tiles(context, &self.replaced, false);
+                    Self::place_tiles(context, &self.saved_states, true);
+                }
+                EditAction::ClearingTiles => Self::clear_tiles(context, &self.saved_states, false),
                 EditAction::Elevation => self.set_elevation(context, |edit| edit.after),
             },
         }
@@ -171,11 +222,11 @@ impl Record {
     }
 
     fn len(&self) -> usize {
-        self.saved_states.len() + self.elevation.len()
+        self.saved_states.len() + self.replaced.len() + self.elevation.len()
     }
 
-    fn place_tiles(&self, context: &SimContextMut, subtract_tile_cost: bool) {
-        for state in &self.saved_states {
+    fn place_tiles(context: &SimContextMut, states: &[SavedState], subtract_tile_cost: bool) {
+        for state in states {
             if let Some(terrain_tile_state) = &state.terrain_tile_state {
                 Self::place_tile(context, TileMapLayerKind::Terrain, terrain_tile_state, subtract_tile_cost);
             }
@@ -208,8 +259,9 @@ impl Record {
         let tile_variation_index = tile_state.tile_variation_index;
 
         let mut tile_flags = tile_state.tile_flags;
-        // Clear these. A building comes back with new risks, not burning.
-        tile_flags.set(TileFlags::Highlighted | TileFlags::Invalidated | TileFlags::Burning, false);
+        // Clear these. A building comes back with new risks, not burning, and a wall piece whole
+        // (its record starts again at full strength: crate::defence).
+        tile_flags.set(TileFlags::Highlighted | TileFlags::Invalidated | TileFlags::Burning | TileFlags::WallDamaged, false);
 
         // A construction site goes back as a new site, charged again: its cost was refunded when
         // it was cleared or undone. The new site sets its own flags.
@@ -233,14 +285,16 @@ impl Record {
         None
     }
 
-    fn clear_tiles(&self, context: &SimContextMut, restore_tile_cost: bool) {
-        for state in &self.saved_states {
-            if let Some(terrain_tile_state) = &state.terrain_tile_state {
-                Self::clear_tile(context, TileMapLayerKind::Terrain, terrain_tile_state, restore_tile_cost);
-            }
-
+    // Objects first, then the terrain under them (a gatehouse, then the road laid with it), the
+    // reverse of placing them.
+    fn clear_tiles(context: &SimContextMut, states: &[SavedState], restore_tile_cost: bool) {
+        for state in states {
             if let Some(object_tile_state) = &state.object_tile_state {
                 Self::clear_tile(context, TileMapLayerKind::Objects, object_tile_state, restore_tile_cost);
+            }
+
+            if let Some(terrain_tile_state) = &state.terrain_tile_state {
+                Self::clear_tile(context, TileMapLayerKind::Terrain, terrain_tile_state, restore_tile_cost);
             }
         }
     }
@@ -275,48 +329,20 @@ impl UndoRedoSingleton {
         self.redo_stack.clear();
     }
 
-    fn record<I, C>(&mut self, action: EditAction, affected_cells: I, layers: EditedLayer, tile_map: &TileMap, world: &World)
-    where
-        I: IntoIterator<Item = C>,
-        C: CellKey,
-    {
-        let mut saved_states = Vec::new();
-
-        for cell_key in affected_cells {
-            let cell = *cell_key.to_cell();
-            let mut saved_state = SavedState::default();
-
-            if layers.intersects(EditedLayer::Terrain)
-                && let Some(terrain_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain)
-                && terrain_tile.path_kind().intersects(SUPPORTED_TERRAIN_KINDS)
-            {
-                saved_state.terrain_tile_state = record_tile_state(terrain_tile);
-            }
-
-            if layers.intersects(EditedLayer::Objects)
-                && let Some(object_tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects)
-                && object_tile.is(SUPPORTED_OBJECT_KINDS)
-            {
-                saved_state.object_tile_state = record_tile_state(object_tile);
-
-                if let Some(game_object) = world.find_game_object_for_tile(object_tile) {
-                    saved_state.game_object_state = game_object.undo_redo_record();
-                }
-            }
-
-            if !saved_state.is_empty() {
-                saved_states.push(saved_state);
-            }
-        }
-
-        if !saved_states.is_empty() {
-            self.push_undo_record(Record { action, saved_states, elevation: Vec::new() });
+    fn record(&mut self, action: EditAction, saved_states: Vec<SavedState>, replaced: Replaced) {
+        if !saved_states.is_empty() || !replaced.0.is_empty() {
+            self.push_undo_record(Record { action, saved_states, replaced: replaced.0, elevation: Vec::new() });
         }
     }
 
     fn record_elevation(&mut self, edits: Vec<ElevationEdit>) {
         if !edits.is_empty() {
-            self.push_undo_record(Record { action: EditAction::Elevation, saved_states: Vec::new(), elevation: edits });
+            self.push_undo_record(Record {
+                action: EditAction::Elevation,
+                saved_states: Vec::new(),
+                replaced: Vec::new(),
+                elevation: edits,
+            });
         }
     }
 
@@ -386,7 +412,39 @@ where
     I: IntoIterator<Item = C>,
     C: CellKey,
 {
-    UndoRedoSingleton::get_mut().record(action, affected_cells, layers, tile_map, world);
+    let saved_states = saved_states(affected_cells, layers, tile_map, world);
+    UndoRedoSingleton::get_mut().record(action, saved_states, Replaced::default());
+}
+
+// The tiles a placement takes away, without a refund, to place its own (the wall piece a gatehouse
+// stands in, the weaker pieces a stronger wall replaces): read with `capture` before they go and
+// handed to `record_placement`, so that undoing the placement puts them back.
+#[derive(Default)]
+pub struct Replaced(Vec<SavedState>);
+
+impl Replaced {
+    pub fn capture<I, C>(cells: I, layers: EditedLayer, tile_map: &TileMap, world: &World) -> Self
+    where
+        I: IntoIterator<Item = C>,
+        C: CellKey,
+    {
+        Self(saved_states(cells, layers, tile_map, world))
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+// One undo step for tiles placed at `cells` in `layers` over the tiles `replaced`.
+pub fn record_placement<I, C>(cells: I, layers: EditedLayer, tile_map: &TileMap, world: &World, replaced: Replaced)
+where
+    I: IntoIterator<Item = C>,
+    C: CellKey,
+{
+    let saved_states = saved_states(cells, layers, tile_map, world);
+    UndoRedoSingleton::get_mut().record(EditAction::PlacedTiles, saved_states, replaced);
 }
 
 // One undo step for a height edit: each cell's byte before and after (a brush stroke's cells).

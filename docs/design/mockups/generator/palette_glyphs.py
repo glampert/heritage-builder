@@ -324,6 +324,50 @@ def canal(realm):
     return out
 
 
+def _stakes(x0, x1, base, top, n):
+    """A row of n sharpened stakes standing from `base` up to `top` across x0..x1."""
+    w = (x1 - x0) / n
+    out = []
+    for k in range(n):
+        x = x0 + k * w
+        out.append(P(f"M{f(x + 0.6)},{f(base)} V{f(top + 6)} L{f(x + w / 2)},{f(top)} L{f(x + w - 0.6)},{f(top + 6)} V{f(base)}Z"))
+    return out
+
+
+def palisade(realm):
+    """A palisade: a row of sharpened stakes lashed to two rails."""
+    out = ground_line(-40, 40) + _stakes(-36, 36, 34, -24, 8)
+    out += [P("M-36,-6 H36 M-36,16 H36", False, 2.4)]
+    return out
+
+
+def rampart(realm):
+    """A rampart: an earthen bank, its slopes scored, with a row of stakes along its crest."""
+    out = [P("M-44,36 L-20,4 H20 L44,36Z")]
+    out += [P("M-30,30 L-18,14 M-14,32 L-6,18 M14,32 L6,18 M30,30 L18,14", False, 1.8)]
+    out += _stakes(-18, 18, 5, -26, 5)
+    return out
+
+
+def city_wall(realm):
+    """A city wall: brick courses on a plinth, its top crenellated."""
+    out = [R(-42, 30, 84, 6), R(-38, -10, 76, 40)]
+    out += [R(x, -22, 12, 13) for x in (-38, -18, 2, 22)] + [R(30, -22, 8, 13)]
+    out += [P("M-38,0 H38 M-38,10 H38 M-38,20 H38", False, 1.6)]
+    out += [P("M-24,-10 V0 M0,-10 V0 M24,-10 V0 M-12,0 V10 M12,0 V10 M-24,10 V20 M0,10 V20 M24,10 V20 M-12,20 V30 M12,20 V30", False, 1.4)]
+    return out
+
+
+def gatehouse(realm):
+    """A gatehouse: an arched way through a wall's gate block under a roofed watch pavilion, the
+    wall running on either side."""
+    out = [R(-44, 4, 16, 30), R(28, 4, 16, 30), R(-28, -12, 56, 46)]
+    out += [P("M-12,34 V2 Q0,-10 12,2 V34Z", False)]
+    out += [R(-20, -24, 4, 12), R(16, -24, 4, 12)] + roof(realm, 0, -22, 54, 14)
+    out += [R(x, -2, 7, 6) for x in (-44, -35, 29, 38)]
+    return out
+
+
 def granary(realm):
     out = ground_line(-38, 38)
     if realm == "dailong":  # a thatched granary raised on stilts
@@ -607,6 +651,10 @@ BUILDINGS = {
     "university": ("University", university),
     "garden": ("Garden", garden),
     "festival_square": ("Festival square", festival_square),
+    "palisade": ("Palisade", palisade),
+    "rampart": ("Rampart", rampart),
+    "city_wall": ("City wall", city_wall),
+    "gatehouse": ("Gatehouse", gatehouse),
 }
 
 

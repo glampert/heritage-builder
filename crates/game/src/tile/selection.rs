@@ -271,8 +271,11 @@ impl TileSelection {
                         // Terrain tiles can always be placed anywhere, so don't invalidate for
                         // terrain.
                         if !tile_def.is(TileKind::Terrain) {
-                            // Placement candidate would overlap another object?
-                            if layers.get(TileMapLayerKind::Objects).try_tile(cell).is_some() {
+                            // Placement candidate would overlap another object? (A wall piece makes
+                            // way for a gatehouse: tile::wall.)
+                            if let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile(cell)
+                                && !(tile_def.requires_wall && super::wall::tier_of(object.tile_def()).is_some())
+                            {
                                 flags = TileFlags::Invalidated;
                                 break;
                             }
