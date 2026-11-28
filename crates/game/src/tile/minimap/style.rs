@@ -108,6 +108,8 @@ pub struct MinimapStyle {
     pub outline_cells: f32,
     pub road_width_cells: f32,
     pub road_casing_cells: f32,
+    pub wall_width_cells: f32, // A wall's line, as a road's, in its tier's colour.
+    pub wall_casing_cells: f32,
     pub field_stripes_per_cell: f32,
 
     // Sprites, under assets/ui.
@@ -147,6 +149,10 @@ pub struct MinimapPalette {
     pub paved_road: HexColor,
     pub dyke: HexColor, // A dyke, drawn as a road.
     pub road_casing: HexColor,
+    pub palisade: HexColor, // The walls' tiers, drawn as lines (tile::wall)...
+    pub rampart: HexColor,
+    pub city_wall: HexColor,
+    pub wall_casing: HexColor, // ...on a darker casing.
     pub shadow: HexColor,
     pub outline: HexColor,
     pub field: HexColor,
@@ -309,6 +315,8 @@ impl Default for MinimapStyle {
             outline_cells: 0.1,
             road_width_cells: 0.45,
             road_casing_cells: 0.75,
+            wall_width_cells: 0.4,
+            wall_casing_cells: 0.7,
             field_stripes_per_cell: 1.6,
             field_texture: "minimap/field_stripes.png".into(),
             tooltip_frame: String::new(),
@@ -345,6 +353,10 @@ impl Default for MinimapPalette {
             paved_road: HexColor::rgb(0xe2d6c0),
             dyke: HexColor::rgb(0x9a9256),
             road_casing: HexColor::rgba(0x6b5a40cc),
+            palisade: HexColor::rgb(0xa06a38),
+            rampart: HexColor::rgb(0xc49a62),
+            city_wall: HexColor::rgb(0xa29d93),
+            wall_casing: HexColor::rgba(0x2e2418e6),
             shadow: HexColor::rgba(0x1f1a1259),
             outline: HexColor::rgba(0x2b24188c),
             field: HexColor::rgb(0xb7c560),

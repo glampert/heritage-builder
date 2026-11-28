@@ -1,5 +1,6 @@
 # The city's defence (docs/plans/defence.md), Phase 1: walls and gatehouses. A palisade drawn from the
-# build palette's Defence grid and a rampart by command across a blank map, one wall; a road dragged
+# build palette's Defence grid and a rampart by command across a blank map, one wall (lines on the
+# minimap's wall layer, a gate where the gatehouse stands); a road dragged
 # across it refused, a gatehouse from the grid on one of its pieces (the piece making way for it, its
 # look the weaker tier's, its walls joining it, a road laid under it) and a road drawn through it; a
 # piece's panel, a piece battered below half its strength (its cracks, its panel), another breached
@@ -45,6 +46,9 @@
 {"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/count", "value": 13}}
 {"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/pieces/6/tier", "value": "rampart"}}
 {"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/pieces/6/strength", "value": 250.0}}
+# The minimap draws the pieces as lines on its wall layer.
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/walls/pieces", "value": 13}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/walls/gates", "value": 0}}
 {"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [20, 20]}, "path": "/objects/0/variation_name", "value": "1010"}}
 # A road dragged across the wall from the Roads grid is refused: nothing is laid.
 {"method": "ui.click", "params": {"path": "TilePaletteMenu/roads"}}
@@ -72,6 +76,8 @@
 {"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [19, 20]}, "path": "/objects/0/variation_name", "value": "1010"}}
 {"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [21, 20]}, "path": "/objects/0/variation_name", "value": "1010"}}
 {"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/count", "value": 12}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/walls/pieces", "value": 12}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/walls/gates", "value": 1}}
 # A road along x 20 drawn through the gatehouse in one go: laid either side of it, joining it.
 {"method": "world.road", "params": {"from": [20, 12], "to": [20, 28]}}
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [20, 20]}, "path": "/kind", "value": "Gatehouse"}}
@@ -84,6 +90,7 @@
 {"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/sections/0/rows/1/value", "value": "Haven't mended it"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "screenshot", "params": {"path": "out/defence/walls.png", "include_ui": false}}
+{"method": "screenshot", "params": {"path": "out/defence/minimap.png"}}
 # Battered to 30 of 100: below half, it shows its cracks and its panel warns.
 {"method": "defence.set", "params": {"cell": [16, 20], "condition": 30}}
 {"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/damaged", "value": 1}}
@@ -94,6 +101,7 @@
 {"method": "defence.set", "params": {"cell": [18, 20], "condition": 0}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "defence.state", "path": "/walls/count", "value": 11}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/walls/pieces", "value": 11}}
 {"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [18, 20]}, "path": "/objects/0/name", "value": "rubble"}}
 {"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [17, 20]}, "path": "/objects/0/variation_name", "value": "0010"}}
 {"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [19, 20]}, "path": "/objects/0/variation_name", "value": "1000"}}

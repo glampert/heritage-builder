@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use common::{Color, Vec2};
+use common::{Color, Vec2, coords::Cell};
 use engine::{cli, render::capture::CapturedImage, screenshot};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -14,7 +14,14 @@ use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     menu::GameMenusMode,
     realm::{self, Realm},
-    tile::minimap::{MINIMAP_ICON_DEFAULT_LIFETIME, MinimapIcon, MinimapLens, lens::LensData, model::LandmarkKind, style},
+    tile::minimap::{
+        MINIMAP_ICON_DEFAULT_LIFETIME,
+        MinimapIcon,
+        MinimapLens,
+        lens::LensData,
+        model::{LandmarkKind, MinimapWall},
+        style,
+    },
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -22,7 +29,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "minimap.state",
         help: "The minimap: open, lens and the lenses on offer, what the open lens shows (its legend, how many \
                buildings it colours, how many cells its heat field covers), zoom, visible cells, the cell at the \
-               centre of its view, alerts, features and landmarks, the baked texture's size and pixels per cell, the last bake's time, the widget's and the map area's sizes in points, and the style's realm.",
+               centre of its view, alerts, features and landmarks, the wall layer's pieces and gates, the baked texture's size and pixels per cell, the last bake's time, the widget's and the map area's sizes in points, and the style's realm.",
         params: &[],
         run: cmd_state,
     },
@@ -124,6 +131,18 @@ fn minimap_state(context: &CommandContext) -> Value {
         })
         .collect();
 
+    // The wall layer: the pieces drawn as lines and the gatehouses they run into.
+    let (mut wall_pieces, mut gates) = (0, 0);
+    for y in 0..size.height {
+        for x in 0..size.width {
+            match minimap.grid().wall(Cell::new(x, y)) {
+                MinimapWall::Gate => gates += 1,
+                MinimapWall::None => {}
+                _ => wall_pieces += 1,
+            }
+        }
+    }
+
     json!({
         "open": minimap.is_open(),
         "pointer_blocked": minimap.is_pointer_blocked(),
@@ -138,6 +157,7 @@ fn minimap_state(context: &CommandContext) -> Value {
         "alerts": minimap.alert_count(),
         "features": minimap.features().len(),
         "landmarks": landmarks,
+        "walls": { "pieces": wall_pieces, "gates": gates },
         "map_size": [size.width, size.height],
         "texture_size": [texture.width, texture.height],
         "px_per_cell": minimap.px_per_cell(),

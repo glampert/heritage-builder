@@ -10,11 +10,15 @@ use serde::Deserialize;
 use strum::{Display, EnumCount, EnumIter, EnumString};
 
 use super::style::HexColor;
-use crate::tile::{
-    TileFlags,
-    TileKind,
-    road,
-    sets::{TileDef, TileSector},
+use crate::{
+    sim::defence::WallTier,
+    tile::{
+        TileFlags,
+        TileKind,
+        road,
+        sets::{TileDef, TileSector},
+        wall,
+    },
 };
 
 // ----------------------------------------------
@@ -103,6 +107,26 @@ pub enum MinimapRoad {
     Dyke,
 }
 
+// A wall piece's tier, or a gatehouse in a wall (tile::wall): drawn as lines like roads, in their
+// own colours (shapes.rs). Object tiles set it, where terrain sets the roads.
+#[repr(u8)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum MinimapWall {
+    #[default]
+    None,
+    Palisade,
+    Rampart,
+    CityWall,
+    Gate, // A gatehouse: the walls either side run on into it, under its block.
+}
+
+impl MinimapWall {
+    #[inline]
+    pub fn is_piece(self) -> bool {
+        matches!(self, Self::Palisade | Self::Rampart | Self::CityWall)
+    }
+}
+
 // One entry per cell, row-major (index = x + y * width).
 #[derive(Default)]
 pub struct MinimapGrid {
@@ -110,10 +134,11 @@ pub struct MinimapGrid {
     terrain: Vec<Terrain>,
     cover: Vec<Cover>,
     roads: Vec<MinimapRoad>,
+    walls: Vec<MinimapWall>,
     heights: Vec<f32>,   // The ground's height at each cell's centre, in levels (tile::elevation).
     raised_cells: usize, // Cells whose height isn't 0: the bake reads the heights only while there are any.
     dirty: CellRect,     // Cells the bake must redo: union of terrain and cover edits since the last bake.
-    roads_version: u64,  // Goes up on every road edit, for the shape cache.
+    roads_version: u64,  // Goes up on every road or wall edit, for the shape cache.
 }
 
 impl MinimapGrid {
@@ -124,6 +149,7 @@ impl MinimapGrid {
         self.terrain = vec![terrain; count];
         self.cover = vec![Cover::None; count];
         self.roads = vec![road; count];
+        self.walls = vec![MinimapWall::None; count];
         self.heights = vec![0.0; count];
         self.raised_cells = 0;
         self.dirty = CellRect::map(size.width, size.height);
@@ -161,6 +187,11 @@ impl MinimapGrid {
     }
 
     #[inline]
+    pub fn wall(&self, cell: Cell) -> MinimapWall {
+        if self.is_cell_within_bounds(cell) { self.walls[self.index(cell)] } else { MinimapWall::None }
+    }
+
+    #[inline]
     pub fn roads_version(&self) -> u64 {
         self.roads_version
     }
@@ -176,6 +207,17 @@ impl MinimapGrid {
         }
         if self.roads[index] != road {
             self.roads[index] = road;
+            self.roads_version += 1;
+        }
+    }
+
+    pub fn set_wall(&mut self, cell: Cell, wall: MinimapWall) {
+        if !self.is_cell_within_bounds(cell) {
+            return;
+        }
+        let index = self.index(cell);
+        if self.walls[index] != wall {
+            self.walls[index] = wall;
             self.roads_version += 1;
         }
     }
@@ -241,6 +283,7 @@ impl MinimapGrid {
         self.terrain.capacity() * size_of::<Terrain>()
             + self.cover.capacity() * size_of::<Cover>()
             + self.roads.capacity()
+            + self.walls.capacity()
             + self.heights.capacity() * size_of::<f32>()
     }
 }
@@ -269,6 +312,18 @@ pub fn terrain_of(tile_def: &'static TileDef) -> (Terrain, MinimapRoad) {
     } else {
         (Terrain::Land, MinimapRoad::None)
     }
+}
+
+// What a wall piece or a gatehouse puts on its cell's wall layer, None for any other tile.
+pub fn wall_of(tile_def: &TileDef) -> Option<MinimapWall> {
+    if tile_def.is(TileKind::Building) && tile_def.requires_wall {
+        return Some(MinimapWall::Gate);
+    }
+    wall::tier_of(tile_def).map(|tier| match tier {
+        WallTier::Palisade => MinimapWall::Palisade,
+        WallTier::Rampart => MinimapWall::Rampart,
+        WallTier::CityWall => MinimapWall::CityWall,
+    })
 }
 
 // What an object tile puts on its cells, or None for tiles the minimap ignores (units).

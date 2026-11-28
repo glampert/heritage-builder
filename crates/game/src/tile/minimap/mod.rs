@@ -43,7 +43,7 @@ mod render;
 
 use lens::LensData;
 pub use lens::MinimapLens;
-use model::{FeatureState, LandmarkKind, MinimapFeature, MinimapFeatures, MinimapGrid};
+use model::{FeatureState, LandmarkKind, MinimapFeature, MinimapFeatures, MinimapGrid, MinimapWall};
 pub use render::{DevUiMinimapRenderer, InGameUiMinimapRenderer, MinimapRenderer, MinimapTool};
 use shapes::ShapeCache;
 use style::MinimapStyle;
@@ -584,7 +584,12 @@ impl Minimap {
         for cell in &tile_def.cell_range(target_cell) {
             self.grid.set_cover(cell, cover);
         }
-        if cover == Cover::Building {
+        // A wall piece is a line on the wall layer, not a feature; a gatehouse is both.
+        let wall = model::wall_of(tile_def);
+        if let Some(wall) = wall {
+            self.grid.set_wall(target_cell, wall);
+        }
+        if cover == Cover::Building && !wall.is_some_and(MinimapWall::is_piece) {
             self.features.insert(MinimapFeature::new(target_cell, tile_def));
         }
     }
@@ -604,6 +609,9 @@ impl Minimap {
         }
         for cell in &tile_def.cell_range(target_cell) {
             self.grid.set_cover(cell, Cover::None);
+        }
+        if model::wall_of(tile_def).is_some() {
+            self.grid.set_wall(target_cell, MinimapWall::None);
         }
         self.features.remove(target_cell);
     }
@@ -837,6 +845,15 @@ impl Minimap {
         }
         if let Some(feature) = self.features.at(cell) {
             return Some(display_name(&feature.tile_def.name));
+        }
+        let name = match self.grid.wall(cell) {
+            MinimapWall::Palisade => Some("Palisade"),
+            MinimapWall::Rampart => Some("Rampart"),
+            MinimapWall::CityWall => Some("City wall"),
+            MinimapWall::Gate | MinimapWall::None => None,
+        };
+        if let Some(name) = name {
+            return Some(name.to_string());
         }
         let name = match (self.grid.road(cell), self.grid.cover(cell), self.grid.terrain(cell)) {
             (model::MinimapRoad::Dirt, ..) => "Dirt road",

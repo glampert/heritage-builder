@@ -6,6 +6,7 @@
     "land_low": "#a7bd72", "land_high": "#cdbb83", "forest": "#5d8c48", "rocks": "#a19584",
     "water_shallow": "#6db3c2", "water_deep": "#2f6f8c", "foam": "#f3f0dc", "vacant_lot": "#d8c99a",
     "void": "#1a1611", "road": "#f4e8c8", "paved_road": "#e2d6c0", "dyke": "#9a9256", "road_casing": "#6b5a40cc",
+    "palisade": "#a06a38", "rampart": "#c49a62", "city_wall": "#a29d93", "wall_casing": "#2e2418e6",
     "shadow": "#1f1a1259", "outline": "#2b24188c", "field": "#b7c560", "background": "#2f6f8c"
   },
   "sector_colors": {
@@ -28,6 +29,8 @@
   "outline_cells": 0.1,
   "road_width_cells": 0.45,
   "road_casing_cells": 0.75,
+  "wall_width_cells": 0.4,
+  "wall_casing_cells": 0.7,
   "field_stripes_per_cell": 1.6,
   "field_texture": "minimap/field_stripes.png",
   "tooltip_frame": "",

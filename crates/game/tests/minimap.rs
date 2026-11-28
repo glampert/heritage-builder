@@ -1,6 +1,8 @@
 use common::{Size, coords::Cell};
 use game::{
+    building::construction::ConstructionMode,
     cheats,
+    menu::{PlaceOrClearResult, TilePlacement},
     realm::Realm,
     tile::{
         TileMap,
@@ -9,9 +11,11 @@ use game::{
             Minimap,
             MinimapLens,
             MinimapTool,
-            model::{FeatureState, LandmarkKind, MinimapClass, MinimapRoad, tile_class},
+            model::{FeatureState, LandmarkKind, MinimapClass, MinimapRoad, MinimapWall, tile_class},
+            shapes::ShapeCache,
             style::MinimapStyle,
         },
+        road::{self, RoadKind},
         sets::{OBJECTS_BUILDINGS_CATEGORY, TileSets},
     },
 };
@@ -34,6 +38,7 @@ fn main() {
         test_utils::test_fn!(test_features_follow_buildings),
         test_utils::test_fn!(test_construction_sites_show_as_sites),
         test_utils::test_fn!(test_rebuild_matches_incremental_updates),
+        test_utils::test_fn!(test_walls_draw_as_lines),
         // Bake:
         test_utils::test_fn!(test_patched_bake_matches_full_bake),
         // Data:
@@ -56,7 +61,19 @@ fn clear_building(env: &mut TestEnvironment, cell: Cell) {
     assert!(env.tile_map.try_clear_tile_from_layer(cell, TileMapLayerKind::Objects).is_ok());
 }
 
-type CellSnapshot = (Terrain, Cover, MinimapRoad);
+// Draws a wall (or a road) from `from` to `to` as a player's drag does.
+fn draw(env: &mut TestEnvironment, from: Cell, to: Cell, kind: RoadKind) {
+    let segment = road::build_segment(&env.tile_map, from, to, kind);
+    assert!(segment.is_valid, "{kind:?} from {from} to {to} should be valid");
+    TilePlacement::place_road_segment(&env.new_sim_context(0.0), &segment, true).expect("the segment");
+}
+
+fn place_gatehouse(env: &mut TestEnvironment, cell: Cell) -> PlaceOrClearResult {
+    let gatehouse = test_utils::find_building_def("gatehouse");
+    TilePlacement::place(&env.new_sim_context(0.0), cell, gatehouse, false, false, ConstructionMode::Finished)
+}
+
+type CellSnapshot = (Terrain, Cover, MinimapRoad, MinimapWall);
 type FeatureSnapshot = (Cell, MinimapClass, Option<LandmarkKind>, FeatureState);
 
 // The grid and features of two minimaps, as comparable lists.
@@ -66,7 +83,8 @@ fn snapshot(minimap: &Minimap) -> (Vec<CellSnapshot>, Vec<FeatureSnapshot>) {
     for y in 0..size.height {
         for x in 0..size.width {
             let cell = Cell::new(x, y);
-            cells.push((minimap.grid().terrain(cell), minimap.grid().cover(cell), minimap.grid().road(cell)));
+            let grid = minimap.grid();
+            cells.push((grid.terrain(cell), grid.cover(cell), grid.road(cell), grid.wall(cell)));
         }
     }
     let features = minimap.features().iter().map(|f| (f.base_cell, f.class, f.landmark, f.state)).collect();
@@ -147,6 +165,8 @@ fn test_construction_sites_show_as_sites() {
 fn test_rebuild_matches_incremental_updates() {
     let mut env = grass_map(32);
     test_utils::place_road(&mut env, &[Cell::new(3, 10), Cell::new(4, 10), Cell::new(5, 10)]);
+    draw(&mut env, Cell::new(14, 16), Cell::new(18, 16), RoadKind::Rampart);
+    assert!(matches!(place_gatehouse(&mut env, Cell::new(16, 16)), PlaceOrClearResult::PlacedTile(_)));
     test_utils::place_terrain_by_def(&mut env, Cell::new(20, 20), test_utils::find_water_def());
     test_utils::place_tile_as_player(&mut env, Cell::new(8, 8), test_utils::find_building_def("market"));
     test_utils::place_tile_as_player(&mut env, Cell::new(12, 12), test_utils::find_vegetation_def("bamboo"));
@@ -157,6 +177,58 @@ fn test_rebuild_matches_incremental_updates() {
         snapshot(&rebuilt) == snapshot(env.tile_map.minimap()),
         "a rebuilt minimap differs from the one kept up to date"
     );
+}
+
+// Wall pieces are lines on the grid's wall layer, as roads are, not features: a run per tier, its
+// ends meeting the next tier's and reaching into a gatehouse, which is a feature and a gate cell.
+fn test_walls_draw_as_lines() {
+    let mut env = grass_map(64);
+    draw(&mut env, Cell::new(20, 30), Cell::new(25, 30), RoadKind::Palisade);
+    draw(&mut env, Cell::new(26, 30), Cell::new(30, 30), RoadKind::Rampart);
+    draw(&mut env, Cell::new(36, 36), Cell::new(36, 36), RoadKind::CityWall);
+
+    let walls = |env: &TestEnvironment| {
+        let minimap = env.tile_map.minimap();
+        let style = MinimapStyle::load(Realm::DaiLong).unwrap();
+        let mut shapes = ShapeCache::default();
+        shapes.refresh(minimap.features(), minimap.grid(), &style, 0);
+        let mut runs: Vec<_> = shapes.walls.iter().map(|run| (run.kind, run.from, run.to)).collect();
+        runs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        runs
+    };
+
+    let minimap = env.tile_map.minimap();
+    assert_eq!(minimap.grid().wall(Cell::new(20, 30)), MinimapWall::Palisade);
+    assert_eq!(minimap.grid().wall(Cell::new(26, 30)), MinimapWall::Rampart);
+    assert_eq!(minimap.grid().wall(Cell::new(19, 30)), MinimapWall::None);
+    assert_eq!(minimap.grid().cover(Cell::new(20, 30)), Cover::Building);
+    assert!(minimap.features().is_empty(), "wall pieces aren't features");
+    assert_eq!(minimap.describe_cell(Cell::new(26, 30)).as_deref(), Some("Rampart"));
+    assert_eq!(walls(&env), [
+        (MinimapWall::Palisade, (20.0, 30.0), (25.5, 30.0)),
+        (MinimapWall::Rampart, (25.5, 30.0), (30.0, 30.0)),
+        (MinimapWall::CityWall, (36.0, 36.0), (36.0, 36.0)), // A piece alone.
+    ]);
+
+    // A gatehouse on a piece: a gate cell and a feature, the runs either side reaching its centre.
+    assert!(matches!(place_gatehouse(&mut env, Cell::new(22, 30)), PlaceOrClearResult::PlacedTile(_)));
+    let minimap = env.tile_map.minimap();
+    assert_eq!(minimap.grid().wall(Cell::new(22, 30)), MinimapWall::Gate);
+    assert_eq!(minimap.grid().road(Cell::new(22, 30)), MinimapRoad::Dirt, "the road under it");
+    assert_eq!(minimap.features().len(), 1);
+    assert_eq!(walls(&env), [
+        (MinimapWall::Palisade, (20.0, 30.0), (22.0, 30.0)),
+        (MinimapWall::Palisade, (22.0, 30.0), (25.5, 30.0)),
+        (MinimapWall::Rampart, (25.5, 30.0), (30.0, 30.0)),
+        (MinimapWall::CityWall, (36.0, 36.0), (36.0, 36.0)),
+    ]);
+
+    // Cleared, the gap's road stays and the wall layer forgets the gate.
+    clear_building(&mut env, Cell::new(22, 30));
+    let minimap = env.tile_map.minimap();
+    assert_eq!(minimap.grid().wall(Cell::new(22, 30)), MinimapWall::None);
+    assert!(minimap.features().is_empty());
+    assert_eq!(walls(&env)[0], (MinimapWall::Palisade, (20.0, 30.0), (21.0, 30.0)));
 }
 
 // ----------------------------------------------

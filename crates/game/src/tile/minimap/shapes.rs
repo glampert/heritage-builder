@@ -1,8 +1,8 @@
-// The minimap's crisp layer: buildings, fields and roads as shapes over the baked base.
+// The minimap's crisp layer: buildings, fields, roads and walls as shapes over the baked base.
 //
 // The shapes are kept in cell coordinates and rebuilt only when the features, the roads or the
 // style change. Each frame they're moved to the screen with the view's affine transform, culled
-// to the visible cells and batched into three meshes (shadows; fields; roads and buildings), so
+// to the visible cells and batched into three meshes (shadows; fields; roads, walls and buildings), so
 // a frame costs a few vertices per building and no tessellation. Quads get a one-pixel feather
 // ring for anti-aliasing.
 
@@ -10,7 +10,16 @@ use common::{Color, Vec2};
 use engine::{render::texture::TextureHandle, ui::UiMesh};
 
 use super::{
-    model::{FeatureState, LandmarkKind, MinimapClass, MinimapFeature, MinimapFeatures, MinimapGrid, MinimapRoad},
+    model::{
+        FeatureState,
+        LandmarkKind,
+        MinimapClass,
+        MinimapFeature,
+        MinimapFeatures,
+        MinimapGrid,
+        MinimapRoad,
+        MinimapWall,
+    },
     style::MinimapStyle,
     widget::CellToMinimap,
 };
@@ -64,11 +73,21 @@ pub struct RoadShape {
     pub kind: MinimapRoad,
 }
 
+// A straight run of wall pieces of one tier, from and to points along a row or column: the
+// centres of its end cells, reaching on to meet a neighbouring tier's run or into a gatehouse.
+#[derive(Copy, Clone)]
+pub struct WallShape {
+    pub from: (f32, f32),
+    pub to: (f32, f32),
+    pub kind: MinimapWall,
+}
+
 #[derive(Default)]
 pub struct ShapeCache {
-    versions: Option<(u64, u64, u32)>, // Features, roads, style.
+    versions: Option<(u64, u64, u32)>, // Features, roads and walls, style.
     pub features: Vec<FeatureShape>,
     pub roads: Vec<RoadShape>,
+    pub walls: Vec<WallShape>,
     pub landmarks: Vec<(Vec2, LandmarkKind, f32)>, // Centre in cells, kind, footprint size in cells.
 }
 
@@ -91,6 +110,7 @@ impl ShapeCache {
         self.features.clear();
         self.landmarks.clear();
         self.roads.clear();
+        self.walls.clear();
 
         for feature in features.iter() {
             if feature.class == MinimapClass::None {
@@ -154,10 +174,72 @@ impl ShapeCache {
                 y += 1;
             }
         }
+
+        self.rebuild_walls(grid);
+    }
+
+    // Walls: straight runs of one tier along x, then along y, as roads are. A run's ends reach on
+    // to the edge of a neighbouring piece of another tier, whose run reaches back to meet it, and
+    // to the centre of a gatehouse beside it, under its block, so a wall's line has no gaps. A
+    // piece with no wall beside it is a run of one.
+    fn rebuild_walls(&mut self, grid: &MinimapGrid) {
+        let size = grid.size();
+        let wall = |x: i32, y: i32| grid.wall(common::coords::Cell::new(x, y));
+        let reach = |neighbour: MinimapWall| match neighbour {
+            MinimapWall::None => 0.0,
+            MinimapWall::Gate => 1.0,
+            _ => 0.5,
+        };
+
+        for y in 0..size.height {
+            let mut x = 0;
+            while x < size.width {
+                let kind = wall(x, y);
+                if !kind.is_piece() {
+                    x += 1;
+                    continue;
+                }
+                let start = x;
+                while x + 1 < size.width && wall(x + 1, y) == kind {
+                    x += 1;
+                }
+                let (before, after) = (reach(wall(start - 1, y)), reach(wall(x + 1, y)));
+                let alone = start == x
+                    && before == 0.0
+                    && after == 0.0
+                    && wall(x, y - 1) == MinimapWall::None
+                    && wall(x, y + 1) == MinimapWall::None;
+                if start < x || before > 0.0 || after > 0.0 || alone {
+                    let (from, to) = ((start as f32 - before, y as f32), (x as f32 + after, y as f32));
+                    self.walls.push(WallShape { from, to, kind });
+                }
+                x += 1;
+            }
+        }
+        for x in 0..size.width {
+            let mut y = 0;
+            while y < size.height {
+                let kind = wall(x, y);
+                if !kind.is_piece() {
+                    y += 1;
+                    continue;
+                }
+                let start = y;
+                while y + 1 < size.height && wall(x, y + 1) == kind {
+                    y += 1;
+                }
+                let (before, after) = (reach(wall(x, start - 1)), reach(wall(x, y + 1)));
+                if start < y || before > 0.0 || after > 0.0 {
+                    let (from, to) = ((x as f32, start as f32 - before), (x as f32, y as f32 + after));
+                    self.walls.push(WallShape { from, to, kind });
+                }
+                y += 1;
+            }
+        }
     }
 
     pub fn shape_count(&self) -> usize {
-        self.features.len() + self.roads.len()
+        self.features.len() + self.roads.len() + self.walls.len()
     }
 }
 
@@ -168,7 +250,7 @@ impl ShapeCache {
 pub struct MinimapMeshes {
     pub shadows: UiMesh,
     pub fields: UiMesh,
-    pub top: UiMesh, // Road casings, roads, outlines and buildings, in that order.
+    pub top: UiMesh, // Road casings, roads, wall casings, walls, outlines and buildings, in that order.
 }
 
 // A lens's colour for a feature, None for neutral.
@@ -195,7 +277,11 @@ pub fn build_meshes(cache: &ShapeCache, params: &MeshParams) -> MinimapMeshes {
     let mut meshes = MinimapMeshes {
         shadows: UiMesh::with_capacity(TextureHandle::White, cache.features.len() * 12, cache.features.len() * 30),
         fields: UiMesh::new(params.field_texture),
-        top: UiMesh::with_capacity(TextureHandle::White, (cache.features.len() * 2 + cache.roads.len() * 2) * 12, 0),
+        top: UiMesh::with_capacity(
+            TextureHandle::White,
+            (cache.features.len() * 2 + (cache.roads.len() + cache.walls.len()) * 2) * 12,
+            0,
+        ),
     };
 
     let quad = |mesh: &mut UiMesh, cells: &CellBox, color: Color| {
@@ -262,6 +348,30 @@ pub fn build_meshes(cache: &ShapeCache, params: &MeshParams) -> MinimapMeshes {
             MinimapRoad::Paved => paved,
             MinimapRoad::Dyke => dyke,
             _ => dirt,
+        });
+
+        // Walls: a casing, then the wall in its tier's colour, as roads are.
+        let wall_width = style.wall_width_cells.max(min_width);
+        let mut wall = |width: f32, color_of: &dyn Fn(&WallShape) -> Color| {
+            let half = width * 0.5;
+            for run in &cache.walls {
+                let cells =
+                    CellBox { x0: run.from.0 - half, y0: run.from.1 - half, x1: run.to.0 + half, y1: run.to.1 + half };
+                if cells.overlaps(&params.visible) {
+                    quad(&mut meshes.top, &cells, color_of(run));
+                }
+            }
+        };
+        if detailed {
+            let casing = style.palette.wall_casing.color();
+            wall(style.wall_casing_cells.max(wall_width), &|_| casing);
+        }
+        let palette = &style.palette;
+        let (palisade, rampart, city_wall) = (palette.palisade.color(), palette.rampart.color(), palette.city_wall.color());
+        wall(wall_width, &|run| match run.kind {
+            MinimapWall::Rampart => rampart,
+            MinimapWall::CityWall => city_wall,
+            _ => palisade,
         });
 
         // A lens's marks on single cells (the Flood lens's dykes, by their wear).
