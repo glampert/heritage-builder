@@ -150,3 +150,7 @@ harness = false
 [[test]]
 name    = "storage"
 harness = false
+
+[[test]]
+name    = "defence"
+harness = false

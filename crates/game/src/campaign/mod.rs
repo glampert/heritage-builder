@@ -423,6 +423,14 @@ pub fn active_mission_floods() -> Option<MissionFloodsDef> {
     campaign.missions.get(active.mission_index)?.floods.clone()
 }
 
+// The raids the active mission sends (docs/plans/defence.md). None outside a campaign, or for a
+// mission without a `defence` block.
+pub fn active_mission_defence() -> Option<config::MissionDefenceDef> {
+    let active = CampaignManager::get().progress.active.clone()?;
+    let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
+    campaign.missions.get(active.mission_index)?.defence.clone()
+}
+
 // The trade block of the active mission, with the name of its campaign's world map, which names its
 // partners. None outside a campaign; the block is None for a mission without trade.
 pub fn active_mission_trade() -> Option<(String, Option<MissionTradeDef>)> {

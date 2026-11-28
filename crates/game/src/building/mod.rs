@@ -94,7 +94,7 @@ pub(crate) mod storage;
 
 bitflags_with_display! {
     #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-    pub struct BuildingKind: u32 {
+    pub struct BuildingKind: u64 {
         // Archetype: House
         const House          = 1 << 0;
 
@@ -129,6 +129,13 @@ bitflags_with_display! {
         const FestivalSquare = 1 << 24; // Where the city holds its festivals (faith).
         const SluiceGate     = 1 << 25; // Waters the fields behind a dyke (crate::farms).
         const Dock           = 1 << 26; // Where trade ships moor, its dockers carrying their goods (crate::trade::ships).
+
+        // Defence (docs/plans/defence.md):
+        const Gatehouse      = 1 << 27; // Where a road crosses a wall: the city's walkers pass, attackers don't.
+        const Tower          = 1 << 28; // On or beside a wall: shoots attackers in range.
+        const Watchtower     = 1 << 29; // Warns of raids earlier and shows their approach.
+        const Garrison       = 1 << 30; // Trains militia who fight attackers within its radius.
+        const Fortress       = 1 << 31; // A larger garrison, with archers.
     }
 }
 
@@ -195,7 +202,24 @@ impl BuildingKind {
                 | Self::BuildersGuild.bits()
                 | Self::FestivalSquare.bits()
                 | Self::SluiceGate.bits()
-                | Self::Dock.bits(),
+                | Self::Dock.bits()
+                | Self::Gatehouse.bits()
+                | Self::Tower.bits()
+                | Self::Watchtower.bits()
+                | Self::Garrison.bits()
+                | Self::Fortress.bits(),
+        )
+    }
+
+    // The defence's buildings (docs/plans/defence.md).
+    #[inline]
+    pub const fn defences() -> Self {
+        Self::from_bits_retain(
+            Self::Gatehouse.bits()
+                | Self::Tower.bits()
+                | Self::Watchtower.bits()
+                | Self::Garrison.bits()
+                | Self::Fortress.bits(),
         )
     }
 

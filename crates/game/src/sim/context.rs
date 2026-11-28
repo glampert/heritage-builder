@@ -16,6 +16,7 @@ use rand::{
 use smallvec::SmallVec;
 
 use super::{
+    CityDefence,
     CityFaith,
     CityFloods,
     CityLabour,
@@ -119,6 +120,9 @@ pub struct SimContext<'game> {
     // The sectors' labour priorities:
     labour: RawPtr<CityLabour>,
 
+    // Raids, walls and the city's defenders:
+    defence: RawPtr<CityDefence>,
+
     // Update delta time.
     delta_time_secs: Seconds,
 
@@ -159,6 +163,7 @@ pub(super) struct SimContextParts<'a> {
     pub trade: &'a mut CityTrade,
     pub ratings: &'a mut CityRatings,
     pub labour: &'a mut CityLabour,
+    pub defence: &'a mut CityDefence,
     pub cmds: &'a mut SimCmds,
 }
 
@@ -186,6 +191,7 @@ impl<'game> SimContext<'game> {
             trade: RawPtr::from_ref(parts.trade),
             ratings: RawPtr::from_ref(parts.ratings),
             labour: RawPtr::from_ref(parts.labour),
+            defence: RawPtr::from_ref(parts.defence),
             delta_time_secs,
             is_world_teardown,
             _borrow: PhantomData,
@@ -290,6 +296,11 @@ impl<'game> SimContext<'game> {
     #[inline]
     pub fn labour(&self) -> &CityLabour {
         &self.labour
+    }
+
+    #[inline]
+    pub fn defence(&self) -> &CityDefence {
+        &self.defence
     }
 
     // What the world stats count of the simulation's state (World::refresh_stats).
@@ -756,6 +767,11 @@ impl<'game> SimContextMut<'game> {
     #[inline]
     pub fn labour_mut(&self) -> &mut CityLabour {
         self.labour.mut_ref_cast()
+    }
+
+    #[inline]
+    pub fn defence_mut(&self) -> &mut CityDefence {
+        self.defence.mut_ref_cast()
     }
 
     #[inline]

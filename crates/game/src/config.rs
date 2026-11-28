@@ -210,6 +210,10 @@ pub struct SimConfigs {
     #[debug_ui(nested)]
     pub labour: LabourRules,
 
+    // Raids, walls and the city's defenders (docs/plans/defence.md).
+    #[debug_ui(nested)]
+    pub defence: DefenceRules,
+
     // Workers/Population: how far along the roads an employer's workers may live.
     pub workers_search_radius: i32,
 
@@ -247,6 +251,7 @@ impl Default for SimConfigs {
             trade: TradeRules::default(),
             ratings: RatingRules::default(),
             labour: LabourRules::default(),
+            defence: DefenceRules::default(),
             // Workers/Population:
             workers_search_radius: 20,
             storage_errand_secs: 10.0,
@@ -507,6 +512,37 @@ impl Default for FloodRules {
             wear_per_month: 8.0,
             wear_jitter: 0.25,
             worn_wear: 50.0,
+        }
+    }
+}
+
+// How raids come (docs/plans/defence.md). The raids a mission sends are data (its `defence` block in
+// campaigns.json). To be balanced in M13.
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DefenceRules {
+    // The months of warning a raid gives when its mission doesn't say.
+    pub warning_months: u32,
+
+    // A custom game with its Raids switch on (decision Q9): a raid every this many years at least
+    // and at most (drawn from the simulation's RNG), the first no sooner than the least.
+    pub random_raid_min_years: u32,
+    pub random_raid_max_years: u32,
+    // Its size: one raider for this many residents, within these bounds.
+    pub residents_per_raider: u32,
+    pub random_raid_min_size: u32,
+    pub random_raid_max_size: u32,
+}
+
+impl Default for DefenceRules {
+    fn default() -> Self {
+        Self {
+            warning_months: 2,
+            random_raid_min_years: 2,
+            random_raid_max_years: 4,
+            residents_per_raider: 25,
+            random_raid_min_size: 4,
+            random_raid_max_size: 40,
         }
     }
 }

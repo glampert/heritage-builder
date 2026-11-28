@@ -329,6 +329,7 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 17 | The four ratings, the failure switches and clocks, the distinctions out of reach (`sim.ratings`), and the months' disasters (`sim.risks.disasters`) | M9 | Done (Phase 0) |
 | 18 | How many times the court has asked again for each request (`again` on `sim.trade`'s requests) | M9 | Done (Phase 2; Phases 3 to 5 needed no bump: a custom game's goal set and Failure switch are in the save header) |
 | 19 | The sectors' labour order and the allocation's clock (`sim.labour`), each building's `paused` (its own worker timer gone), a store's runner and errand clock | M11 | Done (Phase 2) |
+| 20 | The city's defence (`sim.defence`: random raids, raids scheduled, under way and logged, the walls' condition) and each unit's `health` | D | Done (Phase 0) |
 
 ## Conventions for every milestone
 

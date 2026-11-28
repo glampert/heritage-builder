@@ -37,12 +37,14 @@ pub mod resources;
 pub mod finance;
 pub use finance::Finance;
 
+pub mod defence;
 pub mod faith;
 pub mod floods;
 pub mod labour;
 pub mod ratings;
 pub mod risks;
 pub mod trade;
+pub use defence::CityDefence;
 pub use faith::CityFaith;
 pub use floods::CityFloods;
 pub use labour::CityLabour;
@@ -91,6 +93,7 @@ pub struct Simulation {
     trade: CityTrade,
     ratings: CityRatings,
     labour: CityLabour,
+    defence: CityDefence,
 
     // Path finding:
     #[serde(skip)]
@@ -122,6 +125,7 @@ impl Simulation {
             trade: CityTrade::new(),
             ratings: CityRatings::new(),
             labour: CityLabour::new(&configs.sim.labour),
+            defence: CityDefence::new(),
             search: Search::with_grid_size(map_size_in_cells),
             speed: configs.sim.default_speed.clamp(Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED),
             is_paused: false,
@@ -159,6 +163,7 @@ impl Simulation {
             trade: &mut self.trade,
             ratings: &mut self.ratings,
             labour: &mut self.labour,
+            defence: &mut self.defence,
             cmds: &mut self.cmds,
         }
     }
@@ -270,6 +275,33 @@ impl Simulation {
     #[inline]
     pub fn labour_mut(&mut self) -> &mut CityLabour {
         &mut self.labour
+    }
+
+    #[inline]
+    pub fn defence(&self) -> &CityDefence {
+        &self.defence
+    }
+
+    #[inline]
+    pub fn defence_mut(&mut self) -> &mut CityDefence {
+        &mut self.defence
+    }
+
+    // The game's raids from its start, at `now` (an ordinal month): CityDefence::start with the
+    // simulation's RNG.
+    pub fn start_defence(
+        &mut self,
+        mission: Option<&crate::campaign::config::MissionDefenceDef>,
+        random_raids: bool,
+        now: u32,
+        rules: &crate::config::DefenceRules,
+    ) {
+        self.defence.start(mission, random_raids, now, rules, self.rng.as_mut());
+    }
+
+    // Turns a custom game's random raids on or off at `now` (automation's `defence.set`).
+    pub fn set_random_raids(&mut self, on: bool, now: u32, rules: &crate::config::DefenceRules) {
+        self.defence.set_random_raids(on, now, rules, self.rng.as_mut());
     }
 
     // What the world stats count of the simulation's state (World::refresh_stats).

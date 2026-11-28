@@ -90,6 +90,8 @@ pub struct Unit {
     navigation: UnitNavigation,
     current_task_id: UnitTaskId, // invalid if no task.
     path_is_blocked: bool,
+    // Its health, from its config's max_health when it spawns (docs/plans/defence.md, §3).
+    health: u16,
 
     #[serde(skip)]
     config: Option<&'static UnitConfig>, // patched on post_load.
@@ -172,6 +174,7 @@ impl Unit {
         self.config_key = config.key();
         self.direction = UnitDirection::Idle;
         self.path_is_blocked = false;
+        self.health = config.max_health;
 
         self.anim_sets.set_anim(tile, UnitAnimSets::IDLE);
         self.navigation.set_traversable_node_kinds(config.traversable_node_kinds);
@@ -188,6 +191,7 @@ impl Unit {
         self.config = None;
         self.config_key = UnitConfigKey::default();
         self.direction = UnitDirection::default();
+        self.health = 0;
 
         self.anim_sets.clear();
         self.inventory.clear();
@@ -230,6 +234,23 @@ impl Unit {
     #[inline]
     pub fn direction(&self) -> UnitDirection {
         self.direction
+    }
+
+    // Its health, 0 to its config's max_health (docs/plans/defence.md, §3).
+    #[inline]
+    pub fn health(&self) -> u16 {
+        self.health
+    }
+
+    #[inline]
+    pub fn max_health(&self) -> u16 {
+        self.config().max_health
+    }
+
+    // Sets its health, at most its max_health (automation; the raids' strikes and arrows later).
+    #[inline]
+    pub fn set_health(&mut self, health: u16) {
+        self.health = health.min(self.max_health());
     }
 
     #[inline]

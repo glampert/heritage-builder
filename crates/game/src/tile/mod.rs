@@ -190,16 +190,21 @@ bitflags_with_display! {
 pub struct TileGameObjectHandle {
     // Index into SpawnPool.
     index: u32,
-    // For buildings this holds the BuildingKind, for Units the generation count.
-    kind_or_generation: u32,
+    // For buildings this holds the BuildingKind's bits (a u64 since defence's kinds: a save made
+    // before holds a u32's, the same number), for Units the generation count.
+    kind_or_generation: u64,
 }
+
+// The reserved value an invalid handle holds in both fields: u32::MAX, as saves before the kind
+// widened to a u64 hold it (a building kind is a single bit, never this; a generation stays below).
+const INVALID_HANDLE_KIND: u64 = u32::MAX as u64;
 
 impl TileGameObjectHandle {
     #[inline]
-    pub fn new_building(index: usize, kind: u32) -> Self {
+    pub fn new_building(index: usize, kind: u64) -> Self {
         // Reserved value for invalid.
         debug_assert!(index < u32::MAX as usize);
-        debug_assert!(kind < u32::MAX);
+        debug_assert!(kind.count_ones() == 1, "A building's handle holds one BuildingKind");
         Self { index: index.try_into().expect("Index cannot fit into u32!"), kind_or_generation: kind }
     }
 
@@ -208,7 +213,7 @@ impl TileGameObjectHandle {
         // Reserved value for invalid.
         debug_assert!(index < u32::MAX as usize);
         debug_assert!(generation < u32::MAX);
-        Self { index: index.try_into().expect("Index cannot fit into u32!"), kind_or_generation: generation }
+        Self { index: index.try_into().expect("Index cannot fit into u32!"), kind_or_generation: u64::from(generation) }
     }
 
     #[inline]
@@ -216,17 +221,17 @@ impl TileGameObjectHandle {
         // Reserved value for invalid.
         debug_assert!(index < u32::MAX as usize);
         debug_assert!(generation < u32::MAX);
-        Self { index: index.try_into().expect("Index cannot fit into u32!"), kind_or_generation: generation }
+        Self { index: index.try_into().expect("Index cannot fit into u32!"), kind_or_generation: u64::from(generation) }
     }
 
     #[inline]
     pub const fn invalid() -> Self {
-        Self { index: u32::MAX, kind_or_generation: u32::MAX }
+        Self { index: u32::MAX, kind_or_generation: INVALID_HANDLE_KIND }
     }
 
     #[inline]
     pub fn is_valid(self) -> bool {
-        self.index < u32::MAX && self.kind_or_generation < u32::MAX
+        self.index < u32::MAX && self.kind_or_generation != INVALID_HANDLE_KIND
     }
 
     #[inline]
@@ -236,15 +241,15 @@ impl TileGameObjectHandle {
     }
 
     #[inline]
-    pub fn kind(self) -> u32 {
-        debug_assert!(self.kind_or_generation < u32::MAX);
+    pub fn kind(self) -> u64 {
+        debug_assert!(self.kind_or_generation != INVALID_HANDLE_KIND);
         self.kind_or_generation
     }
 
     #[inline]
     pub fn generation(self) -> u32 {
-        debug_assert!(self.kind_or_generation < u32::MAX);
-        self.kind_or_generation
+        debug_assert!(self.kind_or_generation < INVALID_HANDLE_KIND);
+        self.kind_or_generation as u32
     }
 }
 

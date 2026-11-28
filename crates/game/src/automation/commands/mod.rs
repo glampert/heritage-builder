@@ -14,6 +14,7 @@ mod assert;
 mod camera;
 mod city;
 mod config;
+mod defence;
 mod faith;
 mod farms;
 mod finance;
@@ -54,6 +55,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     farms::COMMANDS,
     floods::COMMANDS,
     trade::COMMANDS,
+    defence::COMMANDS,
     ratings::COMMANDS,
     labour::COMMANDS,
     camera::COMMANDS,

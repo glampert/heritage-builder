@@ -603,6 +603,6 @@ fn jitter(base_cell: Cell, kind: BuildingKind, spread: f32) -> f32 {
         return 1.0;
     }
     let cell_bits = (base_cell.x as u32 as u64) | ((base_cell.y as u32 as u64) << 32);
-    let key = cell_bits ^ u64::from(kind.bits()).wrapping_mul(hash::SPLITMIX64_GAMMA);
+    let key = cell_bits ^ kind.bits().wrapping_mul(hash::SPLITMIX64_GAMMA);
     1.0 - spread + 2.0 * spread * hash::hash_to_unit_f32(hash::splitmix64(key))
 }

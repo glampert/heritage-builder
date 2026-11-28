@@ -223,6 +223,9 @@ pub struct MissionDef {
     // The partners the city trades with and their terms (docs/plans/trade.md). None: no trade.
     #[serde(default)]
     pub trade: Option<MissionTradeDef>,
+    // The raids sent against the city (docs/plans/defence.md, §2). None: no raids.
+    #[serde(default)]
+    pub defence: Option<MissionDefenceDef>,
     // The city the mission founds, on its campaign's world map: the player's once the mission is
     // finished, and while it's played. None: it founds none.
     #[serde(default)]
@@ -511,6 +514,71 @@ impl MissionFloodsDef {
     }
 }
 
+// A mission's raids (docs/plans/defence.md, §2): each arrives `month` months after the mission's
+// start, from a side of the map or a cell, with `warning_months` of warning (DefenceRules'
+// `warning_months` when left out).
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MissionDefenceDef {
+    pub raids: Vec<MissionRaidDef>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MissionRaidDef {
+    // Unique in the mission, [a-z0-9_]: names the raid in its messages, the log and automation.
+    pub id: String,
+    // Months after the mission's start, 1 or more.
+    pub month: u32,
+    pub from: crate::sim::defence::RaidFrom,
+    #[serde(default)]
+    pub kind: crate::sim::defence::RaidKind,
+    // How many raiders, 1 or more.
+    pub size: u32,
+    #[serde(default)]
+    pub warning_months: Option<u32>,
+    // A Realm text key naming the enemy in the warnings ("enemy.vijara_pirates"). None: the kind's
+    // words.
+    #[serde(default)]
+    pub enemy: Option<String>,
+}
+
+impl MissionDefenceDef {
+    // What's wrong with it, if anything.
+    pub fn problems(&self) -> Vec<String> {
+        let mut problems = Vec::new();
+        for (index, raid) in self.raids.iter().enumerate() {
+            let id = &raid.id;
+            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_') {
+                problems.push(format!("defence.raids[{index}]'s id '{id}' must be [a-z0-9_] and not empty"));
+            }
+            if self.raids[..index].iter().any(|other| other.id == *id) {
+                problems.push(format!("defence.raids has two raids with the id '{id}'"));
+            }
+            if raid.month == 0 {
+                problems.push(format!("defence raid '{id}' arrives in month {}: it must be 1 or later", raid.month));
+            }
+            if raid.size == 0 {
+                problems.push(format!("defence raid '{id}' sends no raiders: its size must be 1 or more"));
+            }
+            if let Some(warning) = raid.warning_months
+                && warning > raid.month
+            {
+                problems.push(format!(
+                    "defence raid '{id}' is warned of {warning} months ahead, before the mission starts (month {})",
+                    raid.month
+                ));
+            }
+            if let crate::sim::defence::RaidFrom::Cell([x, y]) = raid.from
+                && (x < 0 || y < 0)
+            {
+                problems.push(format!("defence raid '{id}' comes from [{x}, {y}], off the map"));
+            }
+        }
+        problems
+    }
+}
+
 // A mission's trade (docs/plans/trade.md, §1), or a custom map's (custom_game::config::MapDef): the
 // partners it trades with, cities of its campaign's world map, and the requests it sends
 // (WorldMapDef::trade_problems checks them). Trade is on when it lists partners, unless `enabled`
@@ -790,6 +858,11 @@ impl CampaignConfigs {
                         .and_then(|calendar| calendar.wet_months.clone())
                         .unwrap_or_else(|| crate::sim::calendar::CalendarSettings::default().wet_months);
                     for problem in floods.problems(&wet_months) {
+                        errors.push(format!("Campaign '{name}', mission {index}: {problem}."));
+                    }
+                }
+                if let Some(defence) = &mission.defence {
+                    for problem in defence.problems() {
                         errors.push(format!("Campaign '{name}', mission {index}: {problem}."));
                     }
                 }

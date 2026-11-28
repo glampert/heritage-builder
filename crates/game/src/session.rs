@@ -707,11 +707,22 @@ impl GameSession {
             let rules = &GameConfigs::get().sim.trade;
             crate::trade::start(self.sim.trade_mut(), &world_map, &trade.unwrap_or_default(), now, rules);
         }
+        // A mission without a defence block sends no raids.
+        if campaign::active_mission().is_some() {
+            self.start_defence(campaign::active_mission_defence().as_ref(), false);
+        }
         // A new city, rated from its start. A campaign mission can be lost as its `failure` block
         // says (both ways unless it turns one off); any other game can't.
         let fails_on = campaign::active_mission_failure().unwrap_or(FailureSwitches::OFF);
         self.sim.ratings_mut().start(fails_on);
         self.rate_city();
+    }
+
+    // The game's raids from its start (docs/plans/defence.md, §2): a mission's, or a custom game's
+    // random ones with its Raids switch on.
+    fn start_defence(&mut self, mission: Option<&crate::campaign::config::MissionDefenceDef>, random_raids: bool) {
+        let now = self.ordinal_month();
+        self.sim.start_defence(mission, random_raids, now, &GameConfigs::get().sim.defence);
     }
 
     // The calendar's ordinal month now (year × 12 + month - 1).
@@ -742,8 +753,10 @@ impl GameSession {
             let now = self.ordinal_month();
             crate::trade::start(self.sim.trade_mut(), &world_map, &trade, now, &configs.sim.trade);
         }
-        // TODO(realm-ui): the difficulty, once M4 and M9 read it; raids (game Phase 2) once they
-        // exist. Stored with the game until then (CustomGameRecord).
+        // Raids at random with its Raids switch on (docs/plans/defence.md, Q9).
+        self.start_defence(None, settings.raids);
+        // TODO(realm-ui): the difficulty, once M4 and M9 read it. Stored with the game until then
+        // (CustomGameRecord).
         custom_game::set_active(Some(ActiveCustomGame::from_settings(settings)));
         // A new city, rated from its start. With its Failure switch on, debt and Legitimacy can
         // lose it as they lose a mission (docs/plans/ratings.md, §7); off, it can't be lost.
@@ -1015,7 +1028,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 19;
+const CURRENT_SAVE_VERSION: u32 = 20;
 
 // What the menus show of a save without loading it (the home menu's Continue, the Load / Save
 // dialog): whether this game can load it (its save version is this game's) and its header (blank

@@ -48,6 +48,10 @@ bitflags_with_display! {
         const Vegetation         = 1 << 9;
         const HarvestableTree    = 1 << 10;
         const Field              = 1 << 11; // A farmstead's rice field: nothing walks it.
+        // Defence (docs/plans/defence.md): a wall cell, which no one walks (attackers break it),
+        // and a gatehouse's, a road the city's walkers pass that attackers treat as a wall.
+        const Wall               = 1 << 12;
+        const Gate               = 1 << 13;
     }
 }
 
@@ -154,6 +158,8 @@ impl NodeKind {
         }
 
         // NOTE: If multiple flags are set, higher on this list will match first and win.
+        map_to_color!(self, Gate, Color::new(0.95, 0.55, 0.10, 1.0)); // orange
+        map_to_color!(self, Wall, Color::new(0.35, 0.25, 0.20, 1.0)); // dark brown
         map_to_color!(self, BuildingAccess, Color::new(0.50, 0.50, 0.50, 1.0)); // light gray
         map_to_color!(self, BuildingRoadLink, Color::new(1.00, 0.00, 0.00, 1.0)); // red
         map_to_color!(self, Building, Color::new(0.66, 0.23, 0.74, 1.0)); // purple

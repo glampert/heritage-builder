@@ -57,7 +57,18 @@ pub struct UnitConfig {
     // diagonal or not, ramp or not (docs/plans/unit-movement.md, Q7).
     #[serde(default)]
     pub flies: bool,
+
+    // The health a unit spawns with (docs/plans/defence.md, §3): raiders' strikes and arrows lower
+    // it, and it falls at 0. Every unit has it; which ones can be hurt is the raids' to decide.
+    #[serde(default = "default_max_health")]
+    pub max_health: u16,
 }
+
+fn default_max_health() -> u16 {
+    DEFAULT_MAX_HEALTH
+}
+
+pub const DEFAULT_MAX_HEALTH: u16 = 100;
 
 impl Default for UnitConfig {
     #[inline]
@@ -69,6 +80,7 @@ impl Default for UnitConfig {
             traversable_node_kinds: PathNodeKind::default(),
             movement_speed: 1.66,
             flies: false,
+            max_health: DEFAULT_MAX_HEALTH,
         }
     }
 }
