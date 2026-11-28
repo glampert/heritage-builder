@@ -277,7 +277,7 @@ These get their own plans when Phase 2 begins:
 - **Elite housing:** the second housing track and elite lots (GDD 5.2.1).
 - **Monuments and guilds:** staged construction with materials delivered and guild workers; the Temple of Learning and the Imperial Citadel (GDD 5.15).
 - **New walkers** (militia, raiders, caravans) use 8-way movement (U) and get all 8 directions of art from the start.
-- **Defence and attacks:**
+- **Defence and attacks** (milestone D, [defence.md](defence.md): planned 2026-11-28):
   - walls, gatehouses, moats, towers, watchtowers and fortresses with automatic militia, and the weapons workshop;
   - attacker AI, raids, warnings and damage (GDD 5.16);
   - plunder: losing a tax office to an attack takes gold from the city treasury (decided in [finance.md](finance.md));
